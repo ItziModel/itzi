@@ -20,9 +20,11 @@ To be completed
 The following raster maps are necessary:
   - Digital elevation model in meters
   - Friction, expressed as Manning's n
+
 The following raster space-time datasets are optional:
   - rain map in mm/h
   - user defined inflow in m/s (vertical velocity, i.e for 20m3/s on a 10x10 cell, the velocity is 0.2 m/s)
+
 The following raster maps are optionals:
   - boundary condition type: an integer map (see below)
   - boudary condition value: a map for boundary conditions using user-given value
@@ -45,5 +47,5 @@ The user can choose to output the following:
   - water depth
   - water surface elevation (depth + DEM)
 
-A raster space-time dataset is created for each selected output
-maps are written at ausing the STRDS name as a prefix
+A raster space-time dataset is created for each selected output.
+Maps are written using the STRDS name as a prefix.
