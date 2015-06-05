@@ -238,13 +238,30 @@ def main():
 
     # User-defined flows (m/s)
     if not options['in_inflow']:
-        user_grid = np.zeros(shape = (yr,xr), dtype = np.float16)
+        # if no STDS is provided, instanciate a TimeArray with
+        # a validity of all the simulation, with all values to zero
+        ta_user_inflow = stds.TimeArray(
+                            start_time = 0,
+                            end_time = sim_t,
+                            arr = np.zeros(
+                                        shape = (yr,xr),
+                                        dtype = np.float16))
     else:
-        #~ with raster.RasterRow(options['in_inflow'], mode='r') as rast:
-            #~ ext_grid = np.array(rast, dtype = np.float32)
+        # Make sure the input is a fully qualified map name 
         opt_inflow = rw.format_opt_map(options['in_inflow'], mapset)
-        inflow_dts = tgis.open_stds.open_old_stds(opt_inflow, 'strds')
-        inflow_map_list = inflow_dts.get_registered_maps(columns='id,start_time,end_time,unit', order='start_time')
+        # Get the map list from the STDS
+        inflow_stds = tgis.open_stds.open_old_stds(opt_inflow, 'strds')
+        inflow_map_list = inflow_stds.get_registered_maps(columns='id,start_time,end_time,unit', order='start_time')
+        # instanciate TimeArray with the first map of the STRDS
+        with raster.RasterRow(inflow_map_list[0]['id'], mode='r') as rast:
+            ta_user_inflow = stds.TimeArray(
+                            start_time = stds.to_s(
+                                        inflow_map_list[0]['unit'],
+                                        inflow_map_list[0]['start_time']),
+                            end_time = stds.to_s(
+                                        inflow_map_list[1]['unit'],
+                                        inflow_map_list[1]['start_time']),
+                            arr = np.array(rast, dtype = np.float32))
 
 
     # Boundary conditions type and value (for used-defined value)
@@ -338,28 +355,31 @@ def main():
         # time-variable input #
         #######################
 
-        for i, raster_map in enumerate(inflow_map_list):
+        # check if the user_inflow is still valid
+        if not ta_user_inflow.is_valid(sim_t):
+            for i, raster_map in enumerate(inflow_map_list):
+                # if the map is the last, set the end time as end of simulation
+                if i == len(inflow_map_list) - 1:
+                    end_time = max(sim_t,raster_map['start_time'])
+                # else set end time as start time of the next map
+                else:
+                    end_time = inflow_map_list[i+1]['start_time']
 
-            # if the map is the last, set the end time as end of simulation
-            if i == len(inflow_map_list) - 1:
-                end_time = max(sim_t,raster_map['start_time'])
-            # else set end time as start time of the next map
-            else:
-                end_time = inflow_map_list[i+1]['start_time']
+                # translate times in s
+                start_time_s = stds.to_s(raster_map['unit'], raster_map['start_time'])
+                end_time_s = stds.to_s(raster_map['unit'], end_time)
 
-            # translate input in s
-            if raster_map['unit'] == 'minutes':
-                start_time_s = raster_map['start_time'] * 60
-                end_time_s = end_time * 60
+                # check if the map match simulation time
+                if sim_clock >= start_time_s and sim_clock < end_time_s:
+                    # load the corresponding map
+                    with raster.RasterRow(raster_map['id'], mode='r') as rast:
+                        ta_user_inflow = stds.TimeArray(
+                                        start_time = start_time_s,
+                                        end_time = end_time_s,
+                                        arr=np.array(rast, dtype = np.float32))
 
-            # load the corresponding map
-            if sim_clock >= start_time_s and sim_clock < end_time_s:
-                #~ print sim_clock, raster_map['id']
-                with raster.RasterRow(raster_map['id'], mode='r') as rast:
-                    user_grid = np.array(rast, dtype = np.float32)
-
-        # update the domain object with ext_grid
-        domain.set_arr_ext(rain_grid, evap_grid, inf_grid, user_grid)
+            # update the domain object with ext_grid
+            domain.set_arr_ext(rain_grid, evap_grid, inf_grid, ta_user_inflow.arr)
 
 
         ############################
