@@ -10,36 +10,38 @@
 #
 #############################################################################
 
-import grass.script as grass
 import grass.temporal as tgis
 from grass.pygrass.messages import Messenger
-import rw
-
 import numpy as np
 
-
 import utils
+import rw
+
 
 def write_stds(stds, stds_id, dbif, can_ovr):
+    """write space time datasets
+    """
+    msgr = Messenger(raise_on_error=True)
     
     # check if stds allready in DB
     if stds.is_in_db(dbif=dbif) and can_ovr == False:
         dbif.close()
-        grass.fatal(_("Space time %s dataset <%s> is already in the database. "
+        msgr.fatal(_("Space time %s dataset <%s> is already in the database. "
                         "Use the overwrite flag.") %
                     (stds.get_new_map_instance(None).get_type(), stds_id))
     else:
         if stds.is_in_db(dbif=dbif) and can_ovr == True:
-            grass.warning(_("Overwrite space time %s dataset <%s> "
+            msgr.message(_("Overwrite space time %s dataset <%s> "
                             "and unregister all maps.") %
-                        (stds.get_new_map_instance(None).get_type(), stds_id))
+                    (stds.get_new_map_instance(None).get_type(), stds_id))
             stds.delete(dbif=dbif)
         stds = stds.get_new_instance(stds_id)
     
     return 0
 
 def create_stds(mapset, stds_h_name, stds_wse_name, start_time, can_ovr):
-    # 
+    """create wse and water depth STRDS
+    """
     
     # set ids, name and decription of result data sets
     stds_h_id = rw.format_opt_map(stds_h_name, mapset)
