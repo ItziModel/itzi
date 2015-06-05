@@ -4,8 +4,7 @@
 # COPYRIGHT:    (C) 2015 by Laurent Courty
 #
 #               This program is free software under the GNU General Public
-#               License (>=v2). Read the file COPYING that comes with GRASS
-#               for details.
+#               License (v3). Read the LICENCE file for details.
 
 import math
 import warnings
@@ -13,34 +12,6 @@ import numpy as np
 import numexpr as ne
 from grass.pygrass import raster, utils
 import grass.script as grass
-
-
-#~ def solve_Dt(a, g, dtmax, Dx, hmax):
-    #~ """
-    #~ Calculate the adaptative time-step according
-    #~ to the formula #15 in almeida et al (2012)
-    #~ dtmax = maximum time-step
-    #~ """
-    #~ if hmax > 0:
-        #~ # formula #15 in almeida et al (2012)
-        #~ return min(a * (Dx / (math.sqrt(g * hmax))), dtmax)
-    #~ else:
-        #~ return dtmax
-
-
-#~ def solve_h(h_grid_np1, depth_grid, ext_grid, flow_grid_padded, DxDy, Dt):
-    #~ """
-    #~ Calculate new water depth
-    #~ """
-#~ 
-    #~ flow_grid = flow_grid_padded[1:-1,1:-1]
-#~ 
-    #~ flow_sum = (flow_grid['W'] - flow_grid_padded[1:-1, 2:]['W']
-                #~ + flow_grid['S'] - flow_grid_padded[:-2, 1:-1]['S'])
-#~ 
-    #~ h_grid_np1[:] = (depth_grid + (ext_grid * Dt)) + flow_sum / DxDy * Dt
-#~ 
-    #~ return h_grid_np1
 
 
 def solve_q(g, theta, q_n_im12, q_n_im32, q_n_ip12, hflow, Dt, 
@@ -70,6 +41,7 @@ def solve_q(g, theta, q_n_im12, q_n_im32, q_n_ip12, hflow, Dt,
     q_np1_im12 = (term_1 - term_2) / term_3
     
     return q_np1_im12 * Dy  # output in m3/s
+
 
 def get_flow(z_grid_padded, n_grid_padded, depth_grid, hf_grid,
             flow_grid_padded, h_grid_np1_padded, flow_grid_np1,
@@ -154,36 +126,6 @@ def get_flow(z_grid_padded, n_grid_padded, depth_grid, hf_grid,
     return flow_grid_np1
 
 
-#~ def get_hflow(z_grid_padded, depth_grid_padded, hf_grid_padded):
-    #~ '''
-    #~ calculate the diff. between the highest water free surface of the two
-    #~ adjacent cells and the highest terrain elev.
-    #~ This act as an approximation of the hydraulic radius
-    #~ inputs:
-     #~ water depth and terrain numpy arrays
-    #~ 
-    #~ output: updated hf_grid_padded
-    #~ '''
-#~ 
-    #~ wse_im1 = z_grid_padded[1:-1, :-1] + depth_grid_padded[1:-1, :-1]
-    #~ wse_i = z_grid_padded[1:-1, 1:] + depth_grid_padded[1:-1, 1:]
-    #~ z_im1 = z_grid_padded[1:-1, :-1]
-    #~ z_i = z_grid_padded[1:-1, 1:]
-            #~ 
-    #~ wse_jm1 = z_grid_padded[1:, 1:-1] + depth_grid_padded[1:, 1:-1]
-    #~ wse_j = z_grid_padded[:-1, 1:-1] + depth_grid_padded[:-1, 1:-1]
-    #~ z_jm1 = z_grid_padded[1:, 1:-1]
-    #~ z_j = z_grid_padded[:-1, 1:-1]
-#~ 
-    #~ hf_grid_padded[1:-1, 1:]['W'] = (np.maximum(wse_im1, wse_i)
-                                        #~ - np.maximum(z_im1, z_i))
-#~ 
-    #~ hf_grid_padded[0:-1, 1:-1]['S'] = (np.maximum(wse_jm1, wse_j)
-                                        #~ - np.maximum(z_jm1, z_j))
-   #~ 
-    #~ return hf_grid_padded
-
-
 def flow_dir(arr_z_p):
     '''
     Return a "slope" array re presenting the flow direction for simple routing
@@ -221,6 +163,7 @@ def flow_dir(arr_z_p):
             arr_slope[c] = 'W'
 
     return arr_slope
+
 
 def routing(velocity, width, depth):
     '''calculate a flow with a given velocity'''
