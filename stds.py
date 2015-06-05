@@ -84,6 +84,14 @@ def create_stds(mapset, stds_h_name, stds_wse_name, start_time, can_ovr):
     
     return stds_h_id, stds_wse_id
 
+def to_s(unit, time):
+    """Change an input time into second
+    """
+    if unit == 'minutes':
+        return time * 60
+    elif unit == 'hours':
+        return time * 3600
+    
 
 class TimeArray(object):
     """A Numpy array with temporal informations
@@ -116,14 +124,14 @@ class TimeArray(object):
         Check if start_time < to end_time
         """
         if start == None and end == None:
-            msgr.fatal('Please provide at least the start or the end time')
+            self.msgr.fatal('Please provide at least the start or the end time')
         elif start == None:
-            start = self.start
+            self.start = start
         elif end == None:
-            end = self.end
+            self.end = end
 
         if not start <= end:
-            msgr.fatal('The end time should be superior or equal to start time')
+            self.msgr.fatal('The end time should be superior or equal to start time')
         else:
             self.start = start
             self.end = end
