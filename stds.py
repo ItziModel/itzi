@@ -6,8 +6,7 @@
 # COPYRIGHT:    (C) 2015 by Laurent Courty
 #
 #               This program is free software under the GNU General Public
-#               License (>=v2). Read the file COPYING that comes with GRASS
-#               for details.
+#               License (v3).  Read the LICENCE file for details.
 #
 #############################################################################
 
