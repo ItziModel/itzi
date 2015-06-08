@@ -229,25 +229,33 @@ def main():
                             start_time = 0,
                             end_time = sim_t,
                             arr = np.zeros(
-                                        shape = (yr,xr),
-                                        dtype = np.float16))
+                                            shape = (yr,xr),
+                                            dtype = np.float16))
     else:
         # Make sure the input is a fully qualified map name 
         opt_inflow = rw.format_opt_map(options['in_inflow'], mapset)
-        # Get the map list from the STDS
+        # open STDS
         inflow_stds = tgis.open_stds.open_old_stds(opt_inflow, 'strds')
-        inflow_map_list = inflow_stds.get_registered_maps(columns='id,start_time,end_time,unit', order='start_time')
-        # instanciate TimeArray with the first map of the STRDS
-        with raster.RasterRow(inflow_map_list[0]['id'], mode='r') as rast:
-            ta_user_inflow = stds.TimeArray(
-                            start_time = stds.to_s(
-                                        inflow_map_list[0]['unit'],
-                                        inflow_map_list[0]['start_time']),
-                            end_time = stds.to_s(
-                                        inflow_map_list[1]['unit'],
-                                        inflow_map_list[1]['start_time']),
-                            arr = np.array(rast, dtype = np.float32))
+        # snap maps in stds,
+        # ie set end-time of current map to start-time of next map.
+        inflow_stds.snap()
 
+        # instanciate TimeArray with the map of the STRDS matching the sim_clock (ie, zero)
+        # !!! only relative time of day, hours, minutes or seconds is accpeted for now
+        sim_clock_map_unit = stds.from_s(inflow_stds.get_relative_time_unit(), sim_clock)
+        where_statement = str(sim_clock_map_unit) + '>= start_time AND end_time > ' + str(sim_clock_map_unit)
+        inflow_map = inflow_stds.get_registered_maps_as_objects(order='start_time', where=where_statement)[0]
+        # Create a TimeArray object
+        st = stds.to_s(
+                        inflow_map.get_relative_time_unit(),
+                        inflow_map.relative_time.get_start_time())
+        et = stds.to_s(
+                        inflow_map.get_relative_time_unit(),
+                        inflow_map.relative_time.get_end_time())
+        ta_user_inflow = stds.TimeArray(
+                            start_time = st,
+                            end_time = et,
+                            arr = inflow_map.get_np_array())
 
     # Boundary conditions type and value (for used-defined value)
     # only bordering value is evaluated
@@ -275,16 +283,9 @@ def main():
     domain = RasterDomain(
                 arr_z = z_grid,
                 arr_n = n_grid,
-                #~ arr_rain = rain_grid,
-                #~ arr_evap = evap_grid,
-                #~ arr_inf = inf_grid,
-                #~ arr_user = user_grid,
                 arr_bc = BC_grid,
-                #~ arr_h = depth_grid,
                 region = region)
 
-
-    
     ###############
     # output data #
     ###############
@@ -310,7 +311,6 @@ def main():
 
     # Start time-stepping
     while not sim_clock >= sim_t:
-
         #########################
         # write simulation data #
         #########################
@@ -339,29 +339,24 @@ def main():
         #######################
         # time-variable input #
         #######################
-
         # check if the user_inflow is still valid
-        if not ta_user_inflow.is_valid(sim_t):
-            for i, raster_map in enumerate(inflow_map_list):
-                # if the map is the last, set the end time as end of simulation
-                if i == len(inflow_map_list) - 1:
-                    end_time = max(sim_t,raster_map['start_time'])
-                # else set end time as start time of the next map
-                else:
-                    end_time = inflow_map_list[i+1]['start_time']
-
-                # translate times in s
-                start_time_s = stds.to_s(raster_map['unit'], raster_map['start_time'])
-                end_time_s = stds.to_s(raster_map['unit'], end_time)
-
-                # check if the map match simulation time
-                if sim_clock >= start_time_s and sim_clock < end_time_s:
-                    # load the corresponding map
-                    with raster.RasterRow(raster_map['id'], mode='r') as rast:
-                        ta_user_inflow = stds.TimeArray(
-                                        start_time = start_time_s,
-                                        end_time = end_time_s,
-                                        arr=np.array(rast, dtype = np.float32))
+        if not ta_user_inflow.is_valid(sim_clock):
+            #~ print 'updating inflow map'
+            # select the map that match the simulation time
+            sim_clock_map_unit = stds.from_s(inflow_stds.get_relative_time_unit(), sim_clock)
+            where_statement = 'start_time <= ' + str(sim_clock_map_unit) + ' AND end_time > ' + str(sim_clock_map_unit)
+            inflow_map = inflow_stds.get_registered_maps_as_objects(order='start_time', where=where_statement)[0]
+            # load the corresponding map
+            st = stds.to_s(
+                            inflow_map.get_relative_time_unit(),
+                            inflow_map.relative_time.get_start_time())
+            et = stds.to_s(
+                            inflow_map.get_relative_time_unit(),
+                            inflow_map.relative_time.get_end_time())
+            ta_user_inflow = stds.TimeArray(
+                            start_time = st,
+                            end_time = et,
+                            arr = inflow_map.get_np_array())
 
             # update the domain object with ext_grid
             domain.set_arr_ext(rain_grid, evap_grid, inf_grid, ta_user_inflow.arr)
