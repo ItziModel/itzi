@@ -84,6 +84,7 @@ def create_stds(mapset, stds_h_name, stds_wse_name, start_time, can_ovr):
     
     return stds_h_id, stds_wse_id
 
+
 def to_s(unit, time):
     """Change an input time into second
     """
@@ -93,10 +94,17 @@ def to_s(unit, time):
         return time * 3600
     elif unit == "day" or unit == "days":
         return time * 86400
-    elif unit == "month" or unit == "months":
-        return time * 86400 * 30
-    elif unit == "year" or unit == "years":
-        return time * 86400 * 365
+
+
+def from_s(unit, time):
+    """Change an input time from seconds to another unit
+    """
+    if unit == 'minutes' or unit == 'minute':
+        return time / 60
+    elif unit == 'hours' or unit == 'hour':
+        return time / 3600
+    elif unit == "day" or unit == "days":
+        return time / 86400
 
 
 class TimeArray(object):
