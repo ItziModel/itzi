@@ -202,16 +202,6 @@ def main():
         #~ with raster.RasterRow(options['in_h'], mode='r') as rast:
             #~ depth_grid = np.array(rast, dtype = np.float64)
 
-    # define flow/depth data type
-    type_faces = np.dtype([('W', np.float64), ('S', np.float64)])
-
-    # flow (m3/s)
-    flow_grid = np.zeros(shape = (yr,xr), dtype = type_faces)
-
-    # flow depth: diff. between the highest water free surface of the two
-    # adjacent cells and the highest terrain elev. (approx. of hyd. radius)
-    hf_grid = np.zeros(shape = (yr,xr), dtype = type_faces)
-     
     # manning's n friction
     with raster.RasterRow(options['in_n'], mode='r') as rast:
             n_grid = np.array(rast, dtype = np.float16)
@@ -224,11 +214,6 @@ def main():
             rain_grid = np.array(rast, dtype = np.float32)
     
     # infiltration (mm/hr)
-    #~ if not options['in_inf']:
-        #~ inf_grid = np.zeros(shape = (yr,xr), dtype = np.float16)
-    #~ else:
-        #~ with raster.RasterRow(options['in_inf'], mode='r') as rast:
-            #~ inf_grid = np.array(rast, dtype = np.float32)
     # for now, set to zeros
     inf_grid = np.zeros(shape = (yr,xr), dtype = np.float16)
 
