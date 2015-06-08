@@ -87,11 +87,17 @@ def create_stds(mapset, stds_h_name, stds_wse_name, start_time, can_ovr):
 def to_s(unit, time):
     """Change an input time into second
     """
-    if unit == 'minutes':
+    if unit == 'minutes' or unit == 'minute':
         return time * 60
-    elif unit == 'hours':
+    elif unit == 'hours' or unit == 'hour':
         return time * 3600
-    
+    elif unit == "day" or unit == "days":
+        return time * 86400
+    elif unit == "month" or unit == "months":
+        return time * 86400 * 30
+    elif unit == "year" or unit == "years":
+        return time * 86400 * 365
+
 
 class TimeArray(object):
     """A Numpy array with temporal informations
@@ -135,4 +141,3 @@ class TimeArray(object):
         else:
             self.start = start
             self.end = end
-
