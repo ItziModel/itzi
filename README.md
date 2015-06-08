@@ -25,6 +25,8 @@ The following raster space-time datasets are optional:
   - rain map in mm/h
   - user defined inflow in m/s (vertical velocity, i.e for 20m3/s on a 10x10 cell, the velocity is 0.2 m/s)
 
+Note: for now, only relative time in days, hours, minutes or seconds is accepted
+
 The following raster maps are optionals:
   - boundary condition type: an integer map (see below)
   - boudary condition value: a map for boundary conditions using user-given value
