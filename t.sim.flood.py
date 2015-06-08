@@ -127,13 +127,13 @@ import rw
 import boundaries
 import hydro
 import stds
-
 from domain import RasterDomain
 
 import grass.script as grass
 import grass.temporal as tgis
 from grass.pygrass import raster
 from grass.pygrass.gis.region import Region
+from grass.pygrass.messages import Messenger
 
 import cProfile, pstats, StringIO
 
@@ -146,6 +146,9 @@ def main():
 
     # get date and time at start
     start_time = datetime.now()
+
+    # start messenger
+    msgr = Messenger()
 
     #####################
     # general variables #
@@ -241,7 +244,7 @@ def main():
         inflow_stds.snap()
 
         # instanciate TimeArray with the map of the STRDS matching the sim_clock (ie, zero)
-        # !!! only relative time of day, hours, minutes or seconds is accpeted for now
+        # !!! only relative time of day, hours, minutes or seconds is accepted for now
         sim_clock_map_unit = stds.from_s(inflow_stds.get_relative_time_unit(), sim_clock)
         where_statement = str(sim_clock_map_unit) + '>= start_time AND end_time > ' + str(sim_clock_map_unit)
         inflow_map = inflow_stds.get_registered_maps_as_objects(order='start_time', where=where_statement)[0]
@@ -341,7 +344,7 @@ def main():
         #######################
         # check if the user_inflow is still valid
         if not ta_user_inflow.is_valid(sim_clock):
-            #~ print 'updating inflow map'
+            msgr.verbose(_("updating inflow map")
             # select the map that match the simulation time
             sim_clock_map_unit = stds.from_s(inflow_stds.get_relative_time_unit(), sim_clock)
             where_statement = 'start_time <= ' + str(sim_clock_map_unit) + ' AND end_time > ' + str(sim_clock_map_unit)

@@ -31,7 +31,7 @@ def write_stds(stds, stds_id, dbif, can_ovr):
                     (stds.get_new_map_instance(None).get_type(), stds_id))
     else:
         if stds.is_in_db(dbif=dbif) and can_ovr == True:
-            msgr.message(_("Overwrite space time %s dataset <%s> "
+            msgr.verbose(_("Overwrite space time %s dataset <%s> "
                             "and unregister all maps.") %
                     (stds.get_new_map_instance(None).get_type(), stds_id))
             stds.delete(dbif=dbif)
