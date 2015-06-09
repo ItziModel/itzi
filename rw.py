@@ -1,14 +1,19 @@
 #! /usr/bin/python
 # coding=utf8
 
-# COPYRIGHT:    (C) 2015 by Laurent Courty
-#
-#               This program is free software under the GNU General Public
-#               License (v3). Read the LICENCE file for details.
+"""
+COPYRIGHT:    (C) 2015 by Laurent Courty
+
+               This program is free software under the GNU General Public
+               License (v3). Read the LICENCE file for details.
+"""
 
 import numpy as np
 from grass.pygrass import raster, utils
 from grass.pygrass.messages import Messenger
+import grass.temporal as tgis
+
+import stds
 
 # start messenger
 msgr = Messenger(raise_on_error=True)
@@ -84,4 +89,25 @@ def write_raster(raster_name, arr, can_ovr):
             newrow[:] = row[:]
             newraster.put_row(newrow)
     return 0
+
+def load_strds(opt, mapset, sim_clock, sim_t, yr, xr):
+    """Create STRDS at the beginning of the simulation
+    """
+    if not opt:
+        # if no STDS is provided, instanciate a TimeArray with
+        # a validity of all the simulation, with all values to zero
+        ta = stds.TimeArray(
+                    start_time = sim_clock,
+                    end_time = sim_t,
+                    arr = np.zeros(shape = (yr,xr), dtype = np.float16))
+    else:
+        # Make sure the input is a fully qualified map name 
+        opt = format_opt_map(opt, mapset)
+        # open STRDS
+        strds = tgis.open_stds.open_old_stds(opt, 'strds')
+        # snap maps in stds,
+        # ie set end-time of current map to start-time of next map.
+        strds.snap()
+
+        return strds
 

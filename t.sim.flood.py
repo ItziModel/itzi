@@ -1,23 +1,22 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-############################################################################
-#
-# MODULE:       t.sim.flood
-# AUTHOR(S):    Laurent Courty
-#
-# PURPOSE:      Simulate superficial water flow
-#               Implementation of q-centered Numerical Scheme explained in:
-#               G. A. M. de Almeida, P. Bates, J. E. Freer, and M. Souvignet
-#               "Improving the stability of a simple formulation of the
-#               shallow water equations for 2-D flood modeling", 2012
-#               Water Resour. Res., 48, W05528, doi:10.1029/2011WR011570.
-#
-# COPYRIGHT:    (C) 2015 by Laurent Courty
-#
-#               This program is free software under the GNU General Public
-#               License (v3). Read the file LICENCE for details.
-#
-#############################################################################
+"""
+MODULE:    t.sim.flood
+
+AUTHOR(S): Laurent Courty
+
+PURPOSE:   Simulate superficial water flows
+           Implementation of q-centered Numerical Scheme explained in:
+           G. A. M. de Almeida, P. Bates, J. E. Freer, and M. Souvignet
+           "Improving the stability of a simple formulation of the
+           shallow water equations for 2-D flood modeling", 2012
+           Water Resour. Res., 48, W05528, doi:10.1029/2011WR011570.
+
+COPYRIGHT: (C) 2015 by Laurent Courty
+
+           This program is free software under the GNU General Public
+           License (v3). Read the file LICENCE for details.
+"""
 
 #%module
 #% description: Simulate superficial flows using simplified shallow water equations
@@ -57,9 +56,9 @@
 #~ #% required: no
 #~ #%end
 
-#%option G_OPT_R_INPUT
+#%option G_OPT_STRDS_INPUT
 #% key: in_rain
-#% description: Name of input rainfall raster map
+#% description: Name of input rainfall raster space-time dataset
 #% required: no
 #%end
 
@@ -145,7 +144,7 @@ def main():
     pr.enable()
 
     # get date and time at start
-    start_time = datetime.now()
+    sim_start_time = datetime.now()
 
     # start messenger
     msgr = Messenger()
@@ -208,13 +207,23 @@ def main():
     # manning's n friction
     with raster.RasterRow(options['in_n'], mode='r') as rast:
             n_grid = np.array(rast, dtype = np.float16)
+
+    # User-defined flows (m/s)
+    inflow_stds = rw.load_strds(options['in_inflow'], mapset, 
+                                sim_clock, sim_t, yr, xr)
+    # create TimeArray with the map of the STRDS matching the sim_clock
+    # (ie, zero at beginning of simulation)
+    # only relative time of day, hours, minutes or seconds is accepted for now
+    ta_user_inflow = stds.update_time_variable_input(inflow_stds, sim_clock)
     
     # rainfall (mm/hr)
-    if not options['in_rain']:
-        rain_grid = np.zeros(shape = (yr,xr), dtype = np.float16)
-    else:
-        with raster.RasterRow(options['in_rain'], mode='r') as rast:
-            rain_grid = np.array(rast, dtype = np.float32)
+    rainfall_stds = rw.load_strds(options['in_rain'], mapset, 
+                                sim_clock, sim_t, yr, xr)
+    # create TimeArray with the map of the STRDS matching the sim_clock
+    # (ie, zero at beginning of simulation)
+    # only relative time of day, hours, minutes or seconds is accepted for now
+    ta_rainfall = stds.update_time_variable_input(rainfall_stds, sim_clock)
+    
     
     # infiltration (mm/hr)
     # for now, set to zeros
@@ -223,46 +232,6 @@ def main():
     # Evaporation (mm/hr)
     # for now, set to zeros
     evap_grid = np.zeros(shape = (yr,xr), dtype = np.float16)
-
-    # User-defined flows (m/s)
-    if not options['in_inflow']:
-        # if no STDS is provided, instanciate a TimeArray with
-        # a validity of all the simulation, with all values to zero
-        ta_user_inflow = stds.TimeArray(
-                            start_time = 0,
-                            end_time = sim_t,
-                            arr = np.zeros(
-                                            shape = (yr,xr),
-                                            dtype = np.float16))
-    else:
-        # Make sure the input is a fully qualified map name 
-        opt_inflow = rw.format_opt_map(options['in_inflow'], mapset)
-        # open STDS
-        inflow_stds = tgis.open_stds.open_old_stds(opt_inflow, 'strds')
-        # snap maps in stds,
-        # ie set end-time of current map to start-time of next map.
-        inflow_stds.snap()
-
-        # instanciate TimeArray with the map of the STRDS matching the sim_clock (ie, zero)
-        # !!! only relative time of day, hours, minutes or seconds is accepted for now
-        sim_clock_map_unit = stds.from_s(
-                                inflow_stds.get_relative_time_unit(),
-                                sim_clock)
-        where_statement = str(sim_clock_map_unit) + '>= start_time AND end_time > ' + str(sim_clock_map_unit)
-        inflow_map = inflow_stds.get_registered_maps_as_objects(
-                                        order='start_time',
-                                        where=where_statement)[0]
-        # Create a TimeArray object
-        st = stds.to_s(
-                        inflow_map.get_relative_time_unit(),
-                        inflow_map.relative_time.get_start_time())
-        et = stds.to_s(
-                        inflow_map.get_relative_time_unit(),
-                        inflow_map.relative_time.get_end_time())
-        ta_user_inflow = stds.TimeArray(
-                            start_time = st,
-                            end_time = et,
-                            arr = inflow_map.get_np_array())
 
     # Boundary conditions type and value (for used-defined value)
     # only bordering value is evaluated
@@ -283,10 +252,9 @@ def main():
         del BC_value
 
 
-    #############################
-    # Instantiate domain object #
-    #############################
-    
+    ########################
+    # Create domain object #
+    ########################
     domain = RasterDomain(
                 arr_z = z_grid,
                 arr_n = n_grid,
@@ -296,7 +264,6 @@ def main():
     ###############
     # output data #
     ###############
-    
     # list of written maps:
     list_h = []
     list_wse = []
@@ -307,7 +274,7 @@ def main():
 
     stds_h_id, stds_wse_id = stds.create_stds(
         mapset, options['out_h'], options['out_wse'],
-        start_time, can_ovr)
+        sim_start_time, can_ovr)
 
 
     #####################
@@ -346,25 +313,12 @@ def main():
         #######################
         # time-variable input #
         #######################
-        # check if the user_inflow is still valid
+        # update usr_inflow if no longer valid for that simulation time
         if not ta_user_inflow.is_valid(sim_clock):
-            msgr.verbose(_("updating inflow map")
-            # select the map that match the simulation time
-            sim_clock_map_unit = stds.from_s(inflow_stds.get_relative_time_unit(), sim_clock)
-            where_statement = 'start_time <= ' + str(sim_clock_map_unit) + ' AND end_time > ' + str(sim_clock_map_unit)
-            inflow_map = inflow_stds.get_registered_maps_as_objects(order='start_time', where=where_statement)[0]
-            # load the corresponding map
-            st = stds.to_s(
-                            inflow_map.get_relative_time_unit(),
-                            inflow_map.relative_time.get_start_time())
-            et = stds.to_s(
-                            inflow_map.get_relative_time_unit(),
-                            inflow_map.relative_time.get_end_time())
-            ta_user_inflow = stds.TimeArray(
-                            start_time = st,
-                            end_time = et,
-                            arr = inflow_map.get_np_array())
-
+            msgr.verbose(_("updating user_inflow map"))
+            ta_user_inflow = stds.update_time_variable_input(
+                                                        inflow_stds,
+                                                        sim_clock)
             # update the domain object with ext_grid
             domain.set_arr_ext(rain_grid, evap_grid, inf_grid, ta_user_inflow.arr)
 
@@ -472,7 +426,8 @@ def main():
     ##############################
     
     list_h, list_wse = rw.write_sim_data(
-        options['out_h'], options['out_wse'], domain.arr_h_np1, domain.arr_z,
+        options['out_h'], options['out_wse'],
+        domain.arr_h_np1, domain.arr_z,
         can_ovr, sim_clock, list_h, list_wse)
 
     # print grid volume

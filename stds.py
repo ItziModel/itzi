@@ -1,14 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-############################################################################
-#
-# COPYRIGHT:    (C) 2015 by Laurent Courty
-#
-#               This program is free software under the GNU General Public
-#               License (v3).  Read the LICENCE file for details.
-#
-#############################################################################
+"""
+COPYRIGHT:    (C) 2015 by Laurent Courty
+
+               This program is free software under the GNU General Public
+               License (v3).  Read the LICENCE file for details.
+"""
 
 import grass.temporal as tgis
 from grass.pygrass.messages import Messenger
@@ -39,7 +37,7 @@ def write_stds(stds, stds_id, dbif, can_ovr):
     
     return 0
 
-def create_stds(mapset, stds_h_name, stds_wse_name, start_time, can_ovr):
+def create_stds(mapset, stds_h_name, stds_wse_name, sim_start_time, can_ovr):
     """create wse and water depth STRDS
     """
     
@@ -48,8 +46,8 @@ def create_stds(mapset, stds_h_name, stds_wse_name, start_time, can_ovr):
     stds_wse_id = rw.format_opt_map(stds_wse_name, mapset)
     stds_h_title = "water depth"
     stds_wse_title = "water surface elevation"
-    stds_h_desc = "water depth generated on " + start_time.isoformat()
-    stds_wse_desc = "water surface elevation generated on " + start_time.isoformat()
+    stds_h_desc = "water depth generated on " + sim_start_time.isoformat()
+    stds_wse_desc = "water surface elevation generated on " + sim_start_time.isoformat()
     # data type of stds
     stds_dtype = "strds"
     # Temporal type of stds
@@ -105,6 +103,28 @@ def from_s(unit, time):
         return time / 3600
     elif unit in ["day", "days"]:
         return time / 86400
+
+
+def update_time_variable_input(strds, sim_clock):
+    """Update a TimeArray object according taking account of the
+    time variability of the input.
+    """
+    # select the map that match the simulation time
+    sim_clock_map_unit = from_s(strds.get_relative_time_unit(), sim_clock)
+    where_statement = 'start_time <= ' + str(sim_clock_map_unit) + ' AND end_time > ' + str(sim_clock_map_unit)
+    input_map = strds.get_registered_maps_as_objects(order='start_time', where=where_statement)[0]
+    # load the corresponding map
+    st = to_s(
+                    input_map.get_relative_time_unit(),
+                    input_map.relative_time.get_start_time())
+    et = to_s(
+                    input_map.get_relative_time_unit(),
+                    input_map.relative_time.get_end_time())
+    ta = TimeArray(
+                    start_time = st,
+                    end_time = et,
+                    arr = input_map.get_np_array())
+    return ta
 
 
 class TimeArray(object):
