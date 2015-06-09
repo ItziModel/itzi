@@ -101,6 +101,10 @@ def load_ta_from_strds(opt, mapset, sim_clock, sim_t, yr, xr):
                     start_time = sim_clock,
                     end_time = sim_t,
                     arr = np.zeros(shape = (yr,xr), dtype = np.float16))
+        # create a dummy STRDS
+        strds_id = format_opt_map('dummy', mapset)
+        strds = tgis.dataset_factory('strds', strds_id)
+
     else:
         # Make sure the input is a fully qualified map name 
         opt = format_opt_map(opt, mapset)
@@ -113,5 +117,6 @@ def load_ta_from_strds(opt, mapset, sim_clock, sim_t, yr, xr):
         # (ie, zero at beginning of simulation)
         # only relative time of day, hours, minutes or seconds is accepted for now
         ta = stds.update_time_variable_input(strds, sim_clock)
-        return ta
+
+    return ta, strds
 

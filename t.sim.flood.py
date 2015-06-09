@@ -126,6 +126,7 @@ import rw
 import boundaries
 import hydro
 import stds
+import hydro_np
 from domain import RasterDomain
 
 import grass.script as grass
@@ -209,11 +210,11 @@ def main():
             n_grid = np.array(rast, dtype = np.float16)
 
     # User-defined flows (m/s)
-    ta_user_inflow = rw.load_ta_from_strds(options['in_inflow'], mapset,
+    ta_user_inflow, stds_inflow = rw.load_ta_from_strds(options['in_inflow'], mapset,
                                 sim_clock, sim_t, yr, xr)
     
     # rainfall (mm/hr)
-    ta_rainfall = rw.load_ta_from_strds(options['in_rain'], mapset,
+    ta_rainfall, stds_rainfall = rw.load_ta_from_strds(options['in_rain'], mapset,
                                 sim_clock, sim_t, yr, xr)
     
     # infiltration (mm/hr)
@@ -308,10 +309,10 @@ def main():
         if not ta_user_inflow.is_valid(sim_clock):
             msgr.verbose(_("updating user_inflow map"))
             ta_user_inflow = stds.update_time_variable_input(
-                                                        inflow_stds,
+                                                        stds_inflow,
                                                         sim_clock)
             # update the domain object with ext_grid
-            domain.set_arr_ext(rain_grid, evap_grid, inf_grid, ta_user_inflow.arr)
+            domain.set_arr_ext(ta_rainfall.arr, evap_grid, inf_grid, ta_user_inflow.arr)
 
 
         ############################
@@ -385,17 +386,42 @@ def main():
         ####################################
         # Calculate flow inside the domain #
         ####################################
-        domain.arr_q_np1 = hydro.get_flow(
-            domain.arrp_z,
-            domain.arrp_n,
-            domain.arr_h,
-            domain.arr_hf,
-            domain.arrp_q,
-            domain.arrp_h_np1,
-            domain.arr_q_np1,
-            domain.hf_min,
-            domain.dt, domain.dx, domain.dy,
-            domain.g, domain.theta)
+        hydro.get_flow(z_grid_padded=domain.arrp_z,
+                n_grid_padded=domain.arrp_n,
+                hf_grid=domain.arr_hf,
+                flow_grid_padded=domain.arrp_q,
+                h_grid_np1_padded=domain.arrp_h_np1,
+                flow_grid_np1=domain.arr_q_np1,
+                hf_min=domain.hf_min,
+                Dt=domain.dt,
+                Dx=domain.dx,
+                Dy=domain.dy)
+        #old
+        #~ domain.arr_q_np1 = hydro.get_flow(
+            #~ domain.arrp_z,
+            #~ domain.arrp_n,
+            #~ domain.arr_h,
+            #~ domain.arr_hf,
+            #~ domain.arrp_q,
+            #~ domain.arrp_h_np1,
+            #~ domain.arr_q_np1,
+            #~ domain.hf_min,
+            #~ domain.dt, domain.dx, domain.dy,
+            #~ domain.g, domain.theta)
+
+        # Numpy
+        #~ print 'domain.arr_q_np1', domain.arr_q_np1
+        #~ domain.arr_q_np1 = hydro_np.get_flow_np(
+                                #~ hf_min=domain.hf_min,
+                                #~ flow_grid_padded=domain.arrp_q,
+                                #~ hf_grid=domain.arr_hf,
+                                #~ depth_grid_padded=domain.arrp_h_np1,
+                                #~ z_grid_padded=domain.arrp_z,
+                                #~ n_grid_padded=domain.arrp_n,
+                                #~ Dt=domain.dt,
+                                #~ Dx=domain.dx,
+                                #~ Dy=domain.dy,
+                                #~ flow_grid_np1=domain.arr_q_np1)
 
 
         #############################################

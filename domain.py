@@ -99,7 +99,7 @@ class RasterDomain(object):
         self.arr_q_np1 = np.copy(self.arr_q)
 
         # pad arrays
-        self.arr_h, self.arrp_h = utils.pad_array(self.arr_h)
+        #~ self.arr_h, self.arrp_h = utils.pad_array(self.arr_h)
         self.arr_q, self.arrp_q = utils.pad_array(self.arr_q)
         self.arr_hf, self.arrp_hf = utils.pad_array(self.arr_hf)
         self.arr_h_np1, self.arrp_h_np1 = utils.pad_array(self.arr_h_np1)
