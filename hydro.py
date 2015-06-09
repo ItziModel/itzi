@@ -1,10 +1,12 @@
 #! /usr/bin/python
 # coding=utf8
 
-# COPYRIGHT:    (C) 2015 by Laurent Courty
-#
-#               This program is free software under the GNU General Public
-#               License (v3). Read the LICENCE file for details.
+"""
+COPYRIGHT:    (C) 2015 by Laurent Courty
+
+               This program is free software under the GNU General Public
+               License (v3). Read the LICENCE file for details.
+"""
 
 import math
 import warnings
