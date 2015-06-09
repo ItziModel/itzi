@@ -88,22 +88,22 @@ def create_stds(mapset, stds_h_name, stds_wse_name, start_time, can_ovr):
 def to_s(unit, time):
     """Change an input time into second
     """
-    if unit == 'minutes' or unit == 'minute':
+    if unit in ['minutes', 'minute']:
         return time * 60
-    elif unit == 'hours' or unit == 'hour':
+    elif unit in ['hours', 'hour']:
         return time * 3600
-    elif unit == "day" or unit == "days":
+    elif unit in ["day", "days"]:
         return time * 86400
 
 
 def from_s(unit, time):
     """Change an input time from seconds to another unit
     """
-    if unit == 'minutes' or unit == 'minute':
+    if unit in ['minutes', 'minute']:
         return time / 60
-    elif unit == 'hours' or unit == 'hour':
+    elif unit in ['hours', 'hour']:
         return time / 3600
-    elif unit == "day" or unit == "days":
+    elif unit in ["day", "days"]:
         return time / 86400
 
 

@@ -245,9 +245,13 @@ def main():
 
         # instanciate TimeArray with the map of the STRDS matching the sim_clock (ie, zero)
         # !!! only relative time of day, hours, minutes or seconds is accepted for now
-        sim_clock_map_unit = stds.from_s(inflow_stds.get_relative_time_unit(), sim_clock)
+        sim_clock_map_unit = stds.from_s(
+                                inflow_stds.get_relative_time_unit(),
+                                sim_clock)
         where_statement = str(sim_clock_map_unit) + '>= start_time AND end_time > ' + str(sim_clock_map_unit)
-        inflow_map = inflow_stds.get_registered_maps_as_objects(order='start_time', where=where_statement)[0]
+        inflow_map = inflow_stds.get_registered_maps_as_objects(
+                                        order='start_time',
+                                        where=where_statement)[0]
         # Create a TimeArray object
         st = stds.to_s(
                         inflow_map.get_relative_time_unit(),
