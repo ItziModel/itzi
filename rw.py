@@ -90,8 +90,9 @@ def write_raster(raster_name, arr, can_ovr):
             newraster.put_row(newrow)
     return 0
 
-def load_strds(opt, mapset, sim_clock, sim_t, yr, xr):
-    """Create STRDS at the beginning of the simulation
+def load_ta_from_strds(opt, mapset, sim_clock, sim_t, yr, xr):
+    """Load a TimeArray from a strds.
+    Intended to be used at the beginning of the simulation.
     """
     if not opt:
         # if no STDS is provided, instanciate a TimeArray with
@@ -108,6 +109,9 @@ def load_strds(opt, mapset, sim_clock, sim_t, yr, xr):
         # snap maps in stds,
         # ie set end-time of current map to start-time of next map.
         strds.snap()
-
-        return strds
+        # create TimeArray with the map of the STRDS matching the sim_clock
+        # (ie, zero at beginning of simulation)
+        # only relative time of day, hours, minutes or seconds is accepted for now
+        ta = stds.update_time_variable_input(strds, sim_clock)
+        return ta
 

@@ -209,21 +209,12 @@ def main():
             n_grid = np.array(rast, dtype = np.float16)
 
     # User-defined flows (m/s)
-    inflow_stds = rw.load_strds(options['in_inflow'], mapset, 
+    ta_user_inflow = rw.load_ta_from_strds(options['in_inflow'], mapset,
                                 sim_clock, sim_t, yr, xr)
-    # create TimeArray with the map of the STRDS matching the sim_clock
-    # (ie, zero at beginning of simulation)
-    # only relative time of day, hours, minutes or seconds is accepted for now
-    ta_user_inflow = stds.update_time_variable_input(inflow_stds, sim_clock)
     
     # rainfall (mm/hr)
-    rainfall_stds = rw.load_strds(options['in_rain'], mapset, 
+    ta_rainfall = rw.load_ta_from_strds(options['in_rain'], mapset,
                                 sim_clock, sim_t, yr, xr)
-    # create TimeArray with the map of the STRDS matching the sim_clock
-    # (ie, zero at beginning of simulation)
-    # only relative time of day, hours, minutes or seconds is accepted for now
-    ta_rainfall = stds.update_time_variable_input(rainfall_stds, sim_clock)
-    
     
     # infiltration (mm/hr)
     # for now, set to zeros
