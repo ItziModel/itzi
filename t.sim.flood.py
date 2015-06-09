@@ -386,42 +386,17 @@ def main():
         ####################################
         # Calculate flow inside the domain #
         ####################################
-        hydro.get_flow(z_grid_padded=domain.arrp_z,
-                n_grid_padded=domain.arrp_n,
-                hf_grid=domain.arr_hf,
-                flow_grid_padded=domain.arrp_q,
-                h_grid_np1_padded=domain.arrp_h_np1,
-                flow_grid_np1=domain.arr_q_np1,
-                hf_min=domain.hf_min,
-                Dt=domain.dt,
-                Dx=domain.dx,
-                Dy=domain.dy)
-        #old
-        #~ domain.arr_q_np1 = hydro.get_flow(
-            #~ domain.arrp_z,
-            #~ domain.arrp_n,
-            #~ domain.arr_h,
-            #~ domain.arr_hf,
-            #~ domain.arrp_q,
-            #~ domain.arrp_h_np1,
-            #~ domain.arr_q_np1,
-            #~ domain.hf_min,
-            #~ domain.dt, domain.dx, domain.dy,
-            #~ domain.g, domain.theta)
-
-        # Numpy
-        #~ print 'domain.arr_q_np1', domain.arr_q_np1
-        #~ domain.arr_q_np1 = hydro_np.get_flow_np(
-                                #~ hf_min=domain.hf_min,
-                                #~ flow_grid_padded=domain.arrp_q,
-                                #~ hf_grid=domain.arr_hf,
-                                #~ depth_grid_padded=domain.arrp_h_np1,
-                                #~ z_grid_padded=domain.arrp_z,
-                                #~ n_grid_padded=domain.arrp_n,
-                                #~ Dt=domain.dt,
-                                #~ Dx=domain.dx,
-                                #~ Dy=domain.dy,
-                                #~ flow_grid_np1=domain.arr_q_np1)
+        domain.arr_q_np1 = hydro.get_flow(
+            domain.arrp_z,
+            domain.arrp_n,
+            domain.arr_h,
+            domain.arr_hf,
+            domain.arrp_q,
+            domain.arrp_h_np1,
+            domain.arr_q_np1,
+            domain.hf_min,
+            domain.dt, domain.dx, domain.dy,
+            domain.g, domain.theta)
 
 
         #############################################
