@@ -9,11 +9,8 @@ COPYRIGHT:    (C) 2015 by Laurent Courty
 """
 
 import math
-import warnings
 import numpy as np
 import numexpr as ne
-from grass.pygrass import raster, utils
-import grass.script as grass
 
 
 def solve_q(g, theta, q_n_im12, q_n_im32, q_n_ip12, hflow, Dt, 
@@ -126,48 +123,4 @@ def get_flow(z_grid_padded, n_grid_padded, depth_grid, hf_grid,
             flow_grid_np1[y, x]['S'] = Qnp1_j
 
     return flow_grid_np1
-
-
-def flow_dir(arr_z_p):
-    '''
-    Return a "slope" array re presenting the flow direction for simple routing
-    input: arr_z: terrain elevation, numpy array
-    output: 
-    '''
-
-    Z = arr_z_p[1:-1, 1:-1]
-    N = arr_z_p[0:-2, 1:-1]
-    S = arr_z_p[2:, 1:-1]
-    E = arr_z_p[1:-1, 2:]
-    W = arr_z_p[1:-1, 0:-2]
-    dN = Z - N
-    dE = Z - E
-    dS = Z - S
-    dW = Z - W
-
-    # return minimum neighbour
-    arr_min = np.maximum(np.maximum(dN, dS), np.maximum(dE, dW))
-
-    # assign values
-    arr_slope = np.zeros(shape = Z.shape, dtype = np.string_)
-
-    for c, cell in np.ndenumerate(arr_min):
-
-        if cell <= 0:
-           arr_slope[c] = '0'
-        elif cell == dN[c]:
-            arr_slope[c] = 'N'
-        elif cell == dS[c]:
-            arr_slope[c] = 'S'
-        elif cell == dE[c]:
-            arr_slope[c] = 'E'
-        elif cell == dW[c]:
-            arr_slope[c] = 'W'
-
-    return arr_slope
-
-
-def routing(velocity, width, depth):
-    '''calculate a flow with a given velocity'''
-    return width * depth * velocity
 
