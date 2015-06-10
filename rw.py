@@ -99,7 +99,8 @@ def load_ta_from_strds(opt, mapset, sim_clock, sim_t, yr, xr):
         # a validity of all the simulation, with all values to zero
         ta = stds.TimeArray(
                     start_time = sim_clock,
-                    end_time = sim_t,
+                    # Make sure the map will never be updated
+                    end_time = sim_t + 1000,
                     arr = np.zeros(shape = (yr,xr), dtype = np.float16))
         # create a dummy STRDS
         strds_id = format_opt_map('dummy', mapset)
