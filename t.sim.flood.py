@@ -337,10 +337,10 @@ def main():
         boundary_vol_total += bound_vol
 
         # assign values of boundaries
-        #~ flow_grid_np1[:, 1]['W'] = flow_grid[:, 1]['W']              # W
-        #~ flow_grid_np1_padded[1:-1, -1] = flow_grid_padded[1:-1, -1]  # E
-        #~ flow_grid_np1_padded[0, 1:-1] = flow_grid_padded[0, 1:-1]    # N
-        #~ flow_grid_np1_padded[-1, 1:-1] = flow_grid_padded[-1, 1:-1]  # S
+        #~ domain.arr_q_np1[:, 1]['W'] = domain.arr_q[:, 1]['W']  # W
+        #~ domain.arrp_q_np1[1:-1, -1] = domain.arrp_q[1:-1, -1]  # E
+        #~ domain.arrp_q_np1[0, 1:-1] = domain.arrp_q[0, 1:-1]    # N
+        #~ domain.arrp_q_np1[-1, 1:-1] = domain.arrp_q[-1, 1:-1]  # S
 
 
         ###################
@@ -349,10 +349,10 @@ def main():
         domain.solve_h()
 
         # assign values of boundaries
-        #~ h_grid_np1_padded[1:-1, 0] = depth_grid_padded[1:-1, 0]    # W
-        #~ h_grid_np1_padded[1:-1, -1] = depth_grid_padded[1:-1, -1]  # E
-        #~ h_grid_np1_padded[0, 1:-1] = depth_grid_padded[0, 1:-1]    # N
-        #~ h_grid_np1_padded[-1, 1:-1] = depth_grid_padded[-1, 1:-1]  # S
+        #~ domain.arrp_h_np1[1:-1, 0] = domain.arrp_h[1:-1, 0]    # W
+        #~ domain.arrp_h_np1[1:-1, -1] = domain.arrp_h[1:-1, -1]  # E
+        #~ domain.arrp_h_np1[0, 1:-1] = domain.arrp_h[0, 1:-1]    # N
+        #~ domain.arrp_h_np1[-1, 1:-1] = domain.arrp_h[-1, 1:-1]  # S
 
 
         ############################
