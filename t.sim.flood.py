@@ -126,7 +126,7 @@ import rw
 import boundaries
 import hydro
 import stds
-import hydro_np
+import hydro_py
 from domain import RasterDomain
 
 import grass.script as grass
@@ -200,14 +200,14 @@ def main():
 
     # water depth (m)
     #~ if not options['in_h']:
-        #~ depth_grid = np.zeros(shape = (yr,xr), dtype = np.float64)
+        #~ depth_grid = np.zeros(shape = (yr,xr), dtype = np.float32)
     #~ else:
         #~ with raster.RasterRow(options['in_h'], mode='r') as rast:
-            #~ depth_grid = np.array(rast, dtype = np.float64)
+            #~ depth_grid = np.array(rast, dtype = np.float32)
 
     # manning's n friction
     with raster.RasterRow(options['in_n'], mode='r') as rast:
-            n_grid = np.array(rast, dtype = np.float16)
+            n_grid = np.array(rast, dtype = np.float32)
 
     # User-defined flows (m/s)
     ta_user_inflow, stds_inflow = rw.load_ta_from_strds(options['in_inflow'], mapset,
@@ -239,7 +239,7 @@ def main():
         del BC_type
     if options['in_bcval']:
         with raster.RasterRow(options['in_bcval'], mode='r') as rast:
-            BC_value = np.array(rast, dtype = np.float64)
+            BC_value = np.array(rast, dtype = np.float32)
         BC_grid['v'] = np.copy(BC_value)
         del BC_value
 
@@ -386,18 +386,41 @@ def main():
         ####################################
         # Calculate flow inside the domain #
         ####################################
-        domain.arr_q_np1 = hydro.get_flow(
+        #~ domain.arr_q_np1 = hydro_py.get_flow(
+            #~ domain.arrp_z,
+            #~ domain.arrp_n,
+            #~ domain.arr_h,
+            #~ domain.arr_hf,
+            #~ domain.arrp_q,
+            #~ domain.arrp_h_np1,
+            #~ domain.arr_q_np1,
+            #~ domain.hf_min,
+            #~ domain.dt, domain.dx, domain.dy,
+            #~ domain.g, domain.theta)
+
+        # cython
+        #~ print 'arrp_z', domain.arrp_z.dtype
+        #~ print 'arrp_n', domain.arrp_n.dtype
+        #~ print 'arr_h', domain.arr_h.dtype
+        #~ print 'arr_hf', domain.arr_hf.dtype
+        #~ print 'arrp_q', domain.arrp_q.dtype
+        #~ print 'arrp_h_np1', domain.arrp_h_np1.dtype
+        #~ print 'arr_q_np1', domain.arr_q_np1.dtype
+
+        domain.arr_q_np1['W'], domain.arr_q_np1['S'] = hydro.get_flow(
             domain.arrp_z,
             domain.arrp_n,
             domain.arr_h,
-            domain.arr_hf,
-            domain.arrp_q,
+            domain.arr_hf['W'],
+            domain.arr_hf['S'],
+            domain.arrp_q['W'],
+            domain.arrp_q['S'],
             domain.arrp_h_np1,
-            domain.arr_q_np1,
+            domain.arr_q_np1['W'],
+            domain.arr_q_np1['S'],
             domain.hf_min,
             domain.dt, domain.dx, domain.dy,
             domain.g, domain.theta)
-
 
         #############################################
         # update simulation data for next time step #

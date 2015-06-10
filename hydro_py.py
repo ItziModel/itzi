@@ -9,11 +9,7 @@ COPYRIGHT:    (C) 2015 by Laurent Courty
 """
 
 import math
-import warnings
 import numpy as np
-import numexpr as ne
-from grass.pygrass import raster, utils
-import grass.script as grass
 
 
 def solve_q(g, theta, q_n_im12, q_n_im32, q_n_ip12, hflow, Dt, 
@@ -54,76 +50,83 @@ def get_flow(z_grid_padded, n_grid_padded, depth_grid, hf_grid,
     
     return a numpy array
     """
-
-    for c, i in np.ndenumerate(depth_grid):
-        x = c[1] # x coordinate of the cell
-        y = c[0] # y coordinate of the cell
-        xp = x + 1 # x coordinate of cell in padded grid
-        yp = y + 1 # y coordinate of cell in padded grid
-
-        # retrieve manning's n at current cell
-        nf = n_grid_padded[yp, xp]
-        
-        # flow at prev. W face
-        q_n_im32 = flow_grid_padded[yp, xp - 1]['W'] / Dy
-        # flow at W face
-        q_n_im12 = flow_grid_padded[yp, xp]['W'] / Dy
-        # flow at E face, i.e at next cell W face
-        q_n_ip12 = flow_grid_padded[yp, xp + 1]['W'] / Dy
-
-        # flow at prev. S face
-        q_n_jm32 = flow_grid_padded[yp + 1, xp]['S'] / Dx
-        # flow at S face
-        q_n_jm12 = flow_grid_padded[yp, xp]['S'] / Dx
-        # flow at N face i.e at next cell S face
-        q_n_jp12 = flow_grid_padded[yp - 1, xp]['S'] / Dx
-
-        # retrieve water depth
-        h_i = h_grid_np1_padded[yp, xp]
-        h_im1 = h_grid_np1_padded[yp, xp - 1]
-        h_jm1 = h_grid_np1_padded[yp + 1, xp]
-        
-        # retrieve altitude 
-        z_i = z_grid_padded[yp, xp]
-        z_im1 = z_grid_padded[yp, xp - 1]
-        z_jm1 = z_grid_padded[yp + 1, xp]
-
-        # calculate WSE
-        y_i = z_i + h_i
-        y_im1 = z_im1 + h_im1
-        y_jm1 = z_jm1 + h_jm1
-
-        # retrieve the flow height
-        hflow_W = hf_grid[y, x]['W']
-        hflow_S = hf_grid[y, x]['S']
-
-        # W flow
-        # calculate if not on first col (controled by bound. cond.)
-        if not x == 0:
-            # q set to zero if flow elevation is lower than threshold
-            if hflow_W <= hf_min:
-                Qnp1_i = 0
-            else:
-                Qnp1_i = solve_q(
-                    g, theta, q_n_im12, q_n_im32, q_n_ip12,
-                    hflow_W, Dt, Dx, Dy, y_i, y_im1, nf)
     
-            # write flow results to result grid
-            flow_grid_np1[y, x]['W'] = Qnp1_i
+    arr_q_n_i = flow_grid_padded['W']
+    arr_q_n_j = flow_grid_padded['S']
 
-        # S flow
-        # calculate if not on last row (controled by bound. cond.)
-        if not y == depth_grid.shape[0]-1:
-            # q set to zero if flow elevation is lower than threshold
-            if hflow_S <= hf_min:
-                Qnp1_j = 0
-            else:
-                Qnp1_j = solve_q(
-                    g, theta, q_n_jm12, q_n_jm32, q_n_jp12,
-                    hflow_S, Dt, Dy, Dx, y_i, y_jm1, nf)
+    arr_hflow_W = hf_grid['W']
+    arr_hflow_S = hf_grid['S']
 
-            # write flow results to result grid
-            flow_grid_np1[y, x]['S'] = Qnp1_j
+    ymax = depth_grid.shape[0]
+    xmax = depth_grid.shape[1]
+    for y in range(ymax):
+        for x in range(xmax):
+            xp = x + 1 # x coordinate of cell in padded grid
+            yp = y + 1 # y coordinate of cell in padded grid
+
+            # retrieve manning's n at current cell
+            nf = n_grid_padded[yp, xp]
+
+            # flow at prev. W face
+            q_n_im32 = arr_q_n_i[yp, xp - 1] / Dy
+            # flow at W face
+            q_n_im12 = arr_q_n_i[yp, xp] / Dy
+            # flow at E face, i.e at next cell W face
+            q_n_ip12 = arr_q_n_i[yp, xp + 1] / Dy
+
+            # flow at prev. S face
+            q_n_jm32 = arr_q_n_j[yp + 1, xp] / Dx
+            # flow at S face
+            q_n_jm12 = arr_q_n_j[yp, xp] / Dx
+            # flow at N face i.e at next cell S face
+            q_n_jp12 = arr_q_n_j[yp - 1, xp] / Dx
+
+            # retrieve water depth
+            h_i = h_grid_np1_padded[yp, xp]
+            h_im1 = h_grid_np1_padded[yp, xp - 1]
+            h_jm1 = h_grid_np1_padded[yp + 1, xp]
+
+            # retrieve altitude
+            z_i = z_grid_padded[yp, xp]
+            z_im1 = z_grid_padded[yp, xp - 1]
+            z_jm1 = z_grid_padded[yp + 1, xp]
+
+            # calculate WSE
+            y_i = z_i + h_i
+            y_im1 = z_im1 + h_im1
+            y_jm1 = z_jm1 + h_jm1
+
+            # retrieve the flow height
+            hflow_W = arr_hflow_W[y, x]
+            hflow_S = arr_hflow_S[y, x]
+
+            # W flow
+            # calculate if not on first col (controled by bound. cond.)
+            if not x == 0:
+                # q set to zero if flow elevation is lower than threshold
+                if hflow_W <= hf_min:
+                    Qnp1_i = 0
+                else:
+                    Qnp1_i = solve_q(
+                        g, theta, q_n_im12, q_n_im32, q_n_ip12,
+                        hflow_W, Dt, Dx, Dy, y_i, y_im1, nf)
+
+                # write flow results to result grid
+                flow_grid_np1[y, x]['W'] = Qnp1_i
+
+            # S flow
+            # calculate if not on last row (controled by bound. cond.)
+            if not y == depth_grid.shape[0]-1:
+                # q set to zero if flow elevation is lower than threshold
+                if hflow_S <= hf_min:
+                    Qnp1_j = 0
+                else:
+                    Qnp1_j = solve_q(
+                        g, theta, q_n_jm12, q_n_jm32, q_n_jp12,
+                        hflow_S, Dt, Dy, Dx, y_i, y_jm1, nf)
+
+                # write flow results to result grid
+                flow_grid_np1[y, x]['S'] = Qnp1_j
 
     return flow_grid_np1
 
