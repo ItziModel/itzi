@@ -9,11 +9,7 @@ COPYRIGHT:    (C) 2015 by Laurent Courty
 """
 
 import math
-import warnings
 import numpy as np
-import numexpr as ne
-from grass.pygrass import raster, utils
-import grass.script as grass
 
 
 def solve_q(g, theta, q_n_im12, q_n_im32, q_n_ip12, hflow, Dt, 
