@@ -124,9 +124,10 @@ import numpy as np
 
 import rw
 import boundaries
-import hydro
+#~ import hydro
 import stds
 import hydro_py
+import hydro_cython
 from domain import RasterDomain
 
 import grass.script as grass
@@ -407,7 +408,7 @@ def main():
         #~ print 'arrp_h_np1', domain.arrp_h_np1.dtype
         #~ print 'arr_q_np1', domain.arr_q_np1.dtype
 
-        domain.arr_q_np1['W'], domain.arr_q_np1['S'] = hydro.get_flow(
+        domain.arr_q_np1['W'], domain.arr_q_np1['S'] = hydro_cython.get_flow(
             domain.arrp_z,
             domain.arrp_n,
             domain.arr_h,

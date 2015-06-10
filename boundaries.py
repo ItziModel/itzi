@@ -1,14 +1,12 @@
 #! /usr/bin/python
 # coding=utf8
 
-############################################################################
-#
-# COPYRIGHT:    (C) 2015 by Laurent Courty
-#
-#               This program is free software under the GNU General Public
-#               License (v3). Read the file Read the file LICENCE for details.
-#
-#############################################################################
+"""
+COPYRIGHT:    (C) 2015 by Laurent Courty
+
+              This program is free software under the GNU General Public
+              License (v3). Read the file Read the file LICENCE for details.
+"""
 
 import sys
 import math
@@ -105,7 +103,9 @@ def apply_bc(BCi, z_grid_padded, depth_grid_padded,\
     ##############
     BCw = BCi['W']
     # type 1 test
-    W_BC_q = np.where(BCw['t'] == 1, 0, W_BC_q)
+    W_BC_coord_t1 = np.where(BCw['t'] == 1)
+    W_BC_q[W_BC_coord_t1] = 0
+    #~ print W_BC_q[5]
 
     # type 2 test
     W_BC_coord_t2 = np.where(BCw['t'] == 2)
@@ -115,38 +115,38 @@ def apply_bc(BCi, z_grid_padded, depth_grid_padded,\
 
     ###############
     # type 3 test #
-    #~ W_BC_coord_t3 = np.where(BCw['t'] == 3)
-    #~ 
-    #~ # set terrain elevation
-    #~ W_BC_z[W_BC_coord_t3] = z_grid[W_BC_coord_t3, 0]
-    #~ # water depth
-    #~ W_BC_h[W_BC_coord_t3] = BCw[W_BC_coord_t3]['v'] - W_BC_z[W_BC_coord_t3]
-    #~ # Friction
-    #~ W_BC_n[W_BC_coord_t3] = n_grid_padded[W_BC_coord_t3, 1]
-    #~ # flow at the boundary
-    #~ q_n_im12 = W_BC_q[W_BC_coord_t3]
-    #~ # flow inside the domain
-    #~ q_n_ip12 = flow_grid[W_BC_coord_t3, 1]['W']
-    #~ # flow outside the domain
-    #~ q_n_im32 = 0
-    #~ # wse in the domain
-    #~ y_n_i = depth_grid[W_BC_coord_t3, 0] + z_grid[W_BC_coord_t3, 0]
-    #~ # wse outside the domain = user-defined wse
-    #~ y_n_im1 = BCw[W_BC_coord_t3]['v']
-    #~ # solve flow
-    #~ solve_q_np = np.vectorize(solve_q)
-    #~ W_BC_q[W_BC_coord_t3] = solve_q_np(g, theta, q_n_im12, q_n_im32,\
-        #~ q_n_ip12, W_BC_hf[W_BC_coord_t3], \
-        #~ Dt, Dx, Dy, y_n_i, y_n_im1, W_BC_n[W_BC_coord_t3])
+    W_BC_coord_t3 = np.where(BCw['t'] == 3)
+
+    # set terrain elevation
+    W_BC_z[W_BC_coord_t3] = z_grid[W_BC_coord_t3, 0]
+    # water depth
+    W_BC_h[W_BC_coord_t3] = BCw[W_BC_coord_t3]['v'] - W_BC_z[W_BC_coord_t3]
+    # Friction
+    W_BC_n[W_BC_coord_t3] = n_grid_padded[W_BC_coord_t3, 1]
+    # flow at the boundary
+    q_n_im12 = W_BC_q[W_BC_coord_t3]
+    # flow inside the domain
+    q_n_ip12 = flow_grid[W_BC_coord_t3, 1]['W']
+    # flow outside the domain
+    q_n_im32 = 0
+    # wse in the domain
+    y_n_i = depth_grid[W_BC_coord_t3, 0] + z_grid[W_BC_coord_t3, 0]
+    # wse outside the domain = user-defined wse
+    y_n_im1 = BCw[W_BC_coord_t3]['v']
+    # solve flow
+    solve_q_np = np.vectorize(solve_q)
+    W_BC_q[W_BC_coord_t3] = solve_q_np(g, theta, q_n_im12, q_n_im32,\
+        q_n_ip12, W_BC_hf[W_BC_coord_t3], \
+        Dt, Dx, Dy, y_n_i, y_n_im1, W_BC_n[W_BC_coord_t3])
 
 
-    for coord, bcell in np.ndenumerate(BCi['W']):
-        if bcell['t'] == 1:  # Boundary type 1
+    #~ for coord, bcell in np.ndenumerate(BCi['W']):
+        #~ if bcell['t'] == 1:  # Boundary type 1
             #~ W_BC_z[coord] = np.finfo(np.float32)
             #~ W_BC_h[coord] = 0
             #~ W_BC_q = 0
-            pass
-#~ 
+            #~ pass
+
         #~ elif bcell['t'] == 2:  # Boundary type 2
             #~ nW_flow = flow_grid[coord, 1]['W'] / hf_grid[coord, 1]['W'] * W_BC_hf[coord]
             #~ if hf_grid[coord, 1]['W'] < hf_min or depth_grid[coord, 0] < hf_min:
@@ -155,35 +155,35 @@ def apply_bc(BCi, z_grid_padded, depth_grid_padded,\
                 #~ W_BC_q[coord] = nW_flow
             #~ print W_BC_q[coord]
             #~ pass
-#~ 
-        elif bcell['t'] == 3:  # Boundary type 3
-            W_BC_z[coord] = z_grid[coord, 0]  # terrain elevation
+
+        #~ elif bcell['t'] == 3:  # Boundary type 3
+            #~ W_BC_z[coord] = z_grid[coord, 0]  # terrain elevation
             #~ # depth = user_wse - z
-            W_BC_h[coord] = bcell['v'] - W_BC_z[coord]
+            #~ W_BC_h[coord] = bcell['v'] - W_BC_z[coord]
 #~ 
-            nf = n_grid_padded[coord, 1]
+            #~ nf = n_grid_padded[coord, 1]
 #~ 
-            # solve flow
-            if W_BC_hf[coord] <= hf_min:
-                W_BC_q[coord] = 0
-            else:
-                # flow at the boundary
-                q_n_im12 = W_BC_q[coord]
-                # flow inside the domain
-                q_n_ip12 = flow_grid[coord, 1]['W']
-                # flow outside the domain
-                q_n_im32 = 0
-                 # wse in the domain
-                y_n_i = depth_grid[coord, 0] + z_grid[coord, 0]
-                # wse outside the domain = user-defined wse
-                y_n_im1 = bcell['v']
-                # solve flow
-                W_BC_q[coord] = hydro.solve_q(g, theta, q_n_im12, q_n_im32,\
-                    q_n_ip12, W_BC_hf[coord], \
-                    Dt, Dx, Dy, y_n_i, y_n_im1, nf)
+            #~ # solve flow
+            #~ if W_BC_hf[coord] <= hf_min:
+                #~ W_BC_q[coord] = 0
+            #~ else:
+                #~ # flow at the boundary
+                #~ q_n_im12 = W_BC_q[coord]
+                #~ # flow inside the domain
+                #~ q_n_ip12 = flow_grid[coord, 1]['W']
+                #~ # flow outside the domain
+                #~ q_n_im32 = 0
+                #~ # wse in the domain
+                #~ y_n_i = depth_grid[coord, 0] + z_grid[coord, 0]
+                #~ # wse outside the domain = user-defined wse
+                #~ y_n_im1 = bcell['v']
+                #~ # solve flow
+                #~ W_BC_q[coord] = hydro.solve_q(g, theta, q_n_im12, q_n_im32,\
+                    #~ q_n_ip12, W_BC_hf[coord], \
+                    #~ Dt, Dx, Dy, y_n_i, y_n_im1, nf)
             #~ print W_BC_h
             #~ pass
-#~ 
+
         #~ elif bcell['t'] == 4:  # Boundary type 4
             #~ pass
         #~ else:
