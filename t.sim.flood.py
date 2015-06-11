@@ -341,7 +341,7 @@ def main():
         #~ domain.arr_q_np1[:, 1]['W'] = domain.arr_q[:, 1]['W']  # W
         #~ domain.arrp_q_np1[1:-1, -1] = domain.arrp_q[1:-1, -1]  # E
         #~ domain.arrp_q_np1[0, 1:-1] = domain.arrp_q[0, 1:-1]    # N
-        #~ domain.arrp_q_np1[-1, 1:-1] = domain.arrp_q[-1, 1:-1]  # S
+        #~ domain.arr_q_np1[-1,:]['S'] = domain.arr_q[-1,:]['S']  # S
 
 
         ###################
