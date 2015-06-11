@@ -86,7 +86,9 @@ def create_stds(mapset, stds_h_name, stds_wse_name, sim_start_time, can_ovr):
 def to_s(unit, time):
     """Change an input time into second
     """
-    if unit in ['minutes', 'minute']:
+    if unit in ['second', 'seconds']:
+        return time * 60
+    elif unit in ['minutes', 'minute']:
         return time * 60
     elif unit in ['hours', 'hour']:
         return time * 3600
@@ -97,12 +99,15 @@ def to_s(unit, time):
 def from_s(unit, time):
     """Change an input time from seconds to another unit
     """
-    if unit in ['minutes', 'minute']:
+    if unit in ["second", "seconds"]:
+        return time
+    elif unit in ['minutes', 'minute']:
         return time / 60
     elif unit in ['hours', 'hour']:
         return time / 3600
     elif unit in ["day", "days"]:
         return time / 86400
+    
 
 
 def update_time_variable_input(strds, sim_clock):
