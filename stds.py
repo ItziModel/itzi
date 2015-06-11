@@ -87,7 +87,7 @@ def to_s(unit, time):
     """Change an input time into second
     """
     if unit in ['second', 'seconds']:
-        return time * 60
+        return time
     elif unit in ['minutes', 'minute']:
         return time * 60
     elif unit in ['hours', 'hour']:

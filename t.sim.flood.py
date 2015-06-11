@@ -315,6 +315,13 @@ def main():
             # update the domain object with ext_grid
             domain.set_arr_ext(ta_rainfall.arr, evap_grid, inf_grid, ta_user_inflow.arr)
 
+        if not ta_rainfall.is_valid(sim_clock):
+            msgr.verbose(_("updating rainfall map"))
+            ta_rainfall = stds.update_time_variable_input(
+                                                        stds_rainfall,
+                                                        sim_clock)
+            # update the domain object with ext_grid
+            domain.set_arr_ext(ta_rainfall.arr, evap_grid, inf_grid, ta_user_inflow.arr)
 
         ############################
         # apply boudary conditions #
