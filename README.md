@@ -51,3 +51,8 @@ The user can choose to output the following:
 
 A raster space-time dataset is created for each selected output.
 Maps are written using the STRDS name as a prefix.
+
+# Known issues
+
+Fixed-water surface elevation boundary is not working properly on East and North border
+NULL cells are not handled. Any map containing such cell would lead to the program generating unpredictable results
