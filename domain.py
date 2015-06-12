@@ -88,7 +88,7 @@ class RasterDomain(object):
         ##########################
 
         # create calculated arrays
-        self.type_faces = np.dtype([('W', np.float64), ('S', np.float64)])
+        self.type_faces = np.dtype([('W', np.float32), ('S', np.float32)])
         # flow at time n
         self.arr_q = np.zeros(shape = (self.yr, self.xr), dtype = self.type_faces)
         # flow depth
@@ -130,7 +130,7 @@ class RasterDomain(object):
         """Set the water depth array and pad it
         """
         if arr_h == None:
-            self.arr_h = np.zeros(shape = (self.yr,self.xr), dtype = np.float64)
+            self.arr_h = np.zeros(shape = (self.yr,self.xr), dtype = np.float32)
         else:
             self.arr_h = arr_h
         

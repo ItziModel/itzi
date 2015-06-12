@@ -124,9 +124,10 @@ import numpy as np
 
 import rw
 import boundaries
-import hydro
+#~ import hydro
 import stds
-import hydro_np
+import hydro_py
+import hydro_cython
 from domain import RasterDomain
 
 import grass.script as grass
@@ -200,14 +201,14 @@ def main():
 
     # water depth (m)
     #~ if not options['in_h']:
-        #~ depth_grid = np.zeros(shape = (yr,xr), dtype = np.float64)
+        #~ depth_grid = np.zeros(shape = (yr,xr), dtype = np.float32)
     #~ else:
         #~ with raster.RasterRow(options['in_h'], mode='r') as rast:
-            #~ depth_grid = np.array(rast, dtype = np.float64)
+            #~ depth_grid = np.array(rast, dtype = np.float32)
 
     # manning's n friction
     with raster.RasterRow(options['in_n'], mode='r') as rast:
-            n_grid = np.array(rast, dtype = np.float16)
+            n_grid = np.array(rast, dtype = np.float32)
 
     # User-defined flows (m/s)
     ta_user_inflow, stds_inflow = rw.load_ta_from_strds(options['in_inflow'], mapset,
@@ -239,7 +240,7 @@ def main():
         del BC_type
     if options['in_bcval']:
         with raster.RasterRow(options['in_bcval'], mode='r') as rast:
-            BC_value = np.array(rast, dtype = np.float64)
+            BC_value = np.array(rast, dtype = np.float32)
         BC_grid['v'] = np.copy(BC_value)
         del BC_value
 
@@ -314,6 +315,13 @@ def main():
             # update the domain object with ext_grid
             domain.set_arr_ext(ta_rainfall.arr, evap_grid, inf_grid, ta_user_inflow.arr)
 
+        if not ta_rainfall.is_valid(sim_clock):
+            msgr.verbose(_("updating rainfall map"))
+            ta_rainfall = stds.update_time_variable_input(
+                                                        stds_rainfall,
+                                                        sim_clock)
+            # update the domain object with ext_grid
+            domain.set_arr_ext(ta_rainfall.arr, evap_grid, inf_grid, ta_user_inflow.arr)
 
         ############################
         # apply boudary conditions #
@@ -337,10 +345,10 @@ def main():
         boundary_vol_total += bound_vol
 
         # assign values of boundaries
-        #~ flow_grid_np1[:, 1]['W'] = flow_grid[:, 1]['W']              # W
-        #~ flow_grid_np1_padded[1:-1, -1] = flow_grid_padded[1:-1, -1]  # E
-        #~ flow_grid_np1_padded[0, 1:-1] = flow_grid_padded[0, 1:-1]    # N
-        #~ flow_grid_np1_padded[-1, 1:-1] = flow_grid_padded[-1, 1:-1]  # S
+        #~ domain.arr_q_np1[:, 1]['W'] = domain.arr_q[:, 1]['W']  # W
+        #~ domain.arrp_q_np1[1:-1, -1] = domain.arrp_q[1:-1, -1]  # E
+        #~ domain.arrp_q_np1[0, 1:-1] = domain.arrp_q[0, 1:-1]    # N
+        #~ domain.arr_q_np1[-1,:]['S'] = domain.arr_q[-1,:]['S']  # S
 
 
         ###################
@@ -349,10 +357,10 @@ def main():
         domain.solve_h()
 
         # assign values of boundaries
-        #~ h_grid_np1_padded[1:-1, 0] = depth_grid_padded[1:-1, 0]    # W
-        #~ h_grid_np1_padded[1:-1, -1] = depth_grid_padded[1:-1, -1]  # E
-        #~ h_grid_np1_padded[0, 1:-1] = depth_grid_padded[0, 1:-1]    # N
-        #~ h_grid_np1_padded[-1, 1:-1] = depth_grid_padded[-1, 1:-1]  # S
+        #~ domain.arrp_h_np1[1:-1, 0] = domain.arrp_h[1:-1, 0]    # W
+        #~ domain.arrp_h_np1[1:-1, -1] = domain.arrp_h[1:-1, -1]  # E
+        #~ domain.arrp_h_np1[0, 1:-1] = domain.arrp_h[0, 1:-1]    # N
+        #~ domain.arrp_h_np1[-1, 1:-1] = domain.arrp_h[-1, 1:-1]  # S
 
 
         ############################
@@ -377,7 +385,6 @@ def main():
         #~ grass.verbose(_("Mass balance at time %.1f : %.3f ") %
                         #~ (round(sim_clock, 1), round(mass_balance, 3)))
 
-       
         ####################
         # Solve flow depth #
         ####################
@@ -386,18 +393,33 @@ def main():
         ####################################
         # Calculate flow inside the domain #
         ####################################
-        domain.arr_q_np1 = hydro.get_flow(
+        #~ domain.arr_q_np1 = hydro_py.get_flow(
+            #~ domain.arrp_z,
+            #~ domain.arrp_n,
+            #~ domain.arr_h,
+            #~ domain.arr_hf,
+            #~ domain.arrp_q,
+            #~ domain.arrp_h_np1,
+            #~ domain.arr_q_np1,
+            #~ domain.hf_min,
+            #~ domain.dt, domain.dx, domain.dy,
+            #~ domain.g, domain.theta)
+
+        # cython
+        domain.arr_q_np1['W'], domain.arr_q_np1['S'] = hydro_cython.get_flow(
             domain.arrp_z,
             domain.arrp_n,
             domain.arr_h,
-            domain.arr_hf,
-            domain.arrp_q,
+            domain.arr_hf['W'],
+            domain.arr_hf['S'],
+            domain.arrp_q['W'],
+            domain.arrp_q['S'],
             domain.arrp_h_np1,
-            domain.arr_q_np1,
+            domain.arr_q_np1['W'],
+            domain.arr_q_np1['S'],
             domain.hf_min,
             domain.dt, domain.dx, domain.dy,
             domain.g, domain.theta)
-
 
         #############################################
         # update simulation data for next time step #
