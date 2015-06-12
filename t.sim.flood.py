@@ -127,7 +127,6 @@ import boundaries
 #~ import hydro
 import stds
 import hydro_py
-import hydro_cython
 from domain import RasterDomain
 
 import grass.script as grass
@@ -406,21 +405,10 @@ def main():
             #~ domain.g, domain.theta)
 
         # cython
-        domain.arr_q_np1['W'], domain.arr_q_np1['S'] = hydro_cython.get_flow(
-            domain.arrp_z,
-            domain.arrp_n,
-            domain.arr_h,
-            domain.arr_hf['W'],
-            domain.arr_hf['S'],
-            domain.arrp_q['W'],
-            domain.arrp_q['S'],
-            domain.arrp_h_np1,
-            domain.arr_q_np1['W'],
-            domain.arr_q_np1['S'],
-            domain.hmin,
-            domain.hf_min,
-            domain.dt, domain.dx, domain.dy,
-            domain.g, domain.theta)
+        domain.flow()
+
+        # simple rounting
+        domain.simple_routing()
 
         #############################################
         # update simulation data for next time step #

@@ -145,34 +145,38 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
             hflow_S = arr_hflow_S[y, x]
 
             # W flow
-            # calculate if not on first col (controled by bound. cond.)
+            # Do not calculate boundaries
             if not x == 0:
                 # prevent division / 0
-                if hflow_W <= hf_min:
+                if hflow_W <= hf_min or depth_grid[y, x] < h_min:
                     Qnp1_i = 0
                 else:
                     Qnp1_i = solve_q(
                         g, theta, q_n_im12, q_n_im32, q_n_ip12,
                         hflow_W, Dt, Dx, Dy, y_i, y_im1, nf)
                 # prevent negative depth values
-                if Qnp1_i > 0 and h_grid_np1_padded[yp, xp - 1] < h_min:
-                    Qnp1_i = 0
+                #~ if Qnp1_i > 0 and h_grid_np1_padded[yp, xp - 1] < h_min:
+                    #~ Qnp1_i = 0
+                #~ if Qnp1_i < 0 and h_grid_np1_padded[yp, xp] < h_min:
+                    #~ Qnp1_i = 0
                 # write flow results to result grid
                 flow_grid_np1_W[y, x] = Qnp1_i
 
             # S flow
-            # calculate if not on last row (controled by bound. cond.)
+            # Do not calculate boundaries
             if not y == depth_grid.shape[0]-1:
                 # prevent division / 0
-                if hflow_S <= hf_min:
+                if hflow_S <= hf_min  or depth_grid[y, x] < h_min:
                     Qnp1_j = 0
                 else:
                     Qnp1_j = solve_q(
                         g, theta, q_n_jm12, q_n_jm32, q_n_jp12,
                         hflow_S, Dt, Dy, Dx, y_i, y_jm1, nf)
                 # prevent negative depth values
-                if Qnp1_j > 0 and h_grid_np1_padded[yp + 1, xp] < h_min:
-                    Qnp1_j = 0
+                #~ if Qnp1_j > 0 and h_grid_np1_padded[yp + 1, xp] < h_min:
+                    #~ Qnp1_j = 0
+                #~ if Qnp1_j < 0 and h_grid_np1_padded[yp, xp] < h_min:
+                    #~ Qnp1_j = 0
                 # write flow results to result grid
                 flow_grid_np1_S[y, x] = Qnp1_j
 
