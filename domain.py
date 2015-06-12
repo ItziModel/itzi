@@ -51,7 +51,7 @@ class RasterDomain(object):
                 g = 9.80665,
                 theta = 0.9,  # default proposed by Almeida et al.(2012)
                 hf_min = 0.001,
-                hmin = 0.01):  
+                hmin = 0.005):  
 
         #####################
         # Process arguments #

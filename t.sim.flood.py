@@ -417,6 +417,7 @@ def main():
             domain.arrp_h_np1,
             domain.arr_q_np1['W'],
             domain.arr_q_np1['S'],
+            domain.hmin,
             domain.hf_min,
             domain.dt, domain.dx, domain.dy,
             domain.g, domain.theta)
