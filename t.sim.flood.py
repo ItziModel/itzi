@@ -385,7 +385,6 @@ def main():
         #~ grass.verbose(_("Mass balance at time %.1f : %.3f ") %
                         #~ (round(sim_clock, 1), round(mass_balance, 3)))
 
-       
         ####################
         # Solve flow depth #
         ####################
@@ -407,14 +406,6 @@ def main():
             #~ domain.g, domain.theta)
 
         # cython
-        #~ print 'arrp_z', domain.arrp_z.dtype
-        #~ print 'arrp_n', domain.arrp_n.dtype
-        #~ print 'arr_h', domain.arr_h.dtype
-        #~ print 'arr_hf', domain.arr_hf.dtype
-        #~ print 'arrp_q', domain.arrp_q.dtype
-        #~ print 'arrp_h_np1', domain.arrp_h_np1.dtype
-        #~ print 'arr_q_np1', domain.arr_q_np1.dtype
-
         domain.arr_q_np1['W'], domain.arr_q_np1['S'] = hydro_cython.get_flow(
             domain.arrp_z,
             domain.arrp_n,
