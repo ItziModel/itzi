@@ -111,6 +111,10 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
         float Qnp1_i
         float Qnp1_j
 
+        float qmax_ij
+        float qmax_im1
+        float qmax_jm1
+
     ymax = depth_grid.shape[0]
     xmax = depth_grid.shape[1]
     for y in range(ymax):
@@ -144,39 +148,44 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
             hflow_W = arr_hflow_W[y, x]
             hflow_S = arr_hflow_S[y, x]
 
+            # max flow = volume of the cell / time-step
+            qmax_ij = h_grid_np1_padded[yp, xp] * Dx * Dy / Dt
+            qmax_im1 = h_grid_np1_padded[yp, xp - 1] * Dx * Dy / Dt
+            qmax_jm1 = h_grid_np1_padded[yp + 1, xp] * Dx * Dy / Dt
+
             # W flow
             # Do not calculate boundaries
-            if not x == 0:
-                # prevent division / 0
-                if hflow_W <= hf_min or depth_grid[y, x] < h_min:
+            if x != 0 or h_grid_np1_padded[yp, xp] > h_min:
+                # prevent division by zero
+                if hflow_W <= hf_min:
                     Qnp1_i = 0
                 else:
                     Qnp1_i = solve_q(
                         g, theta, q_n_im12, q_n_im32, q_n_ip12,
                         hflow_W, Dt, Dx, Dy, y_i, y_im1, nf)
                 # prevent negative depth values
-                #~ if Qnp1_i > 0 and h_grid_np1_padded[yp, xp - 1] < h_min:
-                    #~ Qnp1_i = 0
-                #~ if Qnp1_i < 0 and h_grid_np1_padded[yp, xp] < h_min:
-                    #~ Qnp1_i = 0
+                if Qnp1_i > 0 and h_grid_np1_padded[yp, xp - 1] < h_min:
+                    Qnp1_i = min(qmax_im1, Qnp1_i)
+                #~ elif Qnp1_i < 0 and h_grid_np1_padded[yp, xp] < h_min:
+                    #~ Qnp1_i = max(-qmax_ij, Qnp1_i)
                 # write flow results to result grid
                 flow_grid_np1_W[y, x] = Qnp1_i
 
             # S flow
             # Do not calculate boundaries
-            if not y == depth_grid.shape[0]-1:
-                # prevent division / 0
-                if hflow_S <= hf_min  or depth_grid[y, x] < h_min:
+            if y != depth_grid.shape[0]-1 or h_grid_np1_padded[yp, xp] > h_min:
+                # prevent division by zero
+                if hflow_S <= hf_min:
                     Qnp1_j = 0
                 else:
                     Qnp1_j = solve_q(
                         g, theta, q_n_jm12, q_n_jm32, q_n_jp12,
                         hflow_S, Dt, Dy, Dx, y_i, y_jm1, nf)
                 # prevent negative depth values
-                #~ if Qnp1_j > 0 and h_grid_np1_padded[yp + 1, xp] < h_min:
-                    #~ Qnp1_j = 0
-                #~ if Qnp1_j < 0 and h_grid_np1_padded[yp, xp] < h_min:
-                    #~ Qnp1_j = 0
+                if Qnp1_j > 0 and h_grid_np1_padded[yp + 1, xp] < h_min:
+                    Qnp1_j = min(qmax_jm1, Qnp1_j)
+                #~ elif Qnp1_j < 0 and h_grid_np1_padded[yp, xp] < h_min:
+                    #~ Qnp1_j = max(-qmax_ij, Qnp1_j)
                 # write flow results to result grid
                 flow_grid_np1_S[y, x] = Qnp1_j
 

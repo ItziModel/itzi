@@ -253,6 +253,7 @@ def main():
                 arr_bc = BC_grid,
                 region = region)
 
+
     ###############
     # output data #
     ###############
@@ -354,6 +355,10 @@ def main():
         # calculate depth #
         ###################
         domain.solve_h()
+        # solve drying
+        #~ domain.drying()
+        # re-calculate depth
+        #~ domain.solve_h()
 
         # assign values of boundaries
         #~ domain.arrp_h_np1[1:-1, 0] = domain.arrp_h[1:-1, 0]    # W
@@ -461,7 +466,7 @@ def main():
     #################
     pr.disable()
     stat_stream = StringIO.StringIO()
-    sortby = 'cumulative'
+    sortby = 'time'
     ps = pstats.Stats(pr, stream=stat_stream).sort_stats(sortby)
     ps.print_stats(5)
     print stat_stream.getvalue()
