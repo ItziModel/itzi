@@ -16,31 +16,10 @@ import utils
 import rw
 
 
-def write_stds(stds, stds_id, dbif, can_ovr):
-    """write space time datasets
-    """
-    msgr = Messenger(raise_on_error=True)
-    
-    # check if stds allready in DB
-    if stds.is_in_db(dbif=dbif) and can_ovr == False:
-        dbif.close()
-        msgr.fatal(_("Space time %s dataset <%s> is already in the database. "
-                        "Use the overwrite flag.") %
-                    (stds.get_new_map_instance(None).get_type(), stds_id))
-    else:
-        if stds.is_in_db(dbif=dbif) and can_ovr == True:
-            msgr.verbose(_("Overwrite space time %s dataset <%s> "
-                            "and unregister all maps.") %
-                    (stds.get_new_map_instance(None).get_type(), stds_id))
-            stds.delete(dbif=dbif)
-        stds = stds.get_new_instance(stds_id)
-    
-    return 0
-
 def create_stds(mapset, stds_h_name, stds_wse_name, sim_start_time, can_ovr):
     """create wse and water depth STRDS
     """
-    
+
     # set ids, name and decription of result data sets
     stds_h_id = rw.format_opt_map(stds_h_name, mapset)
     stds_wse_id = rw.format_opt_map(stds_wse_name, mapset)
@@ -53,33 +32,21 @@ def create_stds(mapset, stds_h_name, stds_wse_name, sim_start_time, can_ovr):
     # Temporal type of stds
     temporal_type = "relative"
 
-    # create the data sets
-    stds_h = tgis.dataset_factory(stds_dtype, stds_h_id)
-    stds_wse = tgis.dataset_factory(stds_dtype, stds_wse_id)
-
     # database connection
     dbif = tgis.SQLDatabaseInterfaceConnection()
     dbif.connect()
 
     # water depth
     if stds_h_name:
-        write_stds(stds_h, stds_h_id, dbif, can_ovr)
-        stds_h.set_initial_values(
-            temporal_type=temporal_type, semantic_type="mean",
-            title=stds_h_title, description=stds_h_desc)
-        stds_h.insert(dbif=dbif)    
-
+        stds_h = tgis.open_new_stds(stds_h_name, stds_dtype,
+                        temporal_type, stds_h_title, stds_h_desc,
+                        "mean", dbif=dbif, overwrite=can_ovr)
     # water surface elevation
     if stds_wse_name:
-        write_stds(stds_wse, stds_wse_id, dbif, can_ovr)
-        stds_wse.set_initial_values(
-            temporal_type=temporal_type, semantic_type="mean",
-            title=stds_wse_title, description=stds_wse_desc)
-        stds_wse.insert(dbif=dbif)
+        stds_wse = tgis.open_new_stds(stds_wse_name, stds_dtype,
+                        temporal_type, stds_wse_title, stds_wse_desc,
+                        "mean", dbif=dbif, overwrite=can_ovr)
 
-    # Close the database connection
-    dbif.close()
-    
     return stds_h_id, stds_wse_id
 
 
