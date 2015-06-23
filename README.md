@@ -52,7 +52,24 @@ The user can choose to output the following:
 A raster space-time dataset is created for each selected output.
 Maps are written using the STRDS name as a prefix.
 
+# Installation
+t.sim.flood depends on GRASS GIS 7 and Cython. Numpy is needed but is normally a GRASS dependency.
+Copy all the source in the directory of your choice.
+
+Run cython:
+$ cython hydro_cython.pyx
+
+Compile the generated C file
+$ gcc -shared -pthread -fPIC -O2 -Wall -fno-strict-aliasing -I/usr/include/python2.7 -o hydro_cython.so hydro_cython.c
+
+Launch GRASS
+$ grass70
+
+Check usage of the module
+$ python t.sim.flood.py --h
+
 # Known issues
 
 Fixed-water surface elevation boundary is not working properly on East and North border
 NULL cells are not handled. Any map containing such cell would lead to the program generating unpredictable results
+Instabilities and negatives depths values happens in high slopes regions.
