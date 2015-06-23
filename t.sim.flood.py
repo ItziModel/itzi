@@ -38,11 +38,11 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 #% required: yes
 #%end
 
-#~ #%option G_OPT_R_INPUT
-#~ #% key: in_h
-#~ #% description: Name of input water depth raster map
-#~ #% required: no
-#~ #%end
+#%option G_OPT_R_INPUT
+#% key: in_h
+#% description: Name of input water depth raster map
+#% required: no
+#%end
 
 #~ #%option G_OPT_R_INPUT
 #~ #% key: in_y
@@ -124,7 +124,6 @@ import numpy as np
 
 import rw
 import boundaries
-#~ import hydro
 import stds
 import hydro_py
 import hydro_cython
@@ -200,11 +199,11 @@ def main():
             z_grid = np.array(rast, dtype = np.float32)
 
     # water depth (m)
-    #~ if not options['in_h']:
-        #~ depth_grid = np.zeros(shape = (yr,xr), dtype = np.float32)
-    #~ else:
-        #~ with raster.RasterRow(options['in_h'], mode='r') as rast:
-            #~ depth_grid = np.array(rast, dtype = np.float32)
+    if not options['in_h']:
+        depth_grid = np.zeros(shape = (yr,xr), dtype = np.float32)
+    else:
+        with raster.RasterRow(options['in_h'], mode='r') as rast:
+            depth_grid = np.array(rast, dtype = np.float32)
 
     # manning's n friction
     with raster.RasterRow(options['in_n'], mode='r') as rast:
@@ -249,10 +248,11 @@ def main():
     # Create domain object #
     ########################
     domain = RasterDomain(
-                arr_z = z_grid,
-                arr_n = n_grid,
-                arr_bc = BC_grid,
-                region = region)
+                arr_z=z_grid,
+                arr_n=n_grid,
+                arr_bc=BC_grid,
+                region=region,
+                arr_h=depth_grid)
 
     ###############
     # output data #
@@ -302,6 +302,7 @@ def main():
         domain.solve_dt()
         # update the simulation counter
         sim_clock += domain.dt
+        print 'dt: ', domain.dt
 
         #######################
         # time-variable input #
@@ -356,6 +357,8 @@ def main():
         ###################
         domain.solve_h()
 
+        print 'hnp1: ', domain.arr_h_np1[1,:]
+
         # assign values of boundaries
         #~ domain.arrp_h_np1[1:-1, 0] = domain.arrp_h[1:-1, 0]    # W
         #~ domain.arrp_h_np1[1:-1, -1] = domain.arrp_h[1:-1, -1]  # E
@@ -390,6 +393,8 @@ def main():
         ####################
         domain.solve_hflow()
 
+        print 'hflow: ', domain.arr_hf['W'][1,:]
+
         ####################################
         # Calculate flow inside the domain #
         ####################################
@@ -420,6 +425,8 @@ def main():
             domain.hf_min,
             domain.dt, domain.dx, domain.dy,
             domain.g, domain.theta)
+
+        print 'domain.arr_qnp1 W: ', domain.arr_q_np1['W'][1,:]
 
         #############################################
         # update simulation data for next time step #
