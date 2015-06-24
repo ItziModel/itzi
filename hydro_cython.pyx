@@ -19,6 +19,7 @@ def solve_q(float g,
                     float q_n_im12,
                     float q_n_im32,
                     float q_n_ip12,
+                    float q_norm,
                     float hflow,
                     float Dt,
                     float Dx,
@@ -53,7 +54,7 @@ def solve_q(float g,
 
     term_1 = theta * q_n_im12 + ((1 - theta) / 2) * (q_n_im32 + q_n_ip12)
     term_2 = g * hflow * (Dt / Dx) * (y_n_i - y_n_im1)
-    term_3 = 1 + g * Dt * (nf*nf) * abs(q_n_im12) / pow(hflow, 7/3)
+    term_3 = 1 + g * Dt * (nf*nf) * q_norm / pow(hflow, 7/3)
     q_np1_im12 = (term_1 - term_2) / term_3
     
     return q_np1_im12 * Dy  # output in m3/s
@@ -69,6 +70,7 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
             np.ndarray[float, ndim=2] h_grid_np1_padded,
             np.ndarray[float, ndim=2] flow_grid_np1_W,
             np.ndarray[float, ndim=2] flow_grid_np1_S,
+            np.ndarray[float, ndim=2] arr_q_vecnorm,
             float hf_min,
             float Dt,
             float Dx,
@@ -91,6 +93,7 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
         unsigned int yp
 
         float nf
+        float q_vec_norm
 
         float q_n_im32
         float q_n_im12
@@ -109,8 +112,6 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
 
         float Qnp1_i
         float Qnp1_j
-        #~ float Qnp1_i
-        #~ float Qnp1_i
 
     ymax = depth_grid.shape[0]
     xmax = depth_grid.shape[1]
@@ -121,6 +122,9 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
 
             # retrieve manning's n at current cell
             nf = n_grid_padded[yp, xp]
+
+            # retrieve vec norm for the cell
+            q_vec_norm = arr_q_vecnorm[y, x]
 
             # flow at prev. W face
             q_n_im32 = arr_q_n_i[yp, xp - 1] / Dy
@@ -154,7 +158,7 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
                 else:
                     Qnp1_i = solve_q(
                         g, theta, q_n_im12, q_n_im32, q_n_ip12,
-                        hflow_W, Dt, Dx, Dy, y_i, y_im1, nf)
+                        q_vec_norm, hflow_W, Dt, Dx, Dy, y_i, y_im1, nf)
 
                 # write flow results to result grid
                 flow_grid_np1_W[y, x] = Qnp1_i
@@ -168,7 +172,7 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
                 else:
                     Qnp1_j = solve_q(
                         g, theta, q_n_jm12, q_n_jm32, q_n_jp12,
-                        hflow_S, Dt, Dy, Dx, y_i, y_jm1, nf)
+                        q_vec_norm, hflow_S, Dt, Dy, Dx, y_i, y_jm1, nf)
 
                 # write flow results to result grid
                 flow_grid_np1_S[y, x] = Qnp1_j
