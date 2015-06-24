@@ -19,7 +19,7 @@ def solve_q(float g,
                     float q_n_im12,
                     float q_n_im32,
                     float q_n_ip12,
-                    float q_norm,
+                    double q_norm,
                     float hflow,
                     float Dt,
                     float Dx,
@@ -70,7 +70,7 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
             np.ndarray[float, ndim=2] h_grid_np1_padded,
             np.ndarray[float, ndim=2] flow_grid_np1_W,
             np.ndarray[float, ndim=2] flow_grid_np1_S,
-            np.ndarray[float, ndim=2] arr_q_vecnorm,
+            np.ndarray[double, ndim=2] arr_q_vecnorm,
             float hf_min,
             float Dt,
             float Dx,
@@ -93,7 +93,7 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
         unsigned int yp
 
         float nf
-        float q_vec_norm
+        double q_vec_norm
 
         float q_n_im32
         float q_n_im12

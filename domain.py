@@ -50,7 +50,7 @@ class RasterDomain(object):
                 dtmax = 10,
                 a = 0.7,
                 g = 9.80665,
-                theta = 0.9,  # default proposed by Almeida et al.(2012)
+                theta = 0.7,  # 0.9: default proposed by Almeida et al.(2012)
                 hf_min = 0.001,
                 hmin = 0.01):  
 
@@ -98,6 +98,11 @@ class RasterDomain(object):
         self.arr_h_np1 = np.copy(self.arr_h)
         # flow at time n+1
         self.arr_q_np1 = np.copy(self.arr_q)
+
+        # value needed for flow calculation
+        self.arr_q_vecnorm = np.zeros(shape = (self.yr,self.xr), dtype = np.float64)
+        self.arr_q_im12_j_y = np.zeros(shape = (self.yr,self.xr), dtype = np.float64)
+        self.arr_q_i_jm12_x = np.zeros(shape = (self.yr,self.xr), dtype = np.float64)
 
         # pad arrays
         #~ self.arr_h, self.arrp_h = utils.pad_array(self.arr_h)
@@ -212,7 +217,8 @@ class RasterDomain(object):
                     + self.arr_q['S'] - self.arrp_q[:-2, 1:-1]['S'])
 
         self.arr_h_np1[:] = (self.arr_h + (self.arr_ext * self.dt)) + flow_sum / self.cell_surf * self.dt
-
+        # set to zero if negative depth
+        self.arr_h_np1[:] = np.where(self.arr_h_np1[:] < 0, 0, self.arr_h_np1[:])
         return self
 
 
@@ -261,11 +267,33 @@ class RasterDomain(object):
         return self
 
 
+    def solve_q_vecnorm2(self):
+        """Calculate the q vector norm to be used in the flow equation
+        """
+        arr_q_i_jm12 = self.arrp_q['S'][1:-1, 1:-1]
+        arr_q_i_jp12 = self.arrp_q['S'][:-2, 1:-1]
+        arr_q_im1_jm12 = self.arrp_q['S'][1:-1, :-2]
+        arr_q_im1_jp12 = self.arrp_q['S'][:-2, :-2]
+        arr_q_im12_j = self.arrp_q['W'][1:-1, 1:-1]
+        arr_q_ip12_j = self.arrp_q['W'][1:-1, 2:]
+        arr_q_im12_jm1 = self.arrp_q['W'][2:, 1:-1]
+        arr_q_ip12_jm1 = self.arrp_q['W'][2:, 2:]
+
+        self.arr_q_im12_j_y[:] = (arr_q_i_jm12 + arr_q_i_jp12 +
+                          arr_q_im1_jm12 + arr_q_im1_jp12) / 4
+        self.arr_q_i_jm12_x[:] = (arr_q_im12_j + arr_q_ip12_j +
+                          arr_q_im12_jm1 + arr_q_ip12_jm1) / 4
+
+        self.arr_q_vecnorm[:] = np.sqrt(np.square(self.arr_q_im12_j_y) + np.square(self.arr_q_i_jm12_x))
+
+        return self
+
+
     def solve_q(self):
         '''Solve the general flow in the domain
         '''
         # solve vector norm for all the domain
-        self.solve_q_vecnorm()
+        self.solve_q_vecnorm2()
         # call a cython function for flow calculation
         self.arr_q_np1['W'], self.arr_q_np1['S'] = hydro_cython.get_flow(
             self.arrp_z,
