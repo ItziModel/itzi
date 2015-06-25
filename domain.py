@@ -32,7 +32,7 @@ class RasterDomain(object):
         control the calculated time-step length
     g: standard gravity. m.s^-2
     theta: weighting factor. Control the amount of diffusion in flow eq.
-    hf_min: minimum flow depth - used as a "float zero"
+    hf_min: minimum flow depth. Used to prevent division by zero
     hmin: minimum water depth at cell for wetting / drying process
     """
 
@@ -252,26 +252,26 @@ class RasterDomain(object):
         return self
 
 
-    def solve_q_vecnorm(self):
-        """Calculate the q vector norm to be used in the flow equation
-        """
-        arr_q_i_jm12 = self.arrp_q['S'][1:-1, 1:-1]
-        arr_q_i_jp12 = self.arrp_q['S'][:-2, 1:-1]
-        arr_q_ip1_jm12 = self.arrp_q['S'][1:-1, 2:]
-        arr_q_ip1_jp12 = self.arrp_q['S'][:-2, 2:]
-        arr_q_im12_j = self.arrp_q['W'][1:-1, 1:-1]
-        arr_q_ip12_j = self.arrp_q['W'][1:-1, 2:]
-        arr_q_im12_jp1 = self.arrp_q['W'][:-2, 1:-1]
-        arr_q_ip12_jp1 = self.arrp_q['W'][:-2, 2:]
-
-        arr_q_ip12_j_y = (arr_q_i_jm12 + arr_q_i_jp12 +
-                          arr_q_ip1_jm12 + arr_q_ip1_jp12) / 4
-        arr_q_i_jp12_x = (arr_q_im12_j + arr_q_ip12_j +
-                          arr_q_im12_jp1 + arr_q_ip12_jp1) / 4
-
-        self.arr_q_vecnorm = np.sqrt(np.square(arr_q_ip12_j_y) + np.square(arr_q_i_jp12_x))
-
-        return self
+    #~ def solve_q_vecnorm(self):
+        #~ """Calculate the q vector norm to be used in the flow equation
+        #~ """
+        #~ arr_q_i_jm12 = self.arrp_q['S'][1:-1, 1:-1]
+        #~ arr_q_i_jp12 = self.arrp_q['S'][:-2, 1:-1]
+        #~ arr_q_ip1_jm12 = self.arrp_q['S'][1:-1, 2:]
+        #~ arr_q_ip1_jp12 = self.arrp_q['S'][:-2, 2:]
+        #~ arr_q_im12_j = self.arrp_q['W'][1:-1, 1:-1]
+        #~ arr_q_ip12_j = self.arrp_q['W'][1:-1, 2:]
+        #~ arr_q_im12_jp1 = self.arrp_q['W'][:-2, 1:-1]
+        #~ arr_q_ip12_jp1 = self.arrp_q['W'][:-2, 2:]
+#~ 
+        #~ arr_q_ip12_j_y = (arr_q_i_jm12 + arr_q_i_jp12 +
+                          #~ arr_q_ip1_jm12 + arr_q_ip1_jp12) / 4
+        #~ arr_q_i_jp12_x = (arr_q_im12_j + arr_q_ip12_j +
+                          #~ arr_q_im12_jp1 + arr_q_ip12_jp1) / 4
+#~ 
+        #~ self.arr_q_vecnorm = np.sqrt(np.square(arr_q_ip12_j_y) + np.square(arr_q_i_jp12_x))
+#~ 
+        #~ return self
 
 
     def solve_q_vecnorm2(self):
@@ -360,7 +360,6 @@ class RasterDomain(object):
         self.arr_slope = np.zeros(shape = Z.shape, dtype = np.string_)
 
         for c, min_hdiff in np.ndenumerate(arr_min):
-
             if min_hdiff <= 0:
                 self.arr_slope[c] = '0'
             elif min_hdiff == dN[c]:
@@ -371,14 +370,21 @@ class RasterDomain(object):
                 self.arr_slope[c] = 'E'
             elif min_hdiff == dW[c]:
                 self.arr_slope[c] = 'W'
-
         return self
 
 
     def simple_routing(self):
-        '''calculate a flow with a given velocity'''
+        '''calculate a flow with a given velocity in a given direction
+        Application of the automated routing scheme proposed by
+        Sampson et al (2013)
+        '''
+        # Identify cells with adequate values
+        idx_routing = np.where(np.logical_and(
+                        self.arr_h_np1 < self.hmin,
+                        self.arr_h_np1 > 0)
+
         # water surface elevation
-        arrp_wse_np1 = self.arrp_z + self.arrp_h_np1
+        arrp_wse_np1 = self.arrp_z[idx_routing] + self.arrp_h_np1[idx_routing]
 
         # arrays of wse
         arr_wse_w = arrp_wse_np1[1:-1, :-2]
@@ -386,23 +392,20 @@ class RasterDomain(object):
         arr_wse = arrp_wse_np1[1:-1, 1:-1]
 
         # max routed depth
-        arr_h_w = np.minimum(self.arr_h_np1, np.maximum(0, arr_wse - arr_wse_w))
-        arr_h_s = np.minimum(self.arr_h_np1, np.maximum(0, arr_wse - arr_wse_s))
+        arr_h_w = np.minimum(self.arr_h_np1[idx_routing], np.maximum(0, arr_wse - arr_wse_w))
+        arr_h_s = np.minimum(self.arr_h_np1[idx_routing], np.maximum(0, arr_wse - arr_wse_s))
 
-        arr_q_w = self.arrp_q[1:-1, 1:-1]['W']
-        arr_q_s = self.arrp_q[1:-1, 1:-1]['S']
+        # array
+        arr_q_w = self.arrp_q[idx_routing][1:-1, 1:-1]['W']
+        arr_q_s = self.arrp_q[idx_routing][1:-1, 1:-1]['S']
 
         # arrays of routing flow
         arr_sflow_w = self.dy * arr_h_w * self.v_routing
         arr_sflow_s = self.dy * arr_h_s * self.v_routing
 
         # can route
-        idx_can_route_s = np.where(np.logical_and(
-                                    self.arr_h_np1 < self.hmin,
-                                    self.arr_slope == 'S'))
-        idx_can_route_w = np.where(np.logical_and(
-                                    self.arr_h_np1 < self.hmin,
-                                    self.arr_slope == 'W'))
+        idx_can_route_s = np.where(self.arr_slope[idx_routing] == 'S')
+        idx_can_route_w = np.where(self.arr_slope[idx_routing] == 'W')
 
         # S
         arr_q_s[idx_can_route_s] = - arr_sflow_s[idx_can_route_s]
