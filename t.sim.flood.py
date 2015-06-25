@@ -302,7 +302,7 @@ def main():
         domain.solve_dt()
         # update the simulation counter
         sim_clock += domain.dt
-        print 'dt: ', domain.dt
+        #~ print 'dt: ', domain.dt
 
         #######################
         # time-variable input #
@@ -357,7 +357,7 @@ def main():
         ###################
         domain.solve_h()
 
-        print 'hnp1: ', domain.arr_h_np1[1,:]
+        #~ print 'hnp1: ', domain.arr_h_np1[1,:]
 
         # assign values of boundaries
         #~ domain.arrp_h_np1[1:-1, 0] = domain.arrp_h[1:-1, 0]    # W
@@ -393,7 +393,7 @@ def main():
         ####################
         domain.solve_hflow()
 
-        print 'hflow: ', domain.arr_hf['W'][1,:]
+        #~ print 'hflow: ', domain.arr_hf['W'][1,:]
 
         ####################################
         # Calculate flow inside the domain #
@@ -426,7 +426,7 @@ def main():
             domain.dt, domain.dx, domain.dy,
             domain.g, domain.theta)
 
-        print 'domain.arr_qnp1 W: ', domain.arr_q_np1['W'][1,:]
+        #~ print 'domain.arr_qnp1 W: ', domain.arr_q_np1['W'][1,:]
 
         #############################################
         # update simulation data for next time step #
