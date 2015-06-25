@@ -21,6 +21,7 @@ def solve_q(float g,
                     float q_n_ip12,
                     double q_norm,
                     float hflow,
+                    float hf_min,
                     float Dt,
                     float Dx,
                     float Dy,
@@ -52,11 +53,15 @@ def solve_q(float g,
         float term_3
         float q_np1_im12
 
-    term_1 = theta * q_n_im12 + ((1 - theta) / 2) * (q_n_im32 + q_n_ip12)
-    term_2 = g * hflow * (Dt / Dx) * (y_n_i - y_n_im1)
-    term_3 = 1 + g * Dt * (nf*nf) * q_norm / pow(hflow, 7/3)
-    q_np1_im12 = (term_1 - term_2) / term_3
-    
+    # Prevent division by zero
+    if hflow <= hf_min:
+        q_np1_im12 = 0
+    else:
+        term_1 = theta * q_n_im12 + ((1 - theta) / 2) * (q_n_im32 + q_n_ip12)
+        term_2 = g * hflow * (Dt / Dx) * (y_n_i - y_n_im1)
+        term_3 = 1 + g * Dt * (nf*nf) * q_norm / pow(hflow, 7/3)
+        q_np1_im12 = (term_1 - term_2) / term_3
+
     return q_np1_im12 * Dy  # output in m3/s
 
 
@@ -157,26 +162,18 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
             # W flow
             # Calculate only in case of no boundary and above minimum depth
             if x != 0 or h_grid_np1_padded[yp, xp] > h_min:
-                # prevent division by zero
-                if hflow_W <= hf_min:
-                    Qnp1_i = 0
-                else:
-                    Qnp1_i = solve_q(
-                        g, theta, q_n_im12, q_n_im32, q_n_ip12,
-                        q_vec_norm, hflow_W, Dt, Dx, Dy, y_i, y_im1, nf)
+                Qnp1_i = solve_q(
+                    g, theta, q_n_im12, q_n_im32, q_n_ip12, q_vec_norm,
+                    hflow_W, hf_min, Dt, Dx, Dy, y_i, y_im1, nf)
                 # write flow results to result grid
                 flow_grid_np1_W[y, x] = Qnp1_i
 
             # S flow
             # # Calculate only in case of no boundary and above minimum depth
             if y != depth_grid.shape[0]-1 or h_grid_np1_padded[yp, xp] > h_min:
-                # prevent division by zero
-                if hflow_S <= hf_min:
-                    Qnp1_j = 0
-                else:
-                    Qnp1_j = solve_q(
-                        g, theta, q_n_jm12, q_n_jm32, q_n_jp12,
-                        q_vec_norm, hflow_S, Dt, Dy, Dx, y_i, y_jm1, nf)
+                Qnp1_j = solve_q(
+                    g, theta, q_n_jm12, q_n_jm32, q_n_jp12, q_vec_norm,
+                    hflow_S, hf_min, Dt, Dy, Dx, y_i, y_jm1, nf)
                 # write flow results to result grid
                 flow_grid_np1_S[y, x] = Qnp1_j
 
