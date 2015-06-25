@@ -161,7 +161,7 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
 
             # W flow
             # Calculate only in case of no boundary and above minimum depth
-            if x != 0 or h_grid_np1_padded[yp, xp] > h_min:
+            if x != 0 or h_grid_np1_padded[yp, xp] >= h_min:
                 Qnp1_i = solve_q(
                     g, theta, q_n_im12, q_n_im32, q_n_ip12, q_vec_norm,
                     hflow_W, hf_min, Dt, Dx, Dy, y_i, y_im1, nf)
@@ -170,7 +170,7 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
 
             # S flow
             # # Calculate only in case of no boundary and above minimum depth
-            if y != depth_grid.shape[0]-1 or h_grid_np1_padded[yp, xp] > h_min:
+            if y != depth_grid.shape[0]-1 or h_grid_np1_padded[yp, xp] >= h_min:
                 Qnp1_j = solve_q(
                     g, theta, q_n_jm12, q_n_jm32, q_n_jp12, q_vec_norm,
                     hflow_S, hf_min, Dt, Dy, Dx, y_i, y_jm1, nf)
