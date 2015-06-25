@@ -49,7 +49,7 @@ class RasterDomain(object):
                 arr_h = None,
                 region = None,
                 dtmax = 5,
-                a = 0.4,        # CFL constant
+                a = 0.7,        # CFL constant
                 g = 9.80665,
                 theta = 0.7,  # 0.9: default proposed by Almeida et al.(2012)
                 hf_min = 0.001,
@@ -221,7 +221,7 @@ class RasterDomain(object):
         arr_flow_sum = (self.arr_q['W'] - self.arrp_q[1:-1, 2:]['W']
                     + self.arr_q['S'] - self.arrp_q[:-2, 1:-1]['S'])
 
-        self.arr_h_np1[:] = (self.arr_h + (self.arr_ext * self.dt)) + flow_sum / self.cell_surf * self.dt
+        self.arr_h_np1[:] = (self.arr_h + (self.arr_ext * self.dt)) + arr_flow_sum / self.cell_surf * self.dt
         # set to zero if negative depth
         self.arr_h_np1[:] = np.where(self.arr_h_np1 < 0, 0, self.arr_h_np1[:])
 
@@ -314,6 +314,7 @@ class RasterDomain(object):
             self.arr_q_np1['W'],
             self.arr_q_np1['S'],
             self.arr_q_vecnorm,
+            self.hmin,
             self.hf_min,
             self.dt, self.dx, self.dy,
             self.g, self.theta)
