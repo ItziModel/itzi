@@ -381,23 +381,25 @@ class RasterDomain(object):
         # Identify cells with adequate values
         idx_routing = np.where(np.logical_and(
                         self.arr_h_np1 < self.hmin,
-                        self.arr_h_np1 > 0)
+                        self.arr_h_np1 > 0))
 
         # water surface elevation
-        arrp_wse_np1 = self.arrp_z[idx_routing] + self.arrp_h_np1[idx_routing]
+        arrp_wse_np1 = self.arrp_z + self.arrp_h_np1
 
         # arrays of wse
         arr_wse_w = arrp_wse_np1[1:-1, :-2]
+        arr_wse_e = arrp_wse_np1[1:-1, 2:]
         arr_wse_s = arrp_wse_np1[2:, 1:-1]
+        arr_wse_n = arrp_wse_np1[:-2, 1:-1]
         arr_wse = arrp_wse_np1[1:-1, 1:-1]
 
         # max routed depth
-        arr_h_w = np.minimum(self.arr_h_np1[idx_routing], np.maximum(0, arr_wse - arr_wse_w))
-        arr_h_s = np.minimum(self.arr_h_np1[idx_routing], np.maximum(0, arr_wse - arr_wse_s))
+        arr_h_w = np.minimum(self.arr_h_np1[idx_routing], np.maximum(0, arr_wse[idx_routing] - arr_wse_w[idx_routing]))
+        arr_h_s = np.minimum(self.arr_h_np1[idx_routing], np.maximum(0, arr_wse[idx_routing] - arr_wse_s[idx_routing]))
 
         # array
-        arr_q_w = self.arrp_q[idx_routing][1:-1, 1:-1]['W']
-        arr_q_s = self.arrp_q[idx_routing][1:-1, 1:-1]['S']
+        arr_q_w = self.arr_q[idx_routing]['W']
+        arr_q_s = self.arr_q[idx_routing]['S']
 
         # arrays of routing flow
         arr_sflow_w = self.dy * arr_h_w * self.v_routing
