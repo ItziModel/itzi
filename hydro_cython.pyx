@@ -150,14 +150,9 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
             y_im1 = z_grid_padded[yp, xp - 1] + h_grid_np1_padded[yp, xp - 1]
             y_jm1 = z_grid_padded[yp + 1, xp] + h_grid_np1_padded[yp + 1, xp]
 
-            # retrieve the flow height
+            # retrieve the flow depths
             hflow_W = arr_hflow_W[y, x]
             hflow_S = arr_hflow_S[y, x]
-
-            # max flow = volume of the cell / time-step
-            qmax_ij = h_grid_np1_padded[yp, xp] * Dx * Dy / Dt
-            qmax_im1 = h_grid_np1_padded[yp, xp - 1] * Dx * Dy / Dt
-            qmax_jm1 = h_grid_np1_padded[yp + 1, xp] * Dx * Dy / Dt
 
             # W flow
             # Calculate only in case of no boundary and above minimum depth
@@ -169,7 +164,6 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
                     Qnp1_i = solve_q(
                         g, theta, q_n_im12, q_n_im32, q_n_ip12,
                         q_vec_norm, hflow_W, Dt, Dx, Dy, y_i, y_im1, nf)
-
                 # write flow results to result grid
                 flow_grid_np1_W[y, x] = Qnp1_i
 
@@ -183,7 +177,6 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
                     Qnp1_j = solve_q(
                         g, theta, q_n_jm12, q_n_jm32, q_n_jp12,
                         q_vec_norm, hflow_S, Dt, Dy, Dx, y_i, y_jm1, nf)
-
                 # write flow results to result grid
                 flow_grid_np1_S[y, x] = Qnp1_j
 
