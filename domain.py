@@ -313,8 +313,10 @@ class RasterDomain(object):
             self.arr_q_np1['W'],
             self.arr_q_np1['S'],
             self.arr_q_vecnorm,
+            self.arr_slope,
             self.hmin,
             self.hf_min,
+            self.v_routing,
             self.dt, self.dx, self.dy,
             self.g, self.theta)
         return self
@@ -356,19 +358,25 @@ class RasterDomain(object):
         arr_min = np.maximum(np.maximum(dN, dS), np.maximum(dE, dW))
 
         # create a slope array
-        self.arr_slope = np.zeros(shape = Z.shape, dtype = np.string_)
+        self.arr_slope = np.zeros(shape = Z.shape, dtype = np.uint8)
+        # affect values to keep a non-string array
+        # (to be compatible with cython)
+        W = 1
+        E = 2
+        S = 3
+        N = 4
 
         for c, min_hdiff in np.ndenumerate(arr_min):
             if min_hdiff <= 0:
-                self.arr_slope[c] = '0'
+                self.arr_slope[c] = 0
             elif min_hdiff == dN[c]:
-                self.arr_slope[c] = 'N'
+                self.arr_slope[c] = N
             elif min_hdiff == dS[c]:
-                self.arr_slope[c] = 'S'
+                self.arr_slope[c] = S
             elif min_hdiff == dE[c]:
-                self.arr_slope[c] = 'E'
+                self.arr_slope[c] = E
             elif min_hdiff == dW[c]:
-                self.arr_slope[c] = 'W'
+                self.arr_slope[c] = W
         return self
 
 

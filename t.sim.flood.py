@@ -411,9 +411,10 @@ def main():
 
         # cython
         domain.solve_q()
+        #~ print domain.arrp_q[50,50]
 
         # simple rounting
-        domain.simple_routing()
+        #~ domain.simple_routing()
 
 
         #############################################

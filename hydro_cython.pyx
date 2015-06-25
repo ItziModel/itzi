@@ -13,21 +13,26 @@ import numpy as np
 # cython imports
 cimport numpy as np
 
+cdef enum cell_face:
+    W = 1
+    E = 2
+    S = 3
+    N = 4
 
 def solve_q(float g,
-                    float theta,
-                    float q_n_im12,
-                    float q_n_im32,
-                    float q_n_ip12,
-                    double q_norm,
-                    float hflow,
-                    float hf_min,
-                    float Dt,
-                    float Dx,
-                    float Dy,
-                    float y_n_i,
-                    float y_n_im1,
-                    float nf):
+            float theta,
+            float q_n_im12,
+            float q_n_im32,
+            float q_n_ip12,
+            double q_norm,
+            float hflow,
+            float hf_min,
+            float Dt,
+            float Dx,
+            float Dy,
+            float y_n_i,
+            float y_n_im1,
+            float nf):
     """
     calculate the flow at a considered cell face
 
@@ -46,7 +51,6 @@ def solve_q(float g,
     output: new flow in m3/s at current face
     """
 
-    # flow formula (formula #41 in almeida et al 2012)
     cdef:
         float term_1
         float term_2
@@ -57,12 +61,21 @@ def solve_q(float g,
     if hflow <= hf_min:
         q_np1_im12 = 0
     else:
+        # flow formula (formula #41 in Almeida et al 2012)
         term_1 = theta * q_n_im12 + ((1 - theta) / 2) * (q_n_im32 + q_n_ip12)
         term_2 = g * hflow * (Dt / Dx) * (y_n_i - y_n_im1)
         term_3 = 1 + g * Dt * (nf*nf) * q_norm / pow(hflow, 7/3)
         q_np1_im12 = (term_1 - term_2) / term_3
 
     return q_np1_im12 * Dy  # output in m3/s
+
+
+def rain_routing(float h, float y, float y_m1,
+                 float cell_width, float routing_velocity):
+    """Calculate flow routing at a face
+    """
+    h = min(h, y - y_m1)
+    return h * cell_width * routing_velocity
 
 
 def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
@@ -76,8 +89,10 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
             np.ndarray[float, ndim=2] flow_grid_np1_W,
             np.ndarray[float, ndim=2] flow_grid_np1_S,
             np.ndarray[double, ndim=2] arr_q_vecnorm,
+            np.ndarray[np.uint8_t, ndim=2] arr_q_dir,
             float h_min,
             float hf_min,
+            float routing_velocity,
             float Dt,
             float Dx,
             float Dy,
@@ -125,6 +140,7 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
 
     ymax = depth_grid.shape[0]
     xmax = depth_grid.shape[1]
+
     for y in range(ymax):
         for x in range(xmax):
             xp = x + 1 # x coordinate of cell in padded grid
@@ -159,21 +175,47 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
             hflow_W = arr_hflow_W[y, x]
             hflow_S = arr_hflow_S[y, x]
 
-            # W flow
-            # Calculate only in case of no boundary and above minimum depth
-            if x != 0 or h_grid_np1_padded[yp, xp] >= h_min:
-                Qnp1_i = solve_q(
-                    g, theta, q_n_im12, q_n_im32, q_n_ip12, q_vec_norm,
-                    hflow_W, hf_min, Dt, Dx, Dy, y_i, y_im1, nf)
+            # W flow. Calculate only if not on boundary
+            if x != 0:
+                # apply rain routing to the E face of the W neighbouring cell
+                if h_grid_np1_padded[yp, xp-1] < h_min and y_i < y_im1 and arr_q_dir[y, x-1] == E:
+                    Qnp1_i = rain_routing(h_grid_np1_padded[yp, xp-1],
+                                            y_im1, y_i, Dy,
+                                            routing_velocity)
+                    #~ print arr_q_dir[y, x-1]
+                    #~ print 'E routing:', Qnp1_i
+                # solve with Almeida and Bates (2013) if above minimum depth
+                elif h_grid_np1_padded[yp, xp] >= h_min:
+                    Qnp1_i = solve_q(
+                        g, theta, q_n_im12, q_n_im32, q_n_ip12, q_vec_norm,
+                        hflow_W, hf_min, Dt, Dx, Dy, y_i, y_im1, nf)
+                    #~ print 'W:', Qnp1_i
+                # apply rain routing to the curent cell
+                elif y_i > y_im1 and arr_q_dir[y, x] == W:
+                    Qnp1_i = - rain_routing(h_grid_np1_padded[yp, xp],
+                                            y_i, y_im1, Dy,
+                                            routing_velocity)
+                    #~ print 'W routing:', Qnp1_i
                 # write flow results to result grid
                 flow_grid_np1_W[y, x] = Qnp1_i
 
-            # S flow
-            # # Calculate only in case of no boundary and above minimum depth
-            if y != depth_grid.shape[0]-1 or h_grid_np1_padded[yp, xp] >= h_min:
-                Qnp1_j = solve_q(
-                    g, theta, q_n_jm12, q_n_jm32, q_n_jp12, q_vec_norm,
-                    hflow_S, hf_min, Dt, Dy, Dx, y_i, y_jm1, nf)
+            # S flow. Calculate only if not on boundary
+            if y != depth_grid.shape[0]-1:
+                # apply rain routing to the N face of the S neighbouring cell
+                if h_grid_np1_padded[yp+1, xp] < h_min and y_jm1 > y_i and arr_q_dir[y+1, x] == N:
+                    Qnp1_j = rain_routing(h_grid_np1_padded[yp+1, xp],
+                                                y_jm1, y_i, Dx,
+                                                routing_velocity)
+                # solve with Almeida and Bates (2013) if above minimum depth
+                elif h_grid_np1_padded[yp, xp] >= h_min:
+                    Qnp1_j = solve_q(
+                        g, theta, q_n_jm12, q_n_jm32, q_n_jp12, q_vec_norm,
+                        hflow_S, hf_min, Dt, Dy, Dx, y_i, y_jm1, nf)
+                # apply rain routing to the curent cell
+                elif y_i > y_im1 and arr_q_dir[y, x] == S:
+                    Qnp1_j = - rain_routing(h_grid_np1_padded[yp, xp],
+                                            y_i, y_jm1, Dx,
+                                            routing_velocity)
                 # write flow results to result grid
                 flow_grid_np1_S[y, x] = Qnp1_j
 
