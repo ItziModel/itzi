@@ -71,6 +71,7 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
             np.ndarray[float, ndim=2] flow_grid_np1_W,
             np.ndarray[float, ndim=2] flow_grid_np1_S,
             np.ndarray[double, ndim=2] arr_q_vecnorm,
+            float h_min,
             float hf_min,
             float Dt,
             float Dx,
@@ -113,6 +114,10 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
         float Qnp1_i
         float Qnp1_j
 
+        float qmax_ij
+        float qmax_im1
+        float qmax_jm1
+
     ymax = depth_grid.shape[0]
     xmax = depth_grid.shape[1]
     for y in range(ymax):
@@ -149,10 +154,15 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
             hflow_W = arr_hflow_W[y, x]
             hflow_S = arr_hflow_S[y, x]
 
+            # max flow = volume of the cell / time-step
+            qmax_ij = h_grid_np1_padded[yp, xp] * Dx * Dy / Dt
+            qmax_im1 = h_grid_np1_padded[yp, xp - 1] * Dx * Dy / Dt
+            qmax_jm1 = h_grid_np1_padded[yp + 1, xp] * Dx * Dy / Dt
+
             # W flow
-            # calculate if not on first col (controled by bound. cond.)
-            if not x == 0:
-                # q set to zero if flow elevation is lower than threshold
+            # Calculate only in case of no boundary and above minimum depth
+            if x != 0 or h_grid_np1_padded[yp, xp] > h_min:
+                # prevent division by zero
                 if hflow_W <= hf_min:
                     Qnp1_i = 0
                 else:
@@ -164,9 +174,9 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
                 flow_grid_np1_W[y, x] = Qnp1_i
 
             # S flow
-            # calculate if not on last row (controled by bound. cond.)
-            if not y == depth_grid.shape[0]-1:
-                # q set to zero if flow elevation is lower than threshold
+            # # Calculate only in case of no boundary and above minimum depth
+            if y != depth_grid.shape[0]-1 or h_grid_np1_padded[yp, xp] > h_min:
+                # prevent division by zero
                 if hflow_S <= hf_min:
                     Qnp1_j = 0
                 else:

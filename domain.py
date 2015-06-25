@@ -12,6 +12,7 @@ import math
 import numpy as np
 import hydro_cython
 
+import hydro_cython
 import utils
 
 #~ from grass.pygrass.gis.region import Region
@@ -47,12 +48,13 @@ class RasterDomain(object):
                 arr_bc = None,
                 arr_h = None,
                 region = None,
-                dtmax = 10,
-                a = 0.7,
+                dtmax = 5,
+                a = 0.4,        # CFL constant
                 g = 9.80665,
                 theta = 0.7,  # 0.9: default proposed by Almeida et al.(2012)
                 hf_min = 0.001,
-                hmin = 0.01):  
+                hmin = 0.01,
+                v_routing=0.1):  # simple routing velocity m/s
 
         #####################
         # Process arguments #
@@ -65,6 +67,7 @@ class RasterDomain(object):
         self.theta = theta
         self.hf_min = hf_min
         self.hmin = hmin
+        self.v_routing = v_routing
 
         # region dimensions
         self.xr = region.cols
@@ -111,6 +114,9 @@ class RasterDomain(object):
         self.arr_h_np1, self.arrp_h_np1 = utils.pad_array(self.arr_h_np1)
         self.arr_q_np1, self.arrp_q_np1 = utils.pad_array(self.arr_q_np1)
 
+        # generate flow direction map
+        self.flow_dir()
+
         ##########################
         # Some general variables #
         ##########################
@@ -132,6 +138,7 @@ class RasterDomain(object):
         self.arr_n, self.arrp_n = utils.pad_array(self.arr_n)
         return self
 
+
     def set_arr_h(self, arr_h):
         """Set the water depth array and pad it
         """
@@ -139,9 +146,9 @@ class RasterDomain(object):
             self.arr_h = np.zeros(shape = (self.yr,self.xr), dtype = np.float32)
         else:
             self.arr_h = arr_h
-        
         self.arr_h, self.arrp_h = utils.pad_array(self.arr_h)
         return self
+
 
     def set_arr_ext(self, arr_rain, arr_evap, arr_inf, arr_user):
         """Set the external flow array
@@ -179,7 +186,6 @@ class RasterDomain(object):
         to the formula #15 in almeida et al (2012)
         dtmax: maximum time-step
         """
-
         # calculate the maximum water depth in the domain
         hmax = np.amax(self.arr_h)
         
@@ -210,23 +216,24 @@ class RasterDomain(object):
 
 
     def solve_h(self):
+        """Calculate new water depth
         """
-        Calculate new water depth
-        """
-        flow_sum = (self.arr_q['W'] - self.arrp_q[1:-1, 2:]['W']
+        arr_flow_sum = (self.arr_q['W'] - self.arrp_q[1:-1, 2:]['W']
                     + self.arr_q['S'] - self.arrp_q[:-2, 1:-1]['S'])
 
         self.arr_h_np1[:] = (self.arr_h + (self.arr_ext * self.dt)) + flow_sum / self.cell_surf * self.dt
         # set to zero if negative depth
-        self.arr_h_np1[:] = np.where(self.arr_h_np1[:] < 0, 0, self.arr_h_np1[:])
+        self.arr_h_np1[:] = np.where(self.arr_h_np1 < 0, 0, self.arr_h_np1[:])
+
         return self
 
 
     def solve_hflow(self):
         """calculate the difference between
-        the highest water free surface and the highest terrain elevevation
+        the highest water free surface
+        and the highest terrain elevevation
         of the two adjacent cells
-        This act as an approximation of the hydraulic radius
+        This acts as an approximation of the hydraulic radius
         """
         wse_im1 = self.arrp_z[1:-1, :-1] + self.arrp_h[1:-1, :-1]
         wse_i = self.arrp_z[1:-1, 1:] + self.arrp_h[1:-1, 1:]
@@ -327,3 +334,101 @@ class RasterDomain(object):
         """
         self.grid_volume = np.sum(self.arr_h) * self.cell_surf
         return self
+
+
+    def flow_dir(self):
+        '''
+        Return a "slope" array representing the flow direction
+        the resulting array is used for simple routing
+        '''
+        # define differences in Z
+        Z = self.arrp_z[1:-1, 1:-1]
+        N = self.arrp_z[0:-2, 1:-1]
+        S = self.arrp_z[2:, 1:-1]
+        E = self.arrp_z[1:-1, 2:]
+        W = self.arrp_z[1:-1, 0:-2]
+        dN = Z - N
+        dE = Z - E
+        dS = Z - S
+        dW = Z - W
+
+        # return minimum neighbour
+        arr_min = np.maximum(np.maximum(dN, dS), np.maximum(dE, dW))
+
+        # create a slope array
+        self.arr_slope = np.zeros(shape = Z.shape, dtype = np.string_)
+
+        for c, min_hdiff in np.ndenumerate(arr_min):
+
+            if min_hdiff <= 0:
+                self.arr_slope[c] = '0'
+            elif min_hdiff == dN[c]:
+                self.arr_slope[c] = 'N'
+            elif min_hdiff == dS[c]:
+                self.arr_slope[c] = 'S'
+            elif min_hdiff == dE[c]:
+                self.arr_slope[c] = 'E'
+            elif min_hdiff == dW[c]:
+                self.arr_slope[c] = 'W'
+
+        return self
+
+
+    def simple_routing(self):
+        '''calculate a flow with a given velocity'''
+        # water surface elevation
+        arrp_wse_np1 = self.arrp_z + self.arrp_h_np1
+
+        # arrays of wse
+        arr_wse_w = arrp_wse_np1[1:-1, :-2]
+        arr_wse_s = arrp_wse_np1[2:, 1:-1]
+        arr_wse = arrp_wse_np1[1:-1, 1:-1]
+
+        # max routed depth
+        arr_h_w = np.minimum(self.arr_h_np1, np.maximum(0, arr_wse - arr_wse_w))
+        arr_h_s = np.minimum(self.arr_h_np1, np.maximum(0, arr_wse - arr_wse_s))
+
+        arr_q_w = self.arrp_q[1:-1, 1:-1]['W']
+        arr_q_s = self.arrp_q[1:-1, 1:-1]['S']
+
+        # arrays of routing flow
+        arr_sflow_w = self.dy * arr_h_w * self.v_routing
+        arr_sflow_s = self.dy * arr_h_s * self.v_routing
+
+        # can route
+        idx_can_route_s = np.where(np.logical_and(
+                                    self.arr_h_np1 < self.hmin,
+                                    self.arr_slope == 'S'))
+        idx_can_route_w = np.where(np.logical_and(
+                                    self.arr_h_np1 < self.hmin,
+                                    self.arr_slope == 'W'))
+
+        # S
+        arr_q_s[idx_can_route_s] = - arr_sflow_s[idx_can_route_s]
+        # W
+        arr_q_w[idx_can_route_w] = - arr_sflow_w[idx_can_route_w]
+
+        return self
+
+
+    def drying(self):
+        '''Check low-level cells and apply drying (Bradbrook 2006)
+        '''
+        arr_flow_sum = (self.arr_q['W'] - self.arrp_q[1:-1, 2:]['W']
+                      + self.arr_q['S'] - self.arrp_q[:-2, 1:-1]['S'])
+
+        #~ for coor, h, in self.arr_h_np1
+
+        # select negative depth cell
+        drying_cells = np.where(np.logical_and(self.arr_h_np1 < 0, arr_flow_sum < 0))
+        #~ drying_cells = np.where(self.arr_h_np1 < 0)
+        # drying parameter
+        arr_dp = - (self.cell_surf * (self.arr_h[drying_cells])) / (self.dt * (arr_flow_sum[drying_cells] + self.arr_ext[drying_cells]))
+        #~ print 'arr_dp', arr_dp
+        # Apply drying parameter to drying cells
+        self.arr_q['W'][drying_cells] *= arr_dp
+        self.arrp_q[1:-1, 2:]['W'][drying_cells] *= arr_dp
+        self.arr_q['S'][drying_cells] *= arr_dp
+        self.arrp_q[:-2, 1:-1]['S'][drying_cells] *= arr_dp
+
+        return 0
