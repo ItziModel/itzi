@@ -114,9 +114,6 @@ class RasterDomain(object):
         self.arr_h_np1, self.arrp_h_np1 = utils.pad_array(self.arr_h_np1)
         self.arr_q_np1, self.arrp_q_np1 = utils.pad_array(self.arr_q_np1)
 
-        # generate flow direction map
-        self.flow_dir()
-
         ##########################
         # Some general variables #
         ##########################
@@ -128,6 +125,8 @@ class RasterDomain(object):
         """
         self.arr_z = arr_z
         self.arr_z, self.arrp_z = utils.pad_array(self.arr_z)        
+        # generate flow direction map
+        self.flow_dir()
         return self
 
 
@@ -377,14 +376,17 @@ class RasterDomain(object):
         '''calculate a flow with a given velocity in a given direction
         Application of the automated routing scheme proposed by
         Sampson et al (2013)
+        For flows at W and S borders, the calculations are centered
+        on the current cells.
+        For flows at E and S borders, are considered
+        those of the neighbouring cells at W and S borders, respectively
         '''
-        # Identify cells with adequate values
-        idx_routing = np.where(np.logical_and(
-                        self.arr_h_np1 < self.hmin,
-                        self.arr_h_np1 > 0))
-
         # water surface elevation
         arrp_wse_np1 = self.arrp_z + self.arrp_h_np1
+
+        # water depth
+        arrp_h_np1_e = self.arrp_h_np1[1:-1, 2:]
+        arrp_h_np1_n = self.arrp_h_np1[:-2, 1:-1]
 
         # arrays of wse
         arr_wse_w = arrp_wse_np1[1:-1, :-2]
@@ -393,26 +395,43 @@ class RasterDomain(object):
         arr_wse_n = arrp_wse_np1[:-2, 1:-1]
         arr_wse = arrp_wse_np1[1:-1, 1:-1]
 
+        # Identify cells with adequate values
+        idx_rout = np.where(np.logical_and(
+                        self.arr_h_np1 < self.hmin,
+                        self.arr_h_np1 > 0))
+
         # max routed depth
-        arr_h_w = np.minimum(self.arr_h_np1[idx_routing], np.maximum(0, arr_wse[idx_routing] - arr_wse_w[idx_routing]))
-        arr_h_s = np.minimum(self.arr_h_np1[idx_routing], np.maximum(0, arr_wse[idx_routing] - arr_wse_s[idx_routing]))
+        arr_h_w = np.minimum(self.arr_h_np1[idx_rout], np.maximum(0, arr_wse[idx_rout] - arr_wse_w[idx_rout]))
+        arr_h_s = np.minimum(self.arr_h_np1[idx_rout], np.maximum(0, arr_wse[idx_rout] - arr_wse_s[idx_rout]))
+        arr_h_e = np.minimum(self.arr_h_np1[idx_rout], np.maximum(0, arr_wse[idx_rout] - arr_wse_e[idx_rout]))
+        arr_h_n = np.minimum(self.arr_h_np1[idx_rout], np.maximum(0, arr_wse[idx_rout] - arr_wse_n[idx_rout]))
 
-        # array
-        arr_q_w = self.arr_q[idx_routing]['W']
-        arr_q_s = self.arr_q[idx_routing]['S']
+        # arrays of flows
+        arr_q_w = self.arr_q[idx_rout]['W']
+        arr_q_s = self.arr_q[idx_rout]['S']
+        # flows of the neighbouring cells for E and N
+        arr_q_e = self.arrp_q[1:-1, 2:]['W']
+        arr_q_n = self.arrp_q[:-2, 1:-1]['S']
+        arr_q_e = arr_q_e[idx_rout]
+        arr_q_n = arr_q_n[idx_rout]
 
-        # arrays of routing flow
-        arr_sflow_w = self.dy * arr_h_w * self.v_routing
-        arr_sflow_s = self.dy * arr_h_s * self.v_routing
+        # arrays of calculated routing flow
+        arr_sflow_w = - self.dx * arr_h_w * self.v_routing
+        arr_sflow_s = - self.dy * arr_h_s * self.v_routing
+        arr_sflow_e = self.dx * arr_h_e * self.v_routing
+        arr_sflow_n = self.dy * arr_h_n * self.v_routing
 
         # can route
-        idx_can_route_s = np.where(self.arr_slope[idx_routing] == 'S')
-        idx_can_route_w = np.where(self.arr_slope[idx_routing] == 'W')
+        idx_route_s = np.where(self.arr_slope[idx_rout] == 'S')
+        idx_route_w = np.where(self.arr_slope[idx_rout] == 'W')
+        idx_route_e = np.where(self.arr_slope[idx_rout] == 'E')
+        idx_route_n = np.where(self.arr_slope[idx_rout] == 'N')
 
-        # S
-        arr_q_s[idx_can_route_s] = - arr_sflow_s[idx_can_route_s]
-        # W
-        arr_q_w[idx_can_route_w] = - arr_sflow_w[idx_can_route_w]
+        # affect calculated flow to the flow grid
+        arr_q_s[idx_route_s] = arr_sflow_s[idx_route_s]
+        arr_q_w[idx_route_w] = arr_sflow_w[idx_route_w]
+        arr_q_e[idx_route_e] = arr_sflow_e[idx_route_e]
+        arr_q_n[idx_route_n] = arr_sflow_n[idx_route_n]
 
         return self
 
