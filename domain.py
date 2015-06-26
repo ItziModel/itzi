@@ -52,7 +52,7 @@ class RasterDomain(object):
                 a = 0.7,        # CFL constant
                 g = 9.80665,
                 theta = 0.7,  # 0.9: default proposed by Almeida et al.(2012)
-                hf_min = 0.001,
+                hf_min = 0.0001,
                 hmin = 0.01,
                 v_routing=0.1):  # simple routing velocity m/s
 
@@ -222,7 +222,7 @@ class RasterDomain(object):
 
         self.arr_h_np1[:] = (self.arr_h + (self.arr_ext * self.dt)) + arr_flow_sum / self.cell_surf * self.dt
         # set to zero if negative depth
-        self.arr_h_np1[:] = np.where(self.arr_h_np1 < 0, 0, self.arr_h_np1[:])
+        #~ self.arr_h_np1[:] = np.where(self.arr_h_np1 < 0, 0, self.arr_h_np1[:])
 
         return self
 
@@ -275,6 +275,7 @@ class RasterDomain(object):
 
     def solve_q_vecnorm2(self):
         """Calculate the q vector norm to be used in the flow equation
+        Cf. Almeida and Bates (2013)
         """
         arr_q_i_jm12 = self.arrp_q['S'][1:-1, 1:-1]
         arr_q_i_jp12 = self.arrp_q['S'][:-2, 1:-1]
