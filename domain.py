@@ -12,10 +12,8 @@ import math
 import numpy as np
 import hydro_cython
 
-import hydro_cython
 import utils
 
-#~ from grass.pygrass.gis.region import Region
 
 class RasterDomain(object):
     """A raster computational domain made of:
@@ -48,7 +46,7 @@ class RasterDomain(object):
                 arr_bc = None,
                 arr_h = None,
                 region = None,
-                dtmax = 5,
+                dtmax = 10,
                 a = 0.7,        # CFL constant
                 g = 9.80665,
                 theta = 0.7,  # 0.9: default proposed by Almeida et al.(2012)
@@ -181,15 +179,14 @@ class RasterDomain(object):
 
 
     def solve_dt(self):
-        """Calculate the adaptative time-step according
-        to the formula #15 in almeida et al (2012)
-        dtmax: maximum time-step
+        """Calculate the adaptative time-step
+        The formula #15 in almeida et al (2012) has been modified to
+        accomodate non-square cells
+        The time-step is limited by the maximum time-step dtmax.
         """
         # calculate the maximum water depth in the domain
         hmax = np.amax(self.arr_h)
-        
         if hmax > 0:
-            # formula #15 in almeida et al (2012)
             self.dt = min(self.a
                             * (min(self.dx, self.dy)
                             / (math.sqrt(self.g * hmax))), self.dtmax)
@@ -230,8 +227,7 @@ class RasterDomain(object):
     def solve_hflow(self):
         """calculate the difference between
         the highest water free surface
-        and the highest terrain elevevation
-        of the two adjacent cells
+        and the highest terrain elevevation of the two adjacent cells
         This acts as an approximation of the hydraulic radius
         """
         wse_im1 = self.arrp_z[1:-1, :-1] + self.arrp_h[1:-1, :-1]
@@ -251,31 +247,34 @@ class RasterDomain(object):
         return self
 
 
-    #~ def solve_q_vecnorm(self):
-        #~ """Calculate the q vector norm to be used in the flow equation
-        #~ """
-        #~ arr_q_i_jm12 = self.arrp_q['S'][1:-1, 1:-1]
-        #~ arr_q_i_jp12 = self.arrp_q['S'][:-2, 1:-1]
-        #~ arr_q_ip1_jm12 = self.arrp_q['S'][1:-1, 2:]
-        #~ arr_q_ip1_jp12 = self.arrp_q['S'][:-2, 2:]
-        #~ arr_q_im12_j = self.arrp_q['W'][1:-1, 1:-1]
-        #~ arr_q_ip12_j = self.arrp_q['W'][1:-1, 2:]
-        #~ arr_q_im12_jp1 = self.arrp_q['W'][:-2, 1:-1]
-        #~ arr_q_ip12_jp1 = self.arrp_q['W'][:-2, 2:]
-#~ 
-        #~ arr_q_ip12_j_y = (arr_q_i_jm12 + arr_q_i_jp12 +
-                          #~ arr_q_ip1_jm12 + arr_q_ip1_jp12) / 4
-        #~ arr_q_i_jp12_x = (arr_q_im12_j + arr_q_ip12_j +
-                          #~ arr_q_im12_jp1 + arr_q_ip12_jp1) / 4
-#~ 
-        #~ self.arr_q_vecnorm = np.sqrt(np.square(arr_q_ip12_j_y) + np.square(arr_q_i_jp12_x))
-#~ 
-        #~ return self
+    def solve_q_vecnorm(self):
+        """Calculate the q vector norm to be used in the flow equation
+        This function uses the values in i+1 and j+1,
+        as originally explained in Almeida and Bates (2013)
+        """
+        arr_q_i_jm12 = self.arrp_q['S'][1:-1, 1:-1]
+        arr_q_i_jp12 = self.arrp_q['S'][:-2, 1:-1]
+        arr_q_ip1_jm12 = self.arrp_q['S'][1:-1, 2:]
+        arr_q_ip1_jp12 = self.arrp_q['S'][:-2, 2:]
+        arr_q_im12_j = self.arrp_q['W'][1:-1, 1:-1]
+        arr_q_ip12_j = self.arrp_q['W'][1:-1, 2:]
+        arr_q_im12_jp1 = self.arrp_q['W'][:-2, 1:-1]
+        arr_q_ip12_jp1 = self.arrp_q['W'][:-2, 2:]
+
+        arr_q_ip12_j_y = (arr_q_i_jm12 + arr_q_i_jp12 +
+                          arr_q_ip1_jm12 + arr_q_ip1_jp12) / 4
+        arr_q_i_jp12_x = (arr_q_im12_j + arr_q_ip12_j +
+                          arr_q_im12_jp1 + arr_q_ip12_jp1) / 4
+
+        self.arr_q_vecnorm = np.sqrt(np.square(arr_q_ip12_j_y) + np.square(arr_q_i_jp12_x))
+
+        return self
 
 
     def solve_q_vecnorm2(self):
         """Calculate the q vector norm to be used in the flow equation
-        Cf. Almeida and Bates (2013)
+        This function uses values in i-1 and j-1, which seems more logical
+        than the version given in Almeida and Bates (2013)
         """
         arr_q_i_jm12 = self.arrp_q['S'][1:-1, 1:-1]
         arr_q_i_jp12 = self.arrp_q['S'][:-2, 1:-1]
@@ -444,25 +443,5 @@ class RasterDomain(object):
 
         return self
 
-
-    def drying(self):
-        '''Check low-level cells and apply drying (Bradbrook 2006)
-        '''
-        arr_flow_sum = (self.arr_q['W'] - self.arrp_q[1:-1, 2:]['W']
-                      + self.arr_q['S'] - self.arrp_q[:-2, 1:-1]['S'])
-
-        #~ for coor, h, in self.arr_h_np1
-
-        # select negative depth cell
-        drying_cells = np.where(np.logical_and(self.arr_h_np1 < 0, arr_flow_sum < 0))
-        #~ drying_cells = np.where(self.arr_h_np1 < 0)
-        # drying parameter
-        arr_dp = - (self.cell_surf * (self.arr_h[drying_cells])) / (self.dt * (arr_flow_sum[drying_cells] + self.arr_ext[drying_cells]))
-        #~ print 'arr_dp', arr_dp
-        # Apply drying parameter to drying cells
-        self.arr_q['W'][drying_cells] *= arr_dp
-        self.arrp_q[1:-1, 2:]['W'][drying_cells] *= arr_dp
-        self.arr_q['S'][drying_cells] *= arr_dp
-        self.arrp_q[:-2, 1:-1]['S'][drying_cells] *= arr_dp
 
         return 0
