@@ -66,16 +66,21 @@ def solve_q(float g,
         term_2 = g * hflow * (Dt / Dx) * (y_n_i - y_n_im1)
         term_3 = 1 + g * Dt * (nf*nf) * q_norm / pow(hflow, 7/3)
         q_np1_im12 = (term_1 - term_2) / term_3
-
     return q_np1_im12 * Dy  # output in m3/s
 
 
-def rain_routing(float h, float y, float y_m1,
-                 float cell_width, float routing_velocity):
+def rain_routing(float h, float y, float y_m1, float Dt,
+                 float cell_length, float cell_width,
+                 float routing_velocity):
     """Calculate flow routing at a face
+    Cf. Sampson et al. (2013)
     """
-    h = min(h, y - y_m1)
-    return h * cell_width * routing_velocity
+    cdef:
+        float maxflow
+        float routing_flow
+    maxflow = cell_width * cell_length * min((y - y_m1),h) / Dt
+    routing_flow = (y - y_m1) * cell_width * routing_velocity
+    return min(routing_flow, maxflow)
 
 
 def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
@@ -180,22 +185,20 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
                 # apply rain routing to the E face of the W neighbouring cell
                 if h_grid_np1_padded[yp, xp-1] < h_min and y_i < y_im1 and arr_q_dir[y, x-1] == E:
                     Qnp1_i = rain_routing(h_grid_np1_padded[yp, xp-1],
-                                            y_im1, y_i, Dy,
+                                            y_im1, y_i, Dt, Dx, Dy,
                                             routing_velocity)
-                    #~ print arr_q_dir[y, x-1]
-                    #~ print 'E routing:', Qnp1_i
                 # solve with Almeida and Bates (2013) if above minimum depth
                 elif h_grid_np1_padded[yp, xp] >= h_min:
                     Qnp1_i = solve_q(
                         g, theta, q_n_im12, q_n_im32, q_n_ip12, q_vec_norm,
                         hflow_W, hf_min, Dt, Dx, Dy, y_i, y_im1, nf)
-                    #~ print 'W:', Qnp1_i
                 # apply rain routing to the curent cell
                 elif y_i > y_im1 and arr_q_dir[y, x] == W:
                     Qnp1_i = - rain_routing(h_grid_np1_padded[yp, xp],
-                                            y_i, y_im1, Dy,
+                                            y_i, y_im1, Dt, Dx, Dy,
                                             routing_velocity)
-                    #~ print 'W routing:', Qnp1_i
+                else:
+                    Qnp1_i = 0
                 # write flow results to result grid
                 flow_grid_np1_W[y, x] = Qnp1_i
 
@@ -204,7 +207,7 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
                 # apply rain routing to the N face of the S neighbouring cell
                 if h_grid_np1_padded[yp+1, xp] < h_min and y_jm1 > y_i and arr_q_dir[y+1, x] == N:
                     Qnp1_j = rain_routing(h_grid_np1_padded[yp+1, xp],
-                                                y_jm1, y_i, Dx,
+                                                y_jm1, y_i, Dt, Dy, Dx,
                                                 routing_velocity)
                 # solve with Almeida and Bates (2013) if above minimum depth
                 elif h_grid_np1_padded[yp, xp] >= h_min:
@@ -214,8 +217,10 @@ def get_flow(np.ndarray[float, ndim=2] z_grid_padded,
                 # apply rain routing to the curent cell
                 elif y_i > y_im1 and arr_q_dir[y, x] == S:
                     Qnp1_j = - rain_routing(h_grid_np1_padded[yp, xp],
-                                            y_i, y_jm1, Dx,
+                                            y_i, y_jm1, Dt, Dy, Dx,
                                             routing_velocity)
+                else:
+                    Qnp1_j = 0
                 # write flow results to result grid
                 flow_grid_np1_S[y, x] = Qnp1_j
 
