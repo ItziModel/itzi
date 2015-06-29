@@ -126,7 +126,6 @@ import rw
 import boundaries
 import stds
 import hydro_py
-import hydro_cython
 from domain import RasterDomain
 
 import grass.script as grass
@@ -254,6 +253,7 @@ def main():
                 region=region,
                 arr_h=depth_grid)
 
+
     ###############
     # output data #
     ###############
@@ -302,7 +302,6 @@ def main():
         domain.solve_dt()
         # update the simulation counter
         sim_clock += domain.dt
-        #~ print 'dt: ', domain.dt
 
         #######################
         # time-variable input #
@@ -357,8 +356,6 @@ def main():
         ###################
         domain.solve_h()
 
-        #~ print 'hnp1: ', domain.arr_h_np1[1,:]
-
         # assign values of boundaries
         #~ domain.arrp_h_np1[1:-1, 0] = domain.arrp_h[1:-1, 0]    # W
         #~ domain.arrp_h_np1[1:-1, -1] = domain.arrp_h[1:-1, -1]  # E
@@ -374,16 +371,11 @@ def main():
         #~ V_total = np.sum(h_grid_np1) * dxdy
         #~ grass.verbose(_("Domain volume at time %.1f : %.3f ") %
                         #~ (round(sim_clock,1), round(V_total,3)))
-        #~ 
         #~ # calculate grid volume change
         #~ Dvol = (np.sum(h_grid_np1) - np.sum(depth_grid)) * dxdy
-#~ 
-        #~ 
         #~ ext_input = np.sum(ext_grid * dxdy * dt)
-#~ 
         #~ # calculate mass balance
         #~ mass_balance = bound_vol + ext_input - Dvol
-#~ 
         #~ # display mass balance
         #~ grass.verbose(_("Mass balance at time %.1f : %.3f ") %
                         #~ (round(sim_clock, 1), round(mass_balance, 3)))
@@ -392,8 +384,6 @@ def main():
         # Solve flow depth #
         ####################
         domain.solve_hflow()
-
-        #~ print 'hflow: ', domain.arr_hf['W'][1,:]
 
         ####################################
         # Calculate flow inside the domain #
@@ -411,22 +401,7 @@ def main():
             #~ domain.g, domain.theta)
 
         # cython
-        domain.arr_q_np1['W'], domain.arr_q_np1['S'] = hydro_cython.get_flow(
-            domain.arrp_z,
-            domain.arrp_n,
-            domain.arr_h,
-            domain.arr_hf['W'],
-            domain.arr_hf['S'],
-            domain.arrp_q['W'],
-            domain.arrp_q['S'],
-            domain.arrp_h_np1,
-            domain.arr_q_np1['W'],
-            domain.arr_q_np1['S'],
-            domain.hf_min,
-            domain.dt, domain.dx, domain.dy,
-            domain.g, domain.theta)
-
-        #~ print 'domain.arr_qnp1 W: ', domain.arr_q_np1['W'][1,:]
+        domain.solve_q()
 
         #############################################
         # update simulation data for next time step #
@@ -479,7 +454,7 @@ def main():
     #################
     pr.disable()
     stat_stream = StringIO.StringIO()
-    sortby = 'cumulative'
+    sortby = 'time'
     ps = pstats.Stats(pr, stream=stat_stream).sort_stats(sortby)
     ps.print_stats(5)
     print stat_stream.getvalue()
