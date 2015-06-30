@@ -367,19 +367,19 @@ def main():
         ############################
         # mass balance calculation #
         ############################
-
-        #~ # calculate and display total grid volume        
-        #~ V_total = np.sum(h_grid_np1) * dxdy
-        #~ grass.verbose(_("Domain volume at time %.1f : %.3f ") %
-                        #~ (round(sim_clock,1), round(V_total,3)))
-        #~ # calculate grid volume change
-        #~ Dvol = (np.sum(h_grid_np1) - np.sum(depth_grid)) * dxdy
-        #~ ext_input = np.sum(ext_grid * dxdy * dt)
-        #~ # calculate mass balance
-        #~ mass_balance = bound_vol + ext_input - Dvol
-        #~ # display mass balance
-        #~ grass.verbose(_("Mass balance at time %.1f : %.3f ") %
-                        #~ (round(sim_clock, 1), round(mass_balance, 3)))
+        # calculate and display total grid volume
+        domain.solve_gridvolume()
+        grass.verbose(_("Domain volume at time %.1f : %.3f ") %
+                        (round(sim_clock,1), round(domain.grid_volume,3)))
+        # calculate grid volume change
+        Dvol = (np.sum(domain.arr_h_np1) - np.sum(domain.arr_h)) * domain.cell_surf
+        domain.solve_ext_volume(bound_vol)
+        ext_input = domain.total_ext_volume
+        # calculate mass balance
+        mass_balance = bound_vol + ext_input - Dvol
+        # display mass balance
+        grass.verbose(_("Mass balance at time %.1f : %.3f ") %
+                        (round(sim_clock, 1), round(mass_balance, 3)))
 
         ####################
         # Solve flow depth #

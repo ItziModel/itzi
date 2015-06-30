@@ -119,7 +119,6 @@ class RasterDomain(object):
         # Some general variables #
         ##########################
 
-        self.grid_volume = 0.
         self.sim_clock = 0
 
     def set_arr_z(self, arr_z):
@@ -348,18 +347,27 @@ class RasterDomain(object):
 
 
     def update_input_values(self):
-        """update the arrays of flows and depth
+        '''update the arrays of flows and depth
         to be used as entry at next time-step
-        """
+        '''
         self.arr_q[:] = self.arr_q_np1
         self.arr_h[:] = self.arr_h_np1
         return self
 
 
     def solve_gridvolume(self):
-        """calculatre the total grid volume
-        """
-        self.grid_volume = np.sum(self.arr_h) * self.cell_surf
+        '''calculate the total grid volume
+        '''
+        self.grid_volume = np.sum(self.arr_h_np1) * self.cell_surf
+        return self
+
+
+    def solve_ext_volume(self, bound_vol):
+        '''Calculate the volume added or substracted to the model
+        by external factors during a given time-step
+        bound_vol = volume passing through the boundaries during a given time-step
+        '''
+        self.total_ext_volume = np.sum(self.arr_ext) * self.dt * self.cell_surf + bound_vol
         return self
 
 
