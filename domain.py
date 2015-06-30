@@ -10,8 +10,8 @@ COPYRIGHT:    (C) 2015 by Laurent Courty
 
 import math
 import numpy as np
-import hydro_cython
 
+import hydro_cython
 import utils
 
 
@@ -28,10 +28,10 @@ class RasterDomain(object):
     dtmax: maximum time step in seconds
     a: constant for CFL defined by de Almeida et al.(2012) (default: 0.7)
         control the calculated time-step length
-    g: standard gravity. m.s^-2
+    g: Acceleration due to gravity. m.s^-2
     theta: weighting factor. Control the amount of diffusion in flow eq.
     hf_min: minimum flow depth. Used to prevent division by zero
-    hmin: minimum water depth at cell for wetting / drying process
+    hmin: threshold water depth at cell for wetting / drying process
     """
 
 
@@ -46,10 +46,12 @@ class RasterDomain(object):
                 arr_bc = None,
                 arr_h = None,
                 region = None,
+                start_time = 0,
+                end_time = None,
                 dtmax = 10,
-                a = 0.7,        # CFL constant
-                g = 9.80665,
-                theta = 0.7,  # 0.9: default proposed by Almeida et al.(2012)
+                a = 0.7,         # CFL constant
+                g = 9.80665,     # Standard gravity
+                theta = 0.9,     # default proposed by Almeida et al.(2012)
                 hf_min = 0.0001,
                 hmin = 0.01,
                 v_routing=0.1):  # simple routing velocity m/s
@@ -66,6 +68,8 @@ class RasterDomain(object):
         self.hf_min = hf_min
         self.hmin = hmin
         self.v_routing = v_routing
+        self.end_time = end_time
+        self.start_time = start_time
 
         # region dimensions
         self.xr = region.cols
@@ -106,7 +110,6 @@ class RasterDomain(object):
         self.arr_q_i_jm12_x = np.zeros(shape = (self.yr,self.xr), dtype = np.float64)
 
         # pad arrays
-        #~ self.arr_h, self.arrp_h = utils.pad_array(self.arr_h)
         self.arr_q, self.arrp_q = utils.pad_array(self.arr_q)
         self.arr_hf, self.arrp_hf = utils.pad_array(self.arr_hf)
         self.arr_h_np1, self.arrp_h_np1 = utils.pad_array(self.arr_h_np1)
@@ -117,6 +120,7 @@ class RasterDomain(object):
         ##########################
 
         self.grid_volume = 0.
+        self.sim_clock = 0
 
     def set_arr_z(self, arr_z):
         """Set the DEM array and pad it
@@ -187,14 +191,35 @@ class RasterDomain(object):
         # calculate the maximum water depth in the domain
         hmax = np.amax(self.arr_h)
         if hmax > 0:
-            self.dt = min(self.a
-                            * (min(self.dx, self.dy)
-                            / (math.sqrt(self.g * hmax))), self.dtmax)
+            self.dt = min(self.dtmax, self.a * (min(self.dx, self.dy) /
+                                     (math.sqrt(self.g * hmax))))
         else:
             self.dt = self.dtmax
 
         return self
-        
+
+
+    def set_dt(self):
+        '''Update simulation time complying with forced_timestep
+        '''
+        # solve timestep
+        self.solve_dt()
+        # recalculate timestep and sim_clock to comply with forced_timestep
+        if self.sim_clock + self.dt > self.forced_timestep:
+            self.dt = self.forced_timestep - self.sim_clock
+            self.sim_clock += self.dt
+        else:
+            self.sim_clock += self.dt
+        return self
+
+
+    def set_forced_timestep(self, next_record):
+        '''Defines the value of the next forced time step
+        Could be the next recording of data or the end of simulation
+        '''
+        self.forced_timestep = min(self.end_time, next_record)
+        return self
+
 
     def process_boundaries(self):
         """keep only 1D array of each boudary, inside the domain

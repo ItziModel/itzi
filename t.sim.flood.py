@@ -106,7 +106,7 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 #~ #%end
 
 #%option G_OPT_UNDEFINED 
-#% key: sim_duration
+#% key: end_time
 #% description: Duration of the simulation in seconds
 #% required: yes
 #%end
@@ -125,7 +125,6 @@ import numpy as np
 import rw
 import boundaries
 import stds
-import hydro_py
 from domain import RasterDomain
 
 import grass.script as grass
@@ -143,7 +142,7 @@ def main():
     pr = cProfile.Profile()
     pr.enable()
 
-    # get date and time at start
+    # get date and time at start (used for description of results)
     sim_start_time = datetime.now()
 
     # start messenger
@@ -153,7 +152,7 @@ def main():
     # general variables #
     #####################
 
-    sim_t = int(options['sim_duration'])  # Simulation duration in s
+    sim_end = int(options['end_time'])  # Simulation end time in s
     sim_clock = 0.0  # simulation time counter in s
     record_t =  int(options['record_step'])  # Recording time step in s
     record_count = 0  # Records counter
@@ -210,11 +209,11 @@ def main():
 
     # User-defined flows (m/s)
     ta_user_inflow, stds_inflow = rw.load_ta_from_strds(options['in_inflow'], mapset,
-                                sim_clock, sim_t, yr, xr)
+                                sim_clock, sim_end, yr, xr)
     
     # rainfall (mm/hr)
     ta_rainfall, stds_rainfall = rw.load_ta_from_strds(options['in_rain'], mapset,
-                                sim_clock, sim_t, yr, xr)
+                                sim_clock, sim_end, yr, xr)
     
     # infiltration (mm/hr)
     # for now, set to zeros
@@ -251,7 +250,10 @@ def main():
                 arr_n=n_grid,
                 arr_bc=BC_grid,
                 region=region,
-                arr_h=depth_grid)
+                arr_h=depth_grid,
+                end_time=sim_end,
+                theta=0.7,
+                hmin=0.001)
 
 
     ###############
@@ -277,49 +279,48 @@ def main():
     Dt_c = 1
 
     # Start time-stepping
-    while not sim_clock >= sim_t:
+    while not domain.sim_clock >= domain.end_time:
         #########################
         # write simulation data #
         #########################
-        if sim_clock / record_t >= record_count:
+        if domain.sim_clock / record_t >= record_count:
             list_h, list_wse = rw.write_sim_data(
                 options['out_h'], options['out_wse'], domain.arr_h_np1,
-                domain.arr_z, can_ovr, sim_clock, list_h, list_wse)
-            
+                domain.arr_z, can_ovr, domain.sim_clock, list_h, list_wse)
             # update record count
             record_count += 1
+            # set next forced timestep
+            domain.set_forced_timestep(record_count * record_t)
             # print grid volume
             #~ V_total = np.sum(depth_grid) * domain.cell_surf
             #~ domain.solve_gridvolume
             #~ grass.info(_("Total grid volume at time %.1f : %.3f ") %
-                        #~ (round(sim_clock,1), round(domain.grid_volume,3)))
+                        #~ (round(domain.sim_clock,1), round(domain.grid_volume,3)))
 
 
         ###########################
         # calculate the time-step #
         ###########################
-        # calculate time-step
-        domain.solve_dt()
-        # update the simulation counter
-        sim_clock += domain.dt
+        # calculate time-step and update the simulation counter
+        domain.set_dt()
 
         #######################
         # time-variable input #
         #######################
         # update usr_inflow if no longer valid for that simulation time
-        if not ta_user_inflow.is_valid(sim_clock):
+        if not ta_user_inflow.is_valid(domain.sim_clock):
             msgr.verbose(_("updating user_inflow map"))
             ta_user_inflow = stds.update_time_variable_input(
                                                         stds_inflow,
-                                                        sim_clock)
+                                                        domain.sim_clock)
             # update the domain object with ext_grid
             domain.set_arr_ext(ta_rainfall.arr, evap_grid, inf_grid, ta_user_inflow.arr)
 
-        if not ta_rainfall.is_valid(sim_clock):
+        if not ta_rainfall.is_valid(domain.sim_clock):
             msgr.verbose(_("updating rainfall map"))
             ta_rainfall = stds.update_time_variable_input(
                                                         stds_rainfall,
-                                                        sim_clock)
+                                                        domain.sim_clock)
             # update the domain object with ext_grid
             domain.set_arr_ext(ta_rainfall.arr, evap_grid, inf_grid, ta_user_inflow.arr)
 
@@ -388,19 +389,6 @@ def main():
         ####################################
         # Calculate flow inside the domain #
         ####################################
-        #~ domain.arr_q_np1 = hydro_py.get_flow(
-            #~ domain.arrp_z,
-            #~ domain.arrp_n,
-            #~ domain.arr_h,
-            #~ domain.arr_hf,
-            #~ domain.arrp_q,
-            #~ domain.arrp_h_np1,
-            #~ domain.arr_q_np1,
-            #~ domain.hf_min,
-            #~ domain.dt, domain.dx, domain.dy,
-            #~ domain.g, domain.theta)
-
-        # cython
         domain.solve_q()
 
         #############################################
@@ -424,7 +412,7 @@ def main():
     list_h, list_wse = rw.write_sim_data(
         options['out_h'], options['out_wse'],
         domain.arr_h_np1, domain.arr_z,
-        can_ovr, sim_clock, list_h, list_wse)
+        can_ovr, domain.sim_clock, list_h, list_wse)
 
     # print grid volume
     #~ V_total = np.sum(depth_grid) * domain.cell_surf
