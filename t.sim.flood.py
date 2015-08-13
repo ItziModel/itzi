@@ -5,17 +5,20 @@ MODULE:    t.sim.flood
 
 AUTHOR(S): Laurent Courty
 
-PURPOSE:   Simulate superficial water flows
-           Implementation of q-centered Numerical Scheme explained in:
-           G. A. M. de Almeida, P. Bates, J. E. Freer, and M. Souvignet
-           "Improving the stability of a simple formulation of the
-           shallow water equations for 2-D flood modeling", 2012
-           Water Resour. Res., 48, W05528, doi:10.1029/2011WR011570.
+PURPOSE:   Simulate superficial water flows using a quasi-2D implementation
+           of the Shallow Water Equations.
+           See:
+           De Almeida, G. & Bates, P., 2013. Applicability of the local
+           inertial approximation of the shallow water equations to
+           flood modeling. Water Resources Research, 49(8), pp.4833–4844.
+           Sampson, C.C. et al., 2013. An automated routing methodology
+           to enable direct rainfall in high resolution shallow water models.
+           Hydrological Processes, 27(3), pp.467–476.
 
 COPYRIGHT: (C) 2015 by Laurent Courty
 
            This program is free software under the GNU General Public
-           License (v3). Read the file LICENCE for details.
+           License (v3). Read the LICENCE file for details.
 """
 
 #%module

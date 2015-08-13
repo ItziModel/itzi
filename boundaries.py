@@ -5,7 +5,7 @@
 COPYRIGHT:    (C) 2015 by Laurent Courty
 
               This program is free software under the GNU General Public
-              License (v3). Read the file Read the file LICENCE for details.
+              License (v3). Read the file Read the LICENCE file for details.
 """
 
 import sys
