@@ -4,9 +4,19 @@ A GRASS GIS 7 module that simulates 2D superficial flows using simplified shallo
 # Description
 This module is aimed at modelling floodplain inundations using simplified shallow water equations.
 It implements the q-centered numerical scheme described in:
-G. A. M. de Almeida, P. Bates, J. E. Freer, and M. Souvignet
-"Improving the stability of a simple formulation of the shallow water equations for 2-D flood modeling", 2012
-Water Resour. Res., 48, W05528, doi:10.1029/2011WR011570
+
+De Almeida, G. a M. et al., 2012.
+Improving the stability of a simple formulation of the shallow water equations for 2-D flood modeling.
+Water Resources Research, 48(5), pp.1–14.
+
+De Almeida, G. a M. & Bates, P., 2013.
+Applicability of the local inertial approximation of the shallow water equations to flood modeling.
+Water Resources Research, 49(8), pp.4833–4844.
+
+As well as the simple routing method explained in:
+Sampson, C.C. et al., 2013.
+An automated routing methodology to enable direct rainfall in high resolution shallow water models.
+Hydrological Processes, 27(3), pp.467–476.
 
 It outputs space-time raster datasets of:
   - water depth
@@ -70,6 +80,6 @@ $ python t.sim.flood.py --h
 
 # Known issues
 
-Fixed-water surface elevation boundary is not working properly on East and North border
-NULL cells are not handled. Any map containing such cell would lead to the program generating unpredictable results
-Instabilities and negatives depths values happens in high slopes regions.
+  - Fixed-water surface elevation boundary is not working properly on East and North region border
+  - NULL cells are not handled. Any map containing such cell would lead to the program generating unpredictable results
+  - Instabilities and negatives depths values may happen in high slopes regions.
