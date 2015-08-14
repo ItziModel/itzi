@@ -5,6 +5,8 @@ A GRASS GIS 7 module that simulates 2D superficial flows using simplified shallo
 This module is aimed at modelling floodplain inundations using simplified shallow water equations.
 It is developed as part of the PhD project of Laurent Courty at the Instituto de Ingeniería, Universidad Nacional Autónoma de México.
 
+As of August 2015, it is under heavy development and subject to many kinds of changes and bugs.
+
 It implements the q-centered numerical scheme described in:
 
 De Almeida, G. a M. et al., 2012.
@@ -89,4 +91,4 @@ $ python t.sim.flood.py --h
 
   - Fixed-water surface elevation boundary is not working properly on East and North region border
   - NULL cells are not handled. Any map containing such cell would lead to the program generating unpredictable results
-  - Instabilities and negatives depths values may happen in high slopes regions.
+  - Instabilities and negatives depths values may occur in high slopes.
