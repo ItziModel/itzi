@@ -108,9 +108,15 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 #~ #% required: no
 #~ #%end
 
-#%option G_OPT_UNDEFINED 
+#%option G_OPT_UNDEFINED
+#% key: start_time
+#% description: Start of the simulation in format yyyy-mm-dd HH:MM:SS
+#% required: yes
+#%end
+
+#%option G_OPT_UNDEFINED
 #% key: end_time
-#% description: Duration of the simulation in seconds
+#% description: End of the simulation in format yyyy-mm-dd HH:MM:SS
 #% required: yes
 #%end
 
@@ -155,7 +161,14 @@ def main():
     # general variables #
     #####################
 
-    sim_end = int(options['end_time'])  # Simulation end time in s
+    # get time information in datetime format
+    time_format = '%Y-%m-%d %H:%M:%S'
+    sim_start = datetime.strptime(options['start_time'], time_format)
+    sim_end = datetime.strptime(options['end_time'], time_format)
+    # simulation duration in seconds
+    sim_duration = (sim_end - sim_start).total_seconds()
+    if not sim_duration > 0:
+        raise ValueError('end_time should be superior to start_time')
     sim_clock = 0.0  # simulation time counter in s
     record_t =  int(options['record_step'])  # Recording time step in s
     record_count = 0  # Records counter
@@ -254,7 +267,7 @@ def main():
                 arr_bc=BC_grid,
                 region=region,
                 arr_h=depth_grid,
-                end_time=sim_end,
+                end_time=sim_duration,
                 theta=0.7,
                 hmin=0.001)
 
@@ -373,7 +386,7 @@ def main():
         # calculate and display total grid volume
         domain.solve_gridvolume()
         grass.verbose(_("Domain volume at time %.1f : %.3f ") %
-                        (round(sim_clock,1), round(domain.grid_volume,3)))
+                        (round(domain.sim_clock,1), round(domain.grid_volume,3)))
         # calculate grid volume change
         Dvol = (np.sum(domain.arr_h_np1) - np.sum(domain.arr_h)) * domain.cell_surf
         domain.solve_ext_volume(bound_vol)
@@ -382,7 +395,7 @@ def main():
         mass_balance = bound_vol + ext_input - Dvol
         # display mass balance
         grass.verbose(_("Mass balance at time %.1f : %.3f ") %
-                        (round(sim_clock, 1), round(mass_balance, 3)))
+                        (round(domain.sim_clock, 1), round(mass_balance, 3)))
 
         ####################
         # Solve flow depth #
