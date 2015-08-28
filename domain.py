@@ -96,18 +96,23 @@ class RasterDomain(object):
         # create calculated arrays
         self.type_faces = np.dtype([('W', np.float32), ('S', np.float32)])
         # flow at time n
-        self.arr_q = np.zeros(shape = (self.yr, self.xr), dtype = self.type_faces)
+        self.arr_q = np.zeros(shape = (self.yr, self.xr),
+                                dtype = self.type_faces)
         # flow depth
-        self.arr_hf = np.zeros(shape = (self.yr, self.xr), dtype = self.type_faces)
+        self.arr_hf = np.zeros(shape = (self.yr, self.xr),
+                                dtype = self.type_faces)
         # depth at time n+1
         self.arr_h_np1 = np.copy(self.arr_h)
         # flow at time n+1
         self.arr_q_np1 = np.copy(self.arr_q)
 
         # value needed for flow calculation
-        self.arr_q_vecnorm = np.zeros(shape = (self.yr,self.xr), dtype = np.float64)
-        self.arr_q_im12_j_y = np.zeros(shape = (self.yr,self.xr), dtype = np.float64)
-        self.arr_q_i_jm12_x = np.zeros(shape = (self.yr,self.xr), dtype = np.float64)
+        self.arr_q_vecnorm = np.zeros(shape = (self.yr,self.xr),
+                                        dtype = np.float64)
+        self.arr_q_im12_j_y = np.zeros(shape = (self.yr,self.xr),
+                                        dtype = np.float64)
+        self.arr_q_i_jm12_x = np.zeros(shape = (self.yr,self.xr),
+                                        dtype = np.float64)
 
         # pad arrays
         self.arr_q, self.arrp_q = utils.pad_array(self.arr_q)
@@ -241,7 +246,9 @@ class RasterDomain(object):
         arr_flow_sum = (self.arr_q['W'] - self.arrp_q[1:-1, 2:]['W']
                     + self.arr_q['S'] - self.arrp_q[:-2, 1:-1]['S'])
 
-        self.arr_h_np1[:] = (self.arr_h + (self.arr_ext * self.dt)) + arr_flow_sum / self.cell_surf * self.dt
+        self.arr_h_np1[:] = ((self.arr_h +
+                            (self.arr_ext * self.dt)) +
+                            arr_flow_sum / self.cell_surf * self.dt)
         # set to zero if negative depth
         #~ self.arr_h_np1[:] = np.where(self.arr_h_np1 < 0, 0, self.arr_h_np1[:])
 
@@ -290,7 +297,9 @@ class RasterDomain(object):
         arr_q_i_jp12_x = (arr_q_im12_j + arr_q_ip12_j +
                           arr_q_im12_jp1 + arr_q_ip12_jp1) / 4
 
-        self.arr_q_vecnorm = np.sqrt(np.square(arr_q_ip12_j_y) + np.square(arr_q_i_jp12_x))
+        self.arr_q_vecnorm = np.sqrt(
+                            np.square(arr_q_ip12_j_y) +
+                            np.square(arr_q_i_jp12_x))
 
         return self
 
@@ -314,7 +323,9 @@ class RasterDomain(object):
         self.arr_q_i_jm12_x[:] = (arr_q_im12_j + arr_q_ip12_j +
                           arr_q_im12_jm1 + arr_q_ip12_jm1) / 4
 
-        self.arr_q_vecnorm[:] = np.sqrt(np.square(self.arr_q_im12_j_y) + np.square(self.arr_q_i_jm12_x))
+        self.arr_q_vecnorm[:] = np.sqrt(
+                                    np.square(self.arr_q_im12_j_y) +
+                                    np.square(self.arr_q_i_jm12_x))
 
         return self
 
@@ -365,9 +376,11 @@ class RasterDomain(object):
     def solve_ext_volume(self, bound_vol):
         '''Calculate the volume added or substracted to the model
         by external factors during a given time-step
-        bound_vol = volume passing through the boundaries during a given time-step
+        bound_vol: volume passing through the boundaries in a given time-step
         '''
-        self.total_ext_volume = np.sum(self.arr_ext) * self.dt * self.cell_surf + bound_vol
+        self.total_ext_volume = (np.sum(self.arr_ext) *
+                                    self.dt *
+                                    self.cell_surf + bound_vol)
         return self
 
 
@@ -442,10 +455,14 @@ class RasterDomain(object):
                         self.arr_h_np1 > 0))
 
         # max routed depth
-        arr_h_w = np.minimum(self.arr_h_np1[idx_rout], np.maximum(0, arr_wse[idx_rout] - arr_wse_w[idx_rout]))
-        arr_h_s = np.minimum(self.arr_h_np1[idx_rout], np.maximum(0, arr_wse[idx_rout] - arr_wse_s[idx_rout]))
-        arr_h_e = np.minimum(self.arr_h_np1[idx_rout], np.maximum(0, arr_wse[idx_rout] - arr_wse_e[idx_rout]))
-        arr_h_n = np.minimum(self.arr_h_np1[idx_rout], np.maximum(0, arr_wse[idx_rout] - arr_wse_n[idx_rout]))
+        arr_h_w = np.minimum(self.arr_h_np1[idx_rout],
+                    np.maximum(0, arr_wse[idx_rout] - arr_wse_w[idx_rout]))
+        arr_h_s = np.minimum(self.arr_h_np1[idx_rout],
+                    np.maximum(0, arr_wse[idx_rout] - arr_wse_s[idx_rout]))
+        arr_h_e = np.minimum(self.arr_h_np1[idx_rout],
+                    np.maximum(0, arr_wse[idx_rout] - arr_wse_e[idx_rout]))
+        arr_h_n = np.minimum(self.arr_h_np1[idx_rout],
+                    np.maximum(0, arr_wse[idx_rout] - arr_wse_n[idx_rout]))
 
         # arrays of flows
         arr_q_w = self.arr_q[idx_rout]['W']
