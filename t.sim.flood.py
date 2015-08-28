@@ -168,7 +168,7 @@ def main():
     # simulation duration in seconds
     sim_duration = (sim_end - sim_start).total_seconds()
     if not sim_duration > 0:
-        raise ValueError('end_time should be superior to start_time')
+        msgr.fatal('end_time should be superior to start_time')
     sim_clock = 0.0  # simulation time counter in s
     record_t =  int(options['record_step'])  # Recording time step in s
     record_count = 0  # Records counter
