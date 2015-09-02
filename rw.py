@@ -93,6 +93,7 @@ def write_raster(raster_name, arr, can_ovr):
 def load_ta_from_strds(opt, mapset, sim_clock, sim_t, yr, xr):
     """Load a TimeArray from a strds.
     Intended to be used at the beginning of the simulation.
+    opt= GRASS command line option
     """
     if not opt:
         # if no STDS is provided, instanciate a TimeArray with

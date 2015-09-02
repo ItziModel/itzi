@@ -224,12 +224,18 @@ def main():
             n_grid = np.array(rast, dtype = np.float32)
 
     # User-defined flows (m/s)
-    ta_user_inflow, stds_inflow = rw.load_ta_from_strds(options['in_inflow'], mapset,
-                                sim_clock, sim_end, yr, xr)
+    ta_user_inflow, stds_inflow = rw.load_ta_from_strds(
+                                    options['in_inflow'], mapset,
+                                    sim_clock, sim_end, yr, xr)
     
     # rainfall (mm/hr)
-    ta_rainfall, stds_rainfall = rw.load_ta_from_strds(options['in_rain'], mapset,
-                                sim_clock, sim_end, yr, xr)
+    strds_rainfall = tgis.open_stds.open_old_stds(options['in_rain'], 'strds')
+    print strds_rainfall.get_map_time()
+    # wait for user input before proceeding
+    raw_input("Press Enter to continue...")
+    ta_rainfall, stds_rainfall = rw.load_ta_from_strds(
+                                    options['in_rain'], mapset,
+                                    sim_clock, sim_end, yr, xr)
     
     # infiltration (mm/hr)
     # for now, set to zeros
