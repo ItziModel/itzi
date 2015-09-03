@@ -230,9 +230,6 @@ def main():
     
     # rainfall (mm/hr)
     strds_rainfall = tgis.open_stds.open_old_stds(options['in_rain'], 'strds')
-    print strds_rainfall.get_map_time()
-    # wait for user input before proceeding
-    raw_input("Press Enter to continue...")
     ta_rainfall, stds_rainfall = rw.load_ta_from_strds(
                                     options['in_rain'], mapset,
                                     sim_clock, sim_end, yr, xr)
@@ -329,14 +326,15 @@ def main():
         #######################
         # time-variable input #
         #######################
-        # update usr_inflow if no longer valid for that simulation time
+        # update user_inflow if no longer valid for that simulation time
         if not ta_user_inflow.is_valid(domain.sim_clock):
             msgr.verbose(_("updating user_inflow map"))
             ta_user_inflow = stds.update_time_variable_input(
                                                         stds_inflow,
                                                         domain.sim_clock)
             # update the domain object with ext_grid
-            domain.set_arr_ext(ta_rainfall.arr, evap_grid, inf_grid, ta_user_inflow.arr)
+            domain.set_arr_ext(ta_rainfall.arr, evap_grid,
+                            inf_grid, ta_user_inflow.arr)
 
         if not ta_rainfall.is_valid(domain.sim_clock):
             msgr.verbose(_("updating rainfall map"))
@@ -344,12 +342,14 @@ def main():
                                                         stds_rainfall,
                                                         domain.sim_clock)
             # update the domain object with ext_grid
-            domain.set_arr_ext(ta_rainfall.arr, evap_grid, inf_grid, ta_user_inflow.arr)
+            domain.set_arr_ext(ta_rainfall.arr, evap_grid,
+                            inf_grid, ta_user_inflow.arr)
 
         ############################
         # apply boudary conditions #
         ############################
-        # apply boundary conditions and get the volume passing through the boundaries
+        # apply boundary conditions
+        # get the volume passing through the boundaries
         bound_vol = boundaries.apply_bc(
                                         domain.dict_bc,
                                         domain.arrp_z,
@@ -422,9 +422,9 @@ def main():
         # update the entry data
         domain.update_input_values()
 
-        #########################
+        #####################
         # end of while loop #
-        #########################
+        #####################
 
 
     ##############################
@@ -448,15 +448,23 @@ def main():
     # depth
     if options['out_h']:
         list_h = ','.join(list_h) # transform map list into a string
-        kwargs = {'maps': list_h, 'start': 0, 'unit':'seconds', 'increment':int(record_t)}
-        tgis.register.register_maps_in_space_time_dataset('rast', stds_h_id, **kwargs)
+        kwargs = {'maps': list_h,
+                'start': 0,
+                'unit':'seconds',
+                'increment':int(record_t)}
+        tgis.register.register_maps_in_space_time_dataset('rast',
+                                                stds_h_id, **kwargs)
 
 
     # water surface elevation
     if options['out_wse']:
         list_wse = ','.join(list_wse)  # transform map list into a string
-        kwargs = {'maps': list_wse, 'start': 0, 'unit':'seconds', 'increment':int(record_t)}
-        tgis.register.register_maps_in_space_time_dataset('rast', stds_wse_id, **kwargs)
+        kwargs = {'maps': list_wse,
+                'start': 0,
+                'unit':'seconds',
+                'increment':int(record_t)}
+        tgis.register.register_maps_in_space_time_dataset('rast',
+                                                stds_wse_id, **kwargs)
 
 
     #################
