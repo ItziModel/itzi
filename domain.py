@@ -13,6 +13,7 @@ import numpy as np
 
 import hydro_cython
 import utils
+import boundaries
 
 
 class RasterDomain(object):
@@ -494,4 +495,46 @@ class RasterDomain(object):
         return self
 
 
-        return 0
+    def step(self):
+        '''Run one simulation time-step
+        '''
+        # calculate time-step and update the simulation counter
+        self.set_dt()
+
+        #######################
+        # time-variable input #
+        #######################
+        # To be implemented
+
+        # apply boundary conditions
+        # get the volume passing through the boundaries
+        bound_vol = boundaries.apply_bc(
+                                        self.dict_bc,
+                                        self.arrp_z,
+                                        self.arrp_h,
+                                        self.arrp_q,
+                                        self.arrp_hf,
+                                        self.arrp_n,
+                                        self.dx,
+                                        self.dy,
+                                        self.dt,
+                                        self.g,
+                                        self.theta,
+                                        self.hf_min)
+
+        # Calculate depth
+        self.solve_h()
+
+        # Solve flow depth
+        self.solve_hflow()
+
+        # Calculate flow inside the domain
+        self.solve_q()
+
+        # update time-step counter
+        Dt_c += 1
+
+        # update the entry data
+        self.update_input_values()
+
+        return self
