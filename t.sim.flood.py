@@ -117,10 +117,16 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 #%option G_OPT_UNDEFINED
 #% key: end_time
 #% description: End of the simulation in format yyyy-mm-dd HH:MM:SS
-#% required: yes
+#% required: no
 #%end
 
-#%option G_OPT_UNDEFINED 
+#%option G_OPT_UNDEFINED
+#% key: sim_duration
+#% description: Duration of the simulation after start_time, in seconds
+#% required: no
+#%end
+
+#%option G_OPT_UNDEFINED
 #% key: record_step
 #% description: Duration between two records, in seconds
 #% required: yes
@@ -161,14 +167,28 @@ def main():
     # general variables #
     #####################
 
+    if not options['end_time'] and not options['sim_duration']:
+        msgr.fatal('either end_time or sim_duration should be provided')
+    if options['end_time'] and options['sim_duration']:
+        msgr.fatal('end_time and sim_duration are mutually exclusive')
+
     # get time information in datetime format
     time_format = '%Y-%m-%d %H:%M:%S'
     sim_start = datetime.strptime(options['start_time'], time_format)
-    sim_end = datetime.strptime(options['end_time'], time_format)
-    # simulation duration in seconds
-    sim_duration = (sim_end - sim_start).total_seconds()
-    if not sim_duration > 0:
-        msgr.fatal('end_time should be superior to start_time')
+
+    if options['end_time']:
+        sim_end = datetime.strptime(options['end_time'], time_format)
+        # simulation duration in seconds
+        sim_duration = (sim_end - sim_start).total_seconds()
+        if not sim_duration > 0:
+            msgr.fatal('end_time should be superior to start_time')
+
+    if options['sim_duration']:
+        try:
+            sim_duration = int(options['sim_duration'])
+        except ValueError:
+            msgr.fatal('sim_duration should be an integer')
+
     sim_clock = 0.0  # simulation time counter in s
 
     try:
@@ -231,13 +251,13 @@ def main():
     # User-defined flows (m/s)
     ta_user_inflow, stds_inflow = rw.load_ta_from_strds(
                                     options['in_inflow'], mapset,
-                                    sim_clock, sim_end, yr, xr)
+                                    sim_clock, sim_duration, yr, xr)
     
     # rainfall (mm/hr)
     strds_rainfall = tgis.open_stds.open_old_stds(options['in_rain'], 'strds')
     ta_rainfall, stds_rainfall = rw.load_ta_from_strds(
                                     options['in_rain'], mapset,
-                                    sim_clock, sim_end, yr, xr)
+                                    sim_clock, sim_duration, yr, xr)
     
     # infiltration (mm/hr)
     # for now, set to zeros
