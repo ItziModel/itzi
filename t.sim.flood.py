@@ -323,6 +323,9 @@ def main():
         # calculate time-step and update the simulation counter
         domain.set_dt()
 
+        # display percentage of simulation
+        msgr.percent(domain.sim_clock, domain.end_time, 1)
+
         #######################
         # time-variable input #
         #######################

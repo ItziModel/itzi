@@ -35,7 +35,7 @@ def write_sim_data(opt_h, opt_wse, h_grid_np1, z_grid, can_ovr,
     """
 
     if opt_h or opt_wse:
-        msgr.message(_("Printing results, simulation time: %.1f ") %
+        msgr.verbose(_("Printing results, simulation time: %.1f ") %
                  round(sim_clock,1))
         if opt_h:
             # define new map name
@@ -44,7 +44,8 @@ def write_sim_data(opt_h, opt_wse, h_grid_np1, z_grid, can_ovr,
             h_map = np.where(h_grid_np1 == 0, np.nan, h_grid_np1)
             # write raster
             write_raster(depth_map_name, h_map, can_ovr)
-            msgr.message(_("Writting water depth map <%s> ") % depth_map_name)
+            msgr.verbose(_("Writting water depth map <%s> ")
+                            % depth_map_name)
             # add map name to the map list
             if depth_map_name not in list_h:
                 list_h.append(depth_map_name)
@@ -56,7 +57,8 @@ def write_sim_data(opt_h, opt_wse, h_grid_np1, z_grid, can_ovr,
             wse_map = np.where(h_grid_np1 == 0, np.nan, h_grid_np1 + z_grid)
             # write raster
             write_raster(wse_map_name, wse_map, can_ovr)
-            msgr.message(_("Writting water surface elevation map <%s> ") % wse_map_name)
+            msgr.verbose(_("Writting water surface elevation map <%s> ")
+                            % wse_map_name)
             # add map name to the map list
             if wse_map_name not in list_wse:
                 list_wse.append(wse_map_name)
