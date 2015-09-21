@@ -77,9 +77,9 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 #% required: no
 #%end
 
-#%option G_OPT_R_INPUT
+#%option G_OPT_STRDS_INPUT
 #% key: in_bcval
-#% description: Name of input boundary conditions value map
+#% description: Name of input boundary conditions values raster STDS
 #% required: no
 #%end
 
@@ -170,7 +170,12 @@ def main():
     if not sim_duration > 0:
         msgr.fatal('end_time should be superior to start_time')
     sim_clock = 0.0  # simulation time counter in s
-    record_t =  int(options['record_step'])  # Recording time step in s
+
+    try:
+        record_t =  int(options['record_step'])
+    except ValueError:
+        msgr.fatal('record_step should be an integer')
+
     record_count = 0  # Records counter
 
     # mass balance
@@ -255,10 +260,12 @@ def main():
         BC_grid['t'] = np.copy(BC_type)
         del BC_type
     if options['in_bcval']:
-        with raster.RasterRow(options['in_bcval'], mode='r') as rast:
-            BC_value = np.array(rast, dtype = np.float32)
-        BC_grid['v'] = np.copy(BC_value)
-        del BC_value
+        #~ with raster.RasterRow(options['in_bcval'], mode='r') as rast:
+            #~ BC_value = np.array(rast, dtype = np.float32)
+        ta_bcval, stds_bcval = rw.load_ta_from_strds(
+                                    options['in_bcval'], mapset,
+                                    sim_clock, sim_duration, yr, xr)
+        BC_grid['v'] = ta_bcval.arr
 
 
     ########################
@@ -347,6 +354,14 @@ def main():
             # update the domain object with ext_grid
             domain.set_arr_ext(ta_rainfall.arr, evap_grid,
                             inf_grid, ta_user_inflow.arr)
+
+        if not ta_bcval.is_valid(domain.sim_clock):
+            msgr.verbose(_("updating BC values map"))
+            ta_bcval = stds.update_time_variable_input(stds_bcval,
+                                                    domain.sim_clock)
+            # update the domain object
+            domain.set_arr_bc(BC_grid)
+
 
         ############################
         # apply boudary conditions #

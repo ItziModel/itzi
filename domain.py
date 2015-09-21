@@ -227,15 +227,14 @@ class RasterDomain(object):
 
 
     def process_boundaries(self):
-        """keep only 1D array of each boudary, inside the domain
+        """create 1D slices of each boudary, inside the domain
         create dict_bc, a dictionnary that hold the useful values
         """
-        W_BCi = np.copy(self.arr_bc[:,0])
-        E_BCi = np.copy(self.arr_bc[:,-1])
-        N_BCi = np.copy(self.arr_bc[0,:])
-        S_BCi = np.copy(self.arr_bc[-1,:])
-        # delete the original array
-        del self.arr_bc
+        W_BCi = self.arr_bc[:,0]
+        E_BCi = self.arr_bc[:,-1]
+        N_BCi = self.arr_bc[0,:]
+        S_BCi = self.arr_bc[-1,:]
+
         # put boundaries in a dict
         self.dict_bc =  {'W': W_BCi, 'E': E_BCi, 'N': N_BCi, 'S': S_BCi}
         return self
