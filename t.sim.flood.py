@@ -375,7 +375,7 @@ def main():
             domain.set_arr_ext(ta_rainfall.arr, evap_grid,
                             inf_grid, ta_user_inflow.arr)
 
-        if not ta_bcval.is_valid(domain.sim_clock):
+        if options['in_bcval'] and not ta_bcval.is_valid(domain.sim_clock):
             msgr.verbose(_("updating BC values map"))
             ta_bcval = stds.update_time_variable_input(stds_bcval,
                                                     domain.sim_clock)
