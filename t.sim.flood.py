@@ -254,7 +254,7 @@ def main():
                                     sim_clock, sim_duration, yr, xr)
     
     # rainfall (mm/hr)
-    strds_rainfall = tgis.open_stds.open_old_stds(options['in_rain'], 'strds')
+    #~ strds_rainfall = tgis.open_stds.open_old_stds(options['in_rain'], 'strds')
     ta_rainfall, stds_rainfall = rw.load_ta_from_strds(
                                     options['in_rain'], mapset,
                                     sim_clock, sim_duration, yr, xr)
