@@ -99,23 +99,21 @@ class SurfaceDomain(object):
         and the highest terrain elevevation of the two adjacent cells
         This acts as an approximation of the hydraulic radius
         """
-        # whole domain
-        wse_i_up = (self.arrp_z[self.ss, self.su] +
-                        self.arrp_h_new[self.ss, self.su])
-        z_i_up = self.arrp_z[self.ss, self.su]
-        wse_j_up = (self.arrp_z[self.su, self.ss] +
-                    self.arrp_h_new[self.su, self.ss])
-        z_j_up = self.arrp_z[self.su, self.ss]
-        wse = self.arr_z + self.arr_h_new
+        # definitions of slices on non-padded arrays
         # don't compute first row or col: solved by boundary conditions
-        z_i = self.arr_z[:, self.sc]
-        z_i_up = z_i_up[:, self.sc]
-        z_j = self.arr_z[self.sc, :]
-        z_j_up = z_j_up[self.sc, :]
-        wse_i = wse[:, self.sc]
-        wse_i_up = wse_i_up[:, self.sc]
-        wse_j = wse[self.sc, :]
-        wse_j_up = wse_j_up[self.sc, :]
+        s_i_self = (slice(None), slice(1, None))
+        s_i_up = (slice(None), slice(None, -1))
+        s_j_self = (slice(1, None), slice(None))
+        s_j_up = (slice(None, -1), slice(None))
+
+        z_i = self.arr_z[s_i_self]
+        z_i_up = self.arr_z[s_i_up]
+        z_j = self.arr_z[s_j_self]
+        z_j_up = self.arr_z[s_j_up]
+        wse_i = self.arr_z[s_i_self] + self.arr_h_new[s_i_self]
+        wse_i_up = self.arr_z[s_i_up] + self.arr_h_new[s_i_up]
+        wse_j = self.arr_z[s_j_self] + self.arr_h_new[s_j_self]
+        wse_j_up = self.arr_z[s_j_up] + self.arr_h_new[s_j_up]
 
         self.arr_hfw[:, self.sc] = (np.maximum(wse_i_up, wse_i)
                                      - np.maximum(z_i_up, z_i))
