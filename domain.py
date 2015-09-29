@@ -123,11 +123,26 @@ class SurfaceDomain(object):
                                        - np.maximum(z_j_up, z_j))
         return self
 
-    def bates2010(self, wse_0, wse_up, length, width, hf, q0, n):
-        slope = (wse_0 - wse_up) / length
+    def solve_slope(self, wse_0, wse_up, length):
+        return (wse_0 - wse_up) / length
+
+    def bates2010(self, slope, width, hf, q0, n):
+        '''flow formula from
+        Bates, P. D., Horritt, M. S., & Fewtrell, T. J. (2010).
+        A simple inertial formulation of the shallow water equations for
+        efficient two-dimensional flood inundation modelling.
+        Journal of Hydrology, 387(1), 33–45.
+        http://doi.org/10.1016/j.jhydrol.2010.03.027
+        '''
         num = (q0 - self.g * hf * self.dt * slope)
         den = (1 + self.dt * self.g * n*n * abs(q0) / (pow(hf, 4/3) * hf))
         return (num / den) * width
+
+    def gms(self, slope, hf, n, width):
+        '''Gauckler-Manning-Strickler flow formula
+        '''
+        V = (1/n) * pow(hf,2/3) * pow(slope, 1/2)
+        return V * hf * width
 
     def solve_q(self):
         '''
