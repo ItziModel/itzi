@@ -145,9 +145,16 @@ class Domain(SurfaceDomain):
                                        - np.maximum(z_j_up, z_j))
         return self
 
-    def bates2010(self):
-        slope = (wse_0 - wse_m1) / cell_length
+    def bates2010(self, wse_0, wse_up, length, width, hf, q0, n):
+        slope = (wse_0 - wse_up) / length
         num = (q0 - self.g * hf * self.dt * slope)
         den = (1 + self.dt * self.g * n*n * abs(q0) / (pow(hf, 4/3) * hf))
+        return (num / den) * width
 
-        return (num / den) * cell_width
+    def solve_q(self):
+        '''
+        '''
+
+        get_q = np.vectorize(bates2010)
+
+        return self
