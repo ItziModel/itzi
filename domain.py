@@ -64,10 +64,11 @@ class SurfaceDomain(object):
         accomodate non-square cells
         The time-step is limited by the maximum time-step dtmax.
         """
-        hmax = np.amax(self.arr_h_old)
+        hmax = np.amax(self.arr_h_old)  # max depth in domain
+        min_dim = min(self.dx, self.dy)
         if hmax > 0:
-            self.dt = min(self.dtmax, self.cfl * (min(self.dx, self.dy) /
-                                     (math.sqrt(self.g * hmax))))
+            self.dt = min(self.dtmax,
+                    self.cfl * ( min_dim / (math.sqrt(self.g * hmax))))
         else:
             self.dt = self.dtmax
 
