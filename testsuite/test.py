@@ -1,7 +1,7 @@
 from grass.gunittest.case import TestCase
 from grass.gunittest.main import test
 import numpy as np
-from domain import Domain
+from domain import SurfaceDomain
 
 class TestHFlow(TestCase):
 
@@ -25,7 +25,7 @@ class TestHFlow(TestCase):
     def test_hf(self):
         """
         """
-        dom = Domain()
+        dom = SurfaceDomain()
         dom.arrp_z = self.arrp_z
         dom.arrp_h_new = self.arrp_h
         dom.arr_z = self.arr_z
