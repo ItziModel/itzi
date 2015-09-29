@@ -16,14 +16,8 @@ class SurfaceDomain(object):
     """
 
     def __init__(self,
-                arr_z = None,
-                arr_n = None,
-                arr_bc = None,
-                arr_h = None,
                 dx = None,
                 dy = None,
-                start_time = 0,
-                end_time = None,
                 dtmax = 10,
                 a = 0.7,         # CFL constant
                 g = 9.80665,     # Standard gravity
@@ -37,7 +31,16 @@ class SurfaceDomain(object):
         self.g = g
         self.theta = theta
         self.hf_min = hf_min
-        #~ self.arr_h_old, self.arrp_h_old = self.pad_array(arr_h)
+
+        # Slices for upstream and downstream cells on a padded array
+        self.su = slice(None, 2)
+        self.sd = slice(2, None)
+        # uniform crop
+        self.ss = slice(1, -1)
+        # slice to crop first row or column
+        # to not conflict with boundary condition
+        self.sc = slice(1, None)
+
 
     @staticmethod
     def pad_array(arr):
@@ -48,15 +51,14 @@ class SurfaceDomain(object):
         arr = arr_p[1:-1,1:-1]
         return arr, arr_p
 
-    def step(self, forced_ts):
+    def step(self, next_ts):
         """
         """
-        self.forced_timestep = min(self.end_time, next_ts)
-        self.set_dt()
+        self.set_dt(next_ts)
 
-        return self
+        return self.sim_clock
 
-    def set_dt(self):
+    def set_dt(self, next_ts):
         """Calculate the adaptative time-step
         The formula #15 in almeida et al (2012) has been modified to
         accomodate non-square cells
@@ -70,36 +72,12 @@ class SurfaceDomain(object):
             self.dt = self.dtmax
 
         # set sim_clock and check if timestep is within forced_timestep
-        if self.sim_clock + self.dt > self.forced_timestep:
-            self.dt = self.forced_timestep - self.sim_clock
+        if self.sim_clock + self.dt > next_ts:
+            self.dt = next_ts - self.sim_clock
             self.sim_clock += self.dt
         else:
             self.sim_clock += self.dt
         return self
-
-
-
-class Domain(SurfaceDomain):
-    """
-    """
-    def __init__(self,
-                arr_rain = None,
-                arr_evap = None,
-                arr_inf = None,
-                arr_user = None,):
-        #~ self.arr_ext = arr_user + arr_rain - arr_evap - arr_inf
-        #~ del arr_user, arr_rain, arr_evap, arr_inf
-        #~ dtype = np.float32
-        #~ self.arr_qw = np.zeros(shape = (self.yr, self.xr),
-                                #~ dtype = dtype)
-        # Slices for upstream and downstream cells on a padded array
-        self.su = slice(None, 2)
-        self.sd = slice(2, None)
-        # uniform crop
-        self.ss = slice(1, -1)
-        # slice to crop first row or column
-        # to not conflict with boundary condition
-        self.sc = slice(1, None)
 
     def solve_h(self):
         """Calculate new water depth
