@@ -43,6 +43,8 @@ class TestHFlow(TestCase):
         # middle of the grid
         self.assertEqual(dom.arr_hfw[1,1], 1)
         self.assertEqual(dom.arr_hfn[1,1], 1)
+        # W boundary
+        self.assertEqual(dom.arr_hfn[1,0], 2)
 
 
 if __name__ == '__main__':
