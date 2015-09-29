@@ -141,7 +141,7 @@ class SurfaceDomain(object):
     def gms(self, slope, hf, n, width):
         '''Gauckler-Manning-Strickler flow formula
         '''
-        V = (1/n) * pow(hf,2/3) * pow(slope, 1/2)
+        V = (1 / n) * pow(hf, 2/3) * pow(slope, 1/2)
         return V * hf * width
 
     def solve_q(self):
