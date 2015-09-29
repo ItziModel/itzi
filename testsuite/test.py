@@ -8,7 +8,7 @@ class TestHFlow(TestCase):
     @classmethod
     def setUpClass(cls):
         """create test data"""
-        cls.shape = (5, 5)
+        cls.shape = (3, 3)
         cls.dtype = np.float32
         arr_z = np.array([[0,1,2], [0,1,2], [0,1,2]], dtype = cls.dtype)
         arr_h = np.array([[2,1,0], [2,1,0], [2,1,0]], dtype = cls.dtype)
@@ -41,8 +41,9 @@ class TestHFlow(TestCase):
         self.assertEqual(dom.arr_hfw[1,2], 0)
         self.assertEqual(dom.arr_hfn[1,2], 0)
         # middle of the grid
-        self.assertEqual(dom.arr_hfw[1,1], 2)
+        self.assertEqual(dom.arr_hfw[1,1], 1)
         self.assertEqual(dom.arr_hfn[1,1], 1)
+
 
 if __name__ == '__main__':
     test()
