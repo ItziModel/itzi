@@ -7,7 +7,7 @@ COPYRIGHT:    (C) 2015 by Laurent Courty
               This program is free software under the GNU General Public
               License (version 2). Read the LICENSE file for details.
 """
-
+from __future__ import division
 import math
 import numpy as np
 from boundary import Boundary
@@ -58,6 +58,10 @@ class SurfaceDomain(object):
         """Run a full simulation time-step
         """
         self.set_dt(next_ts)
+        self.apply_boundary_conditions()
+        self.solve_h()
+        self.solve_hflow()
+        self.solve_q()
 
         return self.sim_clock
 
@@ -165,27 +169,27 @@ class SurfaceDomain(object):
                                     bctype=self.arr_bctype[:, 0],
                                     bcvalue=self.arr_bcval[:, 0])
         e_boundary.get_boundary_flow(qin=self.arr_qw[:, -1],
-                                    qboundary=self.arrp_qw[:, -1],
+                                    qboundary=self.arrp_qw[1:-1, -1],
                                     hflow=self.arr_hfw[:, -1],
                                     n=self.arr_n[:, -1],
                                     z=self.arr_z[:, -1],
                                     depth=self.arr_h[:, -1],
                                     bctype=self.arr_bctype[:, -1],
                                     bcvalue=self.arr_bcval[:, -1])
-        n_boundary.get_boundary_flow(qin=self.arr_qn[1, :],
-                                    qboundary=self.arr_qn[0, :],
-                                    hflow=self.arr_hfn[0, :],
-                                    n=self.arr_n[0, :],
-                                    z=self.arr_z[0, :],
-                                    depth=self.arr_h[0, :],
-                                    bctype=self.arr_bctype[0, :],
-                                    bcvalue=self.arr_bcval[0, :])
+        n_boundary.get_boundary_flow(qin=self.arr_qn[1],
+                                    qboundary=self.arr_qn[0],
+                                    hflow=self.arr_hfn[0],
+                                    n=self.arr_n[0],
+                                    z=self.arr_z[0],
+                                    depth=self.arr_h[0],
+                                    bctype=self.arr_bctype[0],
+                                    bcvalue=self.arr_bcval[0])
         s_boundary.get_boundary_flow(qin=self.arr_qn[-1, :],
-                                    qboundary=self.arrp_qn[-1, :],
-                                    hflow=self.arr_hfn[-1, :],
-                                    n=self.arr_n[-1, :],
-                                    z=self.arr_z[-1, :],
-                                    depth=self.arr_h[-1, :],
-                                    bctype=self.arr_bctype[-1, :],
-                                    bcvalue=self.arr_bcval[-1, :])
+                                    qboundary=self.arrp_qn[-1, 1:-1],
+                                    hflow=self.arr_hfn[-1],
+                                    n=self.arr_n[-1],
+                                    z=self.arr_z[-1],
+                                    depth=self.arr_h[-1],
+                                    bctype=self.arr_bctype[-1],
+                                    bcvalue=self.arr_bcval[-1])
         return self
