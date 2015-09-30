@@ -25,39 +25,40 @@ class Boundary(object):
         else:
             assert False, "Unknown boundary position: {}".format(self.pos)
 
-    def get_boundary_flow(self, qold, qnew, hflow, n, z, depth,
+    def get_boundary_flow(self, qin, qboundary, hflow, n, z, depth,
                             bctype, bcvalue):
         """Take 1D numpy arrays as input
         Return an updated 1D array of flow through the boundary
         """
         # check if all input arrays have the same size
-        assert (qold.shape == qnew.shape == hflow.shape == n.shape ==
+        assert (qin.shape == qboundary.shape == hflow.shape == n.shape ==
                 z.shape == depth.shape == bctype.shape == bcvalue.shape)
         # select slices according to boundary types
         slice_closed = np.where(bctype == 1)
         slice_open = np.where(bctype == 2)
         slice_wse = np.where(bctype == 3)
         # Boundary type 1 (closed)
-        qnew[slice_closed] = 0
+        qboundary[slice_closed] = 0
         # Boundary type 2 (open)
-        qnew[slice_open] = self.open_boundary(qold[slice_open],
+        qboundary[slice_open] = self.get_flow_open_boundary(qin[slice_open],
                                 hflow[slice_open], depth[slice_open])
         # Boundary type 3 (user-defined wse)
-        slope = self.get_slope(h[slice_wse],
+        slope = self.get_slope(depth[slice_wse],
                             z[slice_wse], bcvalue[slice_wse])
-        qnew[slice_wse] = self.wse_boundary(n[slice_wse],
-                                hflow[slice_wse], slope[slice_wse])
+        qboundary[slice_wse] = self.get_flow_wse_boundary(n[slice_wse],
+                                hflow[slice_wse], slope)
+        return self
 
-    def open_boundary(self, qold, hf, hf_boundary):
+    def get_flow_open_boundary(self, qin, hf, hf_boundary):
         """velocity at the boundary equal to velocity inside domain
         """
-        return qold / hf * hf_boundary
+        return qin / hf * hf_boundary
 
     def get_slope(self, h, z, user_wse):
         """Return the slope between two water surface elevation,
         invert the results (and hence the flow) if a downstream boundary
         """
-        slope = (user_wse - h + z) / self.sl
+        slope = (user_wse - h + z) / self.cl
         if self.postype == 'upstream':
             return slope
         elif self.postype == 'downstream':
@@ -65,7 +66,7 @@ class Boundary(object):
         else:
             assert False, "Unknown postype {}".format(self.postype)
 
-    def wse_boundary(self, n, hf, slope):
+    def get_flow_wse_boundary(self, n, hf, slope):
         """
         Gauckler-Manning-Strickler flow equation
         """
