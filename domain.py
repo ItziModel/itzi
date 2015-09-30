@@ -153,7 +153,13 @@ class SurfaceDomain(object):
         return self
 
     def apply_boundary_conditions(self):
-        '''
+        '''Select relevant 1D slices and apply boundary conditions.
+        1D arrays passed to the boundary method include cells bordering
+        the boundary on the inside of the domain.
+        For the values applying at cells interface (flow depth and flow):
+        'qboundary' is the flow at the very boundary
+        'hflow' and 'qin' are the next value inside the domain
+        Therefore, only 'qboundary' should necessitate a padded array.
         '''
         w_boundary = Boundary(self.dy, self.dx, boundary_pos='W')
         e_boundary = Boundary(self.dy, self.dx, boundary_pos='E')
@@ -162,7 +168,7 @@ class SurfaceDomain(object):
 
         w_boundary.get_boundary_flow(qin=self.arr_qw[:, 1],
                                     qboundary=self.arr_qw[:, 0],
-                                    hflow=self.arr_hfw[:, 0],
+                                    hflow=self.arr_hfw[:, 1],
                                     n=self.arr_n[:, 0],
                                     z=self.arr_z[:, 0],
                                     depth=self.arr_h[:, 0],
@@ -178,7 +184,7 @@ class SurfaceDomain(object):
                                     bcvalue=self.arr_bcval[:, -1])
         n_boundary.get_boundary_flow(qin=self.arr_qn[1],
                                     qboundary=self.arr_qn[0],
-                                    hflow=self.arr_hfn[0],
+                                    hflow=self.arr_hfn[1],
                                     n=self.arr_n[0],
                                     z=self.arr_z[0],
                                     depth=self.arr_h[0],
