@@ -95,5 +95,31 @@ class TestH(TestCase):
         # middle of the grid
         self.assertEqual(self.dom.arr_h_old[1,1] + 1, self.dom.arr_h_new[1,1])
 
+
+class TestFlow(TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        """create test data"""
+        cls.dom = SurfaceDomain(dx=1, dy=1)
+
+
+    @classmethod
+    def tearDownClass(cls):
+        pass
+
+    def test_bates2010(self):
+        """
+        """
+        self.dom.dt = 2.3
+        slope = .1
+        hf = .2
+        q0 = 2
+        n = 0.03
+        q_result = self.dom.bates2010(slope, self.dom.dx, hf, q0, n)
+
+        np.testing.assert_approx_equal(q_result, 0.5662, significant=4)
+
+
 if __name__ == '__main__':
     test()
