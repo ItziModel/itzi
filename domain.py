@@ -10,9 +10,10 @@ COPYRIGHT:    (C) 2015 by Laurent Courty
 
 import math
 import numpy as np
+from boundary import Boundary
 
 class SurfaceDomain(object):
-    """
+    """Provides the step() method
     """
 
     def __init__(self,
@@ -31,6 +32,8 @@ class SurfaceDomain(object):
         self.g = g
         self.theta = theta
         self.hf_min = hf_min
+        self.dx = dx
+        self.dy = dy
 
         # Slices for upstream and downstream cells on a padded array
         self.su = slice(None, 2)
@@ -52,7 +55,7 @@ class SurfaceDomain(object):
         return arr, arr_p
 
     def step(self, next_ts):
-        """
+        """Run a full simulation time-step
         """
         self.set_dt(next_ts)
 
@@ -143,4 +146,46 @@ class SurfaceDomain(object):
 
         get_q = np.vectorize(bates2010)
 
+        return self
+
+    def apply_boundary_conditions(self):
+        '''
+        '''
+        w_boundary = Boundary(self.dy, self.dx, boundary_pos='W')
+        e_boundary = Boundary(self.dy, self.dx, boundary_pos='E')
+        n_boundary = Boundary(self.dx, self.dy, boundary_pos='N')
+        s_boundary = Boundary(self.dx, self.dy, boundary_pos='S')
+
+        w_boundary.get_boundary_flow(qin=self.arr_qw[:, 1],
+                                    qboundary=self.arr_qw[:, 0],
+                                    hflow=self.arr_hfw[:, 0],
+                                    n=self.arr_n[:, 0],
+                                    z=self.arr_z[:, 0],
+                                    depth=self.arr_h[:, 0],
+                                    bctype=self.arr_bctype[:, 0],
+                                    bcvalue=self.arr_bcval[:, 0])
+        e_boundary.get_boundary_flow(qin=self.arr_qw[:, -1],
+                                    qboundary=self.arrp_qw[:, -1],
+                                    hflow=self.arr_hfw[:, -1],
+                                    n=self.arr_n[:, -1],
+                                    z=self.arr_z[:, -1],
+                                    depth=self.arr_h[:, -1],
+                                    bctype=self.arr_bctype[:, -1],
+                                    bcvalue=self.arr_bcval[:, -1])
+        n_boundary.get_boundary_flow(qin=self.arr_qn[1, :],
+                                    qboundary=self.arr_qn[0, :],
+                                    hflow=self.arr_hfn[0, :],
+                                    n=self.arr_n[0, :],
+                                    z=self.arr_z[0, :],
+                                    depth=self.arr_h[0, :],
+                                    bctype=self.arr_bctype[0, :],
+                                    bcvalue=self.arr_bcval[0, :])
+        s_boundary.get_boundary_flow(qin=self.arr_qn[-1, :],
+                                    qboundary=self.arrp_qn[-1, :],
+                                    hflow=self.arr_hfn[-1, :],
+                                    n=self.arr_n[-1, :],
+                                    z=self.arr_z[-1, :],
+                                    depth=self.arr_h[-1, :],
+                                    bctype=self.arr_bctype[-1, :],
+                                    bcvalue=self.arr_bcval[-1, :])
         return self
