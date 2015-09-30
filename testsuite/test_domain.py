@@ -53,6 +53,10 @@ class TestH(TestCase):
         cls.dom.arr_h_new = np.copy(cls.dom.arr_h_old)
         cls.dom.arr_ext = np.zeros(shape=cls.shape, dtype = cls.dtype)
         cls.dom.dt = cls.dom.cell_surf = 1
+        cls.dom.arr_qn = np.ones(shape=cls.shape, dtype = cls.dtype)
+        cls.dom.arr_qw = np.ones(shape=cls.shape, dtype = cls.dtype)
+        cls.dom.arrp_qn = np.pad(cls.dom.arr_qn, 1, mode='edge')
+        cls.dom.arrp_qw = np.pad(cls.dom.arr_qw, 1, mode='edge')
 
     @classmethod
     def tearDownClass(cls):
@@ -61,11 +65,6 @@ class TestH(TestCase):
     def test_h_q_uniform(self):
         """
         """
-        self.dom.arr_qn = np.ones(shape=self.shape, dtype = self.dtype)
-        self.dom.arr_qw = np.ones(shape=self.shape, dtype = self.dtype)
-        self.dom.arrp_qn = np.pad(self.dom.arr_qn, 1, mode='edge')
-        self.dom.arrp_qw = np.pad(self.dom.arr_qw, 1, mode='edge')
-
         self.dom.solve_h()
 
         # middle of the grid
@@ -74,13 +73,8 @@ class TestH(TestCase):
     def test_h_xq_var(self):
         """
         """
-        self.dom.arr_qn = np.ones(shape=self.shape, dtype = self.dtype)
-        self.dom.arr_qw = np.ones(shape=self.shape, dtype = self.dtype)
-        self.dom.arrp_qw = np.pad(self.dom.arr_qn, 1, mode='edge')
-        self.dom.arrp_qn = np.pad(self.dom.arr_qw, 1, mode='edge')
         # set a superior inflow at the grid center
         self.dom.arr_qw[1,1] = 2
-
         self.dom.solve_h()
 
         # middle of the grid
