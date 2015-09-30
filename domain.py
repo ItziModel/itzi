@@ -16,15 +16,13 @@ class SurfaceDomain(object):
     """Provides the step() method
     """
 
-    def __init__(self,
-                dx = None,
-                dy = None,
-                dtmax = 10,
-                a = 0.7,         # CFL constant
-                g = 9.80665,     # Standard gravity
-                theta = 0.9,     # default proposed by Almeida et al.(2012)
-                hf_min = 0.0001,
-                hmin = 0.01,
+    def __init__(self, dx=None, dy=None,
+                dtmax=10,
+                a=0.7,         # CFL constant
+                g=9.80665,     # Standard gravity
+                theta=0.9,     # default proposed by Almeida et al.(2012)
+                hf_min=0.0001,
+                hmin=0.01,
                 v_routing=0.1):  # simple routing velocity m/s):
 
         self.sim_clock = 0

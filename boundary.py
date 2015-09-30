@@ -13,6 +13,7 @@ import numpy as np
 class Boundary(object):
     """
     A boundary of the computation domain
+    Privilegied access is through get_boundary_flow()
     """
     def __init__(self, cell_width, cell_length, boundary_pos):
         self.pos = boundary_pos
@@ -56,7 +57,7 @@ class Boundary(object):
         return self
 
     def get_flow_open_boundary(self, qin, hf, hf_boundary):
-        """velocity at the boundary equal to velocity inside domain
+        """Velocity at the boundary equal to velocity inside domain
         """
         return qin / hf * hf_boundary
 
