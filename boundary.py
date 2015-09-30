@@ -29,6 +29,9 @@ class Boundary(object):
                             bctype, bcvalue):
         """Take 1D numpy arrays as input
         Return an updated 1D array of flow through the boundary
+        The flow depth (hflow) on the boundary is assumed equal
+        to the water depth (depth). i.e. the water depth and terrain
+        elevation equal on both sides of the boundary
         """
         # check sanity of input arrays
         assert qin.ndim == 1
@@ -47,7 +50,7 @@ class Boundary(object):
         slope = self.get_slope(depth[slice_wse],
                             z[slice_wse], bcvalue[slice_wse])
         qboundary[slice_wse] = self.get_flow_wse_boundary(n[slice_wse],
-                                hflow[slice_wse], slope)
+                                depth[slice_wse], slope)
         return self
 
     def get_flow_open_boundary(self, qin, hf, hf_boundary):
