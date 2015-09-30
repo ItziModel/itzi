@@ -30,7 +30,8 @@ class Boundary(object):
         """Take 1D numpy arrays as input
         Return an updated 1D array of flow through the boundary
         """
-        # check if all input arrays have the same size
+        # check sanity of input arrays
+        assert qin.ndim == 1
         assert (qin.shape == qboundary.shape == hflow.shape == n.shape ==
                 z.shape == depth.shape == bctype.shape == bcvalue.shape)
         # select slices according to boundary types
