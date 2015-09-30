@@ -29,9 +29,10 @@ class Boundary(object):
                             bctype, bcvalue):
         """Take 1D numpy arrays as input
         Return an updated 1D array of flow through the boundary
-        The flow depth (hflow) on the boundary is assumed equal
+        Type 2: flow depth (hflow) on the boundary is assumed equal
         to the water depth (depth). i.e. the water depth and terrain
         elevation equal on both sides of the boundary
+        Type 3: flow depth is therefore equal to user-defined wse - z
         """
         # check sanity of input arrays
         assert qin.ndim == 1
@@ -49,8 +50,9 @@ class Boundary(object):
         # Boundary type 3 (user-defined wse)
         slope = self.get_slope(depth[slice_wse],
                             z[slice_wse], bcvalue[slice_wse])
+        hf_boundary = bcvalue[slice_wse] - z[slice_wse]
         qboundary[slice_wse] = self.get_flow_wse_boundary(n[slice_wse],
-                                depth[slice_wse], slope)
+                                hf_boundary, slope)
         return self
 
     def get_flow_open_boundary(self, qin, hf, hf_boundary):
@@ -59,20 +61,21 @@ class Boundary(object):
         return qin / hf * hf_boundary
 
     def get_slope(self, h, z, user_wse):
-        """Return the slope between two water surface elevation,
-        invert the results (and hence the flow) if a downstream boundary
+        """Return the slope between two water surface elevation
         """
         slope = (user_wse - h + z) / self.cl
-        if self.postype == 'upstream':
-            return slope
-        elif self.postype == 'downstream':
-            return - slope
-        else:
-            assert False, "Unknown postype {}".format(self.postype)
+        return np.fabs(slope)
+
 
     def get_flow_wse_boundary(self, n, hf, slope):
         """
         Gauckler-Manning-Strickler flow equation
+        invert the results if a downstream boundary
         """
         v = (1/n) * np.power(hf, 2/3) * np.power(slope, 1/2)
-        return v * hf * self.cw
+        if self.postype == 'upstream':
+            return v * hf * self.cw
+        elif self.postype == 'downstream':
+            return - v * hf * self.cw
+        else:
+            assert False, "Unknown postype {}".format(self.postype)
