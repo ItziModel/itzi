@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding=utf8
 """
-Copyright (C) 2015  Laurent Courty lrntct@gmail.com
+Copyright (C) 2015  Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -15,6 +15,7 @@ GNU General Public License for more details.
 """
 from __future__ import division
 import numpy as np
+from datetime import datetime, timedelta
 
 import grass.script as grass
 import grass.temporal as tgis
@@ -31,16 +32,44 @@ class Igis(object):
     """
 
     # a unit convertion table relative to seconds
-    t_unit_conv = {'seconds': 1,
-                    'minutes': 60,
-                    'hours': 3600,
-                    'days': 86400}
+    t_unit_conv = {'seconds': 1, 'minutes': 60, 'hours': 3600, 'days': 86400}
+    # datatype conversion between GRASS and numpy
+    dtype_conv = {'FCELL': ('float16', 'float32'),
+                'DCELL': ('float_', 'float64', 'float128'),
+                'CELL': ('bool_', 'int_', 'intc', 'intp',
+                        'int8', 'int16', 'int32', 'int64',
+                        'uint8', 'uint16', 'uint32', 'uint64')}
 
-    def __init__(self):
+
+    def __init__(self, start_time, end_time):
+        assert isinstance(start_time, datetime), \
+            "start_time not a datetime object!"
+        assert isinstance(end_time, datetime), \
+            "end_time not a datetime object!"
+        assert start_time <= end_time, "start_time > end_time!"
+
+        self.start_time = start_time
+        self.end_time = end_time
         tgis.init()
+        msgr = Messenger()
+
+        self.arrays = {'z': None, 'n': None, 'h_old': None,
+            'rain': None, 'inf':None, 'bcval': None, 'bctype': None}
+
+    @staticmethod
+    def grass_dtype(numpy_dtype):
+        if numpy_dtype in dtype_conv['DCELL']:
+            dtype = 'DCELL'
+        elif numpy_dtype in dtype_conv['CELL']:
+            dtype = 'CELL'
+        elif numpy_dtype in dtype_conv['FCELL']:
+            dtype = 'FCELL'
+        else:
+            assert False, "datatype incompatible with GRASS!"
+        return dtype
 
     def to_s(self, unit, time):
-        """Change an input time into second
+        """Change an input time into seconds
         """
         assert isinstance(unit, basestring), "{} Not a string".format(unit)
         return self.t_unit_conv[unit] * time
@@ -51,15 +80,15 @@ class Igis(object):
         assert isinstance(unit, basestring), "{} Not a string".format(unit)
         return time / self.t_unit_conv[unit]
 
-
-    def get_map_list_from_strds(self, strds_name, sim_end_time):
+    def raster_list_from_strds(self, strds_name, sim_end_time):
         """Return a list of maps (as dict) from a given strds
         """
+        # !!! only for relative strds
         assert isinstance(strds_name, basestring), \
                 "{} not a string".format(strds_name)
         assert isinstance(sim_end_time, (int, float)), \
                 "{} not a real number".format(sim_end_time)
-        # !!! only for relative strds
+
         strds = tgis.open_stds.open_old_stds(strds_name, 'strds')
         cols = ['id','name','start_time','end_time',
                 'west','east','south','north']
@@ -72,3 +101,37 @@ class Igis(object):
                                             where=where_statement,
                                             order='start_time')
         return [dict(zip(cols, i)) for i in maplist]
+
+    def read_raster_map(self, rast_name, dtype):
+        """Read a GRASS raster and return a numpy array
+        """
+        with raster.RasterRow(rast_name, mode='r') as rast:
+            array = np.array(rast, dtype=dtype)
+        return array
+
+    def write_raster_map(self, arr, rast_name):
+        """Read a GRASS raster and return a numpy array
+        """
+        if can_ovr == True and raster.RasterRow(rast_name).exist() == True:
+            utils.remove(rast_name, 'raster')
+            msgr.verbose(_("Removing raster map {}".format(rast_name)))
+        mtype = grass_dtype(arr.dtype)
+        with raster.RasterRow(rast_name, mode='w', mtype=mtype) as newraster:
+            newrow = raster.Buffer((arr.shape[1],))
+            for row in arr:
+                newrow[:] = row[:]
+                newraster.put_row(newrow)
+        return self
+
+    def get_input_arrays(self, k_list, sim_time):
+        """returns a dict of arrays valid for the current time.
+        k_list: a list of requested arrays as dict keys
+        """
+        assert isinstance(sim_time, datetime), \
+            "sim_time not a datetime object!"
+        valid_keys = [k for k in self.arrays.keys()]
+        for k in k_list:
+            assert k in valid_keys
+            input_arrays[k] = self.arrays[k]
+
+        return input_arrays
