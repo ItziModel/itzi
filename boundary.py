@@ -67,7 +67,6 @@ class Boundary(object):
         slope = (user_wse - h + z) / self.cl
         return np.fabs(slope)
 
-
     def get_flow_wse_boundary(self, n, hf, slope):
         """
         Gauckler-Manning-Strickler flow equation
