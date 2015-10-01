@@ -30,7 +30,7 @@ class Igis(object):
     Everything related to GRASS maps or stds stays in that class.
     """
 
-    # a unit convertion table relative to second
+    # a unit convertion table relative to seconds
     t_unit_conv = {'seconds': 1,
                     'minutes': 60,
                     'hours': 3600,
@@ -42,20 +42,27 @@ class Igis(object):
     def to_s(self, unit, time):
         """Change an input time into second
         """
+        assert isinstance(unit, basestring), "{} Not a string".format(unit)
         return self.t_unit_conv[unit] * time
 
     def from_s(self, unit, time):
         """Change an input time from seconds to another unit
         """
-        return self.t_unit_conv[unit] / time
+        assert isinstance(unit, basestring), "{} Not a string".format(unit)
+        return time / self.t_unit_conv[unit]
 
 
     def get_map_list_from_strds(self, strds_name, sim_end_time):
         """Return a list of maps (as dict) from a given strds
         """
+        assert isinstance(strds_name, basestring), \
+                "{} not a string".format(strds_name)
+        assert isinstance(sim_end_time, (int, float)), \
+                "{} not a real number".format(sim_end_time)
         # !!! only for relative strds
         strds = tgis.open_stds.open_old_stds(strds_name, 'strds')
-        cols = ['id','start_time','end_time','west','east','south','north', 'name']
+        cols = ['id','name','start_time','end_time',
+                'west','east','south','north']
         end_time_in_stds_unit = self.from_s(
                                     strds.get_relative_time_unit(),
                                     sim_end_time)
