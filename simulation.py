@@ -60,7 +60,7 @@ class SuperficialFlowSimulation(object):
             self.end_time = start_time + sim_duration
         return self
 
-    def run_superficial_flow(self):
+    def run(self):
         """Perform a full superficial flow simulation
         including recording of data and mass_balance calculation
         """
