@@ -13,10 +13,10 @@ import numpy as np
 from boundary import Boundary
 
 class SurfaceDomain(object):
-    """Provides the step() method
+    """Provides the step() and set_input_arrays() methods
     """
 
-    def __init__(self, dx=None, dy=None,
+    def __init__(self, dx=None, dy=None, sim_clock=0,
                 dtmax=10,
                 a=0.7,         # CFL constant
                 g=9.80665,     # Standard gravity
@@ -24,15 +24,14 @@ class SurfaceDomain(object):
                 hf_min=0.0001,
                 hmin=0.01,
                 v_routing=0.1):  # simple routing velocity m/s):
-
-        self.sim_clock = 0
+        self.sim_clock = sim_clock
         self.cfl = a
         self.g = g
         self.theta = theta
         self.hf_min = hf_min
         self.dx = dx
         self.dy = dy
-
+        self.cell_surf = dx * dy
         # Slices for upstream and downstream cells on a padded array
         self.su = slice(None, 2)
         self.sd = slice(2, None)
@@ -41,7 +40,6 @@ class SurfaceDomain(object):
         # slice to crop first row or column
         # to not conflict with boundary condition
         self.sc = slice(1, None)
-
 
     @staticmethod
     def pad_array(arr):
@@ -54,14 +52,33 @@ class SurfaceDomain(object):
 
     def step(self, next_ts):
         """Run a full simulation time-step
+        Input arrays are should be set beforehand using set_input_arrays()
         """
         self.set_dt(next_ts)
         self.apply_boundary_conditions()
         self.solve_h()
         self.solve_hflow()
         self.solve_q()
+        return self
 
-        return self.sim_clock
+    def set_input_arrays(self, arrays):
+        """Set the input arrays. To be called before each step()
+        arrays: a dict of arrays
+        """
+        # input arrays
+        self.arr_z = arrays['z']
+        self.arr_n = arrays['n']
+        self.arr_ext = arrays['ext']
+        self.arr_h_old = arrays['h_hold']
+        self.arr_h_new = arrays['h_new']
+        # 'calculated' arrays
+        self.arr_hfw = arrays['hfw']
+        self.arr_hfn = arrays['hfn']
+        self.arr_qw_new = arrays['qw_new']
+        self.arr_qn_new = arrays['qn_new']
+        self.arr_qw, self.arrp_qw = self.pad_array(arrays['qw_old'])
+        self.arr_qn, self.arrp_qn = self.pad_array(arrays['qn_old'])
+        return self
 
     def set_dt(self, next_ts):
         """Calculate the adaptative time-step
