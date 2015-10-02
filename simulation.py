@@ -41,8 +41,10 @@ class SuperficialFlowSimulation(object):
 
         self.record_step = record_step
         self.start_time = start_time
+        self.set_temporal_type()
         self.set_duration(end_time, sim_duration)
-        self.arrays = {'z': None, 'n': None, 'ext': None,
+        # dict of arrays accepted by SurfaceDomain
+        self.dom_arrays = {'z': None, 'n': None, 'ext': None,
                     'h_old': None, 'h_new': None,
                     'bcval': None, 'bctype': None,
                     'hfw': None, 'hfn': None,
@@ -54,7 +56,8 @@ class SuperficialFlowSimulation(object):
                             end_time=self.end_time)
 
     def set_duration(self, end_time, sim_duration):
-        """If sim_duration is not zero, end_time is ignored
+        """If sim_duration is False, end_time is ignored
+        This is normally checked upstream
         """
         if not sim_duration:
             self.duration = end_time - self.sim_start
@@ -62,6 +65,15 @@ class SuperficialFlowSimulation(object):
         else:
             self.duration = sim_duration
             self.end_time = start_time + sim_duration
+        return self
+
+    def set_temporal_type(self):
+        """A start_time equal to datetime.max means user did not
+        provide a start_time. Therefore a relative temporal type
+        """
+        self.temporal_type = 'absolute'
+        if self.start_time == datetime.max:
+            self.temporal_type = 'relative'
         return self
 
     def run(self):
@@ -77,14 +89,16 @@ class SuperficialFlowSimulation(object):
             gis.msgr.percent(rast_dom.sim_clock, duration_s, 1)
             # update arrays
             self.set_arrays(timedelta(seconds=rast_dom.sim_clock))
-            # write simulation records
+            # time-stepping
+            rast_dom.set_input_arrays(self.dom_arrays)
+            rast_dom.step(self.next_timestep())
+            # write simulation results
             rec_time = rast_dom.sim_clock / self.record_step.total_seconds()
             if rec_time >= record_counter:
                 self.write_results()
                 record_counter += 1
-            # time-stepping
-            rast_dom.set_input_arrays(self.arrays)
-            rast_dom.step(self.next_timestep())
+            # copy arrays of results
+            self.copy_arrays_values_for_next_timestep()
         return self
 
     def next_timestep(self):
@@ -92,43 +106,59 @@ class SuperficialFlowSimulation(object):
         """
         return next_ts
 
-    def set_arrays(self, timedelta_clock):
+    def set_arrays(self, td_clock):
+        """Makes numpy arrays dict ready to be feeded to the
+        domain for next time-step
         """
-        set objects arrays ready for next time-step
-        """
-        assert isinstance(timedelta_clock, timedelta), \
-            "timedelta_clock not a timedelta object!"
-        assert timedelta_clock >= timedelta(0), "timedelta_clock is negative!"
+        assert isinstance(td_clock, timedelta), \
+            "td_clock not a timedelta object!"
+        assert td_clock >= timedelta(0), "td_clock is negative!"
 
-        if timedelta_clock == self.start_time:
-            self.arrays = self.load_starting_arrays()
-        elif self.start_time < timedelta_clock <= self.end_time:
-            self.arrays = self.load_running_arrays(timedelta_clock)
-            self.copy_arrays_values_for_next_timestep()
-        else:
-            assert False, "The simulation should be over!"
+        loaded_arrays = load_arrays(td_clock)
+        self.dom_arrays['ext'] = set_ext_array(loaded_arrays['in_q'],
+                                            loaded_arrays['in_rain'],
+                                            loaded_arrays['in_inf'])
+        self.dom_arrays['z'] = loaded_arrays['in_z']
+        self.dom_arrays['n'] = loaded_arrays['in_n']
+        self.dom_arrays['bcval'] = loaded_arrays['in_bcval']
+        self.dom_arrays['bctype'] = loaded_arrays['in_bctype']
+        if not td_clock:
+            self.dom_arrays['h_old'] = loaded_arrays['in_h']
         return self
 
-    def load_starting_arrays(self):
-        """Get a dict of arrays from the GIS
+    def load_arrays(td_clock):
+        """Get a dict of arrays from the GIS at a given time
+        in_h is loaded only at the start of the simulation
         """
-        lst_key = ['z', 'n', 'rain', 'inf', 'bcval', 'bctype', 'h_old']
-        return self.gis.get_input_arrays(lst_key, self.start_time)
-
-    def load_running_arrays(self):
-        """Get a dict of arrays from the GIS
-        """
-        current_sim_time = self.start_time + timedelta_clock
-        lst_key = ['z', 'n', 'rain', 'inf', 'bcval', 'bctype']
-        return self.gis.get_input_arrays(lst_key, current_sim_time)
+        if not td_clock:
+            lst_key = ['in_z', 'in_n', 'in_q', 'in_rain', 'in_inf',
+                'in_bcval', 'in_bctype', 'in_h']
+            loaded_arrays = self.gis.get_input_arrays(
+                                            lst_key, self.start_time)
+        elif self.start_time < td_clock <= self.end_time:
+            lst_key = ['in_z', 'in_n', 'in_q', 'in_rain', 'in_inf',
+                'in_bcval', 'in_bctype']
+            current_sim_time = self.start_time + td_clock
+            loaded_arrays = self.gis.get_input_arrays(
+                                            lst_key, current_sim_time)
+        else:
+            assert False, "Unknown time"
+        return loaded_arrays
 
     def copy_arrays_values_for_next_timestep(self):
         """Copy values from calculated arrays to input arrays
         """
-        self.arrays['qw_old'][:] = self.arrays['qw_new']
-        self.arrays['qn_old'][:] = self.arrays['qn_new']
-        self.arrays['h_old'][:] = self.arrays['h_new']
+        self.dom_arrays['qw_old'][:] = self.dom_arrays['qw_new']
+        self.dom_arrays['qn_old'][:] = self.dom_arrays['qn_new']
+        self.dom_arrays['h_old'][:] = self.dom_arrays['h_new']
         return self
+
+    def set_ext_array(self, q, rain, inf):
+        """Combine rain, infiltration etc. into a unique array
+        rainfall and infiltration are considered in mm/h
+        """
+        ext = q + (rain + inf) / 1000 / 3600
+        return ext
 
     def write_results(self):
         """
