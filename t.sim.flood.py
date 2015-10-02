@@ -117,25 +117,25 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 
 #%option G_OPT_UNDEFINED
 #% key: start_time
-#% description: Start of the simulation in format yyyy-mm-dd HH:MM
+#% description: Start of the simulation, format yyyy-mm-dd HH:MM
 #% required: no
 #%end
 
 #%option G_OPT_UNDEFINED
 #% key: end_time
-#% description: End of the simulation in format yyyy-mm-dd HH:MM
+#% description: End of the simulation, format yyyy-mm-dd HH:MM
 #% required: no
 #%end
 
 #%option G_OPT_UNDEFINED
 #% key: sim_duration
-#% description: Duration of the simulation after start_time, in HH:MM:SS
+#% description: Duration of the simulation, format HH:MM:SS
 #% required: no
 #%end
 
 #%option G_OPT_UNDEFINED
 #% key: record_step
-#% description: Duration between two records, in HH:MM:SS
+#% description: Duration between two records, format HH:MM:SS
 #% required: yes
 #%end
 
@@ -153,13 +153,6 @@ from grass.pygrass.messages import Messenger
 
 import simulation
 
-# values to be passed to simulation
-input_times = {'start':None,'end':None,'duration':None,'rec_step':None}
-input_map_names = {'z': None, 'n': None, 'h_old': None,
-            'rain': None, 'inf':None, 'bcval': None, 'bctype': None}
-
-output_map_names = {'out_h':None, 'out_wse':None,
-            'out_vx':None, 'out_vy':None, 'out_qx':None, 'out_qy':None}
 
 def main():
     # start profiler
@@ -169,10 +162,20 @@ def main():
     # start messenger
     msgr = Messenger()
 
-    # check input values
-    read_input_value(options, flags)
+    # values to be passed to simulation
+    input_times = {'start':None,'end':None,'duration':None,'rec_step':None}
+    input_map_names = {'z': None, 'n': None, 'h_old': None,
+                'rain': None, 'inf':None, 'bcval': None, 'bctype': None}
+    output_map_names = {'out_h':None, 'out_wse':None,
+                'out_vx':None, 'out_vy':None, 'out_qx':None, 'out_qy':None}
+    temporal_type = ''
 
-    # start simulation
+    # check and load input values
+    temporal_type = read_input_time(options, input_times)
+    assert temporal_type in ('relative', 'absolute')
+    read_maps_names(options, input_map_names, output_map_names)
+
+    # Run simulation
     sim = simulation.SuperficialFlowSimulation(
                         start_time=input_times['start'],
                         end_time=input_times['end'],
@@ -180,10 +183,9 @@ def main():
                         record_step=input_times['rec_step'],
                         input_maps=input_map_names,
                         output_maps=output_map_names)
+    sim.run()
 
-    #################
-    # End profiling #
-    #################
+    # end profiling
     pr.disable()
     stat_stream = StringIO.StringIO()
     sortby = 'time'
@@ -208,10 +210,12 @@ def str_to_timedelta(inp_str):
                     seconds=seconds)
     return obj_dt
 
-def read_input_value(opts, fl):
-    """Check the sanity of input values
-    write them to relevant dicts
+def read_input_time(opts, input_times):
+    """Check the sanity of input time information
+    write the value to relevant dict
     """
+    # Default temporal type
+    temporal_type = "absolute"
 
     date_format = '%Y-%m-%d %H:%M'
     # record step
@@ -255,88 +259,33 @@ def read_input_value(opts, fl):
             msgr.fatal(_("{}: format should be yyyy-mm-dd HH:MM".format(
                     'start_time')))
     else:
-        # default to minimum representable datetime
         input_times['start'] = datetime.min
+        temporal_type = "relative"
 
+    return temporal_type
+
+def read_maps_names(opts, input_map_names, output_map_names):
+    """
+    """
+    input_map_names['z'] = opts['in_z']
+    input_map_names['n'] = opts['in_n']
+    input_map_names['h_old'] = opts['in_h']
+    input_map_names['rain'] = opts['in_rain']
+    input_map_names['inf'] = opts['in_inflow']
+    input_map_names['bctype'] = opts['in_bc']
+    input_map_names['bcval'] = opts['in_bcval']
+
+    out_names = {k:v for k,v in opt.items() if k in output_map_names}
+    for k in out_names:
+        assert k in output_map_names, "wrong list comprehension"
+        pass
+    output_map_names.update(out_names)
 
 
 ############
 # old code #
 ############
-def old_code
-
-    ##############
-    # input data #
-    ##############
-
-    # terrain elevation (m)
-    with raster.RasterRow(options['in_z'], mode='r') as rast:
-            z_grid = np.array(rast, dtype = np.float32)
-
-    # water depth (m)
-    if not options['in_h']:
-        depth_grid = np.zeros(shape = (yr,xr), dtype = np.float32)
-    else:
-        with raster.RasterRow(options['in_h'], mode='r') as rast:
-            depth_grid = np.array(rast, dtype = np.float32)
-
-    # manning's n friction
-    with raster.RasterRow(options['in_n'], mode='r') as rast:
-            n_grid = np.array(rast, dtype = np.float32)
-
-    # User-defined flows (m/s)
-    ta_user_inflow, stds_inflow = rw.load_ta_from_strds(
-                                    options['in_inflow'], mapset,
-                                    sim_clock, sim_duration, yr, xr)
-    
-    # rainfall (mm/hr)
-    #~ strds_rainfall = tgis.open_stds.open_old_stds(options['in_rain'], 'strds')
-    ta_rainfall, stds_rainfall = rw.load_ta_from_strds(
-                                    options['in_rain'], mapset,
-                                    sim_clock, sim_duration, yr, xr)
-    
-    # infiltration (mm/hr)
-    # for now, set to zeros
-    inf_grid = np.zeros(shape = (yr,xr), dtype = np.float16)
-
-    # Evaporation (mm/hr)
-    # for now, set to zeros
-    evap_grid = np.zeros(shape = (yr,xr), dtype = np.float16)
-
-    # Boundary conditions type and value (for used-defined value)
-    # only bordering value is evaluated
-    # default type: 1
-    # default value: 0
-    type_bc = np.dtype([('t', np.uint8), ('v', np.float16)])
-    BC_grid = np.ones(shape = (yr,xr), dtype = type_bc)
-    BC_grid['v'] = 0
-    if options['in_bc']:
-        with raster.RasterRow(options['in_bc'], mode='r') as rast:
-            BC_type = np.array(rast, dtype = np.uint8)
-        BC_grid['t'] = np.copy(BC_type)
-        del BC_type
-    if options['in_bcval']:
-        #~ with raster.RasterRow(options['in_bcval'], mode='r') as rast:
-            #~ BC_value = np.array(rast, dtype = np.float32)
-        ta_bcval, stds_bcval = rw.load_ta_from_strds(
-                                    options['in_bcval'], mapset,
-                                    sim_clock, sim_duration, yr, xr)
-        BC_grid['v'] = ta_bcval.arr
-
-
-    ########################
-    # Create domain object #
-    ########################
-    domain = RasterDomain(
-                arr_z=z_grid,
-                arr_n=n_grid,
-                arr_bc=BC_grid,
-                region=region,
-                arr_h=depth_grid,
-                end_time=sim_duration,
-                theta=0.7,
-                hmin=0.001)
-
+def old_code():
 
     ###############
     # output data #
@@ -348,17 +297,15 @@ def old_code
     #####################################
     # Create output space-time datasets #
     #####################################
-
     stds_h_id, stds_wse_id = stds.create_stds(
         mapset, options['out_h'], options['out_wse'],
         sim_start_time, can_ovr)
-
 
     #####################
     # START COMPUTATION #
     #####################
     # time-step counter
-    Dt_c = 1
+    Dt_c = 0
 
     # Start time-stepping
     while not domain.sim_clock >= domain.end_time:
@@ -373,91 +320,6 @@ def old_code
             record_count += 1
             # set next forced timestep
             domain.set_forced_timestep(record_count * record_t)
-            # print grid volume
-            #~ V_total = np.sum(depth_grid) * domain.cell_surf
-            #~ domain.solve_gridvolume
-            #~ grass.info(_("Total grid volume at time %.1f : %.3f ") %
-                        #~ (round(domain.sim_clock,1), round(domain.grid_volume,3)))
-
-
-        ###########################
-        # calculate the time-step #
-        ###########################
-        # calculate time-step and update the simulation counter
-        domain.set_dt()
-
-        # display percentage of simulation
-        msgr.percent(domain.sim_clock, domain.end_time, 1)
-
-        #######################
-        # time-variable input #
-        #######################
-        # update user_inflow if no longer valid for that simulation time
-        if not ta_user_inflow.is_valid(domain.sim_clock):
-            msgr.verbose(_("updating user_inflow map"))
-            ta_user_inflow = stds.update_time_variable_input(
-                                                        stds_inflow,
-                                                        domain.sim_clock)
-            # update the domain object with ext_grid
-            domain.set_arr_ext(ta_rainfall.arr, evap_grid,
-                            inf_grid, ta_user_inflow.arr)
-
-        if not ta_rainfall.is_valid(domain.sim_clock):
-            msgr.verbose(_("updating rainfall map"))
-            ta_rainfall = stds.update_time_variable_input(
-                                                        stds_rainfall,
-                                                        domain.sim_clock)
-            # update the domain object with ext_grid
-            domain.set_arr_ext(ta_rainfall.arr, evap_grid,
-                            inf_grid, ta_user_inflow.arr)
-
-        if options['in_bcval'] and not ta_bcval.is_valid(domain.sim_clock):
-            msgr.verbose(_("updating BC values map"))
-            ta_bcval = stds.update_time_variable_input(stds_bcval,
-                                                    domain.sim_clock)
-            # update the domain object
-            domain.set_arr_bc(BC_grid)
-
-
-        ############################
-        # apply boudary conditions #
-        ############################
-        # apply boundary conditions
-        # get the volume passing through the boundaries
-        bound_vol = boundaries.apply_bc(
-                                        domain.dict_bc,
-                                        domain.arrp_z,
-                                        domain.arrp_h,
-                                        domain.arrp_q,
-                                        domain.arrp_hf,
-                                        domain.arrp_n,
-                                        domain.dx,
-                                        domain.dy,
-                                        domain.dt,
-                                        domain.g,
-                                        domain.theta,
-                                        domain.hf_min)
-
-        # increase total volume change
-        boundary_vol_total += bound_vol
-
-        # assign values of boundaries
-        #~ domain.arr_q_np1[:, 1]['W'] = domain.arr_q[:, 1]['W']  # W
-        #~ domain.arrp_q_np1[1:-1, -1] = domain.arrp_q[1:-1, -1]  # E
-        #~ domain.arrp_q_np1[0, 1:-1] = domain.arrp_q[0, 1:-1]    # N
-        #~ domain.arr_q_np1[-1,:]['S'] = domain.arr_q[-1,:]['S']  # S
-
-
-        ###################
-        # calculate depth #
-        ###################
-        domain.solve_h()
-
-        # assign values of boundaries
-        #~ domain.arrp_h_np1[1:-1, 0] = domain.arrp_h[1:-1, 0]    # W
-        #~ domain.arrp_h_np1[1:-1, -1] = domain.arrp_h[1:-1, -1]  # E
-        #~ domain.arrp_h_np1[0, 1:-1] = domain.arrp_h[0, 1:-1]    # N
-        #~ domain.arrp_h_np1[-1, 1:-1] = domain.arrp_h[-1, 1:-1]  # S
 
 
         ############################
@@ -477,30 +339,6 @@ def old_code
         grass.verbose(_("Mass balance at time %.1f : %.3f ") %
                         (round(domain.sim_clock, 1), round(mass_balance, 3)))
 
-        ####################
-        # Solve flow depth #
-        ####################
-        domain.solve_hflow()
-
-        ####################################
-        # Calculate flow inside the domain #
-        ####################################
-        domain.solve_q()
-
-        #############################################
-        # update simulation data for next time step #
-        #############################################
-        # update time-step counter
-        Dt_c += 1
-
-        # update the entry data
-        domain.update_input_values()
-
-        #####################
-        # end of while loop #
-        #####################
-
-
     ##############################
     # write last simulation data #
     ##############################
@@ -518,7 +356,6 @@ def old_code
     ########################################
     # register maps in space-time datasets #
     ########################################
-
     # depth
     if options['out_h']:
         list_h = ','.join(list_h) # transform map list into a string
@@ -528,8 +365,6 @@ def old_code
                 'increment':int(record_t)}
         tgis.register.register_maps_in_space_time_dataset('rast',
                                                 stds_h_id, **kwargs)
-
-
     # water surface elevation
     if options['out_wse']:
         list_wse = ','.join(list_wse)  # transform map list into a string
