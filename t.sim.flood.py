@@ -110,124 +110,153 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 
 #%option G_OPT_UNDEFINED
 #% key: start_time
-#% description: Start of the simulation in format yyyy-mm-dd HH:MM:SS
-#% required: yes
+#% description: Start of the simulation in format yyyy-mm-dd HH:MM
+#% required: no
 #%end
 
 #%option G_OPT_UNDEFINED
 #% key: end_time
-#% description: End of the simulation in format yyyy-mm-dd HH:MM:SS
+#% description: End of the simulation in format yyyy-mm-dd HH:MM
 #% required: no
 #%end
 
 #%option G_OPT_UNDEFINED
 #% key: sim_duration
-#% description: Duration of the simulation after start_time, in seconds
+#% description: Duration of the simulation after start_time, in HH:MM:SS
 #% required: no
 #%end
 
 #%option G_OPT_UNDEFINED
 #% key: record_step
-#% description: Duration between two records, in seconds
+#% description: Duration between two records, in HH:MM:SS
 #% required: yes
 #%end
 
 import sys
+import os
 from datetime import datetime
-import math
 import numpy as np
-
-import rw
-import boundaries
-import stds
-from domain import RasterDomain
+import cProfile
+import pstats
+import StringIO
 
 import grass.script as grass
-import grass.temporal as tgis
-from grass.pygrass import raster
 from grass.pygrass.gis.region import Region
 from grass.pygrass.messages import Messenger
 
-import cProfile, pstats, StringIO
+import simulation
+
+# values to be passed to simulation
+input_times = {'start':None,'end':None,'duration':None,'rec_step':None}
+input_map_names = {'z': None, 'n': None, 'h_old': None,
+            'rain': None, 'inf':None, 'bcval': None, 'bctype': None}
+
+output_map_names = {'out_h':None, 'out_wse':None,
+            'out_vx':None, 'out_vy':None, 'out_qx':None, 'out_qy':None}
 
 def main():
-    ##################
-    # start profiler #
-    ##################
+    # start profiler
     pr = cProfile.Profile()
     pr.enable()
-
-    # get date and time at start (used for description of results)
-    sim_start_time = datetime.now()
 
     # start messenger
     msgr = Messenger()
 
-    #####################
-    # general variables #
-    #####################
+    # check input values
+    read_input_value(options, flags)
 
-    if not options['end_time'] and not options['sim_duration']:
-        msgr.fatal('either end_time or sim_duration should be provided')
-    if options['end_time'] and options['sim_duration']:
-        msgr.fatal('end_time and sim_duration are mutually exclusive')
+    # start simulation
+    sim = simulation.SuperficialFlowSimulation(
+                        start_time=input_times['start'],
+                        end_time=input_times['end'],
+                        sim_duration=input_times['duration'],
+                        record_step=input_times['rec_step'],
+                        input_maps=input_map_names,
+                        output_maps=output_map_names)
 
-    # get time information in datetime format
-    time_format = '%Y-%m-%d %H:%M:%S'
-    sim_start = datetime.strptime(options['start_time'], time_format)
+    #################
+    # End profiling #
+    #################
+    pr.disable()
+    stat_stream = StringIO.StringIO()
+    sortby = 'time'
+    ps = pstats.Stats(pr, stream=stat_stream).sort_stats(sortby)
+    ps.print_stats(5)
+    print stat_stream.getvalue()
+
+def str_to_timedelta(inp_str):
+    """Takes a string in the form HH:MM:SS
+    and return a timedelta object
+    """
+    data = inp_str.split(":")
+    hours = int(data[0])
+    minutes = int(data[1])
+    seconds = int(data[2])
+    if hours < 0:
+        raise ValueError
+    if not 0 < minutes < 59 or not 0 < seconds < 59:
+        raise ValueError
+    obj_dt = timedelta(hours=hours,
+                    minutes=minutes,
+                    seconds=seconds)
+    return obj_dt
+
+def read_input_value(opts, fl):
+    """Check the sanity of input values
+    write them to relevant dicts
+    """
+
+    date_format = '%Y-%m-%d %H:%M'
+    # record step
+    try:
+        input_times['rec_step'] = str_to_timedelta(opts['record_step'])
+    except ValueError:
+        msgr.fatal(_("{}: format should be HH:MM:SS".format(
+                'record_step')))
+
+    # check valid combination to get simulation duration
+    b_dur = (opts['sim_duration']
+                and not opts['start_time'] and not opts['end_time'])
+    b_start_dur = (opts['start_time']
+                and opts['sim_duration'] and not opts['end_time'])
+    b_start_end = (opts['start_time']
+                and opts['end_time'] and not opts['sim_duration'])
+    if not (b_dur or b_start_dur or b_start_end):
+        msgr.fatal(_(
+        "accepted combinations: {d} alone, {s} and {d}, {s} and {e}").format(
+                    d='sim_duration', s='start_time', e='end_time'))
+
+    if opts['sim_duration']:
+        try:
+            input_times['duration'] = str_to_timedelta(opts['sim_duration'])
+        except ValueError:
+            msgr.fatal(_("{}: format should be HH:MM:SS".format(
+                    'sim_duration')))
 
     if options['end_time']:
-        sim_end = datetime.strptime(options['end_time'], time_format)
-        # simulation duration in seconds
-        sim_duration = (sim_end - sim_start).total_seconds()
-        if not sim_duration > 0:
-            msgr.fatal('end_time should be superior to start_time')
-
-    if options['sim_duration']:
         try:
-            sim_duration = int(options['sim_duration'])
+            input_times['end'] = datetime.strptime(opts['end_time'], date_format)
         except ValueError:
-            msgr.fatal('sim_duration should be an integer')
+            msgr.fatal(_("{}: format should be yyyy-mm-dd HH:MM".format(
+                        'end_time')))
 
-    sim_clock = 0.0  # simulation time counter in s
+    if opts['start_time']:
+        try:
+            input_times['start'] = datetime.strptime(opts['start_time'],
+                                                    date_format)
+        except ValueError:
+            msgr.fatal(_("{}: format should be yyyy-mm-dd HH:MM".format(
+                    'start_time')))
+    else:
+        # default to minimum representable datetime
+        input_times['start'] = datetime.min
 
-    try:
-        record_t =  int(options['record_step'])
-    except ValueError:
-        msgr.fatal('record_step should be an integer')
 
-    record_count = 0  # Records counter
 
-    # mass balance
-    boundary_vol_total = 0  # volume passing through boundaries
-    domain_vol_total = 0  # total domain volume at end of simulation
-
-    # check if output maps can be overwritten
-    can_ovr = grass.overwrite()
-
-    # get current mapset
-    mapset = grass.read_command('g.mapset', flags='p').strip()
-
-    ####################################
-    # set the temporal GIS environment #
-    ####################################
-    tgis.init()
-
-    #######################
-    # Grid related values #
-    #######################
-    region = Region()
-    # grid size in cells
-    xr = region.cols
-    yr = region.rows
-    
-    # cell size in m
-    dx = region.ewres
-    dy = region.nsres
-
-    # cell surface in m2
-    dxdy = dx * dy
-    
+############
+# old code #
+############
+def old_code
 
     ##############
     # input data #
@@ -503,17 +532,6 @@ def main():
                 'increment':int(record_t)}
         tgis.register.register_maps_in_space_time_dataset('rast',
                                                 stds_wse_id, **kwargs)
-
-
-    #################
-    # End profiling #
-    #################
-    pr.disable()
-    stat_stream = StringIO.StringIO()
-    sortby = 'time'
-    ps = pstats.Stats(pr, stream=stat_stream).sort_stats(sortby)
-    ps.print_stats(5)
-    print stat_stream.getvalue()
 
     return 0
 
