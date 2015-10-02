@@ -52,21 +52,27 @@ class Igis(object):
         self.end_time = end_time
         tgis.init()
         msgr = Messenger()
+        region = Region()
+        self.xr = region.cols
+        self.ry = region.rows
+        self.dx = region.ewres
+        self.dy = region.nsres
+        self.overwrite = grass.overwrite()
+        self.mapset = grass.read_command('g.mapset', flags='p').strip()
 
         self.arrays = {'z': None, 'n': None, 'h_old': None,
             'rain': None, 'inf':None, 'bcval': None, 'bctype': None}
 
-    @staticmethod
-    def grass_dtype(numpy_dtype):
-        if numpy_dtype in dtype_conv['DCELL']:
-            dtype = 'DCELL'
-        elif numpy_dtype in dtype_conv['CELL']:
-            dtype = 'CELL'
-        elif numpy_dtype in dtype_conv['FCELL']:
-            dtype = 'FCELL'
+    def grass_dtype(self, dtype):
+        if dtype in self.dtype_conv['DCELL']:
+            mtype = 'DCELL'
+        elif dtype in self.dtype_conv['CELL']:
+            mtype = 'CELL'
+        elif dtype in self.dtype_conv['FCELL']:
+            mtype = 'FCELL'
         else:
             assert False, "datatype incompatible with GRASS!"
-        return dtype
+        return mtype
 
     def to_s(self, unit, time):
         """Change an input time into seconds
@@ -110,7 +116,7 @@ class Igis(object):
         return array
 
     def write_raster_map(self, arr, rast_name):
-        """Read a GRASS raster and return a numpy array
+        """Take a numpy array and write it to GRASS DB
         """
         if can_ovr == True and raster.RasterRow(rast_name).exist() == True:
             utils.remove(rast_name, 'raster')
