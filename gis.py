@@ -59,8 +59,7 @@ class Igis(object):
         self.dy = region.nsres
         self.overwrite = grass.overwrite()
         self.mapset = grass.read_command('g.mapset', flags='p').strip()
-
-        self.arrays = {'in_z': None, 'in_n': None, 'in_h': None,
+        self.maps = {'in_z': None, 'in_n': None, 'in_h': None,
             'in_q': None, 'in_rain': None, 'in_inf':None,
             'in_bcval': None, 'in_bctype': None}
 
@@ -73,6 +72,7 @@ class Igis(object):
             mtype = 'FCELL'
         else:
             assert False, "datatype incompatible with GRASS!"
+            pass
         return mtype
 
     def to_s(self, unit, time):
@@ -87,25 +87,42 @@ class Igis(object):
         assert isinstance(unit, basestring), "{} Not a string".format(unit)
         return time / self.t_unit_conv[unit]
 
-    def raster_list_from_strds(self, strds_name, sim_end_time):
-        """Return a list of maps (as dict) from a given strds
+    def load_maps_from_gis(self):
         """
-        # !!! only for relative strds
-        assert isinstance(strds_name, basestring), \
-                "{} not a string".format(strds_name)
-        assert isinstance(sim_end_time, (int, float)), \
-                "{} not a real number".format(sim_end_time)
+        """
+        return self
+
+    def raster_list_from_strds(self, strds_name):
+        """Return a list of maps (as dict) from a given strds
+        for all the simulation duration
+        """
+        assert isinstance(strds_name, basestring), "expect a string"
 
         strds = tgis.open_stds.open_old_stds(strds_name, 'strds')
         cols = ['id','name','start_time','end_time',
                 'west','east','south','north']
-        end_time_in_stds_unit = self.from_s(
-                                    strds.get_relative_time_unit(),
-                                    sim_end_time)
-        where_statement = 'start_time <= {}'.format(
-                                str(end_time_in_stds_unit))
+        if strds.get_temporal_type() == 'relative':
+            # get start time and end time in seconds
+            rel_start_time = 0
+            rel_end_time = (self.end_time - self.start_time).total_seconds()
+            start_time_in_stds_unit = self.from_s(
+                                        strds.get_relative_time_unit(),
+                                        rel_start_time)
+            end_time_in_stds_unit = self.from_s(
+                                        strds.get_relative_time_unit(),
+                                        rel_end_time)
+        elif strds.get_temporal_type() == 'absolute':
+            start_time_in_stds_unit = self.start_time
+            end_time_in_stds_unit = self.end_time
+        else:
+            assert False, "unknown temporal type"
+            pass
+
+        where = 'NOT start_time >= {e} AND NOT end_time <= {s}'.format(
+            e=str(end_time_in_stds_unit), s=str(start_time_in_stds_unit))
+
         maplist = strds.get_registered_maps(columns=','.join(cols),
-                                            where=where_statement,
+                                            where=where,
                                             order='start_time')
         return [dict(zip(cols, i)) for i in maplist]
 
@@ -137,9 +154,10 @@ class Igis(object):
         assert isinstance(sim_time, datetime), \
             "sim_time not a datetime object!"
         for k in k_list:
-            assert k in self.arrays, "unknown map key!"
-            input_arrays[k] = self.arrays[k]
+            assert k in self.arrays, "unknown map key!"  # !!
+            input_arrays[k] = # !!
         return input_arrays
+
 
 class old_code():
     def create_stds(mapset, stds_h_name, stds_wse_name, sim_start_time, can_ovr):
