@@ -223,7 +223,7 @@ class SurfaceDomain(object):
                                     bcvalue=self.arr_bcval[-1])
         return self
 
-class old_code
+class old_code():
 
     def flow_dir(self):
         '''
