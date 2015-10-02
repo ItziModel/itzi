@@ -26,7 +26,7 @@ class SuperficialFlowSimulation(object):
     def __init__(self,
                 start_time=datetime(1,1,1), end_time=datetime(1,1,1),
                 sim_duration=timedelta(0), record_step,
-                input_map_names, output_map_names):
+                input_maps, output_maps):
         assert isinstance(start_time, datetime), \
             "start_time not a datetime object!"
         assert isinstance(end_time, datetime), \
@@ -48,8 +48,8 @@ class SuperficialFlowSimulation(object):
                     'hfw': None, 'hfn': None,
                     'qw_old': None, 'qn_old': None,
                     'qw_new': None, 'qn_new': None}
-        self.in_map_names = input_map_names
-        self.out_map_names = output_map_names
+        self.in_map_names = input_maps
+        self.out_map_names = output_maps
         self.gis = gis.Igis(start_time=self.start_time,
                             end_time=self.end_time)
 
@@ -70,7 +70,12 @@ class SuperficialFlowSimulation(object):
         """
         rast_dom = domain.SurfaceDomain(dx=self.gis.dx, dy=self.gis.dy)
         record_counter = 0
-        while rast_dom.sim_clock <= self.duration.total_seconds():
+        duration_s = self.duration.total_seconds()
+
+        while rast_dom.sim_clock <= duration_s:
+            # display advance of simulation
+            gis.msgr.percent(rast_dom.sim_clock, duration_s, 1)
+            # update arrays
             self.set_arrays(timedelta(seconds=rast_dom.sim_clock))
             # write simulation records
             rec_time = rast_dom.sim_clock / self.record_step.total_seconds()
