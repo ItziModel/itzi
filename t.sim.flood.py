@@ -254,7 +254,7 @@ def read_input_time(opts, input_times):
             msgr.fatal(_("{}: format should be yyyy-mm-dd HH:MM".format(
                     'start_time')))
     else:
-        input_times['start'] = datetime.min
+        input_times['start'] = datetime.max
 
 def read_maps_names(opts, input_map_names, output_map_names):
     """Read options and populate input and output name dictionaries
