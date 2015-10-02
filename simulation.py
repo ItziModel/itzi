@@ -68,11 +68,11 @@ class SuperficialFlowSimulation(object):
         return self
 
     def set_temporal_type(self):
-        """A start_time equal to datetime.max means user did not
+        """A start_time equal to datetime.min means user did not
         provide a start_time. Therefore a relative temporal type
         """
         self.temporal_type = 'absolute'
-        if self.start_time == datetime.max:
+        if self.start_time == datetime.min:
             self.temporal_type = 'relative'
         return self
 
