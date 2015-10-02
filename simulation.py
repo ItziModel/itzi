@@ -23,8 +23,10 @@ class SuperficialFlowSimulation(object):
     """
     """
 
-    def __init__(self, start_time=datetime(1,1,1), end_time=datetime(1,1,1),
-                    sim_duration=timedelta(0), record_step):
+    def __init__(self,
+                start_time=datetime(1,1,1), end_time=datetime(1,1,1),
+                sim_duration=timedelta(0), record_step,
+                input_map_names, output_map_names):
         assert isinstance(start_time, datetime), \
             "start_time not a datetime object!"
         assert isinstance(end_time, datetime), \
@@ -46,6 +48,8 @@ class SuperficialFlowSimulation(object):
                     'hfw': None, 'hfn': None,
                     'qw_old': None, 'qn_old': None,
                     'qw_new': None, 'qn_new': None}
+        self.in_map_names = input_map_names
+        self.out_map_names = output_map_names
         self.gis = gis.Igis(start_time=self.start_time,
                             end_time=self.end_time)
 
