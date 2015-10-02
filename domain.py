@@ -222,3 +222,167 @@ class SurfaceDomain(object):
                                     bctype=self.arr_bctype[-1],
                                     bcvalue=self.arr_bcval[-1])
         return self
+
+class old_code
+
+    def flow_dir(self):
+        '''
+        Return a "slope" array representing the flow direction
+        the resulting array is used for simple routing
+        '''
+        # define differences in Z
+        Z = self.arrp_z[1:-1, 1:-1]
+        N = self.arrp_z[0:-2, 1:-1]
+        S = self.arrp_z[2:, 1:-1]
+        E = self.arrp_z[1:-1, 2:]
+        W = self.arrp_z[1:-1, 0:-2]
+        dN = Z - N
+        dE = Z - E
+        dS = Z - S
+        dW = Z - W
+
+        # return minimum neighbour
+        arr_min = np.maximum(np.maximum(dN, dS), np.maximum(dE, dW))
+
+        # create a slope array
+        self.arr_slope = np.zeros(shape = Z.shape, dtype = np.uint8)
+        # affect values to keep a non-string array
+        # (to be compatible with cython)
+        W = 1
+        E = 2
+        S = 3
+        N = 4
+
+        for c, min_hdiff in np.ndenumerate(arr_min):
+            if min_hdiff <= 0:
+                self.arr_slope[c] = 0
+            elif min_hdiff == dN[c]:
+                self.arr_slope[c] = N
+            elif min_hdiff == dS[c]:
+                self.arr_slope[c] = S
+            elif min_hdiff == dE[c]:
+                self.arr_slope[c] = E
+            elif min_hdiff == dW[c]:
+                self.arr_slope[c] = W
+        return self
+
+    def simple_routing(self):
+        '''calculate a flow with a given velocity in a given direction
+        Application of the automated routing scheme proposed by
+        Sampson et al (2013)
+        For flows at W and S borders, the calculations are centered
+        on the current cells.
+        For flows at E and S borders, are considered
+        those of the neighbouring cells at W and S borders, respectively
+        '''
+        # water surface elevation
+        arrp_wse_np1 = self.arrp_z + self.arrp_h_np1
+
+        # water depth
+        arrp_h_np1_e = self.arrp_h_np1[1:-1, 2:]
+        arrp_h_np1_n = self.arrp_h_np1[:-2, 1:-1]
+
+        # arrays of wse
+        arr_wse_w = arrp_wse_np1[1:-1, :-2]
+        arr_wse_e = arrp_wse_np1[1:-1, 2:]
+        arr_wse_s = arrp_wse_np1[2:, 1:-1]
+        arr_wse_n = arrp_wse_np1[:-2, 1:-1]
+        arr_wse = arrp_wse_np1[1:-1, 1:-1]
+
+        # Identify cells with adequate values
+        idx_rout = np.where(np.logical_and(
+                        self.arr_h_np1 < self.hmin,
+                        self.arr_h_np1 > 0))
+
+        # max routed depth
+        arr_h_w = np.minimum(self.arr_h_np1[idx_rout],
+                    np.maximum(0, arr_wse[idx_rout] - arr_wse_w[idx_rout]))
+        arr_h_s = np.minimum(self.arr_h_np1[idx_rout],
+                    np.maximum(0, arr_wse[idx_rout] - arr_wse_s[idx_rout]))
+        arr_h_e = np.minimum(self.arr_h_np1[idx_rout],
+                    np.maximum(0, arr_wse[idx_rout] - arr_wse_e[idx_rout]))
+        arr_h_n = np.minimum(self.arr_h_np1[idx_rout],
+                    np.maximum(0, arr_wse[idx_rout] - arr_wse_n[idx_rout]))
+
+        # arrays of flows
+        arr_q_w = self.arr_q[idx_rout]['W']
+        arr_q_s = self.arr_q[idx_rout]['S']
+        # flows of the neighbouring cells for E and N
+        arr_q_e = self.arrp_q[1:-1, 2:]['W']
+        arr_q_n = self.arrp_q[:-2, 1:-1]['S']
+        arr_q_e = arr_q_e[idx_rout]
+        arr_q_n = arr_q_n[idx_rout]
+
+        # arrays of calculated routing flow
+        arr_sflow_w = - self.dx * arr_h_w * self.v_routing
+        arr_sflow_s = - self.dy * arr_h_s * self.v_routing
+        arr_sflow_e = self.dx * arr_h_e * self.v_routing
+        arr_sflow_n = self.dy * arr_h_n * self.v_routing
+
+        # can route
+        idx_route_s = np.where(self.arr_slope[idx_rout] == 'S')
+        idx_route_w = np.where(self.arr_slope[idx_rout] == 'W')
+        idx_route_e = np.where(self.arr_slope[idx_rout] == 'E')
+        idx_route_n = np.where(self.arr_slope[idx_rout] == 'N')
+
+        # affect calculated flow to the flow grid
+        arr_q_s[idx_route_s] = arr_sflow_s[idx_route_s]
+        arr_q_w[idx_route_w] = arr_sflow_w[idx_route_w]
+        arr_q_e[idx_route_e] = arr_sflow_e[idx_route_e]
+        arr_q_n[idx_route_n] = arr_sflow_n[idx_route_n]
+
+        return self
+
+    def set_forced_timestep(self, next_record):
+        '''Defines the value of the next forced time step
+        Could be the next recording of data or the end of simulation
+        '''
+        self.forced_timestep = min(self.end_time, next_record)
+        return self
+
+    def solve_q_vecnorm(self):
+        """Calculate the q vector norm to be used in the flow equation
+        This function uses the values in i+1 and j+1,
+        as originally explained in Almeida and Bates (2013)
+        """
+        arr_q_i_jm12 = self.arrp_q['S'][1:-1, 1:-1]
+        arr_q_i_jp12 = self.arrp_q['S'][:-2, 1:-1]
+        arr_q_ip1_jm12 = self.arrp_q['S'][1:-1, 2:]
+        arr_q_ip1_jp12 = self.arrp_q['S'][:-2, 2:]
+        arr_q_im12_j = self.arrp_q['W'][1:-1, 1:-1]
+        arr_q_ip12_j = self.arrp_q['W'][1:-1, 2:]
+        arr_q_im12_jp1 = self.arrp_q['W'][:-2, 1:-1]
+        arr_q_ip12_jp1 = self.arrp_q['W'][:-2, 2:]
+
+        arr_q_ip12_j_y = (arr_q_i_jm12 + arr_q_i_jp12 +
+                          arr_q_ip1_jm12 + arr_q_ip1_jp12) / 4
+        arr_q_i_jp12_x = (arr_q_im12_j + arr_q_ip12_j +
+                          arr_q_im12_jp1 + arr_q_ip12_jp1) / 4
+
+        self.arr_q_vecnorm = np.sqrt(
+                            np.square(arr_q_ip12_j_y) +
+                            np.square(arr_q_i_jp12_x))
+        return self
+
+    def solve_q_vecnorm2(self):
+        """Calculate the q vector norm to be used in the flow equation
+        This function uses values in i-1 and j-1, which seems more logical
+        than the version given in Almeida and Bates (2013)
+        """
+        arr_q_i_jm12 = self.arrp_q['S'][1:-1, 1:-1]
+        arr_q_i_jp12 = self.arrp_q['S'][:-2, 1:-1]
+        arr_q_im1_jm12 = self.arrp_q['S'][1:-1, :-2]
+        arr_q_im1_jp12 = self.arrp_q['S'][:-2, :-2]
+        arr_q_im12_j = self.arrp_q['W'][1:-1, 1:-1]
+        arr_q_ip12_j = self.arrp_q['W'][1:-1, 2:]
+        arr_q_im12_jm1 = self.arrp_q['W'][2:, 1:-1]
+        arr_q_ip12_jm1 = self.arrp_q['W'][2:, 2:]
+
+        self.arr_q_im12_j_y[:] = (arr_q_i_jm12 + arr_q_i_jp12 +
+                          arr_q_im1_jm12 + arr_q_im1_jp12) / 4
+        self.arr_q_i_jm12_x[:] = (arr_q_im12_j + arr_q_ip12_j +
+                          arr_q_im12_jm1 + arr_q_ip12_jm1) / 4
+        self.arr_q_vecnorm[:] = np.sqrt(
+                                    np.square(self.arr_q_im12_j_y) +
+                                    np.square(self.arr_q_i_jm12_x))
+        return self
