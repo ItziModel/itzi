@@ -17,8 +17,15 @@ PURPOSE:   Simulate superficial water flows using a quasi-2D implementation
 
 COPYRIGHT: (C) 2015 by Laurent Courty
 
-           This program is free software under the GNU General Public
-           License (v3). Read the LICENCE file for details.
+            This program is free software; you can redistribute it and/or
+            modify it under the terms of the GNU General Public License
+            as published by the Free Software Foundation; either version 2
+            of the License, or (at your option) any later version.
+
+            This program is distributed in the hope that it will be useful,
+            but WITHOUT ANY WARRANTY; without even the implied warranty of
+            MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+            GNU General Public License for more details.
 """
 
 #%module
@@ -217,10 +224,10 @@ def read_input_value(opts, fl):
     # check valid combination to get simulation duration
     b_dur = (opts['sim_duration']
                 and not opts['start_time'] and not opts['end_time'])
-    b_start_dur = (opts['start_time']
-                and opts['sim_duration'] and not opts['end_time'])
-    b_start_end = (opts['start_time']
-                and opts['end_time'] and not opts['sim_duration'])
+    b_start_dur = (opts['start_time'] and opts['sim_duration']
+                and not opts['end_time'])
+    b_start_end = (opts['start_time'] and opts['end_time']
+                and not opts['sim_duration'])
     if not (b_dur or b_start_dur or b_start_end):
         msgr.fatal(_(
         "accepted combinations: {d} alone, {s} and {d}, {s} and {e}").format(
