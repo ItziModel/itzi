@@ -257,16 +257,16 @@ def read_input_time(opts, input_times):
         input_times['start'] = datetime.min
 
 def read_maps_names(opts, input_map_names, output_map_names):
+    """Read options and populate input and output name dictionaries
     """
-    """
-    input_map_names['z'] = opts['in_z']
-    input_map_names['n'] = opts['in_n']
-    input_map_names['h_old'] = opts['in_h']
-    input_map_names['rain'] = opts['in_rain']
-    input_map_names['inf'] = opts['in_inflow']
-    input_map_names['bctype'] = opts['in_bc']
-    input_map_names['bcval'] = opts['in_bcval']
+    # input maps
+    in_names = {k:v for k,v in opt.items() if k in input_map_names}
+    for k in in_names:
+        assert k in input_map_names, "wrong list comprehension"
+        pass
+    input_map_names.update(in_names)
 
+    # output maps
     out_names = {k:v for k,v in opt.items() if k in output_map_names}
     for k in out_names:
         assert k in output_map_names, "wrong list comprehension"
