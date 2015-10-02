@@ -180,9 +180,9 @@ class SurfaceDomain(object):
         1D arrays passed to the boundary method include cells bordering
         the boundary on the inside of the domain.
         For the values applying at cells interface (flow depth and flow):
-        'qboundary' is the flow at the very boundary
+        'qboundary' is the flow at the very boundary and is updated
         'hflow' and 'qin' are the next value inside the domain
-        Therefore, only 'qboundary' should necessitate a padded array.
+        Therefore, only 'qboundary' should need a padded array.
         '''
         w_boundary = Boundary(self.dy, self.dx, boundary_pos='W')
         e_boundary = Boundary(self.dy, self.dx, boundary_pos='E')
@@ -222,6 +222,7 @@ class SurfaceDomain(object):
                                     bctype=self.arr_bctype[-1],
                                     bcvalue=self.arr_bcval[-1])
         return self
+
 
 class old_code():
 
