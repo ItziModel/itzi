@@ -60,8 +60,9 @@ class Igis(object):
         self.overwrite = grass.overwrite()
         self.mapset = grass.read_command('g.mapset', flags='p').strip()
 
-        self.arrays = {'z': None, 'n': None, 'h_old': None,
-            'rain': None, 'inf':None, 'bcval': None, 'bctype': None}
+        self.arrays = {'in_z': None, 'in_n': None, 'in_h': None,
+            'in_q': None, 'in_rain': None, 'in_inf':None,
+            'in_bcval': None, 'in_bctype': None}
 
     def grass_dtype(self, dtype):
         if dtype in self.dtype_conv['DCELL']:
@@ -135,9 +136,7 @@ class Igis(object):
         """
         assert isinstance(sim_time, datetime), \
             "sim_time not a datetime object!"
-        valid_keys = [k for k in self.arrays.keys()]
         for k in k_list:
-            assert k in valid_keys
+            assert k in self.arrays, "unknown map key!"
             input_arrays[k] = self.arrays[k]
-
         return input_arrays
