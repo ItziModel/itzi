@@ -168,11 +168,9 @@ def main():
         'in_rain': None, 'in_q':None, 'in_bcval': None, 'in_bctype': None}
     output_map_names = {'out_h':None, 'out_wse':None,
         'out_vx':None, 'out_vy':None, 'out_qx':None, 'out_qy':None}
-    temporal_type = ''
 
     # check and load input values
-    temporal_type = read_input_time(options, input_times)
-    assert temporal_type in ('relative', 'absolute')
+    read_input_time(options, input_times)
     read_maps_names(options, input_map_names, output_map_names)
 
     # Run simulation
@@ -214,9 +212,6 @@ def read_input_time(opts, input_times):
     """Check the sanity of input time information
     write the value to relevant dict
     """
-    # Default temporal type
-    temporal_type = "absolute"
-
     date_format = '%Y-%m-%d %H:%M'
     # record step
     try:
@@ -260,9 +255,6 @@ def read_input_time(opts, input_times):
                     'start_time')))
     else:
         input_times['start'] = datetime.min
-        temporal_type = "relative"
-
-    return temporal_type
 
 def read_maps_names(opts, input_map_names, output_map_names):
     """
