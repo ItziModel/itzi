@@ -129,17 +129,40 @@ class SurfaceDomain(object):
                                     self.arr_h_new[:])
         return self
 
-    def solve_hflow(self):
+    def solve_hflow(self, wse_i_up, wse_i, z_i_up, z_i,
+                        wse_j_up, wse_j, z_j_up, z_j):
         """calculate the difference between
         the highest water free surface
         and the highest terrain elevevation of the two adjacent cells
         This acts as an approximation of the hydraulic radius
         """
+        self.arr_hfw[s_i_self] = (np.maximum(wse_i_up, wse_i)
+                                     - np.maximum(z_i_up, z_i))
+        self.arr_hfn[s_j_self] = (np.maximum(wse_j_up, wse_j)
+                                       - np.maximum(z_j_up, z_j))
+        return self
+
+    def bates2010(self, length, width, wse_0, wse_up, hf, q0, n):
+        '''flow formula from
+        Bates, P. D., Horritt, M. S., & Fewtrell, T. J. (2010).
+        A simple inertial formulation of the shallow water equations for
+        efficient two-dimensional flood inundation modelling.
+        Journal of Hydrology, 387(1), 33–45.
+        http://doi.org/10.1016/j.jhydrol.2010.03.027
+        '''
+        slope = (wse_0 - wse_up) / length
+        num = (q0 - self.g * hf * self.dt * slope)
+        den = (1 + self.dt * self.g * n*n * abs(q0) / (pow(hf, 4/3) * hf))
+        return (num / den) * width
+
+    def solve_q(self):
+        '''Calculate flow across the whole domain, appart from boundaries
+        '''
         # definitions of slices on non-padded arrays
         # don't compute first row or col: solved by boundary conditions
-        s_i_self = (slice(None), slice(1, None))
+        s_i_self = (slice(None), self.sc)
         s_i_up = (slice(None), slice(None, -1))
-        s_j_self = (slice(1, None), slice(None))
+        s_j_self = (self.sc, slice(None))
         s_j_up = (slice(None, -1), slice(None))
 
         z_i = self.arr_z[s_i_self]
@@ -151,33 +174,22 @@ class SurfaceDomain(object):
         wse_j = self.arr_z[s_j_self] + self.arr_h_new[s_j_self]
         wse_j_up = self.arr_z[s_j_up] + self.arr_h_new[s_j_up]
 
-        self.arr_hfw[:, self.sc] = (np.maximum(wse_i_up, wse_i)
-                                     - np.maximum(z_i_up, z_i))
-        self.arr_hfn[self.sc, :] = (np.maximum(wse_j_up, wse_j)
-                                       - np.maximum(z_j_up, z_j))
-        return self
+        # Solve hflow
+        solve_hflow(self, wse_i_up, wse_i, z_i_up, z_i,
+                        wse_j_up, wse_j, z_j_up, z_j)
 
-    def solve_slope(self, wse_0, wse_up, length):
-        return (wse_0 - wse_up) / length
-
-    def bates2010(self, slope, width, hf, q0, n):
-        '''flow formula from
-        Bates, P. D., Horritt, M. S., & Fewtrell, T. J. (2010).
-        A simple inertial formulation of the shallow water equations for
-        efficient two-dimensional flood inundation modelling.
-        Journal of Hydrology, 387(1), 33–45.
-        http://doi.org/10.1016/j.jhydrol.2010.03.027
-        '''
-        num = (q0 - self.g * hf * self.dt * slope)
-        den = (1 + self.dt * self.g * n*n * abs(q0) / (pow(hf, 4/3) * hf))
-        return (num / den) * width
-
-    def solve_q(self):
-        '''
-        '''
+        hfw = self.arr_hfw[s_i_self]
+        hfn = self.arr_hfn[s_j_self]
+        qw = self.arr_qw[s_i_self]
+        qn = self.arr_qn[s_j_self]
+        n_i = self.arr_n[s_i_self]
+        n_j = self.arr_n[s_j_self]
 
         get_q = np.vectorize(bates2010)
-
+        self.arr_qw_new[s_i_self] = get_q(self.dx, self.dy,
+                                        wse_i, wse_i_up, qw, n_i)
+        self.arr_qn_new[s_j_self] = get_q(self.dy, self.dx,
+                                        wse_j, wse_j_up, qn, n_j)
         return self
 
     def apply_boundary_conditions(self):
