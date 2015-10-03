@@ -73,7 +73,7 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 #%end
 
 #%option G_OPT_STRDS_INPUT
-#% key: in_inflow
+#% key: in_q
 #% description: Name of input user flow raster space-time dataset
 #% required: no
 #%end
@@ -104,13 +104,13 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 #%end
 
 #~ #%option G_OPT_R_OUTPUT
-#~ #% key: q_i
+#~ #% key: out_qx
 #~ #% description: Name of output flow raster map for x direction
 #~ #% required: no
 #~ #%end
 #~ 
 #~ #%option G_OPT_R_OUTPUT
-#~ #% key: q_j
+#~ #% key: out_qy
 #~ #% description: Name of output flow raster map for y direction
 #~ #% required: no
 #~ #%end
@@ -213,12 +213,15 @@ def read_input_time(opts, input_times):
     write the value to relevant dict
     """
     date_format = '%Y-%m-%d %H:%M'
+    rel_err_msg = "{}: format should be HH:MM:SS"
+    abs_err_msg = "{}: format should be yyyy-mm-dd HH:MM"
+    comb_err_msg = ("accepted combinations:{d} alone, {s} and {d}, {s} and {e}"
+                ).format(d='sim_duration', s='start_time', e='end_time')
     # record step
     try:
         input_times['rec_step'] = str_to_timedelta(opts['record_step'])
     except ValueError:
-        msgr.fatal(_("{}: format should be HH:MM:SS".format(
-                'record_step')))
+        msgr.fatal(_(rel_err_msg.format('record_step')))
 
     # check valid combination to get simulation duration
     b_dur = (opts['sim_duration']
@@ -228,31 +231,26 @@ def read_input_time(opts, input_times):
     b_start_end = (opts['start_time'] and opts['end_time']
                 and not opts['sim_duration'])
     if not (b_dur or b_start_dur or b_start_end):
-        msgr.fatal(_(
-        "accepted combinations: {d} alone, {s} and {d}, {s} and {e}").format(
-                    d='sim_duration', s='start_time', e='end_time'))
+        msgr.fatal(_(comb_err_msg))
 
     if opts['sim_duration']:
         try:
             input_times['duration'] = str_to_timedelta(opts['sim_duration'])
         except ValueError:
-            msgr.fatal(_("{}: format should be HH:MM:SS".format(
-                    'sim_duration')))
+            msgr.fatal(_(rel_err_msg.format('sim_duration')))
 
     if options['end_time']:
         try:
             input_times['end'] = datetime.strptime(opts['end_time'], date_format)
         except ValueError:
-            msgr.fatal(_("{}: format should be yyyy-mm-dd HH:MM".format(
-                        'end_time')))
+            msgr.fatal(_(abs_err_msg.format('end_time')))
 
     if opts['start_time']:
         try:
             input_times['start'] = datetime.strptime(opts['start_time'],
                                                     date_format)
         except ValueError:
-            msgr.fatal(_("{}: format should be yyyy-mm-dd HH:MM".format(
-                    'start_time')))
+            msgr.fatal(_(abs_err_msg.format('start_time')))
     else:
         input_times['start'] = datetime.min
 
