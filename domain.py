@@ -19,10 +19,12 @@ import numpy as np
 from boundary import Boundary
 
 class SurfaceDomain(object):
-    """Provides the step() and set_input_arrays() methods
+    """Represents a staggered grid where flow is simulated
+    Accessed using the step() and set_input_arrays() methods
     """
 
-    def __init__(self, dx=None, dy=None, sim_clock=0,
+    def __init__(self, dx=None, dy=None, arr_def=None
+                sim_clock=0,
                 dtmax=10,
                 a=0.7,         # CFL constant
                 g=9.80665,     # Standard gravity
@@ -47,6 +49,16 @@ class SurfaceDomain(object):
         # to not conflict with boundary condition
         self.sc = slice(1, None)
 
+        # Set internal arrays to a provided default
+        # Input arrays are set externally with set_input_arrays()
+        self.arr_hfw = np.copy(arr_def)
+        self.arr_hfn = np.copy(arr_def)
+        self.arr_qw_new = np.copy(arr_def)
+        self.arr_qn_new = np.copy(arr_def)
+        self.arr_qw, self.arrp_qw = self.pad_array(np.copy(arr_def))
+        self.arr_qn, self.arrp_qn = self.pad_array(np.copy(arr_def))
+        del arr_def
+
     @staticmethod
     def pad_array(arr):
         """Return the original input array
@@ -58,20 +70,20 @@ class SurfaceDomain(object):
 
     def step(self, next_ts):
         """Run a full simulation time-step
-        Input arrays are should be set beforehand using set_input_arrays()
+        Input arrays should be set beforehand using set_input_arrays()
         """
         self.set_dt(next_ts)
         self.apply_boundary_conditions()
         self.solve_h()
         self.solve_hflow()
         self.solve_q()
+        self.copy_arrays_values_for_next_timestep()
         return self
 
     def set_input_arrays(self, arrays):
         """Set the input arrays. To be called before each step()
         arrays: a dict of arrays
         """
-        # input arrays
         self.arr_z = arrays['z']
         self.arr_n = arrays['n']
         self.arr_ext = arrays['ext']
@@ -79,13 +91,6 @@ class SurfaceDomain(object):
         self.arr_h_new = arrays['h_new']
         self.arr_bctype = arrays['bctype']
         self.arr_bcval = arrays['bcval']
-        # 'calculated' arrays
-        self.arr_hfw = arrays['hfw']
-        self.arr_hfn = arrays['hfn']
-        self.arr_qw_new = arrays['qw_new']
-        self.arr_qn_new = arrays['qn_new']
-        self.arr_qw, self.arrp_qw = self.pad_array(arrays['qw_old'])
-        self.arr_qn, self.arrp_qn = self.pad_array(arrays['qn_old'])
         return self
 
     def set_dt(self, next_ts):
@@ -190,39 +195,46 @@ class SurfaceDomain(object):
         s_boundary = Boundary(self.dx, self.dy, boundary_pos='S')
 
         w_boundary.get_boundary_flow(qin=self.arr_qw[:, 1],
-                                    qboundary=self.arr_qw[:, 0],
                                     hflow=self.arr_hfw[:, 1],
                                     n=self.arr_n[:, 0],
                                     z=self.arr_z[:, 0],
                                     depth=self.arr_h[:, 0],
                                     bctype=self.arr_bctype[:, 0],
-                                    bcvalue=self.arr_bcval[:, 0])
+                                    bcvalue=self.arr_bcval[:, 0],
+                                    qboundary=self.arr_qw[:, 0])
         e_boundary.get_boundary_flow(qin=self.arr_qw[:, -1],
-                                    qboundary=self.arrp_qw[1:-1, -1],
                                     hflow=self.arr_hfw[:, -1],
                                     n=self.arr_n[:, -1],
                                     z=self.arr_z[:, -1],
                                     depth=self.arr_h[:, -1],
                                     bctype=self.arr_bctype[:, -1],
-                                    bcvalue=self.arr_bcval[:, -1])
+                                    bcvalue=self.arr_bcval[:, -1],
+                                    qboundary=self.arrp_qw[1:-1, -1])
         n_boundary.get_boundary_flow(qin=self.arr_qn[1],
-                                    qboundary=self.arr_qn[0],
                                     hflow=self.arr_hfn[1],
                                     n=self.arr_n[0],
                                     z=self.arr_z[0],
                                     depth=self.arr_h[0],
                                     bctype=self.arr_bctype[0],
-                                    bcvalue=self.arr_bcval[0])
+                                    bcvalue=self.arr_bcval[0],
+                                    qboundary=self.arr_qn[0])
         s_boundary.get_boundary_flow(qin=self.arr_qn[-1, :],
-                                    qboundary=self.arrp_qn[-1, 1:-1],
                                     hflow=self.arr_hfn[-1],
                                     n=self.arr_n[-1],
                                     z=self.arr_z[-1],
                                     depth=self.arr_h[-1],
                                     bctype=self.arr_bctype[-1],
-                                    bcvalue=self.arr_bcval[-1])
+                                    bcvalue=self.arr_bcval[-1],
+                                    qboundary=self.arrp_qn[-1, 1:-1])
         return self
 
+    def copy_arrays_values_for_next_timestep(self):
+        """Copy values from calculated arrays to input arrays
+        """
+        self.arr_qw[:] = self.arr_qw_new
+        self.arr_qn[:] = self.arr_qn_new
+        self.arr_h_old[:] = self.arr_h_new
+        return self
 
 class old_code():
 

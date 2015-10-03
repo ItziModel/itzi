@@ -25,7 +25,7 @@ class SuperficialFlowSimulation(object):
 
     def __init__(self,
                 start_time=datetime(1,1,1), end_time=datetime(1,1,1),
-                sim_duration=timedelta(0), record_step,
+                sim_duration=timedelta(0), record_step, dtype=np.float32,
                 input_maps, output_maps):
         assert isinstance(start_time, datetime), \
             "start_time not a datetime object!"
@@ -52,6 +52,8 @@ class SuperficialFlowSimulation(object):
                     'qw_new': None, 'qn_new': None}
         self.in_map_names = input_maps
         self.out_map_names = output_maps
+        self.dtype=dtype
+        # instantiate a Igis object
         self.gis = gis.Igis(start_time=self.start_time,
                             end_time=self.end_time)
 
@@ -70,6 +72,10 @@ class SuperficialFlowSimulation(object):
     def set_temporal_type(self):
         """A start_time equal to datetime.min means user did not
         provide a start_time. Therefore a relative temporal type
+        is set for results writing.
+        Note that it's a potential problem in case a simulation is set to
+        actually starts on 0001-01-01 00:00, as the results will be written
+        in relative STDS.
         """
         self.temporal_type = 'absolute'
         if self.start_time == datetime.min:
@@ -80,7 +86,9 @@ class SuperficialFlowSimulation(object):
         """Perform a full superficial flow simulation
         including recording of data and mass_balance calculation
         """
-        rast_dom = domain.SurfaceDomain(dx=self.gis.dx, dy=self.gis.dy)
+        rast_dom = domain.SurfaceDomain(dx=self.gis.dx,
+                                        dy=self.gis.dy
+                                        arr_def=self.zeros_array())
         record_counter = 0
         duration_s = self.duration.total_seconds()
 
@@ -95,11 +103,16 @@ class SuperficialFlowSimulation(object):
             # write simulation results
             rec_time = rast_dom.sim_clock / self.record_step.total_seconds()
             if rec_time >= record_counter:
-                self.write_results()
+                self.write_results_to_gis()
                 record_counter += 1
-            # copy arrays of results
-            self.copy_arrays_values_for_next_timestep()
+        # register generated maps in GIS
+        self.register_results_in_gis()
         return self
+
+    def zeros_array(self):
+        """
+        """
+        return np.zeros(shape=(self.gis.ry, self.gis.xr), dtype=self.dtype)
 
     def next_timestep(self):
         """
@@ -145,14 +158,6 @@ class SuperficialFlowSimulation(object):
             assert False, "Unknown time"
         return loaded_arrays
 
-    def copy_arrays_values_for_next_timestep(self):
-        """Copy values from calculated arrays to input arrays
-        """
-        self.dom_arrays['qw_old'][:] = self.dom_arrays['qw_new']
-        self.dom_arrays['qn_old'][:] = self.dom_arrays['qn_new']
-        self.dom_arrays['h_old'][:] = self.dom_arrays['h_new']
-        return self
-
     def set_ext_array(self, q, rain, inf):
         """Combine rain, infiltration etc. into a unique array
         rainfall and infiltration are considered in mm/h
@@ -160,7 +165,12 @@ class SuperficialFlowSimulation(object):
         ext = q + (rain + inf) / 1000 / 3600
         return ext
 
-    def write_results(self):
+    def write_results_to_gis(self):
+        """
+        """
+        return self
+
+    def register_results_in_gis(self):
         """
         """
         return self
