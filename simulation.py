@@ -127,18 +127,18 @@ class SuperficialFlowSimulation(object):
 
         sim_time = self.start_time + td_clock
         lst_key = self.in_map_names.keys()
-        loaded_arrays = self.gis.get_input_arrays(lst_key, sim_time)
+        arrays = self.gis.get_input_arrays(lst_key, sim_time)
         # dictionary translation
-        self.dom_arrays['ext'] = set_ext_array(loaded_arrays['in_q'],
-                                            loaded_arrays['in_rain'],
-                                            loaded_arrays['in_inf'])
-        self.dom_arrays['z'] = loaded_arrays['in_z']
-        self.dom_arrays['n'] = loaded_arrays['in_n']
-        self.dom_arrays['bcval'] = loaded_arrays['in_bcval']
-        self.dom_arrays['bctype'] = loaded_arrays['in_bctype']
+        self.dom_arrays['ext'] = set_ext_array(arrays['in_q'],
+                                            arrays['in_rain'],
+                                            arrays['in_inf'])
+        self.dom_arrays['z'] = arrays['in_z']
+        self.dom_arrays['n'] = arrays['in_n']
+        self.dom_arrays['bcval'] = arrays['in_bcval']
+        self.dom_arrays['bctype'] = arrays['in_bctype'].astype(np.uint8)
         # update in_h only at the first time-step
         if not td_clock:
-            self.dom_arrays['h_old'] = loaded_arrays['in_h']
+            self.dom_arrays['h_old'] = arrays['in_h']
         return self
 
     def set_ext_array(self, q, rain, inf):
