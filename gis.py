@@ -55,7 +55,7 @@ class Igis(object):
         self.end_time = end_time
         self.dtype = dtype
         tgis.init(raise_fatal_error=True)
-        msgr = Messenger(raise_on_error=True)
+        self.msgr = Messenger(raise_on_error=True)
         region = Region()
         self.xr = region.cols
         self.ry = region.rows
@@ -122,10 +122,11 @@ class Igis(object):
         store result in instance's dictionary
         """
         for k,map_name in map_names.iteritems():
-            if map_name == None:
+            if not map_name:
+                map_list = None
                 continue
             try:
-                map_list = self.raster_list_from_strds(map_name)
+                map_list = self.raster_list_from_strds(self.format_id(map_name))
             except FatalError:
                 map_list = [self.MapData(id=self.format_id(map_name),
                     start_time=self.start_time, end_time=self.end_time)]
@@ -173,9 +174,11 @@ class Igis(object):
     def write_raster_map(self, arr, rast_name):
         """Take a numpy array and write it to GRASS DB
         """
+        assert isinstance(arr, np.ndarray), "arr not a np array!"
+        assert isinstance(rast_name, basestring), "rast_name not a string!"
         if self.overwrite == True and raster.RasterRow(rast_name).exist() == True:
-            utils.remove(rast_name, 'raster')
-            msgr.verbose(_("Removing raster map {}".format(rast_name)))
+            gutils.remove(rast_name, 'raster')
+            self.msgr.verbose(_("Removing raster map {}".format(rast_name)))
         mtype = self.grass_dtype(arr.dtype)
         with raster.RasterRow(rast_name, mode='w', mtype=mtype) as newraster:
             newrow = raster.Buffer((arr.shape[1],))
@@ -184,27 +187,21 @@ class Igis(object):
                 newraster.put_row(newrow)
         return self
 
-    def get_input_arrays(self, k_list, sim_time):
-        """returns a dict of arrays valid for the current time.
-        k_list: a list of requested arrays as dict keys
+    def get_input_arrays(self, arrays, sim_time):
+        """take a list of map names as input
+        add valid array to each relevant record
         """
         assert isinstance(sim_time, datetime), \
             "sim_time not a datetime object!"
-        # get a dict of map names at the right time
-        # equivalent to:
-        # for k in k_list:
-        #    for m in self.maps[k]:
-        #        if m.start_time <= sim_time <= m.end_time:
-        #            map_names[k] = m.id
-        map_names = {k:m.id for k in k_list for m in self.maps[k] if
-                        m.start_time <= sim_time <= m.end_time}
-        # load arrays from GIS
-        # equivalent to:
-        # for k,m in map_names.iteritems():
-        #    if m != None:
-        #       input_arrays[k] = self.read_raster_map(m)
-        input_arrays = {k:self.read_raster_map(m)
-                        for k,m in map_names.iteritems() if m != None}
+
+        input_arrays = {}
+        for k,l in self.maps.iteritems():
+            if l:
+                for m in l:
+                    if m.start_time <= sim_time <= m.end_time:
+                        input_arrays[k] = self.read_raster_map(m.id)
+            else:
+                input_arrays[k] = None
         return input_arrays
 
 

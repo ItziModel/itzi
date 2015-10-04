@@ -20,10 +20,11 @@ from boundary import Boundary
 
 class SurfaceDomain(object):
     """Represents a staggered grid where flow is simulated
-    Accessed using the step() and set_input_arrays() methods
+    Accessed using the step(), set_input_arrays() 
+    and get_output_arrays() methods
     """
 
-    def __init__(self, dx=None, dy=None, arr_def=None
+    def __init__(self, dx=None, dy=None, arr_def=None,
                 sim_clock=0,
                 dtmax=10,
                 a=0.7,         # CFL constant
@@ -33,6 +34,7 @@ class SurfaceDomain(object):
                 hmin=0.01,
                 v_routing=0.1):  # simple routing velocity m/s):
         self.sim_clock = sim_clock
+        self.dtmax = dtmax
         self.cfl = a
         self.g = g
         self.theta = theta
@@ -72,10 +74,12 @@ class SurfaceDomain(object):
         """Run a full simulation time-step
         Input arrays should be set beforehand using set_input_arrays()
         """
+        if not hasattr(self, 'arr_h_new'):
+            self.arr_h_new = np.copy(self.arr_h_old)
         self.set_dt(next_ts)
         self.apply_boundary_conditions()
         self.solve_h()
-        self.solve_hflow()
+        #~ self.solve_hflow()
         self.solve_q()
         self.copy_arrays_values_for_next_timestep()
         return self
@@ -87,9 +91,9 @@ class SurfaceDomain(object):
         self.arr_z = arrays['z']
         self.arr_n = arrays['n']
         self.arr_ext = arrays['ext']
-        self.arr_h_old = arrays['h_hold']
-        self.arr_bctype = arrays['bctype']
         self.arr_bcval = arrays['bcval']
+        self.arr_bctype = arrays['bctype']
+        self.arr_h_old = arrays['h_old']
         return self
 
     def set_dt(self, next_ts):
@@ -135,9 +139,9 @@ class SurfaceDomain(object):
         and the highest terrain elevevation of the two adjacent cells
         This acts as an approximation of the hydraulic radius
         """
-        self.arr_hfw[s_i_self] = (np.maximum(wse_i_up, wse_i)
+        self.arr_hfw[:, self.sc] = (np.maximum(wse_i_up, wse_i)
                                      - np.maximum(z_i_up, z_i))
-        self.arr_hfn[s_j_self] = (np.maximum(wse_j_up, wse_j)
+        self.arr_hfn[self.sc, :] = (np.maximum(wse_j_up, wse_j)
                                        - np.maximum(z_j_up, z_j))
         return self
 
@@ -149,10 +153,13 @@ class SurfaceDomain(object):
         Journal of Hydrology, 387(1), 33–45.
         http://doi.org/10.1016/j.jhydrol.2010.03.027
         '''
-        slope = (wse_0 - wse_up) / length
-        num = (q0 - self.g * hf * self.dt * slope)
-        den = (1 + self.dt * self.g * n*n * abs(q0) / (pow(hf, 4/3) * hf))
-        return (num / den) * width
+        if hf <= self.hf_min:
+            return 0
+        else:
+            slope = (wse_0 - wse_up) / length
+            num = (q0 - self.g * hf * self.dt * slope)
+            den = (1 + self.dt * self.g * n*n * abs(q0) / (pow(hf, 4/3) * hf))
+            return (num / den) * width
 
     def solve_q(self):
         '''Calculate flow across the whole domain, appart from boundaries
@@ -174,7 +181,7 @@ class SurfaceDomain(object):
         wse_j_up = self.arr_z[s_j_up] + self.arr_h_new[s_j_up]
 
         # Solve hflow
-        solve_hflow(self, wse_i_up, wse_i, z_i_up, z_i,
+        self.solve_hflow(wse_i_up, wse_i, z_i_up, z_i,
                         wse_j_up, wse_j, z_j_up, z_j)
 
         hfw = self.arr_hfw[s_i_self]
@@ -184,11 +191,11 @@ class SurfaceDomain(object):
         n_i = self.arr_n[s_i_self]
         n_j = self.arr_n[s_j_self]
 
-        get_q = np.vectorize(bates2010)
+        get_q = np.vectorize(self.bates2010)
         self.arr_qw_new[s_i_self] = get_q(self.dx, self.dy,
-                                        wse_i, wse_i_up, qw, n_i)
+                                        wse_i, wse_i_up, hfw, qw, n_i)
         self.arr_qn_new[s_j_self] = get_q(self.dy, self.dx,
-                                        wse_j, wse_j_up, qn, n_j)
+                                        wse_j, wse_j_up, hfn, qn, n_j)
         return self
 
     def apply_boundary_conditions(self):
@@ -209,7 +216,7 @@ class SurfaceDomain(object):
                                     hflow=self.arr_hfw[:, 1],
                                     n=self.arr_n[:, 0],
                                     z=self.arr_z[:, 0],
-                                    depth=self.arr_h[:, 0],
+                                    depth=self.arr_h_old[:, 0],
                                     bctype=self.arr_bctype[:, 0],
                                     bcvalue=self.arr_bcval[:, 0],
                                     qboundary=self.arr_qw[:, 0])
@@ -217,7 +224,7 @@ class SurfaceDomain(object):
                                     hflow=self.arr_hfw[:, -1],
                                     n=self.arr_n[:, -1],
                                     z=self.arr_z[:, -1],
-                                    depth=self.arr_h[:, -1],
+                                    depth=self.arr_h_old[:, -1],
                                     bctype=self.arr_bctype[:, -1],
                                     bcvalue=self.arr_bcval[:, -1],
                                     qboundary=self.arrp_qw[1:-1, -1])
@@ -225,7 +232,7 @@ class SurfaceDomain(object):
                                     hflow=self.arr_hfn[1],
                                     n=self.arr_n[0],
                                     z=self.arr_z[0],
-                                    depth=self.arr_h[0],
+                                    depth=self.arr_h_old[0],
                                     bctype=self.arr_bctype[0],
                                     bcvalue=self.arr_bcval[0],
                                     qboundary=self.arr_qn[0])
@@ -233,7 +240,7 @@ class SurfaceDomain(object):
                                     hflow=self.arr_hfn[-1],
                                     n=self.arr_n[-1],
                                     z=self.arr_z[-1],
-                                    depth=self.arr_h[-1],
+                                    depth=self.arr_h_old[-1],
                                     bctype=self.arr_bctype[-1],
                                     bcvalue=self.arr_bcval[-1],
                                     qboundary=self.arrp_qn[-1, 1:-1])
@@ -246,6 +253,25 @@ class SurfaceDomain(object):
         self.arr_qn[:] = self.arr_qn_new
         self.arr_h_old[:] = self.arr_h_new
         return self
+
+    def get_output_arrays(self, out_names):
+        """Takes a dict of map names
+        return a dict of arrays
+        """
+        out_arrays = {}
+        if out_names['out_h'] != None:
+            out_arrays['out_h'] = self.arr_h_new
+        if out_names['out_wse'] != None:
+            out_arrays['out_wse'] = self.arr_h_new + self.arr_z
+        if out_names['out_vx'] != None:
+            pass
+        if out_names['out_vy'] != None:
+            pass
+        if out_names['out_qx'] != None:
+            pass
+        if out_names['out_qy'] != None:
+            pass
+        return out_arrays
 
 class old_code():
 

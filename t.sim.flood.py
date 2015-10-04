@@ -141,7 +141,7 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np
 import cProfile
 import pstats
@@ -170,8 +170,8 @@ def main():
         'out_vx':None, 'out_vy':None, 'out_qx':None, 'out_qy':None}
 
     # check and load input values
-    read_input_time(options, input_times)
-    read_maps_names(options, input_map_names, output_map_names)
+    read_input_time(msgr, options, input_times)
+    read_maps_names(msgr, options, input_map_names, output_map_names)
 
     # Run simulation
     sim = simulation.SuperficialFlowSimulation(
@@ -202,14 +202,14 @@ def str_to_timedelta(inp_str):
     seconds = int(data[2])
     if hours < 0:
         raise ValueError
-    if not 0 < minutes < 59 or not 0 < seconds < 59:
+    if not 0 <= minutes <= 59 or not 0 <= seconds <= 59:
         raise ValueError
     obj_dt = timedelta(hours=hours,
                     minutes=minutes,
                     seconds=seconds)
     return obj_dt
 
-def read_input_time(opts, input_times):
+def read_input_time(msgr, opts, input_times):
     """Check the sanity of input time information
     write the value to relevant dict
     """
@@ -255,20 +255,15 @@ def read_input_time(opts, input_times):
     else:
         input_times['start'] = datetime.min
 
-def read_maps_names(opts, input_map_names, output_map_names):
+def read_maps_names(msgr, opt, input_map_names, output_map_names):
     """Read options and populate input and output name dictionaries
     """
-    # input maps
-    in_names = {k:v for k,v in opt.items() if k in input_map_names}
-    for k in in_names:
-        assert k in input_map_names, "wrong list comprehension"
-    input_map_names.update(in_names)
+    for k,v in opt.iteritems():
+        if k in input_map_names.keys() and v:
+            input_map_names[k] = v
+        if k in output_map_names.keys() and v:
+            output_map_names[k] = v
 
-    # output maps
-    out_names = {k:v for k,v in opt.items() if k in output_map_names}
-    for k in out_names:
-        assert k in output_map_names, "wrong list comprehension"
-    output_map_names.update(out_names)
 
 if __name__ == "__main__":
     options, flags = grass.parser()

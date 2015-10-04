@@ -23,15 +23,16 @@ class SuperficialFlowSimulation(object):
     """
     """
 
-    def __init__(self,
-                start_time=datetime(1,1,1), end_time=datetime(1,1,1),
-                sim_duration=timedelta(0), record_step, dtype=np.float32,
-                input_maps, output_maps):
+    def __init__(self,record_step, input_maps, output_maps,
+                dtype=np.float32,
+                start_time=datetime(1,1,1),
+                end_time=datetime(1,1,1),
+                sim_duration=timedelta(0)):
         assert isinstance(start_time, datetime), \
             "start_time not a datetime object!"
-        assert isinstance(end_time, datetime), \
-            "end_time not a datetime object!"
-        assert start_time <= end_time, "start_time > end_time!"
+        #~ assert isinstance(end_time, datetime), \
+            #~ "end_time not a datetime object!"
+        #~ assert start_time <= end_time, "start_time > end_time!"
         assert isinstance(sim_duration, timedelta), \
             "sim_duration not a timedelta object!"
         assert sim_duration >= timedelta(0), "sim_duration is negative!"
@@ -53,17 +54,19 @@ class SuperficialFlowSimulation(object):
         self.gis = gis.Igis(start_time=self.start_time,
                             end_time=self.end_time,
                             dtype=dtype)
+        self.gis.msgr.verbose(_("Reading GIS..."))
+        self.gis.read(self.in_map_names)
 
     def set_duration(self, end_time, sim_duration):
         """If sim_duration is given, end_time is ignored
         This is normally checked upstream
         """
         if not sim_duration:
-            self.duration = end_time - self.sim_start
+            self.duration = end_time - self.start_time
             self.end_time = end_time
         else:
             self.duration = sim_duration
-            self.end_time = start_time + sim_duration
+            self.end_time = self.start_time + sim_duration
         return self
 
     def set_temporal_type(self):
@@ -84,23 +87,25 @@ class SuperficialFlowSimulation(object):
         including recording of data and mass_balance calculation
         """
         rast_dom = domain.SurfaceDomain(dx=self.gis.dx,
-                                        dy=self.gis.dy
+                                        dy=self.gis.dy,
                                         arr_def=self.zeros_array())
         record_counter = 0
         duration_s = self.duration.total_seconds()
 
-        while rast_dom.sim_clock <= duration_s:
+        while rast_dom.sim_clock < duration_s:
             # display advance of simulation
-            gis.msgr.percent(rast_dom.sim_clock, duration_s, 1)
+            self.gis.msgr.percent(rast_dom.sim_clock, duration_s, 1)
             # update arrays
             self.set_arrays(timedelta(seconds=rast_dom.sim_clock))
             # time-stepping
             rast_dom.set_input_arrays(self.dom_arrays)
-            rast_dom.step(self.next_timestep())
+            next_record = record_counter*self.record_step.total_seconds()
+            rast_dom.step(self.next_timestep(next_record))
             # write simulation results
             rec_time = rast_dom.sim_clock / self.record_step.total_seconds()
             if rec_time >= record_counter:
-                self.write_results_to_gis()
+                self.output_arrays = rast_dom.get_output_arrays(self.out_map_names)
+                self.write_results_to_gis(record_counter)
                 record_counter += 1
         # register generated maps in GIS
         self.register_results_in_gis()
@@ -111,10 +116,15 @@ class SuperficialFlowSimulation(object):
         """
         return np.zeros(shape=(self.gis.ry, self.gis.xr), dtype=self.dtype)
 
-    def next_timestep(self):
+    def ones_array(self):
         """
         """
-        return next_ts
+        return np.ones(shape=(self.gis.ry, self.gis.xr), dtype=self.dtype)
+
+    def next_timestep(self, next_record):
+        """
+        """
+        return min(next_record, self.duration.total_seconds())
 
     def set_arrays(self, td_clock):
         """load arrays from the GIS as a dict
@@ -126,31 +136,52 @@ class SuperficialFlowSimulation(object):
         assert td_clock >= timedelta(0), "td_clock is negative!"
 
         sim_time = self.start_time + td_clock
-        lst_key = self.in_map_names.keys()
-        arrays = self.gis.get_input_arrays(lst_key, sim_time)
+        arrays = self.gis.get_input_arrays(self.in_map_names, sim_time)
         # dictionary translation
-        self.dom_arrays['ext'] = set_ext_array(arrays['in_q'],
-                                            arrays['in_rain'],
-                                            arrays['in_inf'])
+        self.dom_arrays['ext'] = self.set_ext_array(arrays)
         self.dom_arrays['z'] = arrays['in_z']
         self.dom_arrays['n'] = arrays['in_n']
-        self.dom_arrays['bcval'] = arrays['in_bcval']
-        self.dom_arrays['bctype'] = arrays['in_bctype'].astype(np.uint8)
+
+        if not arrays['in_bcval'] == None:
+            self.dom_arrays['bcval'] = arrays['in_bcval']
+        else:
+            self.dom_arrays['bcval'] = self.zeros_array()
+
+        if not arrays['in_bctype'] == None:
+            self.dom_arrays['bctype'] = arrays['in_bctype'].astype(np.uint8)
+        else:
+            self.dom_arrays['bctype'] = self.ones_array()
+
         # update in_h only at the first time-step
-        if not td_clock:
+        if not td_clock and not arrays['in_h'] == None:
             self.dom_arrays['h_old'] = arrays['in_h']
+        elif arrays['in_h'] == None:
+            self.dom_arrays['h_old'] = self.zeros_array()
         return self
 
-    def set_ext_array(self, q, rain, inf):
+    def set_ext_array(self, arrays):
         """Combine rain, infiltration etc. into a unique array
         rainfall and infiltration are considered in mm/h
         """
-        ext = q + (rain + inf) / 1000 / 3600
+        if arrays['in_q'] == None:
+            arrays['in_q'] = self.zeros_array()
+        if arrays['in_rain'] == None:
+            arrays['in_rain'] = self.zeros_array()
+        if arrays['in_inf'] == None:
+            arrays['in_inf'] = self.zeros_array()
+        ext = arrays['in_q'] + (arrays['in_rain'] + arrays['in_inf']) / 1000 / 3600
         return ext
 
-    def write_results_to_gis(self):
+    def write_results_to_gis(self, record_counter):
         """
         """
+        for k,arr in self.output_arrays.iteritems():
+            if arr != None:
+                assert isinstance(arr, np.ndarray), "arr not a np array!"
+                suffix = timestamp = str(record_counter).zfill(6)
+                map_name = "{}_{}".format(self.out_map_names[k], suffix)
+                #~ print map_name
+                self.gis.write_raster_map(arr, map_name)
         return self
 
     def register_results_in_gis(self):
