@@ -16,12 +16,15 @@ GNU General Public License for more details.
 from __future__ import division
 import numpy as np
 from datetime import datetime, timedelta
+from collections import namedtuple
 
 import grass.script as grass
 import grass.temporal as tgis
 from grass.pygrass import raster
 from grass.pygrass.gis.region import Region
 from grass.pygrass.messages import Messenger
+import grass.pygrass.utils as gutils
+from grass.exceptions import FatalError
 
 class Igis(object):
     """
@@ -50,18 +53,22 @@ class Igis(object):
 
         self.start_time = start_time
         self.end_time = end_time
-        tgis.init()
-        msgr = Messenger()
+        tgis.init(raise_fatal_error=True)
+        msgr = Messenger(raise_on_error=True)
         region = Region()
         self.xr = region.cols
         self.ry = region.rows
         self.dx = region.ewres
         self.dy = region.nsres
         self.overwrite = grass.overwrite()
-        self.mapset = grass.read_command('g.mapset', flags='p').strip()
+        self.mapset = gutils.getenv('MAPSET')
         self.maps = {'in_z': None, 'in_n': None, 'in_h': None,
             'in_q': None, 'in_rain': None, 'in_inf':None,
             'in_bcval': None, 'in_bctype': None}
+        # define MapData namedtuple and cols to retrieve from STRDS
+        self.cols = ['id','start_time','end_time']
+                #~ 'name','west','east','south','north']
+        self.MapData = namedtuple('MapData', self.cols)
 
     def grass_dtype(self, dtype):
         if dtype in self.dtype_conv['DCELL']:
@@ -72,24 +79,56 @@ class Igis(object):
             mtype = 'FCELL'
         else:
             assert False, "datatype incompatible with GRASS!"
-            pass
         return mtype
 
     def to_s(self, unit, time):
         """Change an input time into seconds
         """
         assert isinstance(unit, basestring), "{} Not a string".format(unit)
-        return self.t_unit_conv[unit] * time
+        return self.t_unit_conv[unit] * int(time)
 
     def from_s(self, unit, time):
         """Change an input time from seconds to another unit
         """
         assert isinstance(unit, basestring), "{} Not a string".format(unit)
-        return time / self.t_unit_conv[unit]
+        return int(time) / self.t_unit_conv[unit]
 
-    def load_maps_from_gis(self):
+    def to_datetime(self, unit, time):
+        """Take a number and a unit as entry
+        return a datetime object relative to start_time
+        usefull for assigning start_time and end_time
+        to maps from relative stds
         """
+        return self.start_time + timedelta(seconds=self.to_s(unit, time))
+
+    def format_id(self, name):
+        """Take a map or stds name as input
+        and return a fully qualified name, i.e. including mapset
         """
+        if '@' in name:
+            return name
+        else:
+            return '@'.join((name, self.mapset))
+
+    def read(self, map_names):
+        """Read all requested maps from GIS
+        take as input map_names, a dictionary of maps/STDS names
+        for each entry in map_names:
+            if a strds, load all maps in the instance's time extend,
+                store them as a list
+            if a single map, set the start and end time to fit simulation.
+                store it in a list for consistency
+        store result in instance's dictionary
+        """
+        for k,map_name in map_names.iteritems():
+            if map_name == None:
+                continue
+            try:
+                map_list = self.raster_list_from_strds(map_name)
+            except FatalError:
+                map_list = [self.MapData(id=self.format_id(map_name),
+                    start_time=self.start_time, end_time=self.end_time)]
+            self.maps[k] = map_list
         return self
 
     def raster_list_from_strds(self, strds_name):
@@ -99,32 +138,29 @@ class Igis(object):
         assert isinstance(strds_name, basestring), "expect a string"
 
         strds = tgis.open_stds.open_old_stds(strds_name, 'strds')
-        cols = ['id','name','start_time','end_time',
-                'west','east','south','north']
         if strds.get_temporal_type() == 'relative':
             # get start time and end time in seconds
-            rel_start_time = 0
             rel_end_time = (self.end_time - self.start_time).total_seconds()
-            start_time_in_stds_unit = self.from_s(
-                                        strds.get_relative_time_unit(),
-                                        rel_start_time)
-            end_time_in_stds_unit = self.from_s(
-                                        strds.get_relative_time_unit(),
-                                        rel_end_time)
+            rel_unit = strds.get_relative_time_unit().encode('ascii','ignore')
+            start_time_in_stds_unit = 0
+            end_time_in_stds_unit = self.from_s(rel_unit, rel_end_time)
         elif strds.get_temporal_type() == 'absolute':
             start_time_in_stds_unit = self.start_time
             end_time_in_stds_unit = self.end_time
         else:
             assert False, "unknown temporal type"
-            pass
 
-        where = 'NOT start_time >= {e} AND NOT end_time <= {s}'.format(
+        # retrieve data from DB
+        where = 'start_time <= {e} AND end_time >= {s}'.format(
             e=str(end_time_in_stds_unit), s=str(start_time_in_stds_unit))
-
-        maplist = strds.get_registered_maps(columns=','.join(cols),
+        maplist = strds.get_registered_maps(columns=','.join(self.cols),
                                             where=where,
                                             order='start_time')
-        return [dict(zip(cols, i)) for i in maplist]
+        # change time data to datetime format
+        if strds.get_temporal_type() == 'relative':
+            maplist = [(i[0], self.to_datetime(rel_unit, i[1]),
+                self.to_datetime(rel_unit, i[2])) for i in maplist]
+        return [self.MapData(*i) for i in maplist]
 
     def read_raster_map(self, rast_name, dtype):
         """Read a GRASS raster and return a numpy array
@@ -136,10 +172,10 @@ class Igis(object):
     def write_raster_map(self, arr, rast_name):
         """Take a numpy array and write it to GRASS DB
         """
-        if can_ovr == True and raster.RasterRow(rast_name).exist() == True:
+        if self.overwrite == True and raster.RasterRow(rast_name).exist() == True:
             utils.remove(rast_name, 'raster')
             msgr.verbose(_("Removing raster map {}".format(rast_name)))
-        mtype = grass_dtype(arr.dtype)
+        mtype = self.grass_dtype(arr.dtype)
         with raster.RasterRow(rast_name, mode='w', mtype=mtype) as newraster:
             newrow = raster.Buffer((arr.shape[1],))
             for row in arr:
@@ -153,9 +189,9 @@ class Igis(object):
         """
         assert isinstance(sim_time, datetime), \
             "sim_time not a datetime object!"
-        for k in k_list:
-            assert k in self.arrays, "unknown map key!"  # !!
-            input_arrays[k] = # !!
+        #~ for k in k_list:
+            #~ assert k in self.arrays, "unknown map key!"  # !!
+            #~ input_arrays[k] = # !!
         return input_arrays
 
 
