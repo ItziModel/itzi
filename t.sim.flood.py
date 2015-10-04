@@ -179,6 +179,7 @@ def main():
                         end_time=input_times['end'],
                         sim_duration=input_times['duration'],
                         record_step=input_times['rec_step'],
+                        dtype=np.float32,
                         input_maps=input_map_names,
                         output_maps=output_map_names)
     sim.run()
@@ -261,14 +262,12 @@ def read_maps_names(opts, input_map_names, output_map_names):
     in_names = {k:v for k,v in opt.items() if k in input_map_names}
     for k in in_names:
         assert k in input_map_names, "wrong list comprehension"
-        pass
     input_map_names.update(in_names)
 
     # output maps
     out_names = {k:v for k,v in opt.items() if k in output_map_names}
     for k in out_names:
         assert k in output_map_names, "wrong list comprehension"
-        pass
     output_map_names.update(out_names)
 
 if __name__ == "__main__":
