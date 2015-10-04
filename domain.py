@@ -88,7 +88,6 @@ class SurfaceDomain(object):
         self.arr_n = arrays['n']
         self.arr_ext = arrays['ext']
         self.arr_h_old = arrays['h_hold']
-        self.arr_h_new = arrays['h_new']
         self.arr_bctype = arrays['bctype']
         self.arr_bcval = arrays['bcval']
         return self
