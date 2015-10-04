@@ -44,7 +44,7 @@ class Igis(object):
                         'uint8', 'uint16', 'uint32', 'uint64')}
 
 
-    def __init__(self, start_time, end_time):
+    def __init__(self, start_time, end_time, dtype):
         assert isinstance(start_time, datetime), \
             "start_time not a datetime object!"
         assert isinstance(end_time, datetime), \
@@ -53,6 +53,7 @@ class Igis(object):
 
         self.start_time = start_time
         self.end_time = end_time
+        self.dtype = dtype
         tgis.init(raise_fatal_error=True)
         msgr = Messenger(raise_on_error=True)
         region = Region()
@@ -162,11 +163,11 @@ class Igis(object):
                 self.to_datetime(rel_unit, i[2])) for i in maplist]
         return [self.MapData(*i) for i in maplist]
 
-    def read_raster_map(self, rast_name, dtype):
+    def read_raster_map(self, rast_name):
         """Read a GRASS raster and return a numpy array
         """
         with raster.RasterRow(rast_name, mode='r') as rast:
-            array = np.array(rast, dtype=dtype)
+            array = np.array(rast, dtype=self.dtype)
         return array
 
     def write_raster_map(self, arr, rast_name):
@@ -189,9 +190,21 @@ class Igis(object):
         """
         assert isinstance(sim_time, datetime), \
             "sim_time not a datetime object!"
-        #~ for k in k_list:
-            #~ assert k in self.arrays, "unknown map key!"  # !!
-            #~ input_arrays[k] = # !!
+        # get a dict of map names at the right time
+        # equivalent to:
+        # for k in k_list:
+        #    for m in self.maps[k]:
+        #        if m.start_time <= sim_time <= m.end_time:
+        #            map_names[k] = m.id
+        map_names = {k:m.id for k in k_list for m in self.maps[k] if
+                        m.start_time <= sim_time <= m.end_time}
+        # load arrays from GIS
+        # equivalent to:
+        # for k,m in map_names.iteritems():
+        #    if m != None:
+        #       input_arrays[k] = self.read_raster_map(m)
+        input_arrays = {k:self.read_raster_map(m)
+                        for k,m in map_names.iteritems() if m != None}
         return input_arrays
 
 
