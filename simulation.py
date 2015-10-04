@@ -45,20 +45,17 @@ class SuperficialFlowSimulation(object):
         self.set_duration(end_time, sim_duration)
         # dict of arrays accepted by SurfaceDomain
         self.dom_arrays = {'z': None, 'n': None, 'ext': None,
-                    'h_old': None, 'h_new': None,
-                    'bcval': None, 'bctype': None,
-                    'hfw': None, 'hfn': None,
-                    'qw_old': None, 'qn_old': None,
-                    'qw_new': None, 'qn_new': None}
+                    'h_old': None, 'bcval': None, 'bctype': None}
         self.in_map_names = input_maps
         self.out_map_names = output_maps
         self.dtype=dtype
         # instantiate a Igis object
         self.gis = gis.Igis(start_time=self.start_time,
-                            end_time=self.end_time)
+                            end_time=self.end_time,
+                            dtype=dtype)
 
     def set_duration(self, end_time, sim_duration):
-        """If sim_duration is False, end_time is ignored
+        """If sim_duration is given, end_time is ignored
         This is normally checked upstream
         """
         if not sim_duration:
@@ -73,8 +70,8 @@ class SuperficialFlowSimulation(object):
         """A start_time equal to datetime.min means user did not
         provide a start_time. Therefore a relative temporal type
         is set for results writing.
-        Note that it's a potential problem in case a simulation is set to
-        actually starts on 0001-01-01 00:00, as the results will be written
+        It's a potential problem in case a simulation is set to actually
+        starts on 0001-01-01 00:00, as the results will be written
         in relative STDS.
         """
         self.temporal_type = 'absolute'
@@ -120,14 +117,18 @@ class SuperficialFlowSimulation(object):
         return next_ts
 
     def set_arrays(self, td_clock):
-        """Makes numpy arrays dict ready to be feeded to the
+        """load arrays from the GIS as a dict
+        translate the loaded dict into one ready to be feeded to the
         domain for next time-step
         """
         assert isinstance(td_clock, timedelta), \
             "td_clock not a timedelta object!"
         assert td_clock >= timedelta(0), "td_clock is negative!"
 
-        loaded_arrays = load_arrays(td_clock)
+        sim_time = self.start_time + td_clock
+        lst_key = self.in_map_names.keys()
+        loaded_arrays = self.gis.get_input_arrays(lst_key, sim_time)
+        # dictionary translation
         self.dom_arrays['ext'] = set_ext_array(loaded_arrays['in_q'],
                                             loaded_arrays['in_rain'],
                                             loaded_arrays['in_inf'])
@@ -135,28 +136,10 @@ class SuperficialFlowSimulation(object):
         self.dom_arrays['n'] = loaded_arrays['in_n']
         self.dom_arrays['bcval'] = loaded_arrays['in_bcval']
         self.dom_arrays['bctype'] = loaded_arrays['in_bctype']
+        # update in_h only at the first time-step
         if not td_clock:
             self.dom_arrays['h_old'] = loaded_arrays['in_h']
         return self
-
-    def load_arrays(td_clock):
-        """Get a dict of arrays from the GIS at a given time
-        in_h is loaded only at the start of the simulation
-        """
-        if not td_clock:
-            lst_key = ['in_z', 'in_n', 'in_q', 'in_rain', 'in_inf',
-                'in_bcval', 'in_bctype', 'in_h']
-            loaded_arrays = self.gis.get_input_arrays(
-                                            lst_key, self.start_time)
-        elif self.start_time < td_clock <= self.end_time:
-            lst_key = ['in_z', 'in_n', 'in_q', 'in_rain', 'in_inf',
-                'in_bcval', 'in_bctype']
-            current_sim_time = self.start_time + td_clock
-            loaded_arrays = self.gis.get_input_arrays(
-                                            lst_key, current_sim_time)
-        else:
-            assert False, "Unknown time"
-        return loaded_arrays
 
     def set_ext_array(self, q, rain, inf):
         """Combine rain, infiltration etc. into a unique array
