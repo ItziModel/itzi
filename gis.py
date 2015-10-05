@@ -24,7 +24,7 @@ from grass.pygrass import raster
 from grass.pygrass.gis.region import Region
 from grass.pygrass.messages import Messenger
 import grass.pygrass.utils as gutils
-from grass.exceptions import FatalError
+from grass.exceptions import FatalError, CalledModuleError
 
 class Igis(object):
     """
@@ -54,7 +54,6 @@ class Igis(object):
         self.start_time = start_time
         self.end_time = end_time
         self.dtype = dtype
-        tgis.init(raise_fatal_error=True)
         self.msgr = Messenger(raise_on_error=True)
         region = Region()
         self.xr = region.cols
@@ -64,6 +63,8 @@ class Igis(object):
         self.overwrite = grass.overwrite()
         self.mapset = gutils.getenv('MAPSET')
         self.maps = dict.fromkeys(mkeys)
+        # init temporal module
+        tgis.init(raise_fatal_error=True)
         # define MapData namedtuple and cols to retrieve from STRDS
         self.cols = ['id','start_time','end_time']
                 #~ 'name','west','east','south','north']
@@ -109,25 +110,53 @@ class Igis(object):
         else:
             return '@'.join((name, self.mapset))
 
+    def name_is_stds(self, name):
+        """return True if the name given as input is a registered strds
+        False if not
+        """
+        if not hasattr(self, 'stds_list'):
+            stds_dict = tgis.get_dataset_list('strds', '', columns='id')
+            self.stds_list = [v[0] for l in stds_dict.values() for v in l]
+
+        if self.format_id(name) in self.stds_list:
+            return True
+        else:
+            return False
+
+    def name_is_map(self, name):
+        """return True if the given name is a map in the grass database
+        False if not
+        """
+        try:
+            grass.read_command('r.info', map=self.format_id(name),flags='r')
+        except CalledModuleError:
+            return False
+        else:
+            return True
+
     def read(self, map_names):
-        """Read all requested maps from GIS
+        """Read maps names from GIS
         take as input map_names, a dictionary of maps/STDS names
         for each entry in map_names:
+            if the name is empty or None, store None
             if a strds, load all maps in the instance's time extend,
                 store them as a list
             if a single map, set the start and end time to fit simulation.
                 store it in a list for consistency
+        each map is stored as a MapData namedtuple
         store result in instance's dictionary
         """
         for k,map_name in map_names.iteritems():
             if not map_name:
                 map_list = None
                 continue
-            try:
+            elif self.name_is_stds(map_name):
                 map_list = self.raster_list_from_strds(self.format_id(map_name))
-            except FatalError:
+            elif self.name_is_map(map_name):
                 map_list = [self.MapData(id=self.format_id(map_name),
                     start_time=self.start_time, end_time=self.end_time)]
+            else:
+                self.msgr.fatal(_("{} not found!".format(map_name)))
             self.maps[k] = map_list
         return self
 
@@ -176,7 +205,6 @@ class Igis(object):
         assert isinstance(rast_name, basestring), "rast_name not a string!"
         if self.overwrite == True and raster.RasterRow(rast_name).exist() == True:
             gutils.remove(rast_name, 'raster')
-            self.msgr.verbose(_("Removing raster map {}".format(rast_name)))
         mtype = self.grass_dtype(arr.dtype)
         with raster.RasterRow(rast_name, mode='w', mtype=mtype) as newraster:
             newrow = raster.Buffer((arr.shape[1],))
