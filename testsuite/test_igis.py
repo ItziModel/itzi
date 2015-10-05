@@ -21,7 +21,9 @@ import grass.temporal as tgis
 from grass.pygrass import raster
 from grass.pygrass.gis.region import Region
 from grass.pygrass.messages import Messenger
+
 import numpy as np
+from datetime import datetime, timedelta
 from gis import Igis
 
 class TestIgis(TestCase):
@@ -30,7 +32,13 @@ class TestIgis(TestCase):
     def setUpClass(cls):
         """create test data"""
         # instantiate the class to be tested
-        cls.gis = Igis()
+        input_map_names = {'in_z': 'dem', 'in_n': None, 'in_h': None,
+            'in_inf':None, 'in_rain': None, 'in_q':None,
+            'in_bcval': None, 'in_bctype': None}
+        start = datetime(1,1,1)
+        end = datetime(1,1,2)
+        cls.igis = Igis(start, end, np.float32, input_map_names.keys())
+        cls.igis.read(input_map_names)
 
     @classmethod
     def tearDownClass(cls):
@@ -42,13 +50,13 @@ class TestIgis(TestCase):
         pass
 
     def test_unit_convert(self):
-        self.assertEqual(self.gis.to_s("minutes", 2), 120)
-        self.assertEqual(self.gis.to_s("hours", 1.5), 5400)
-        self.assertEqual(self.gis.to_s("days", 2), 172800)
+        self.assertEqual(self.igis.to_s("minutes", 2), 120)
+        self.assertEqual(self.igis.to_s("hours", 1.5), 5400)
+        self.assertEqual(self.igis.to_s("days", 2), 172800)
 
-        self.assertEqual(self.gis.from_s("minutes", 300), 5)
-        self.assertEqual(self.gis.from_s("hours", 9000), 2.5)
-        self.assertEqual(self.gis.from_s("days", 129600), 1.5)
+        self.assertEqual(self.igis.from_s("minutes", 300), 5)
+        self.assertEqual(self.igis.from_s("hours", 9000), 2.5)
+        self.assertEqual(self.igis.from_s("days", 129600), 1.5)
 
 if __name__ == '__main__':
     test()
