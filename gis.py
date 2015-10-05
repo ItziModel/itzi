@@ -44,7 +44,7 @@ class Igis(object):
                         'uint8', 'uint16', 'uint32', 'uint64')}
 
 
-    def __init__(self, start_time, end_time, dtype):
+    def __init__(self, start_time, end_time, dtype, mkeys):
         assert isinstance(start_time, datetime), \
             "start_time not a datetime object!"
         assert isinstance(end_time, datetime), \
@@ -63,9 +63,7 @@ class Igis(object):
         self.dy = region.nsres
         self.overwrite = grass.overwrite()
         self.mapset = gutils.getenv('MAPSET')
-        self.maps = {'in_z': None, 'in_n': None, 'in_h': None,
-            'in_q': None, 'in_rain': None, 'in_inf':None,
-            'in_bcval': None, 'in_bctype': None}
+        self.maps = dict.fromkeys(mkeys)
         # define MapData namedtuple and cols to retrieve from STRDS
         self.cols = ['id','start_time','end_time']
                 #~ 'name','west','east','south','north']
@@ -121,6 +119,9 @@ class Igis(object):
                 store it in a list for consistency
         store result in instance's dictionary
         """
+        # retrieve a list of the existing datasets
+        #~ get_dataset_list(type, temporal_type, columns=None, where=None,
+             #~ order=None)
         for k,map_name in map_names.iteritems():
             if not map_name:
                 map_list = None
