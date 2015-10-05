@@ -204,6 +204,22 @@ class Igis(object):
                 input_arrays[k] = None
         return input_arrays
 
+    def get_array(self, mkey, sim_time)
+    """take a given map key and simulation time
+    return a numpy array associated with its start and end time
+    if no map is found, return None and start and end_time for all simulation
+    """
+        assert isinstance(mkey, basestring), "not a string!"
+        assert isinstance(sim_time, datetime), "not a datetime object!"
+        assert mkey in self.maps.keys, "unknown map key!"
+        if self.maps[mkey] == None:
+            return None, self.start_time, self.end_time
+        else:
+            for m_lst in self.maps[mkey]:
+                for m in m_lst:
+                    if m.start_time <= sim_time <= m.end_time:
+                        arr = self.read_raster_map(m.id)
+            return arr, m.start_time, m.end_time
 
 class old_code():
     def create_stds(mapset, stds_h_name, stds_wse_name, sim_start_time, can_ovr):
