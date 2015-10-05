@@ -84,7 +84,7 @@ class Igis(object):
         """Change an input time into seconds
         """
         assert isinstance(unit, basestring), "{} Not a string".format(unit)
-        return self.t_unit_conv[unit] * int(time)
+        return self.t_unit_conv[unit] * time
 
     def from_s(self, unit, time):
         """Change an input time from seconds to another unit
@@ -119,9 +119,6 @@ class Igis(object):
                 store it in a list for consistency
         store result in instance's dictionary
         """
-        # retrieve a list of the existing datasets
-        #~ get_dataset_list(type, temporal_type, columns=None, where=None,
-             #~ order=None)
         for k,map_name in map_names.iteritems():
             if not map_name:
                 map_list = None
@@ -187,23 +184,6 @@ class Igis(object):
                 newrow[:] = row[:]
                 newraster.put_row(newrow)
         return self
-
-    def get_input_arrays(self, arrays, sim_time):
-        """take a list of map names as input
-        add valid array to each relevant record
-        """
-        assert isinstance(sim_time, datetime), \
-            "sim_time not a datetime object!"
-
-        input_arrays = {}
-        for k,l in self.maps.iteritems():
-            if l:
-                for m in l:
-                    if m.start_time <= sim_time <= m.end_time:
-                        input_arrays[k] = self.read_raster_map(m.id)
-            else:
-                input_arrays[k] = None
-        return input_arrays
 
     def get_array(self, mkey, sim_time):
         """take a given map key and simulation time
