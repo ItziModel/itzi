@@ -24,7 +24,7 @@ class SurfaceDomain(object):
     and get_output_arrays() methods
     """
 
-    def __init__(self, dx=None, dy=None, arr_def=None,
+    def __init__(self, dx, dy, arr_def, arr_h,
                 sim_clock=0,
                 dtmax=10,
                 a=0.7,         # CFL constant
@@ -51,8 +51,11 @@ class SurfaceDomain(object):
         # to not conflict with boundary condition
         self.sc = slice(1, None)
 
+        # Input water depth
+        self.arr_h_old = arr_h
         # Set internal arrays to a provided default
         # Input arrays are set externally with set_input_arrays()
+        self.arr_h_new = np.copy(arr_def)
         self.arr_hfw = np.copy(arr_def)
         self.arr_hfn = np.copy(arr_def)
         self.arr_qw_new = np.copy(arr_def)
@@ -82,18 +85,6 @@ class SurfaceDomain(object):
         #~ self.solve_hflow()
         self.solve_q()
         self.copy_arrays_values_for_next_timestep()
-        return self
-
-    def set_input_arrays(self, arrays):
-        """Set the input arrays. To be called before each step()
-        arrays: a dict of arrays
-        """
-        self.arr_z = arrays['z']
-        self.arr_n = arrays['n']
-        self.arr_ext = arrays['ext']
-        self.arr_bcval = arrays['bcval']
-        self.arr_bctype = arrays['bctype']
-        self.arr_h_old = arrays['h_old']
         return self
 
     def set_dt(self, next_ts):

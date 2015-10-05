@@ -44,18 +44,19 @@ class SuperficialFlowSimulation(object):
         self.start_time = start_time
         self.set_temporal_type()
         self.set_duration(end_time, sim_duration)
-        # dict of arrays accepted by SurfaceDomain
-        self.dom_arrays = {'z': None, 'n': None, 'ext': None,
-                    'h_old': None, 'bcval': None, 'bctype': None}
         self.in_map_names = input_maps
         self.out_map_names = output_maps
         self.dtype=dtype
         # instantiate a Igis object
         self.gis = gis.Igis(start_time=self.start_time,
                             end_time=self.end_time,
-                            dtype=dtype)
+                            dtype=dtype, mkeys=self.in_map_names.keys())
         self.gis.msgr.verbose(_("Reading GIS..."))
         self.gis.read(self.in_map_names)
+        # dict to store TimedArrays objects
+        self.tarrays = dict.fromkeys(self.in_map_names.keys())
+        # Populate it
+        self.create_timed_arrays()
 
     def set_duration(self, end_time, sim_duration):
         """If sim_duration is given, end_time is ignored
@@ -82,13 +83,30 @@ class SuperficialFlowSimulation(object):
             self.temporal_type = 'relative'
         return self
 
+    def create_timed_arrays(self):
+        """Create a set of TimedArray objects
+        Store the created objects in the tarrays dict
+        """
+        self.tarrays['in_z'] = TimedArray('in_z', self.gis, self.zeros_array)
+        self.tarrays['in_n'] = TimedArray('in_n', self.gis, self.zeros_array)
+        self.tarrays['in_h'] = TimedArray('in_h', self.gis, self.zeros_array)
+        self.tarrays['in_inf'] = TimedArray('in_inf', self.gis, self.zeros_array)
+        self.tarrays['in_rain'] = TimedArray('in_rain', self.gis, self.zeros_array)
+        self.tarrays['in_q'] = TimedArray('in_q', self.gis, self.zeros_array)
+        self.tarrays['in_bcval'] = TimedArray('in_bcval', self.gis, self.zeros_array)
+        # this one is set a default to ones
+        self.tarrays['in_bctype'] = TimedArray('in_bctype', self.gis, self.ones_array)
+        return self
+
     def run(self):
         """Perform a full superficial flow simulation
         including recording of data and mass_balance calculation
         """
-        rast_dom = domain.SurfaceDomain(dx=self.gis.dx,
-                                        dy=self.gis.dy,
-                                        arr_def=self.zeros_array())
+        rast_dom = domain.SurfaceDomain(
+                dx=self.gis.dx,
+                dy=self.gis.dy,
+                arr_h=self.tarrays['in_h'].get_array(self.start_time),
+                arr_def=self.zeros_array())
         record_counter = 0
         duration_s = self.duration.total_seconds()
 
@@ -96,9 +114,8 @@ class SuperficialFlowSimulation(object):
             # display advance of simulation
             self.gis.msgr.percent(rast_dom.sim_clock, duration_s, 1)
             # update arrays
-            self.set_arrays(timedelta(seconds=rast_dom.sim_clock))
+            self.update_domain_arrays(rast_dom)
             # time-stepping
-            rast_dom.set_input_arrays(self.dom_arrays)
             next_record = record_counter*self.record_step.total_seconds()
             rast_dom.step(self.next_timestep(next_record))
             # write simulation results
@@ -112,65 +129,52 @@ class SuperficialFlowSimulation(object):
         return self
 
     def zeros_array(self):
-        """
+        """return a np array of the domain dimension, filled with ones
+        dtype is set to object's dtype.
+        Intended to be used as default for most of the input model maps
         """
         return np.zeros(shape=(self.gis.ry, self.gis.xr), dtype=self.dtype)
 
     def ones_array(self):
+        """return a np array of the domain dimension, filled with ones
+        dtype is set to unsigned integer.
+        Intended to be used as default for bctype map
         """
-        """
-        return np.ones(shape=(self.gis.ry, self.gis.xr), dtype=self.dtype)
+        return np.ones(shape=(self.gis.ry, self.gis.xr), dtype=np.uint8)
 
     def next_timestep(self, next_record):
-        """
+        """Given a next record time in seconds as entry,
+        return the future time at which the model will be forced to step.
         """
         return min(next_record, self.duration.total_seconds())
 
-    def set_arrays(self, td_clock):
-        """load arrays from the GIS as a dict
-        translate the loaded dict into one ready to be feeded to the
-        domain for next time-step
+    def update_domain_arrays(self, rast_dom):
+        """Takes a SurfaceDomain object as input
+        set the input arrays of the given object using TimedArray
+        auto-update capacity
         """
-        assert isinstance(td_clock, timedelta), \
-            "td_clock not a timedelta object!"
-        assert td_clock >= timedelta(0), "td_clock is negative!"
+        assert isinstance(rast_dom, domain.SurfaceDomain), \
+            "rast_dom not the expected object!"
 
-        sim_time = self.start_time + td_clock
-        arrays = self.gis.get_input_arrays(self.in_map_names, sim_time)
-        # dictionary translation
-        self.dom_arrays['ext'] = self.set_ext_array(arrays)
-        self.dom_arrays['z'] = arrays['in_z']
-        self.dom_arrays['n'] = arrays['in_n']
+        sim_time = self.start_time + timedelta(seconds=rast_dom.sim_clock)
 
-        if not arrays['in_bcval'] == None:
-            self.dom_arrays['bcval'] = arrays['in_bcval']
-        else:
-            self.dom_arrays['bcval'] = self.zeros_array()
+        rast_dom.arr_z = self.tarrays['in_z'].get_array(sim_time)
+        rast_dom.arr_n = self.tarrays['in_n'].get_array(sim_time)
+        rast_dom.arr_bcval = self.tarrays['in_bcval'].get_array(sim_time)
+        rast_dom.arr_bctype = self.tarrays['in_bctype'].get_array(sim_time)
+        # Combine three arrays for the ext array
+        rast_dom.arr_ext = self.set_ext_array(
+            in_q=self.tarrays['in_q'].get_array(sim_time),
+            in_rain=self.tarrays['in_rain'].get_array(sim_time),
+            in_inf=self.tarrays['in_inf'].get_array(sim_time))
 
-        if not arrays['in_bctype'] == None:
-            self.dom_arrays['bctype'] = arrays['in_bctype'].astype(np.uint8)
-        else:
-            self.dom_arrays['bctype'] = self.ones_array()
-
-        # update in_h only at the first time-step
-        if not td_clock and not arrays['in_h'] == None:
-            self.dom_arrays['h_old'] = arrays['in_h']
-        elif arrays['in_h'] == None:
-            self.dom_arrays['h_old'] = self.zeros_array()
         return self
 
-    def set_ext_array(self, arrays):
+    def set_ext_array(self, in_q, in_rain, in_inf):
         """Combine rain, infiltration etc. into a unique array
         rainfall and infiltration are considered in mm/h
         """
-        if arrays['in_q'] == None:
-            arrays['in_q'] = self.zeros_array()
-        if arrays['in_rain'] == None:
-            arrays['in_rain'] = self.zeros_array()
-        if arrays['in_inf'] == None:
-            arrays['in_inf'] = self.zeros_array()
-        ext = arrays['in_q'] + (arrays['in_rain'] + arrays['in_inf']) / 1000 / 3600
-        return ext
+        return in_q + (in_rain + in_inf) / 1000 / 3600
 
     def write_results_to_gis(self, record_counter):
         """
@@ -187,4 +191,60 @@ class SuperficialFlowSimulation(object):
     def register_results_in_gis(self):
         """
         """
+        return self
+
+class TimedArray(object):
+    """A container for np.ndarray along with time informations
+    Update the array value according to the simulation time
+    array is accessed via get_array()
+    """
+    def __init__(self, mkey, igis, f_arr_def):
+        assert isinstance(mkey, basestring), "not a string!"
+        assert hasattr(f_arr_def, '__call__'), "not a function!"
+        self.mkey = mkey
+        self.igis = igis  # GIS interface
+        # A function to generate a default array
+        self.f_arr_def = f_arr_def
+        # default values for start and end
+        # intended to trigger update when is_valid() is first called
+        self.a_start = datetime(1,1,2)
+        self.a_end = datetime(1,1,1)
+
+    def get_array(self, sim_time):
+        """Return a numpy array valid for the given time
+        If the array stored is not valid, update the values of the object
+        """
+        assert isinstance(sim_time, datetime), "not a datetime object!"
+        if not self.is_valid(sim_time):
+            self.update_values_from_gis(sim_time)
+        return self.arr
+
+    def is_valid(self, sim_time):
+        """input being a time in timedelta
+        If the current stored array is within the range of the map,
+        return True
+        If not return False
+        """
+        if self.a_start <= sim_time <= self.a_end:
+            return True
+        else:
+            return False
+
+    def update_values_from_gis(self, sim_time):
+        """Update array, start_time and end_time from GIS
+        if GIS return None, set array to default value
+        """
+        # Retrieve values
+        arr, arr_start, arr_end = self.igis.get_array(self.mkey, sim_time)
+        # set to default if necessary
+        if arr == None:
+            arr = self.f_arr_def()
+        # check retrieved values
+        assert isinstance(arr, np.ndarray), "not a np.ndarray!"
+        assert isinstance(arr_start, datetime), "not a datetime object!"
+        assert isinstance(arr_end, datetime), "not a datetime object!"
+        # update object values
+        self.a_start = arr_start
+        self.a_end = arr_end
+        self.arr = arr
         return self
