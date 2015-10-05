@@ -32,27 +32,29 @@ class TestHFlow(TestCase):
     def tearDownClass(cls):
         pass
 
-    def test_hf(self):
-        """
-        """
-        dom = SurfaceDomain()
-        dom.arr_z = self.arr_z
-        dom.arr_h_new = self.arr_h
-        dom.arr_hfw = np.zeros(shape=self.shape, dtype=self.dtype)
-        dom.arr_hfn = np.zeros(shape=self.shape, dtype=self.dtype)
-
-        dom.solve_hflow()
-        # boundary
-        self.assertEqual(dom.arr_hfw[1,0], 0)
-        self.assertEqual(dom.arr_hfn[0,1], 0)
-        # WSE == Z
-        self.assertEqual(dom.arr_hfw[1,2], 0)
-        self.assertEqual(dom.arr_hfn[1,2], 0)
-        # middle of the grid
-        self.assertEqual(dom.arr_hfw[1,1], 1)
-        self.assertEqual(dom.arr_hfn[1,1], 1)
-        # W boundary
-        self.assertEqual(dom.arr_hfn[1,0], 2)
+    #~ def test_hf(self):
+        #~ """
+        #~ """
+        #~ arr_def = np.zeros(shape=self.shape, dtype=self.dtype)
+        #~ arr_h = np.zeros(shape=self.shape, dtype=self.dtype)
+        #~ dom = SurfaceDomain(dx=1, dy=1, arr_def=arr_def, arr_h=arr_h)
+        #~ dom.arr_z = self.arr_z
+        #~ dom.arr_h_new = self.arr_h
+        #~ dom.arr_hfw = np.zeros(shape=self.shape, dtype=self.dtype)
+        #~ dom.arr_hfn = np.zeros(shape=self.shape, dtype=self.dtype)
+#~ 
+        #~ dom.solve_hflow()
+        #~ # boundary
+        #~ self.assertEqual(dom.arr_hfw[1,0], 0)
+        #~ self.assertEqual(dom.arr_hfn[0,1], 0)
+        #~ # WSE == Z
+        #~ self.assertEqual(dom.arr_hfw[1,2], 0)
+        #~ self.assertEqual(dom.arr_hfn[1,2], 0)
+        #~ # middle of the grid
+        #~ self.assertEqual(dom.arr_hfw[1,1], 1)
+        #~ self.assertEqual(dom.arr_hfn[1,1], 1)
+        #~ # W boundary
+        #~ self.assertEqual(dom.arr_hfn[1,0], 2)
 
 
 class TestH(TestCase):
@@ -63,7 +65,10 @@ class TestH(TestCase):
         cls.shape = (3, 3)
         cls.dtype = np.float32
 
-        cls.dom = SurfaceDomain()
+        arr_def = np.zeros(shape=cls.shape, dtype=cls.dtype)
+        arr_h = np.zeros(shape=cls.shape, dtype=cls.dtype)
+        cls.dom = SurfaceDomain(dx=1, dy=1, arr_def=arr_def, arr_h=arr_h)
+
         cls.dom.arr_h_old = np.ones(shape=cls.shape, dtype = cls.dtype)
         cls.dom.arr_h_new = np.copy(cls.dom.arr_h_old)
         cls.dom.arr_ext = np.zeros(shape=cls.shape, dtype = cls.dtype)
@@ -116,7 +121,11 @@ class TestFlow(TestCase):
     @classmethod
     def setUpClass(cls):
         """create test data"""
-        cls.dom = SurfaceDomain(dx=1, dy=1)
+        cls.shape = (3, 3)
+        cls.dtype = np.float32
+        arr_def = np.zeros(shape=cls.shape, dtype=cls.dtype)
+        arr_h = np.zeros(shape=cls.shape, dtype=cls.dtype)
+        cls.dom = SurfaceDomain(dx=1, dy=1, arr_def=arr_def, arr_h=arr_h)
 
 
     @classmethod
@@ -131,9 +140,14 @@ class TestFlow(TestCase):
         hf = .2
         q0 = 2
         n = 0.03
-        q_result = self.dom.bates2010(slope, self.dom.dx, hf, q0, n)
+        length = 1
+        width = 1
+        wse_up = 0.08
+        wse0 = 0.1
+        # length, width, wse_0, wse_up, hf, q0, n
+        q_result = self.dom.bates2010(length, width, wse0, wse_up, hf, q0, n)
 
-        np.testing.assert_approx_equal(q_result, 0.5662, significant=4)
+        np.testing.assert_approx_equal(q_result, 0.6981, significant=4)
 
 
 if __name__ == '__main__':
