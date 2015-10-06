@@ -77,7 +77,10 @@ class SurfaceDomain(object):
         """Run a full simulation time-step
         Input arrays should be set beforehand using set_input_arrays()
         """
-        q_x_axis = self.arrp_qw[3, 1:]
+        q_old_x_axis = self.arrp_qw[3, 1:]
+        q_new_x_axis = self.arr_qw_new[2, :]
+        h_old_x_axis = self.arr_h_old[2, :]
+        h_new_x_axis = self.arr_h_new[2, :]
         self.set_dt(next_ts)
         self.apply_boundary_conditions()
         self.solve_h()
