@@ -77,12 +77,10 @@ class SurfaceDomain(object):
         """Run a full simulation time-step
         Input arrays should be set beforehand using set_input_arrays()
         """
-        if not hasattr(self, 'arr_h_new'):
-            self.arr_h_new = np.copy(self.arr_h_old)
+        q_x_axis = self.arrp_qw[3, 1:]
         self.set_dt(next_ts)
         self.apply_boundary_conditions()
         self.solve_h()
-        #~ self.solve_hflow()
         self.solve_q()
         self.copy_arrays_values_for_next_timestep()
         return self
@@ -177,12 +175,12 @@ class SurfaceDomain(object):
 
         hfw = self.arr_hfw[s_i_self]
         hfn = self.arr_hfn[s_j_self]
-        qw = self.arr_qw[s_i_self]
-        qn = self.arr_qn[s_j_self]
+        qw = self.arr_qw[s_i_self] / self.dy
+        qn = self.arr_qn[s_j_self] / self.dx
         n_i = self.arr_n[s_i_self]
         n_j = self.arr_n[s_j_self]
 
-        get_q = np.vectorize(self.bates2010)
+        get_q = np.vectorize(self.bates2010, otypes=[self.arr_qw.dtype])
         self.arr_qw_new[s_i_self] = get_q(self.dx, self.dy,
                                         wse_i, wse_i_up, hfw, qw, n_i)
         self.arr_qn_new[s_j_self] = get_q(self.dy, self.dx,
