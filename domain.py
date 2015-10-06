@@ -58,10 +58,12 @@ class SurfaceDomain(object):
         self.arr_h_new = np.copy(arr_def)
         self.arr_hfw = np.copy(arr_def)
         self.arr_hfn = np.copy(arr_def)
-        self.arr_qw_new = np.copy(arr_def)
-        self.arr_qn_new = np.copy(arr_def)
+        #~ self.arr_qw_new = np.copy(arr_def)
+        #~ self.arr_qn_new = np.copy(arr_def)
         self.arr_qw, self.arrp_qw = self.pad_array(np.copy(arr_def))
         self.arr_qn, self.arrp_qn = self.pad_array(np.copy(arr_def))
+        self.arr_qw_new, self.arrp_qw_new = self.pad_array(np.copy(arr_def))
+        self.arr_qn_new, self.arrp_qn_new = self.pad_array(np.copy(arr_def))
         del arr_def
 
     @staticmethod
@@ -83,8 +85,8 @@ class SurfaceDomain(object):
         h_new_x_axis = self.arr_h_new[2, :]
         self.set_dt(next_ts)
         self.apply_boundary_conditions()
-        self.solve_h()
         self.solve_q()
+        self.solve_h()
         self.copy_arrays_values_for_next_timestep()
         return self
 
@@ -113,8 +115,8 @@ class SurfaceDomain(object):
     def solve_h(self):
         """Calculate new water depth
         """
-        arr_q_sum = (self.arr_qw - self.arrp_qw[self.ss, self.sd]
-                    + self.arr_qn - self.arrp_qn[self.sd, self.ss])
+        arr_q_sum = (self.arr_qw_new - self.arrp_qw_new[self.ss, self.sd]
+                    + self.arr_qn_new - self.arrp_qn_new[self.sd, self.ss])
 
         self.arr_h_new[:] = ((self.arr_h_old +
                             (self.arr_ext * self.dt)) +
@@ -167,10 +169,10 @@ class SurfaceDomain(object):
         z_i_up = self.arr_z[s_i_up]
         z_j = self.arr_z[s_j_self]
         z_j_up = self.arr_z[s_j_up]
-        wse_i = self.arr_z[s_i_self] + self.arr_h_new[s_i_self]
-        wse_i_up = self.arr_z[s_i_up] + self.arr_h_new[s_i_up]
-        wse_j = self.arr_z[s_j_self] + self.arr_h_new[s_j_self]
-        wse_j_up = self.arr_z[s_j_up] + self.arr_h_new[s_j_up]
+        wse_i = self.arr_z[s_i_self] + self.arr_h_old[s_i_self]
+        wse_i_up = self.arr_z[s_i_up] + self.arr_h_old[s_i_up]
+        wse_j = self.arr_z[s_j_self] + self.arr_h_old[s_j_self]
+        wse_j_up = self.arr_z[s_j_up] + self.arr_h_old[s_j_up]
 
         # Solve hflow
         self.solve_hflow(wse_i_up, wse_i, z_i_up, z_i,
@@ -211,7 +213,7 @@ class SurfaceDomain(object):
                                     depth=self.arr_h_old[:, 0],
                                     bctype=self.arr_bctype[:, 0],
                                     bcvalue=self.arr_bcval[:, 0],
-                                    qboundary=self.arr_qw[:, 0])
+                                    qboundary=self.arr_qw_new[:, 0])
         e_boundary.get_boundary_flow(qin=self.arr_qw[:, -1],
                                     hflow=self.arr_hfw[:, -1],
                                     n=self.arr_n[:, -1],
@@ -219,7 +221,7 @@ class SurfaceDomain(object):
                                     depth=self.arr_h_old[:, -1],
                                     bctype=self.arr_bctype[:, -1],
                                     bcvalue=self.arr_bcval[:, -1],
-                                    qboundary=self.arrp_qw[1:-1, -1])
+                                    qboundary=self.arrp_qw_new[1:-1, -1])
         n_boundary.get_boundary_flow(qin=self.arr_qn[1],
                                     hflow=self.arr_hfn[1],
                                     n=self.arr_n[0],
@@ -227,7 +229,7 @@ class SurfaceDomain(object):
                                     depth=self.arr_h_old[0],
                                     bctype=self.arr_bctype[0],
                                     bcvalue=self.arr_bcval[0],
-                                    qboundary=self.arr_qn[0])
+                                    qboundary=self.arr_qn_new[0])
         s_boundary.get_boundary_flow(qin=self.arr_qn[-1, :],
                                     hflow=self.arr_hfn[-1],
                                     n=self.arr_n[-1],
@@ -235,7 +237,7 @@ class SurfaceDomain(object):
                                     depth=self.arr_h_old[-1],
                                     bctype=self.arr_bctype[-1],
                                     bcvalue=self.arr_bcval[-1],
-                                    qboundary=self.arrp_qn[-1, 1:-1])
+                                    qboundary=self.arrp_qn_new[-1, 1:-1])
         return self
 
     def copy_arrays_values_for_next_timestep(self):
