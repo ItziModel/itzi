@@ -94,7 +94,7 @@ class SuperficialFlowSimulation(object):
         self.tarrays['in_rain'] = TimedArray('in_rain', self.gis, self.zeros_array)
         self.tarrays['in_q'] = TimedArray('in_q', self.gis, self.zeros_array)
         self.tarrays['in_bcval'] = TimedArray('in_bcval', self.gis, self.zeros_array)
-        # this one is set a default to ones
+        # Default of bctypes is an int array filled with ones
         self.tarrays['in_bctype'] = TimedArray('in_bctype', self.gis, self.ones_array)
         return self
 
@@ -174,17 +174,21 @@ class SuperficialFlowSimulation(object):
         """Combine rain, infiltration etc. into a unique array
         rainfall and infiltration are considered in mm/h
         """
+        assert isinstance(in_q, np.ndarray), "not a np array!"
+        assert isinstance(in_rain, np.ndarray), "not a np array!"
+        assert isinstance(in_inf, np.ndarray), "not a np array!"
+
         return in_q + (in_rain + in_inf) / 1000 / 3600
 
     def write_results_to_gis(self, record_counter):
-        """
+        """Format the name of each maps using the record number as suffix
+        Send a couple array, name to the GIS writing function.
         """
         for k,arr in self.output_arrays.iteritems():
             if arr != None:
                 assert isinstance(arr, np.ndarray), "arr not a np array!"
-                suffix = timestamp = str(record_counter).zfill(6)
+                suffix = str(record_counter).zfill(6)
                 map_name = "{}_{}".format(self.out_map_names[k], suffix)
-                #~ print map_name
                 self.gis.write_raster_map(arr, map_name)
         return self
 
