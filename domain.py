@@ -26,8 +26,8 @@ class SurfaceDomain(object):
 
     def __init__(self, dx, dy, arr_def, arr_h,
                 sim_clock=0,
-                dtmax=10,
-                a=0.7,         # CFL constant
+                dtmax=.5,
+                a=0.5,         # CFL constant
                 g=9.80665,     # Standard gravity
                 theta=0.9,     # default proposed by Almeida et al.(2012)
                 hf_min=0.0001,
@@ -43,11 +43,11 @@ class SurfaceDomain(object):
         self.dy = dy
         self.cell_surf = dx * dy
         # Slices for upstream and downstream cells on a padded array
-        self.su = slice(None, 2)
+        self.su = slice(None, -2)
         self.sd = slice(2, None)
         # uniform crop
         self.ss = slice(1, -1)
-        # slice to crop first row or column
+        # slice to crop first row or column of non-padded array
         # to not conflict with boundary condition
         self.sc = slice(1, None)
 
@@ -79,10 +79,10 @@ class SurfaceDomain(object):
         """Run a full simulation time-step
         Input arrays should be set beforehand using set_input_arrays()
         """
-        q_old_x_axis = self.arrp_qw[3, 1:]
-        q_new_x_axis = self.arr_qw_new[2, :]
-        h_old_x_axis = self.arr_h_old[2, :]
-        h_new_x_axis = self.arr_h_new[2, :]
+        q_old_x_axis = self.arr_qn[:3, 2]
+        q_new_x_axis = self.arr_qn_new[:3, 2]
+        h_old_x_axis = self.arr_h_old[:3, 2]
+        h_new_x_axis = self.arr_h_new[:3, 2]
         self.set_dt(next_ts)
         self.apply_boundary_conditions()
         self.solve_q()
@@ -151,9 +151,26 @@ class SurfaceDomain(object):
             return 0
         else:
             slope = (wse_0 - wse_up) / length
-            num = (q0 - self.g * hf * self.dt * slope)
-            den = (1 + self.dt * self.g * n*n * abs(q0) / (pow(hf, 4/3) * hf))
-            return (num / den) * width
+            #~ num = (q0 - self.g * hf * self.dt * slope)
+            #~ den = (1 + self.dt * self.g * n*n * abs(q0) / (pow(hf, 4/3) * hf))
+            #~ return (num / den) * width
+            num = (q0 - self.g * hf*width * self.dt * slope)
+            den = (1 + self.dt * self.g * n*n * abs(q0) / (pow(hf, 4./3.) * hf*width))
+            return num / den
+
+    def almeida2012(self, length, width, wse0, wsem1, hf, q0, qm1, qp1, n):
+        '''Flow formula from Almeida et al. 2012
+        Without vector norm which is from Almeida and Bates 2013
+        '''
+        if hf <= self.hf_min:
+            return 0
+        else:
+            # flow formula (formula #41 in almeida et al 2012)
+            term_1 = (self.theta * q0 + ((1 - self.theta) / 2) * (qm1 + qp1))
+            term_2 = (self.g * hf * (self.dt / length) * (wse0 - wsem1))
+            term_3 = (1 + self.g * self.dt * (n*n) * abs(q0) / pow(hf, 7./3.))
+            q0_new = (term_1 - term_2) / term_3
+            return q0_new * width
 
     def solve_q(self):
         '''Calculate flow across the whole domain, appart from boundaries
@@ -164,6 +181,10 @@ class SurfaceDomain(object):
         s_i_up = (slice(None), slice(None, -1))
         s_j_self = (self.sc, slice(None))
         s_j_up = (slice(None, -1), slice(None))
+        # Those are for flow arrays only. Should be
+        # used on padded array to get value from the boundary flow
+        s_i_down = (self.ss, slice(2, -1))
+        s_j_down = (slice(2, -1), self.ss)
 
         z_i = self.arr_z[s_i_self]
         z_i_up = self.arr_z[s_i_up]
@@ -174,7 +195,7 @@ class SurfaceDomain(object):
         wse_j = self.arr_z[s_j_self] + self.arr_h_old[s_j_self]
         wse_j_up = self.arr_z[s_j_up] + self.arr_h_old[s_j_up]
 
-        # Solve hflow
+        # Solve flow depth
         self.solve_hflow(wse_i_up, wse_i, z_i_up, z_i,
                         wse_j_up, wse_j, z_j_up, z_j)
 
@@ -184,12 +205,26 @@ class SurfaceDomain(object):
         qn = self.arr_qn[s_j_self] / self.dx
         n_i = self.arr_n[s_i_self]
         n_j = self.arr_n[s_j_self]
+        # upstream flow
+        qwm1 = self.arr_qw[s_i_up] / self.dy
+        qnm1 = self.arr_qn[s_j_up] / self.dx
+        # downstream flow on padded array
+        # Uses q_new because it's where has been applyed boundary flow
+        qwp1 = self.arrp_qw_new[s_i_down] / self.dy
+        qnp1 = self.arrp_qn_new[s_j_down] / self.dx
 
-        get_q = np.vectorize(self.bates2010, otypes=[self.arr_qw.dtype])
-        self.arr_qw_new[s_i_self] = get_q(self.dx, self.dy,
-                                        wse_i, wse_i_up, hfw, qw, n_i)
-        self.arr_qn_new[s_j_self] = get_q(self.dy, self.dx,
-                                        wse_j, wse_j_up, hfn, qn, n_j)
+        # Bates 2010
+        #~ get_q = np.vectorize(self.bates2010, otypes=[self.arr_qw.dtype])
+        #~ self.arr_qw_new[s_i_self] = get_q(self.dx, self.dy,
+                                        #~ wse_i, wse_i_up, hfw, qw, n_i)
+        #~ self.arr_qn_new[s_j_self] = get_q(self.dy, self.dx,
+                                        #~ wse_j, wse_j_up, hfn, qn, n_j)
+        # Almeida 2012
+        get_q = np.vectorize(self.almeida2012, otypes=[self.arr_qw.dtype])
+        self.arr_qw_new[s_i_self] = get_q(self.dx, self.dy, wse_i, wse_i_up,
+                                         hfw, qw, qwm1, qwp1, n_i)
+        self.arr_qn_new[s_j_self] = get_q(self.dy, self.dx, wse_j, wse_j_up,
+                                         hfn, qn, qnm1, qnp1, n_j)
         return self
 
     def apply_boundary_conditions(self):
