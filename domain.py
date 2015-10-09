@@ -25,12 +25,12 @@ class SurfaceDomain(object):
 
     def __init__(self, dx, dy, arr_def, arr_h,
                 sim_clock=0,
-                dtmax=.5,
+                dtmax=5,
                 a=0.5,         # CFL constant
                 g=9.80665,     # Standard gravity
                 theta=0.9,     # default proposed by Almeida et al.(2012)
                 hf_min=0.0001,
-                hmin=0.01,
+                hmin=0.0,
                 v_routing=0.1):  # simple routing velocity m/s):
         self.sim_clock = sim_clock
         self.dtmax = dtmax
@@ -38,6 +38,7 @@ class SurfaceDomain(object):
         self.g = g
         self.theta = theta
         self.hf_min = hf_min
+        self.hmin = hmin
         self.dx = dx
         self.dy = dy
         self.cell_surf = dx * dy
@@ -117,12 +118,19 @@ class SurfaceDomain(object):
         arr_q_sum = (self.arr_qw_new - self.arrp_qw_new[self.ss, self.sd]
                     + self.arr_qn_new - self.arrp_qn_new[self.sd, self.ss])
 
-        self.arr_h_new[:] = ((self.arr_h_old +
+        self.arr_h_new = ((self.arr_h_old +
                             (self.arr_ext * self.dt)) +
                             arr_q_sum / self.cell_surf * self.dt)
-        # set to zero if negative depth
-        self.arr_h_new[:] = np.where(self.arr_h_new < 0, 0,
-                                    self.arr_h_new[:])
+        # set to threshold if depth under threshold
+        if np.any(self.arr_h_new < self.hmin):
+            #~ print "negative depth!"
+            self.arr_h_new = np.maximum(self.hmin, self.arr_h_new)
+            #~ slice_neg = np.where(self.arr_h_new < 0)
+            #~ self.arr_h_new[slice_neg] = self.hmin
+            #~ self.arr_qw_new[slice_neg] = 0.
+            #~ self.arr_qn_new[slice_neg] = 0.
+            #~ self.arrp_qn_new[self.ss, self.sd] = np.where(
+                #~ self.arr_h_new < 0, 0, self.arrp_qn_new[self.ss, self.sd])
         return self
 
     def solve_hflow(self, wse_i_up, wse_i, z_i_up, z_i,
@@ -146,16 +154,16 @@ class SurfaceDomain(object):
         Journal of Hydrology, 387(1), 33–45.
         http://doi.org/10.1016/j.jhydrol.2010.03.027
         '''
-        if hf <= self.hf_min:
-            return 0
-        else:
-            slope = (wse_0 - wse_up) / length
-            #~ num = (q0 - self.g * hf * self.dt * slope)
-            #~ den = (1 + self.dt * self.g * n*n * abs(q0) / (pow(hf, 4/3) * hf))
-            #~ return (num / den) * width
-            num = (q0 - self.g * hf*width * self.dt * slope)
-            den = (1 + self.dt * self.g * n*n * abs(q0) / (pow(hf, 4./3.) * hf*width))
-            return num / den
+        #~ if hf <= self.hf_min:
+            #~ return 0
+        #~ else:
+        slope = (wse_0 - wse_up) / length
+        #~ num = (q0 - self.g * hf * self.dt * slope)
+        #~ den = (1 + self.dt * self.g * n*n * abs(q0) / (pow(hf, 4./3) * hf))
+        #~ return (num / den) * width
+        num = q0 - self.g * hf * self.dt * slope
+        den = 1 + self.g * hf * self.dt * n*n * abs(q0) / np.power(hf, 10./3.)
+        return (num / den) * width
 
     def almeida2012(self, length, width, wse0, wsem1, hf, q0, qm1, qp1, n):
         '''Flow formula from Almeida et al. 2012
@@ -209,8 +217,8 @@ class SurfaceDomain(object):
         qnm1 = self.arr_qn[s_j_up] / self.dx
         # downstream flow on padded array
         # Uses q_new because it's where has been applyed boundary flow
-        qwp1 = self.arrp_qw_new[s_i_down] / self.dy
-        qnp1 = self.arrp_qn_new[s_j_down] / self.dx
+        qwp1 = self.arrp_qw_new[s_i_down] / self.dy  # !!!
+        qnp1 = self.arrp_qn_new[s_j_down] / self.dx  # !!!
 
         # Bates 2010
         #~ get_q = np.vectorize(self.bates2010, otypes=[self.arr_qw.dtype])
@@ -218,12 +226,31 @@ class SurfaceDomain(object):
                                         #~ wse_i, wse_i_up, hfw, qw, n_i)
         #~ self.arr_qn_new[s_j_self] = get_q(self.dy, self.dx,
                                         #~ wse_j, wse_j_up, hfn, qn, n_j)
+
+        arr_qw_new = self.arr_qw_new[s_i_self]
+        arr_qn_new = self.arr_qn_new[s_j_self]
+        # select cells above and under the threshold
+        slice_under_w = np.where(hfw <= self.hf_min)
+        slice_over_w = np.where(hfw > self.hf_min)
+        slice_under_n = np.where(hfn <= self.hf_min)
+        slice_over_n = np.where(hfn > self.hf_min)
+
+        # calculate flow
+        arr_qw_new[slice_under_w] = 0.
+        arr_qw_new[slice_over_w] = self.bates2010(self.dx, self.dy,
+                wse_i[slice_over_w], wse_i_up[slice_over_w],
+                hfw[slice_over_w], qw[slice_over_w], n_i[slice_over_w])
+        arr_qn_new[slice_under_n] = 0.
+        arr_qn_new[slice_over_n] = self.bates2010(self.dy, self.dx,
+                wse_j[slice_over_n], wse_j_up[slice_over_n],
+                hfn[slice_over_n], qn[slice_over_n], n_j[slice_over_n])
+
         # Almeida 2012
-        get_q = np.vectorize(self.almeida2012, otypes=[self.arr_qw.dtype])
-        self.arr_qw_new[s_i_self] = get_q(self.dx, self.dy, wse_i, wse_i_up,
-                                         hfw, qw, qwm1, qwp1, n_i)
-        self.arr_qn_new[s_j_self] = get_q(self.dy, self.dx, wse_j, wse_j_up,
-                                         hfn, qn, qnm1, qnp1, n_j)
+        #~ get_q = np.vectorize(self.almeida2012, otypes=[self.arr_qw.dtype])
+        #~ self.arr_qw_new[s_i_self] = get_q(self.dx, self.dy, wse_i, wse_i_up,
+                                         #~ hfw, qw, qwm1, qwp1, n_i)
+        #~ self.arr_qn_new[s_j_self] = get_q(self.dy, self.dx, wse_j, wse_j_up,
+                                         #~ hfn, qn, qnm1, qnp1, n_j)
         return self
 
     def apply_boundary_conditions(self):
@@ -351,12 +378,16 @@ class Boundary(object):
     def get_flow_open_boundary(self, qin, hf, hf_boundary):
         """Velocity at the boundary equal to velocity inside domain
         """
-        return qin / hf * hf_boundary
+        result = np.zeros_like(qin)
+        slice_over = np.where(hf > 0)
+        result[slice_over] = qin[slice_over] / hf[slice_over] * hf_boundary[slice_over]
+        return result
+
 
     def get_slope(self, h, z, user_wse):
         """Return the slope between two water surface elevation
         """
-        slope = (user_wse - h + z) / self.cl
+        slope = (user_wse - (h + z)) / self.cl
         return np.fabs(slope)
 
     def get_flow_wse_boundary(self, n, hf, slope):
@@ -364,7 +395,7 @@ class Boundary(object):
         Gauckler-Manning-Strickler flow equation
         invert the results if a downstream boundary
         """
-        v = (1/n) * np.power(hf, 2/3) * np.power(slope, 1/2)
+        v = (1./n) * np.power(hf, 2./3.) * np.power(slope, 1./2.)
         if self.postype == 'upstream':
             return v * hf * self.cw
         elif self.postype == 'downstream':
@@ -510,8 +541,8 @@ class old_code():
                           arr_q_im12_jp1 + arr_q_ip12_jp1) / 4
 
         self.arr_q_vecnorm = np.sqrt(
-                            np.square(arr_q_ip12_j_y) +
-                            np.square(arr_q_i_jp12_x))
+                            np.square(arr_q_ip12_j_y) +  # !!!
+                            np.square(arr_q_i_jp12_x))  # !!!
         return self
 
     def solve_q_vecnorm2(self):
@@ -533,6 +564,6 @@ class old_code():
         self.arr_q_i_jm12_x[:] = (arr_q_im12_j + arr_q_ip12_j +
                           arr_q_im12_jm1 + arr_q_ip12_jm1) / 4
         self.arr_q_vecnorm[:] = np.sqrt(
-                                    np.square(self.arr_q_im12_j_y) +
-                                    np.square(self.arr_q_i_jm12_x))
+                                    np.square(self.arr_q_im12_j_y) +  # !!!
+                                    np.square(self.arr_q_i_jm12_x))  # !!!
         return self
