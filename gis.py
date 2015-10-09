@@ -207,7 +207,9 @@ class Igis(object):
         """Take a numpy array and write it to GRASS DB
         """
         assert isinstance(arr, np.ndarray), "arr not a np array!"
-        assert isinstance(rast_name, basestring), "rast_name not a string!"
+        assert isinstance(rast_name, basestring), "not a string!"
+        assert isinstance(temporal_type, basestring), "not a string!"
+        assert isinstance(map_time, datetime), "not a datetime object!"
         if self.overwrite == True and raster.RasterRow(rast_name).exist() == True:
             gutils.remove(rast_name, 'raster')
         mtype = self.grass_dtype(arr.dtype)
@@ -228,12 +230,15 @@ class Igis(object):
         assert isinstance(map_time, datetime), "not a datetime object!"
         if temporal_type == 'relative':
             rel_time = map_time - self.start_time  # create a timedelta
-            rast_time = '{d} days {s} seconds'.format(
+            if rel_time.days < 1:
+                rast_time = '{s} seconds'.format(s=rel_time.seconds)
+            else:
+                rast_time = '{d} days {s} seconds'.format(
                 d=rel_time.days, s=rel_time.seconds)
         elif temporal_type == 'absolute':
-            rast_time = '{d} {m} {y} {h}:{m}:{s}'.format(y=map_time.year,
+            rast_time = '{d} {m} {y} {h}:{min}:{s}'.format(y=map_time.year,
                 m=self.month_conv[map_time.month], d=map_time.day,
-                h=map_time.hour, m=map_time.minute, s=map_time.second)
+                h=map_time.hour, min=map_time.minute, s=map_time.second)
         else:
             assert False, "unknown temporal type!"
         # write the timestamp in grass
@@ -257,24 +262,30 @@ class Igis(object):
                     arr = self.read_raster_map(m.id)
                     return arr, m.start_time, m.end_time
 
-    def create_strds(self, strds_name, temporal_type):
-        '''Create a strds with the given input name
-        temporal_type is set accordingly
-        title and description are left empty
+    def register_maps_in_strds(self, mkey, strds_name, map_list, t_type):
+        '''Register given maps
         '''
+        # create strds
         strds_id = self.format_id(strds_name)
-        strds_title = ""
+        strds_title = mkey
         strds_desc = ""
-        tgis.open_new_stds(strds_id, 'strds', temporal_type,
+        strds = tgis.open_new_stds(strds_id, 'strds', t_type,
                 strds_title, strds_desc, "mean", overwrite=self.overwrite)
-        return self
-
-    def register_maps_in_strds(self, strds_name, map_name_list):
-        '''Register given maps in the given strds
-        map_name_dict contain the keys 'id','start_time','end_time'
-        If the temoral type is relative, co
-        '''
-        strds_id = self.format_id(strds_name)
+        # register maps
+        raster_dts_lst = []
+        for map_name in map_list:
+            map_id = self.format_id(map_name)
+            raster_dts = tgis.RasterDataset(map_id)
+            raster_dts.read_timestamp_from_grass()
+            # load spatial data from map
+            raster_dts.load()
+            if raster_dts.map_exists():
+                raster_dts.update()
+            else:
+                raster_dts.insert()
+            raster_dts_lst.append(raster_dts)
+        tgis.register.register_map_object_list('raster', raster_dts_lst,
+                strds, delete_empty=True, unit='seconds')
         return self
 
 

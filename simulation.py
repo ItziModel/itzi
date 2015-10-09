@@ -60,6 +60,8 @@ class SuperficialFlowSimulation(object):
         self.tarrays = dict.fromkeys(self.in_map_names.keys())
         # Populate it
         self.create_timed_arrays()
+        # a dict containing lists of maps written to gis to be registered
+        self.output_maplist = {k:[] for k in self.out_map_names.keys()}
 
     def set_duration(self, end_time, sim_duration):
         """If sim_duration is given, end_time is ignored
@@ -110,7 +112,7 @@ class SuperficialFlowSimulation(object):
                 dy=self.gis.dy,
                 arr_h=self.tarrays['in_h'].get_array(self.start_time),
                 arr_def=self.zeros_array())
-        record_counter = 0
+        record_counter = 1
         duration_s = self.duration.total_seconds()
 
         while self.sim_time < self.end_time:
@@ -122,7 +124,7 @@ class SuperficialFlowSimulation(object):
             next_record = record_counter*self.record_step.total_seconds()
             rast_dom.step(self.next_timestep(next_record))
             # update simulation time
-            self.sim_time = timedelta(seconds=rast_dom.sim_clock)
+            self.sim_time = self.start_time + timedelta(seconds=rast_dom.sim_clock)
             # write simulation results
             rec_time = rast_dom.sim_clock / self.record_step.total_seconds()
             if rec_time >= record_counter:
@@ -195,15 +197,24 @@ class SuperficialFlowSimulation(object):
                 map_name = "{}_{}".format(self.out_map_names[k], suffix)
                 self.gis.write_raster_map(arr, map_name,
                                     self.sim_time, self.temporal_type)
+                # add map name to the revelant list
+                self.output_maplist[k].append(map_name)
         return self
 
     def register_results_in_gis(self):
         """Register the generated maps in the temporal database
-        Loop through provided output name
-        if name is None, not do anything
+        Loop through output names
+        if no output name is provided, don't do anything
         if name is populated, create a strds of the right temporal type
+        and register the corresponding listed maps
         """
+        for mkey, lst in self.output_maplist.iteritems():
+            strds_name = self.out_map_names[mkey]
+            if strds_name == None:
+                continue
+            self.gis.register_maps_in_strds(mkey, strds_name, lst, self.temporal_type)
         return self
+
 
 class TimedArray(object):
     """A container for np.ndarray along with time informations
