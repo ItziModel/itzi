@@ -162,6 +162,10 @@ def main():
     # start messenger
     msgr = Messenger()
 
+    # stop program if location is latlong
+    if grass.locn_is_latlong():
+        msgr.fatal(_("latlong location is not supported"))
+
     # values to be passed to simulation
     input_times = {'start':None,'end':None,'duration':None,'rec_step':None}
     input_map_names = {'in_z': None, 'in_n': None, 'in_h': None, 'in_inf':None,
