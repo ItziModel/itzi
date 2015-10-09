@@ -207,7 +207,7 @@ class Igis(object):
             gutils.remove(rast_name, 'raster')
         mtype = self.grass_dtype(arr.dtype)
         with raster.RasterRow(rast_name, mode='w', mtype=mtype) as newraster:
-            newrow = raster.Buffer((arr.shape[1],))
+            newrow = raster.Buffer((arr.shape[1],), mtype=mtype)
             for row in arr:
                 newrow[:] = row[:]
                 newraster.put_row(newrow)
