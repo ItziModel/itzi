@@ -79,7 +79,7 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 #%end
 
 #%option G_OPT_R_INPUT
-#% key: in_bc
+#% key: in_bctype
 #% description: Name of input boundary conditions type map
 #% required: no
 #%end
@@ -221,7 +221,7 @@ def read_input_time(msgr, opts, input_times):
     # record step
     try:
         input_times['rec_step'] = str_to_timedelta(opts['record_step'])
-    except ValueError:
+    except:
         msgr.fatal(_(rel_err_msg.format('record_step')))
 
     # check valid combination to get simulation duration
@@ -237,7 +237,7 @@ def read_input_time(msgr, opts, input_times):
     if opts['sim_duration']:
         try:
             input_times['duration'] = str_to_timedelta(opts['sim_duration'])
-        except ValueError:
+        except:
             msgr.fatal(_(rel_err_msg.format('sim_duration')))
 
     if options['end_time']:
