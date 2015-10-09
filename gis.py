@@ -42,7 +42,11 @@ class Igis(object):
                 'CELL': ('bool_', 'int_', 'intc', 'intp',
                         'int8', 'int16', 'int32', 'int64',
                         'uint8', 'uint16', 'uint32', 'uint64')}
-
+    # conversion from month number to accepted grass month notation
+    # datetime object strftime can't be used because it depend on the locale
+    month_conv = {1: 'jan', 2: 'feb', 3: 'mar', 4: 'apr',
+                5: 'may', 6: 'june', 7: 'july', 8: 'aug',
+                9: 'Sept', 10: 'oct', 11: 'Nov', 12: 'dec'}
 
     def __init__(self, start_time, end_time, dtype, mkeys):
         assert isinstance(start_time, datetime), \
@@ -161,8 +165,9 @@ class Igis(object):
         return self
 
     def raster_list_from_strds(self, strds_name):
-        """Return a list of maps (as dict) from a given strds
+        """Return a list of maps from a given strds
         for all the simulation duration
+        Each map data is stored as a MapData namedtuple
         """
         assert isinstance(strds_name, basestring), "expect a string"
 
@@ -198,7 +203,7 @@ class Igis(object):
             array = np.array(rast, dtype=self.dtype)
         return array
 
-    def write_raster_map(self, arr, rast_name):
+    def write_raster_map(self, arr, rast_name, map_time, temporal_type):
         """Take a numpy array and write it to GRASS DB
         """
         assert isinstance(arr, np.ndarray), "arr not a np array!"
@@ -211,6 +216,28 @@ class Igis(object):
             for row in arr:
                 newrow[:] = row[:]
                 newraster.put_row(newrow)
+        # write timestamp
+        self.write_raster_timestamp(rast_name, map_time, temporal_type)
+        return self
+
+    def write_raster_timestamp(self, rast_name, map_time, temporal_type):
+        '''rast_name: name of the map in grass
+        map_time: a datetime object
+        format the command line and run grass module r.timestamp
+        '''
+        assert isinstance(map_time, datetime), "not a datetime object!"
+        if temporal_type == 'relative':
+            rel_time = map_time - self.start_time  # create a timedelta
+            rast_time = '{d} days {s} seconds'.format(
+                d=rel_time.days, s=rel_time.seconds)
+        elif temporal_type == 'absolute':
+            rast_time = '{d} {m} {y} {h}:{m}:{s}'.format(y=map_time.year,
+                m=self.month_conv[map_time.month], d=map_time.day,
+                h=map_time.hour, m=map_time.minute, s=map_time.second)
+        else:
+            assert False, "unknown temporal type!"
+        # write the timestamp in grass
+        grass.run_command('r.timestamp', map=rast_name, date=rast_time)
         return self
 
     def get_array(self, mkey, sim_time):
@@ -230,8 +257,29 @@ class Igis(object):
                     arr = self.read_raster_map(m.id)
                     return arr, m.start_time, m.end_time
 
+    def create_strds(self, strds_name, temporal_type):
+        '''Create a strds with the given input name
+        temporal_type is set accordingly
+        title and description are left empty
+        '''
+        strds_id = self.format_id(strds_name)
+        strds_title = ""
+        strds_desc = ""
+        tgis.open_new_stds(strds_id, 'strds', temporal_type,
+                strds_title, strds_desc, "mean", overwrite=self.overwrite)
+        return self
+
+    def register_maps_in_strds(self, strds_name, map_name_list):
+        '''Register given maps in the given strds
+        map_name_dict contain the keys 'id','start_time','end_time'
+        If the temoral type is relative, co
+        '''
+        strds_id = self.format_id(strds_name)
+        return self
+
+
 class old_code():
-    def create_stds(mapset, stds_h_name, stds_wse_name, sim_start_time, can_ovr):
+    def create_strds(mapset, stds_h_name, stds_wse_name, sim_start_time, can_ovr):
         """create wse and water depth STRDS
         """
 
