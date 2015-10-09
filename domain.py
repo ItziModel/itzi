@@ -19,8 +19,7 @@ import numpy as np
 
 class SurfaceDomain(object):
     """Represents a staggered grid where flow is simulated
-    Accessed using the step(), set_input_arrays() 
-    and get_output_arrays() methods
+    Accessed using the step() and get_output_arrays() methods
     """
 
     def __init__(self, dx, dy, arr_def, arr_h,
