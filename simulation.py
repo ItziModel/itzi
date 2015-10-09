@@ -42,8 +42,11 @@ class SuperficialFlowSimulation(object):
 
         self.record_step = record_step
         self.start_time = start_time
-        self.set_temporal_type()
         self.set_duration(end_time, sim_duration)
+        # set simulation time to start_time a the beginning
+        self.sim_time = self.start_time
+        # set temporal type of results
+        self.set_temporal_type()
         self.in_map_names = input_maps
         self.out_map_names = output_maps
         self.dtype=dtype
@@ -110,7 +113,7 @@ class SuperficialFlowSimulation(object):
         record_counter = 0
         duration_s = self.duration.total_seconds()
 
-        while rast_dom.sim_clock < duration_s:
+        while self.sim_time < self.end_time:
             # display advance of simulation
             self.gis.msgr.percent(rast_dom.sim_clock, duration_s, 1)
             # update arrays
@@ -118,6 +121,8 @@ class SuperficialFlowSimulation(object):
             # time-stepping
             next_record = record_counter*self.record_step.total_seconds()
             rast_dom.step(self.next_timestep(next_record))
+            # update simulation time
+            self.sim_time = timedelta(seconds=rast_dom.sim_clock)
             # write simulation results
             rec_time = rast_dom.sim_clock / self.record_step.total_seconds()
             if rec_time >= record_counter:
@@ -167,7 +172,6 @@ class SuperficialFlowSimulation(object):
             in_q=self.tarrays['in_q'].get_array(sim_time),
             in_rain=self.tarrays['in_rain'].get_array(sim_time),
             in_inf=self.tarrays['in_inf'].get_array(sim_time))
-
         return self
 
     def set_ext_array(self, in_q, in_rain, in_inf):
@@ -189,11 +193,15 @@ class SuperficialFlowSimulation(object):
                 assert isinstance(arr, np.ndarray), "arr not a np array!"
                 suffix = str(record_counter).zfill(6)
                 map_name = "{}_{}".format(self.out_map_names[k], suffix)
-                self.gis.write_raster_map(arr, map_name)
+                self.gis.write_raster_map(arr, map_name,
+                                    self.sim_time, self.temporal_type)
         return self
 
     def register_results_in_gis(self):
-        """
+        """Register the generated maps in the temporal database
+        Loop through provided output name
+        if name is None, not do anything
+        if name is populated, create a strds of the right temporal type
         """
         return self
 
