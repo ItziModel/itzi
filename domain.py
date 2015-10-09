@@ -122,15 +122,8 @@ class SurfaceDomain(object):
                             (self.arr_ext * self.dt)) +
                             arr_q_sum / self.cell_surf * self.dt)
         # set to threshold if depth under threshold
-        if np.any(self.arr_h_new < self.hmin):
-            #~ print "negative depth!"
-            self.arr_h_new = np.maximum(self.hmin, self.arr_h_new)
-            #~ slice_neg = np.where(self.arr_h_new < 0)
-            #~ self.arr_h_new[slice_neg] = self.hmin
-            #~ self.arr_qw_new[slice_neg] = 0.
-            #~ self.arr_qn_new[slice_neg] = 0.
-            #~ self.arrp_qn_new[self.ss, self.sd] = np.where(
-                #~ self.arr_h_new < 0, 0, self.arrp_qn_new[self.ss, self.sd])
+        if np.any(self.arr_h_new < 0):
+            self.arr_h_new = np.maximum(0, self.arr_h_new)
         return self
 
     def solve_hflow(self, wse_i_up, wse_i, z_i_up, z_i,
