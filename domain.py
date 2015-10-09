@@ -388,7 +388,8 @@ class Boundary(object):
         """Return the slope between two water surface elevation
         """
         slope = (user_wse - (h + z)) / self.cl
-        return np.fabs(slope)
+        max_slope = 0.5
+        return np.minimum(np.fabs(slope), max_slope)
 
     def get_flow_wse_boundary(self, n, hf, slope):
         """
