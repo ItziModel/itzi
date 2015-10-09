@@ -247,6 +247,7 @@ class TimedArray(object):
         assert isinstance(arr, np.ndarray), "not a np.ndarray!"
         assert isinstance(arr_start, datetime), "not a datetime object!"
         assert isinstance(arr_end, datetime), "not a datetime object!"
+        assert arr_start <= sim_time <= arr_end, "wrong time retrieved!"
         # update object values
         self.a_start = arr_start
         self.a_end = arr_end
