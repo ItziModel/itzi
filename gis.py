@@ -228,7 +228,7 @@ class Igis(object):
             for m in self.maps[mkey]:
                 if m.start_time <= sim_time <= m.end_time:
                     arr = self.read_raster_map(m.id)
-            return arr, m.start_time, m.end_time
+                    return arr, m.start_time, m.end_time
 
 class old_code():
     def create_stds(mapset, stds_h_name, stds_wse_name, sim_start_time, can_ovr):
