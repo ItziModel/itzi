@@ -16,6 +16,7 @@ GNU General Public License for more details.
 from __future__ import division
 import math
 import numpy as np
+import numexpr as ne
 
 class SurfaceDomain(object):
     """Represents a staggered grid where flow is simulated
@@ -78,10 +79,6 @@ class SurfaceDomain(object):
         """Run a full simulation time-step
         Input arrays should be set beforehand using set_input_arrays()
         """
-        q_old_x_axis = self.arr_qn[:3, 2]
-        q_new_x_axis = self.arr_qn_new[:3, 2]
-        h_old_x_axis = self.arr_h_old[:3, 2]
-        h_new_x_axis = self.arr_h_new[:3, 2]
         self.set_dt(next_ts)
         self.apply_boundary_conditions()
         self.solve_q()
@@ -117,10 +114,10 @@ class SurfaceDomain(object):
         arr_q_sum = (self.arr_qw_new - self.arrp_qw_new[self.ss, self.sd]
                     + self.arr_qn_new - self.arrp_qn_new[self.sd, self.ss])
 
-        self.arr_h_new = ((self.arr_h_old +
+        self.arr_h_new[:] = ((self.arr_h_old +
                             (self.arr_ext * self.dt)) +
                             arr_q_sum / self.cell_surf * self.dt)
-        # set to threshold if depth under threshold
+        # set to zero if negative
         if np.any(self.arr_h_new < 0):
             self.arr_h_new = np.maximum(0, self.arr_h_new)
         return self
@@ -146,16 +143,27 @@ class SurfaceDomain(object):
         Journal of Hydrology, 387(1), 33–45.
         http://doi.org/10.1016/j.jhydrol.2010.03.027
         '''
-        #~ if hf <= self.hf_min:
-            #~ return 0
-        #~ else:
         slope = (wse_0 - wse_up) / length
-        #~ num = (q0 - self.g * hf * self.dt * slope)
-        #~ den = (1 + self.dt * self.g * n*n * abs(q0) / (pow(hf, 4./3) * hf))
-        #~ return (num / den) * width
+        # from article
         num = q0 - self.g * hf * self.dt * slope
         den = 1 + self.g * hf * self.dt * n*n * abs(q0) / np.power(hf, 10./3.)
+        # from lisflood code
+        #~ den = (1 + self.dt * self.g * n*n * abs(q0) / (pow(hf, 4./3) * hf))
+        # similar to Almeida and Bates 2013
+        #~ den = 1 + self.g * self.dt * n*n * abs(q0) / np.power(hf, 7./3.)
         return (num / den) * width
+
+    def bates2010_ne(self, length, width, wse_0, wse_up, hf, q0, n):
+        '''flow formula from
+        Bates, P. D., Horritt, M. S., & Fewtrell, T. J. (2010).
+        A simple inertial formulation of the shallow water equations for
+        efficient two-dimensional flood inundation modelling.
+        Journal of Hydrology, 387(1), 33–45.
+        http://doi.org/10.1016/j.jhydrol.2010.03.027
+        '''
+        g = self.g
+        dt = self.dt
+        return ne.evaluate("((q0 - g * hf * dt * ((wse_0 - wse_up) / length)) / (1 + g * hf * dt * n*n * abs(q0) / (hf**(10./3.)))) * width")
 
     def almeida2012(self, length, width, wse0, wsem1, hf, q0, qm1, qp1, n):
         '''Flow formula from Almeida et al. 2012
@@ -170,6 +178,12 @@ class SurfaceDomain(object):
             term_3 = (1 + self.g * self.dt * (n*n) * abs(q0) / pow(hf, 7./3.))
             q0_new = (term_1 - term_2) / term_3
             return q0_new * width
+
+    def add_arrays(self, arr1, arr2):
+        return arr1 + arr2
+
+    def div_arrays(self, arr1, arr2):
+        return arr1 / arr2
 
     def solve_q(self):
         '''Calculate flow across the whole domain, appart from boundaries
@@ -189,10 +203,15 @@ class SurfaceDomain(object):
         z_i_up = self.arr_z[s_i_up]
         z_j = self.arr_z[s_j_self]
         z_j_up = self.arr_z[s_j_up]
-        wse_i = self.arr_z[s_i_self] + self.arr_h_old[s_i_self]
-        wse_i_up = self.arr_z[s_i_up] + self.arr_h_old[s_i_up]
-        wse_j = self.arr_z[s_j_self] + self.arr_h_old[s_j_self]
-        wse_j_up = self.arr_z[s_j_up] + self.arr_h_old[s_j_up]
+        #~ wse_i = self.arr_z[s_i_self] + self.arr_h_old[s_i_self]
+        #~ wse_i_up = self.arr_z[s_i_up] + self.arr_h_old[s_i_up]
+        #~ wse_j = self.arr_z[s_j_self] + self.arr_h_old[s_j_self]
+        #~ wse_j_up = self.arr_z[s_j_up] + self.arr_h_old[s_j_up]
+
+        wse_i = self.add_arrays(self.arr_z[s_i_self], self.arr_h_old[s_i_self])
+        wse_i_up = self.add_arrays(self.arr_z[s_i_up], self.arr_h_old[s_i_up])
+        wse_j = self.add_arrays(self.arr_z[s_j_self], self.arr_h_old[s_j_self])
+        wse_j_up = self.add_arrays(self.arr_z[s_j_up], self.arr_h_old[s_j_up])
 
         # Solve flow depth
         self.solve_hflow(wse_i_up, wse_i, z_i_up, z_i,
@@ -200,17 +219,20 @@ class SurfaceDomain(object):
 
         hfw = self.arr_hfw[s_i_self]
         hfn = self.arr_hfn[s_j_self]
-        qw = self.arr_qw[s_i_self] / self.dy
-        qn = self.arr_qn[s_j_self] / self.dx
+        #~ qw = self.arr_qw[s_i_self] / self.dy
+        #~ qn = self.arr_qn[s_j_self] / self.dx
+        qw = self.div_arrays(self.arr_qw[s_i_self], self.dy)
+        qn = self.div_arrays(self.arr_qn[s_j_self], self.dx)
         n_i = self.arr_n[s_i_self]
         n_j = self.arr_n[s_j_self]
         # upstream flow
-        qwm1 = self.arr_qw[s_i_up] / self.dy
-        qnm1 = self.arr_qn[s_j_up] / self.dx
+        qwm1 = self.div_arrays(self.arr_qw[s_i_up], self.dy)
+        qnm1 = self.div_arrays(self.arr_qn[s_j_up], self.dx)
         # downstream flow on padded array
         # Uses q_new because it's where has been applyed boundary flow
-        qwp1 = self.arrp_qw_new[s_i_down] / self.dy  # !!!
-        qnp1 = self.arrp_qn_new[s_j_down] / self.dx  # !!!
+        # before the present function q_new == q_old, apart boundaries
+        #~ qwp1 = self.arrp_qw_new[s_i_down] / self.dy  # !!!
+        #~ qnp1 = self.arrp_qn_new[s_j_down] / self.dx  # !!!
 
         # Bates 2010
         #~ get_q = np.vectorize(self.bates2010, otypes=[self.arr_qw.dtype])
@@ -222,10 +244,10 @@ class SurfaceDomain(object):
         arr_qw_new = self.arr_qw_new[s_i_self]
         arr_qn_new = self.arr_qn_new[s_j_self]
         # select cells above and under the threshold
-        slice_under_w = np.where(hfw <= self.hf_min)
-        slice_over_w = np.where(hfw > self.hf_min)
-        slice_under_n = np.where(hfn <= self.hf_min)
-        slice_over_n = np.where(hfn > self.hf_min)
+        slice_under_w = (hfw <= self.hf_min)
+        slice_over_w = (hfw > self.hf_min)
+        slice_under_n = (hfn <= self.hf_min)
+        slice_over_n = (hfn > self.hf_min)
 
         # calculate flow
         arr_qw_new[slice_under_w] = 0.
