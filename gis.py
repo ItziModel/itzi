@@ -201,6 +201,8 @@ class Igis(object):
         """
         with raster.RasterRow(rast_name, mode='r') as rast:
             array = np.array(rast, dtype=self.dtype)
+        if np.any(np.isnan(array)):
+            self.msgr.fatal(_("NULL values found in map {}!".format(rast_name)))
         return array
 
     def write_raster_map(self, arr, rast_name, map_time, temporal_type):
@@ -287,48 +289,3 @@ class Igis(object):
         tgis.register.register_map_object_list('raster', raster_dts_lst,
                 strds, delete_empty=True, unit='seconds')
         return self
-
-
-class old_code():
-    def create_strds(mapset, stds_h_name, stds_wse_name, sim_start_time, can_ovr):
-        """create wse and water depth STRDS
-        """
-
-        # set ids, name and decription of result data sets
-        stds_h_id = rw.format_opt_map(stds_h_name, mapset)
-        stds_wse_id = rw.format_opt_map(stds_wse_name, mapset)
-        stds_h_title = "water depth"
-        stds_wse_title = "water surface elevation"
-        stds_h_desc = "water depth generated on " + sim_start_time.isoformat()
-        stds_wse_desc = "water surface elevation generated on " + sim_start_time.isoformat()
-        # data type of stds
-        stds_dtype = "strds"
-        # Temporal type of stds
-        temporal_type = "relative"
-
-        # database connection
-        dbif = tgis.SQLDatabaseInterfaceConnection()
-        dbif.connect()
-
-        # water depth
-        if stds_h_name:
-            stds_h = tgis.open_new_stds(stds_h_name, stds_dtype,
-                            temporal_type, stds_h_title, stds_h_desc,
-                            "mean", dbif=dbif, overwrite=can_ovr)
-        # water surface elevation
-        if stds_wse_name:
-            stds_wse = tgis.open_new_stds(stds_wse_name, stds_dtype,
-                            temporal_type, stds_wse_title, stds_wse_desc,
-                            "mean", dbif=dbif, overwrite=can_ovr)
-        return stds_h_id, stds_wse_id
-
-    def register_in_stds():
-        # depth
-        if options['out_h']:
-            list_h = ','.join(list_h) # transform map list into a string
-            kwargs = {'maps': list_h,
-                    'start': 0,
-                    'unit':'seconds',
-                    'increment':int(record_t)}
-            tgis.register.register_maps_in_space_time_dataset('rast',
-                                                    stds_h_id, **kwargs)
