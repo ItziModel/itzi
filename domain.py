@@ -64,7 +64,12 @@ class SurfaceDomain(object):
         self.arr_qn, self.arrp_qn = self.pad_array(np.copy(arr_def))
         self.arr_qw_new, self.arrp_qw_new = self.pad_array(np.copy(arr_def))
         self.arr_qn_new, self.arrp_qn_new = self.pad_array(np.copy(arr_def))
+        # arrays of flow vector norm
+        self.arr_qw_norm = (np.copy(arr_def))
+        self.arr_qn_norm = (np.copy(arr_def))
         del arr_def
+
+
 
     @staticmethod
     def pad_array(arr):
@@ -135,49 +140,42 @@ class SurfaceDomain(object):
                                        - np.maximum(z_j_up, z_j))
         return self
 
-    def bates2010(self, length, width, wse_0, wse_up, hf, q0, n):
-        '''flow formula from
-        Bates, P. D., Horritt, M. S., & Fewtrell, T. J. (2010).
-        A simple inertial formulation of the shallow water equations for
-        efficient two-dimensional flood inundation modelling.
-        Journal of Hydrology, 387(1), 33–45.
-        http://doi.org/10.1016/j.jhydrol.2010.03.027
-        '''
-        slope = (wse_0 - wse_up) / length
-        # from article
-        num = q0 - self.g * hf * self.dt * slope
-        den = 1 + self.g * hf * self.dt * n*n * abs(q0) / np.power(hf, 10./3.)
-        # from lisflood code
-        #~ den = (1 + self.dt * self.g * n*n * abs(q0) / (pow(hf, 4./3) * hf))
-        # similar to Almeida and Bates 2013
-        #~ den = 1 + self.g * self.dt * n*n * abs(q0) / np.power(hf, 7./3.)
-        return (num / den) * width
-
-    def bates2010_ne(self, length, width, wse_0, wse_up, hf, q0, n):
-        '''flow formula from
-        Bates, P. D., Horritt, M. S., & Fewtrell, T. J. (2010).
-        A simple inertial formulation of the shallow water equations for
-        efficient two-dimensional flood inundation modelling.
-        Journal of Hydrology, 387(1), 33–45.
-        http://doi.org/10.1016/j.jhydrol.2010.03.027
-        '''
-        g = self.g
-        dt = self.dt
-        return ne.evaluate("((q0 - g * hf * dt * ((wse_0 - wse_up) / length)) / (1 + g * hf * dt * n*n * abs(q0) / (hf**(10./3.)))) * width")
-
-    def almeida2012(self, length, width, wse0, wsem1, hf, q0, qm1, qp1, n):
-        '''Flow formula from Almeida et al. 2012
-        Without vector norm which is from Almeida and Bates 2013
-        '''
+    def almeida2013(self, length, width, wse0, wsem1, hf, q0, qnorm, qm1, qp1, n):
+        '''Flow formula from Almeida & Bates 2013'''
         if hf <= self.hf_min:
             return 0
         else:
             # flow formula (formula #41 in almeida et al 2012)
             term_1 = (self.theta * q0 + ((1 - self.theta) / 2) * (qm1 + qp1))
             term_2 = (self.g * hf * (self.dt / length) * (wse0 - wsem1))
-            term_3 = (1 + self.g * self.dt * (n*n) * abs(q0) / pow(hf, 7./3.))
+            term_3 = (1 + self.g * self.dt * (n*n) * qnorm / pow(hf, 7./3.))
             q0_new = (term_1 - term_2) / term_3
             return q0_new * width
+
+    def solve_qnorm(self):
+        """Calculate the flow vector norm to be used in the flow equation
+        This method uses values in i-1 and j-1, which seems more logical
+        than the version given in Almeida and Bates (2013)
+        """
+        # values in the Y dim, used to calculate an average of N flows
+        arr_qn_i_j = self.arr_qn
+        arr_qn_i_jd = self.arrp_qn[self.sd, self.ss]
+        arr_qn_iu_j = self.arrp_qn[self.ss, self.su]
+        arr_qn_iu_jd = self.arrp_qn[self.sd, self.su]
+        # values in the X dim, used to calculate an average of X flows
+        arr_qw_i_j = self.arr_qw
+        arr_qw_id_j = self.arrp_qw[self.ss, self.sd]
+        arr_qw_i_ju = self.arrp_qw[self.su, self.ss]
+        arr_qw_id_ju = self.arrp_qw[self.su, self.sd]
+
+        # average values of flows in relevant dimension
+        arr_qn_av = (arr_qn_i_j + arr_qn_i_jd + arr_qn_iu_j + arr_qn_iu_jd) / 4.
+        arr_qw_av = (arr_qw_i_j + arr_qw_id_j + arr_qw_i_ju + arr_qw_id_ju) / 4.
+
+        # norm for one dim. uses the average of flows in the other dim.
+        self.arr_qw_norm[:] = np.sqrt(np.square(arr_qn_av) + np.square(arr_qw_i_j))
+        self.arr_qn_norm[:] = np.sqrt(np.square(arr_qw_av) + np.square(arr_qn_i_j))
+        return self
 
     def add_arrays(self, arr1, arr2):
         return arr1 + arr2
@@ -203,10 +201,6 @@ class SurfaceDomain(object):
         z_i_up = self.arr_z[s_i_up]
         z_j = self.arr_z[s_j_self]
         z_j_up = self.arr_z[s_j_up]
-        #~ wse_i = self.arr_z[s_i_self] + self.arr_h_old[s_i_self]
-        #~ wse_i_up = self.arr_z[s_i_up] + self.arr_h_old[s_i_up]
-        #~ wse_j = self.arr_z[s_j_self] + self.arr_h_old[s_j_self]
-        #~ wse_j_up = self.arr_z[s_j_up] + self.arr_h_old[s_j_up]
 
         wse_i = self.add_arrays(self.arr_z[s_i_self], self.arr_h_old[s_i_self])
         wse_i_up = self.add_arrays(self.arr_z[s_i_up], self.arr_h_old[s_i_up])
@@ -231,40 +225,18 @@ class SurfaceDomain(object):
         # downstream flow on padded array
         # Uses q_new because it's where has been applyed boundary flow
         # before the present function q_new == q_old, apart boundaries
-        #~ qwp1 = self.arrp_qw_new[s_i_down] / self.dy  # !!!
-        #~ qnp1 = self.arrp_qn_new[s_j_down] / self.dx  # !!!
+        qwp1 = self.arrp_qw_new[s_i_down] / self.dy
+        qnp1 = self.arrp_qn_new[s_j_down] / self.dx
 
-        # Bates 2010
-        #~ get_q = np.vectorize(self.bates2010, otypes=[self.arr_qw.dtype])
-        #~ self.arr_qw_new[s_i_self] = get_q(self.dx, self.dy,
-                                        #~ wse_i, wse_i_up, hfw, qw, n_i)
-        #~ self.arr_qn_new[s_j_self] = get_q(self.dy, self.dx,
-                                        #~ wse_j, wse_j_up, hfn, qn, n_j)
-
-        arr_qw_new = self.arr_qw_new[s_i_self]
-        arr_qn_new = self.arr_qn_new[s_j_self]
-        # select cells above and under the threshold
-        slice_under_w = (hfw <= self.hf_min)
-        slice_over_w = (hfw > self.hf_min)
-        slice_under_n = (hfn <= self.hf_min)
-        slice_over_n = (hfn > self.hf_min)
-
-        # calculate flow
-        arr_qw_new[slice_under_w] = 0.
-        arr_qw_new[slice_over_w] = self.bates2010(self.dx, self.dy,
-                wse_i[slice_over_w], wse_i_up[slice_over_w],
-                hfw[slice_over_w], qw[slice_over_w], n_i[slice_over_w])
-        arr_qn_new[slice_under_n] = 0.
-        arr_qn_new[slice_over_n] = self.bates2010(self.dy, self.dx,
-                wse_j[slice_over_n], wse_j_up[slice_over_n],
-                hfn[slice_over_n], qn[slice_over_n], n_j[slice_over_n])
-
-        # Almeida 2012
-        #~ get_q = np.vectorize(self.almeida2012, otypes=[self.arr_qw.dtype])
-        #~ self.arr_qw_new[s_i_self] = get_q(self.dx, self.dy, wse_i, wse_i_up,
-                                         #~ hfw, qw, qwm1, qwp1, n_i)
-        #~ self.arr_qn_new[s_j_self] = get_q(self.dy, self.dx, wse_j, wse_j_up,
-                                         #~ hfn, qn, qnm1, qnp1, n_j)
+        # Almeida 2013
+        self.solve_qnorm()
+        qnorm_w = self.arr_qw_norm[s_i_self]
+        qnorm_n = self.arr_qn_norm[s_j_self]
+        get_q = np.vectorize(self.almeida2013, otypes=[self.arr_qw.dtype])
+        self.arr_qw_new[s_i_self] = get_q(self.dx, self.dy, wse_i, wse_i_up,
+                                         hfw, qw, qnorm_w, qwm1, qwp1, n_i)
+        self.arr_qn_new[s_j_self] = get_q(self.dy, self.dx, wse_j, wse_j_up,
+                                         hfn, qn, qnorm_n, qnm1, qnp1, n_j)
         return self
 
     def apply_boundary_conditions(self):
@@ -529,56 +501,74 @@ class old_code():
 
         return self
 
-    def set_forced_timestep(self, next_record):
-        '''Defines the value of the next forced time step
-        Could be the next recording of data or the end of simulation
+    def solve_q(self):
+        # Bates 2010
+        arr_qw_new = self.arr_qw_new[s_i_self]
+        arr_qn_new = self.arr_qn_new[s_j_self]
+        # select cells above and under the threshold
+        slice_under_w = (hfw <= self.hf_min)
+        slice_over_w = (hfw > self.hf_min)
+        slice_under_n = (hfn <= self.hf_min)
+        slice_over_n = (hfn > self.hf_min)
+
+        # calculate flow
+        arr_qw_new[slice_under_w] = 0.
+        arr_qw_new[slice_over_w] = self.bates2010_ne(self.dx, self.dy,
+                wse_i[slice_over_w], wse_i_up[slice_over_w],
+                hfw[slice_over_w], qw[slice_over_w], n_i[slice_over_w])
+        arr_qn_new[slice_under_n] = 0.
+        arr_qn_new[slice_over_n] = self.bates2010_ne(self.dy, self.dx,
+                wse_j[slice_over_n], wse_j_up[slice_over_n],
+                hfn[slice_over_n], qn[slice_over_n], n_j[slice_over_n])
+
+        # Almeida 2012
+        #~ get_q = np.vectorize(self.almeida2012, otypes=[self.arr_qw.dtype])
+        #~ self.arr_qw_new[s_i_self] = get_q(self.dx, self.dy, wse_i, wse_i_up,
+                                         #~ hfw, qw, qwm1, qwp1, n_i)
+        #~ self.arr_qn_new[s_j_self] = get_q(self.dy, self.dx, wse_j, wse_j_up,
+                                         #~ hfn, qn, qnm1, qnp1, n_j)
+        return self
+
+    def bates2010(self, length, width, wse_0, wse_up, hf, q0, n):
+        '''flow formula from
+        Bates, P. D., Horritt, M. S., & Fewtrell, T. J. (2010).
+        A simple inertial formulation of the shallow water equations for
+        efficient two-dimensional flood inundation modelling.
+        Journal of Hydrology, 387(1), 33–45.
+        http://doi.org/10.1016/j.jhydrol.2010.03.027
         '''
-        self.forced_timestep = min(self.end_time, next_record)
-        return self
+        slope = (wse_0 - wse_up) / length
+        # from article
+        num = q0 - self.g * hf * self.dt * slope
+        den = 1 + self.g * hf * self.dt * n*n * abs(q0) / np.power(hf, 10./3.)
+        # from lisflood code
+        #~ den = (1 + self.dt * self.g * n*n * abs(q0) / (pow(hf, 4./3) * hf))
+        # similar to Almeida and Bates 2013
+        #~ den = 1 + self.g * self.dt * n*n * abs(q0) / np.power(hf, 7./3.)
+        return (num / den) * width
 
-    def solve_q_vecnorm(self):
-        """Calculate the q vector norm to be used in the flow equation
-        This function uses the values in i+1 and j+1,
-        as originally explained in Almeida and Bates (2013)
-        """
-        arr_q_i_jm12 = self.arrp_q['S'][1:-1, 1:-1]
-        arr_q_i_jp12 = self.arrp_q['S'][:-2, 1:-1]
-        arr_q_ip1_jm12 = self.arrp_q['S'][1:-1, 2:]
-        arr_q_ip1_jp12 = self.arrp_q['S'][:-2, 2:]
-        arr_q_im12_j = self.arrp_q['W'][1:-1, 1:-1]
-        arr_q_ip12_j = self.arrp_q['W'][1:-1, 2:]
-        arr_q_im12_jp1 = self.arrp_q['W'][:-2, 1:-1]
-        arr_q_ip12_jp1 = self.arrp_q['W'][:-2, 2:]
+    def bates2010_ne(self, length, width, wse_0, wse_up, hf, q0, n):
+        '''flow formula from
+        Bates, P. D., Horritt, M. S., & Fewtrell, T. J. (2010).
+        A simple inertial formulation of the shallow water equations for
+        efficient two-dimensional flood inundation modelling.
+        Journal of Hydrology, 387(1), 33–45.
+        http://doi.org/10.1016/j.jhydrol.2010.03.027
+        '''
+        g = self.g
+        dt = self.dt
+        return ne.evaluate("((q0 - g * hf * dt * ((wse_0 - wse_up) / length)) / (1 + g * hf * dt * n*n * abs(q0) / (hf**(10./3.)))) * width")
 
-        arr_q_ip12_j_y = (arr_q_i_jm12 + arr_q_i_jp12 +
-                          arr_q_ip1_jm12 + arr_q_ip1_jp12) / 4
-        arr_q_i_jp12_x = (arr_q_im12_j + arr_q_ip12_j +
-                          arr_q_im12_jp1 + arr_q_ip12_jp1) / 4
-
-        self.arr_q_vecnorm = np.sqrt(
-                            np.square(arr_q_ip12_j_y) +  # !!!
-                            np.square(arr_q_i_jp12_x))  # !!!
-        return self
-
-    def solve_q_vecnorm2(self):
-        """Calculate the q vector norm to be used in the flow equation
-        This function uses values in i-1 and j-1, which seems more logical
-        than the version given in Almeida and Bates (2013)
-        """
-        arr_q_i_jm12 = self.arrp_q['S'][1:-1, 1:-1]
-        arr_q_i_jp12 = self.arrp_q['S'][:-2, 1:-1]
-        arr_q_im1_jm12 = self.arrp_q['S'][1:-1, :-2]
-        arr_q_im1_jp12 = self.arrp_q['S'][:-2, :-2]
-        arr_q_im12_j = self.arrp_q['W'][1:-1, 1:-1]
-        arr_q_ip12_j = self.arrp_q['W'][1:-1, 2:]
-        arr_q_im12_jm1 = self.arrp_q['W'][2:, 1:-1]
-        arr_q_ip12_jm1 = self.arrp_q['W'][2:, 2:]
-
-        self.arr_q_im12_j_y[:] = (arr_q_i_jm12 + arr_q_i_jp12 +
-                          arr_q_im1_jm12 + arr_q_im1_jp12) / 4
-        self.arr_q_i_jm12_x[:] = (arr_q_im12_j + arr_q_ip12_j +
-                          arr_q_im12_jm1 + arr_q_ip12_jm1) / 4
-        self.arr_q_vecnorm[:] = np.sqrt(
-                                    np.square(self.arr_q_im12_j_y) +  # !!!
-                                    np.square(self.arr_q_i_jm12_x))  # !!!
-        return self
+    def almeida2012(self, length, width, wse0, wsem1, hf, q0, qm1, qp1, n):
+        '''Flow formula from Almeida et al. 2012
+        Without vector norm which is from Almeida and Bates 2013
+        '''
+        if hf <= self.hf_min:
+            return 0
+        else:
+            # flow formula (formula #41 in almeida et al 2012)
+            term_1 = (self.theta * q0 + ((1 - self.theta) / 2) * (qm1 + qp1))
+            term_2 = (self.g * hf * (self.dt / length) * (wse0 - wsem1))
+            term_3 = (1 + self.g * self.dt * (n*n) * abs(q0) / pow(hf, 7./3.))
+            q0_new = (term_1 - term_2) / term_3
+            return q0_new * width
