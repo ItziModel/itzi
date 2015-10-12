@@ -116,12 +116,15 @@ class SurfaceDomain(object):
     def solve_h(self):
         """Calculate new water depth
         """
-        arr_q_sum = (self.arr_qw_new - self.arrp_qw_new[self.ss, self.sd]
-                    + self.arr_qn_new - self.arrp_qn_new[self.sd, self.ss])
+        # flows converted from m2/s to m3/s
+        arr_Q_sum = (
+            (self.arr_qw_new - self.arrp_qw_new[self.ss, self.sd]) * self.dy
+            + (self.arr_qn_new - self.arrp_qn_new[self.sd, self.ss]) * self.dx)
 
-        self.arr_h_new[:] = ((self.arr_h_old +
-                            (self.arr_ext * self.dt)) +
-                            arr_q_sum / self.cell_surf * self.dt)
+        # arr_ext converted from m/s to m, Q from m3/s to m
+        self.arr_h_new[:] = (self.arr_h_old +
+                            self.arr_ext * self.dt +
+                            (arr_Q_sum / self.cell_surf) * self.dt)
         # set to zero if negative
         if np.any(self.arr_h_new < 0):
             self.arr_h_new = np.maximum(0, self.arr_h_new)
@@ -150,7 +153,7 @@ class SurfaceDomain(object):
             term_2 = (self.g * hf * (self.dt / length) * (wse0 - wsem1))
             term_3 = (1 + self.g * self.dt * (n*n) * qnorm / pow(hf, 7./3.))
             q0_new = (term_1 - term_2) / term_3
-            return q0_new * width
+            return q0_new
 
     def solve_qnorm(self):
         """Calculate the flow vector norm to be used in the flow equation
@@ -213,20 +216,22 @@ class SurfaceDomain(object):
 
         hfw = self.arr_hfw[s_i_self]
         hfn = self.arr_hfn[s_j_self]
-        #~ qw = self.arr_qw[s_i_self] / self.dy
-        #~ qn = self.arr_qn[s_j_self] / self.dx
-        qw = self.div_arrays(self.arr_qw[s_i_self], self.dy)
-        qn = self.div_arrays(self.arr_qn[s_j_self], self.dx)
+        qw = self.arr_qw[s_i_self]
+        qn = self.arr_qn[s_j_self]
+        #~ qw = self.div_arrays(self.arr_qw[s_i_self], self.dy)
+        #~ qn = self.div_arrays(self.arr_qn[s_j_self], self.dx)
         n_i = self.arr_n[s_i_self]
         n_j = self.arr_n[s_j_self]
         # upstream flow
-        qwm1 = self.div_arrays(self.arr_qw[s_i_up], self.dy)
-        qnm1 = self.div_arrays(self.arr_qn[s_j_up], self.dx)
+        #~ qwm1 = self.div_arrays(self.arr_qw[s_i_up], self.dy)
+        #~ qnm1 = self.div_arrays(self.arr_qn[s_j_up], self.dx)
+        qwm1 = self.arr_qw[s_i_up]
+        qnm1 = self.arr_qn[s_j_up]
         # downstream flow on padded array
         # Uses q_new because it's where has been applyed boundary flow
         # before the present function q_new == q_old, apart boundaries
-        qwp1 = self.arrp_qw_new[s_i_down] / self.dy
-        qnp1 = self.arrp_qn_new[s_j_down] / self.dx
+        qwp1 = self.arrp_qw_new[s_i_down]
+        qnp1 = self.arrp_qn_new[s_j_down]
 
         # Almeida 2013
         self.solve_qnorm()
