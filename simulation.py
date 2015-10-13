@@ -184,7 +184,7 @@ class SuperficialFlowSimulation(object):
         assert isinstance(in_rain, np.ndarray), "not a np array!"
         assert isinstance(in_inf, np.ndarray), "not a np array!"
 
-        return in_q + (in_rain + in_inf) / 1000 / 3600
+        return in_q + (in_rain + in_inf) / 1000. / 3600.
 
     def write_results_to_gis(self, record_counter):
         """Format the name of each maps using the record number as suffix
