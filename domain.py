@@ -14,9 +14,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 from __future__ import division
+#~ import pyximport
 import math
 import numpy as np
 import numexpr as ne
+#~ pyximport.install(setup_args={'include_dirs': np.get_include()})
+import flow
 
 class SurfaceDomain(object):
     """Represents a staggered grid where flow is simulated
@@ -86,7 +89,8 @@ class SurfaceDomain(object):
         """
         self.set_dt(next_ts)
         self.apply_boundary_conditions()
-        self.solve_q()
+        #~ self.solve_q()
+        self.solve_q_c()
         self.solve_h()
         self.copy_arrays_values_for_next_timestep()
         return self
@@ -242,6 +246,14 @@ class SurfaceDomain(object):
                                          hfw, qw, qnorm_w, qwm1, qwp1, n_i)
         self.arr_qn_new[s_j_self] = get_q(self.dy, self.dx, wse_j, wse_j_up,
                                          hfn, qn, qnorm_n, qnm1, qnp1, n_j)
+        return self
+
+    def solve_q_c(self):
+        '''
+        '''
+        flow.solve_q_loop(self.arr_z, self.arr_n, self.arr_h_old,
+            self.arrp_qw, self.arrp_qn, self.arr_qw_new, self.arr_qn_new,
+            self.dt, self.dx, self.dy, self.g, self.theta, self.hf_min)
         return self
 
     def apply_boundary_conditions(self):
