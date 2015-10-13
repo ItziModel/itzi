@@ -14,13 +14,14 @@ GNU General Public License for more details.
 """
 from __future__ import division
 import math
-import numpy as np
 cimport numpy as np
+import numpy as np
 
 DTYPE = np.float32
 ctypedef np.float32_t DTYPE_t
 
-def solve_q_loop(np.ndarray[DTYPE_t, ndim=2] arr_z,
+def solve_q_loop(
+        np.ndarray[DTYPE_t, ndim=2] arr_z,
         np.ndarray[DTYPE_t, ndim=2] arr_n,
         np.ndarray[DTYPE_t, ndim=2] arr_h_old,
         np.ndarray[DTYPE_t, ndim=2] arrp_qw,
@@ -31,16 +32,17 @@ def solve_q_loop(np.ndarray[DTYPE_t, ndim=2] arr_z,
     '''Solve flow equation, including hflow and q_vect, using
     loop through the domain
     '''
-    assert arr_z.dtype == arr_n.dtype == arr_h_old.dtype == \
-            arrp_qw.dtype == arrp_qn.dtype == DTYPE
-    cdef int rmax = arr_z.shape[0]
-    cdef int cmax = arr_z.shape[1]
-    cdef int r, c, rq, cq
+#~     assert arr_z.dtype == arr_n.dtype == arr_h_old.dtype == \
+#~             arrp_qw.dtype == arrp_qn.dtype == DTYPE
+    cdef unsigned int rmax, cmax, r, c, rq, cq
     cdef float zup, z0, hup, wseup, wse0, hf
-    cdef float c0, qy1, qy2, qy3, qy4, qy_avg, q_vect
-    cdef float n, qup, qdown, term_1, term_2, term_3
+    cdef float q0, qy1, qy2, qy3, qy4, qy_avg, q_vect
+    cdef float n, qup, qdown, term_1, term_2, term_3, qw_new, qn_new, slope
     cdef float qx1, qx2, qx3, qx4, qx_avg
-    # flow in x direction
+
+    rmax = arr_z.shape[0]
+    cmax = arr_z.shape[1]
+
     for r in xrange(rmax):
         for c in xrange(cmax):
             # add 1 to indices applied on padded q array
@@ -71,12 +73,20 @@ def solve_q_loop(np.ndarray[DTYPE_t, ndim=2] arr_z,
             qup = arrp_qw[rq, cq-1]
             qdown = arrp_qw[rq, cq+1]
             if hf <= hf_min:
-                arr_qw_new[r,c] = 0
+                qw_new = 0
             else:
                 term_1 = (theta * q0 + ((1 - theta) / 2) * (qup + qdown))
                 term_2 = (g * hf * (dt / dx) * (wse0 - wseup))
                 term_3 = (1 + g * dt * (n*n) * q_vect / pow(hf, 7./3.))
-                arr_qw_new[r,c] = (term_1 - term_2) / term_3
+                qw_new = (term_1 - term_2) / term_3
+            # If flow is going upstream, recalculate with Bates 2010
+            if (wseup - wse0) * qw_new < 0:
+                slope = (wse0 - wseup) / dx
+                num = q0 - g * hf * dt * slope
+                den = 1 + g * hf * dt * n*n * abs(q0) / pow(hf, 10./3.)
+                qw_new = num / den
+            # populate the array
+            arr_qw_new[r,c] = qw_new
 
             #####################
             # flow in y dimension
@@ -103,10 +113,17 @@ def solve_q_loop(np.ndarray[DTYPE_t, ndim=2] arr_z,
             qup = arrp_qn[rq-1, cq]
             qdown = arrp_qn[rq+1, cq]
             if hf <= hf_min:
-                arr_qn_new[r,c] = 0
+                qn_new = 0
             else:
                 term_1 = (theta * q0 + ((1 - theta) / 2) * (qup + qdown))
                 term_2 = (g * hf * (dt / dy) * (wse0 - wseup))
                 term_3 = (1 + g * dt * (n*n) * q_vect / pow(hf, 7./3.))
-                arr_qn_new[r,c] = (term_1 - term_2) / term_3
+                qn_new = (term_1 - term_2) / term_3
+            # If flow is going upstream, recalculate with Bates 2010
+            if (wseup - wse0) * qn_new < 0:
+                slope = (wse0 - wseup) / dy
+                num = q0 - g * hf * dt * slope
+                den = 1 + g * hf * dt * n*n * abs(q0) / pow(hf, 10./3.)
+                qn_new = num / den
+            arr_qn_new[r,c] = qn_new
     return 0
