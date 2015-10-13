@@ -195,10 +195,9 @@ class SuperficialFlowSimulation(object):
                 assert isinstance(arr, np.ndarray), "arr not a np array!"
                 suffix = str(record_counter).zfill(6)
                 map_name = "{}_{}".format(self.out_map_names[k], suffix)
-                self.gis.write_raster_map(arr, map_name,
-                                    self.sim_time, self.temporal_type)
-                # add map name to the revelant list
-                self.output_maplist[k].append(map_name)
+                self.gis.write_raster_map(arr, map_name)
+                # add map name and time to the corresponding list
+                self.output_maplist[k].append((map_name, self.sim_time))
         return self
 
     def register_results_in_gis(self):
@@ -212,7 +211,8 @@ class SuperficialFlowSimulation(object):
             strds_name = self.out_map_names[mkey]
             if strds_name == None:
                 continue
-            self.gis.register_maps_in_strds(mkey, strds_name, lst, self.temporal_type)
+            self.gis.register_maps_in_strds(mkey, strds_name, lst,
+                                                    self.temporal_type)
         return self
 
 

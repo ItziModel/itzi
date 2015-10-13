@@ -205,13 +205,11 @@ class Igis(object):
             self.msgr.fatal(_("NULL values found in map {}!".format(rast_name)))
         return array
 
-    def write_raster_map(self, arr, rast_name, map_time, temporal_type):
+    def write_raster_map(self, arr, rast_name):
         """Take a numpy array and write it to GRASS DB
         """
         assert isinstance(arr, np.ndarray), "arr not a np array!"
         assert isinstance(rast_name, basestring), "not a string!"
-        assert isinstance(temporal_type, basestring), "not a string!"
-        assert isinstance(map_time, datetime), "not a datetime object!"
         if self.overwrite == True and raster.RasterRow(rast_name).exist() == True:
             gutils.remove(rast_name, 'raster')
         mtype = self.grass_dtype(arr.dtype)
@@ -220,31 +218,6 @@ class Igis(object):
             for row in arr:
                 newrow[:] = row[:]
                 newraster.put_row(newrow)
-        # write timestamp
-        self.write_raster_timestamp(rast_name, map_time, temporal_type)
-        return self
-
-    def write_raster_timestamp(self, rast_name, map_time, temporal_type):
-        '''rast_name: name of the map in grass
-        map_time: a datetime object
-        format the command line and run grass module r.timestamp
-        '''
-        assert isinstance(map_time, datetime), "not a datetime object!"
-        if temporal_type == 'relative':
-            rel_time = map_time - self.start_time  # create a timedelta
-            if rel_time.days < 1:
-                rast_time = '{s} seconds'.format(s=rel_time.seconds)
-            else:
-                rast_time = '{d} days {s} seconds'.format(
-                d=rel_time.days, s=rel_time.seconds)
-        elif temporal_type == 'absolute':
-            rast_time = '{d} {m} {y} {h}:{min}:{s}'.format(y=map_time.year,
-                m=self.month_conv[map_time.month], d=map_time.day,
-                h=map_time.hour, min=map_time.minute, s=map_time.second)
-        else:
-            assert False, "unknown temporal type!"
-        # write the timestamp in grass
-        grass.run_command('r.timestamp', map=rast_name, date=rast_time)
         return self
 
     def get_array(self, mkey, sim_time):
@@ -266,26 +239,39 @@ class Igis(object):
 
     def register_maps_in_strds(self, mkey, strds_name, map_list, t_type):
         '''Register given maps
+        map_list contains tuples of (raster_name, map_time)
         '''
+        assert isinstance(mkey, basestring), "not a string!"
+        assert isinstance(strds_name, basestring), "not a string!"
+        assert isinstance(t_type, basestring), "not a string!"
         # create strds
         strds_id = self.format_id(strds_name)
         strds_title = mkey
         strds_desc = ""
         strds = tgis.open_new_stds(strds_id, 'strds', t_type,
-                strds_title, strds_desc, "mean", overwrite=self.overwrite)
-        # register maps
+            strds_title, strds_desc, "mean", overwrite=self.overwrite)
+
+        # create RasterDataset objects list
         raster_dts_lst = []
-        for map_name in map_list:
+        for map_name, map_time in map_list:
+            # create RasterDataset
             map_id = self.format_id(map_name)
             raster_dts = tgis.RasterDataset(map_id)
-            raster_dts.read_timestamp_from_grass()
             # load spatial data from map
             raster_dts.load()
-            if raster_dts.map_exists():
-                raster_dts.update()
+            # set time
+            if t_type == 'relative':
+                # create timedelta
+                rel_time = map_time - self.start_time
+                rast_time = rel_time.total_seconds()
+                raster_dts.set_relative_time(rast_time, None, 'seconds')
+            elif t_type == 'absolute':
+                raster_dts.set_absolute_time(start_time=map_time)
             else:
-                raster_dts.insert()
+                assert False, "unknown temporal type!"
+            # populate the list
             raster_dts_lst.append(raster_dts)
+        # Finaly register the maps
         tgis.register.register_map_object_list('raster', raster_dts_lst,
                 strds, delete_empty=True, unit='seconds')
         return self
