@@ -69,7 +69,7 @@ def solve_q_loop(
             qy_avg = (qy1 + qy2 + qy3 + qy4) / 4
             q_vect = math.sqrt(qy_avg*qy_avg + q0*q0)
             # calculate flow
-            n = arr_n[r, c]
+            n = 0.5 * (arr_n[r, c] + arr_n[r, c-1])
             qup = arrp_qw[rq, cq-1]
             qdown = arrp_qw[rq, cq+1]
             if hf <= hf_min:
@@ -109,7 +109,7 @@ def solve_q_loop(
             qx_avg = (qx1 + qx2 + qx3 + qx4) / 4
             q_vect = math.sqrt(qx_avg*qx_avg + q0*q0)
             # calculate flow
-            n = arr_n[r, c]
+            n = 0.5 * (arr_n[r, c] + arr_n[r-1, c])
             qup = arrp_qn[rq-1, cq]
             qdown = arrp_qn[rq+1, cq]
             if hf <= hf_min:
