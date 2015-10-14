@@ -13,9 +13,9 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 from __future__ import division
-import math
 cimport numpy as np
 import numpy as np
+from libc.math cimport pow, sqrt, abs
 
 DTYPE = np.float32
 ctypedef np.float32_t DTYPE_t
@@ -35,8 +35,8 @@ def solve_q_loop(
 #~     assert arr_z.dtype == arr_n.dtype == arr_h_old.dtype == \
 #~             arrp_qw.dtype == arrp_qn.dtype == DTYPE
     cdef unsigned int rmax, cmax, r, c, rq, cq
-    cdef float zup, z0, hup, wseup, wse0, hf
-    cdef float q0, qy1, qy2, qy3, qy4, qy_avg, q_vect
+    cdef float zup, z0, hup, h0, wseup, wse0, hf
+    cdef float q0, qy1, qy2, qy3, qy4, qy_avg, q_vect, num, den
     cdef float n, qup, qdown, term_1, term_2, term_3, qw_new, qn_new, slope
     cdef float qx1, qx2, qx3, qx4, qx_avg
 
@@ -67,7 +67,7 @@ def solve_q_loop(
             qy3 = arrp_qn[rq, cq-1]
             qy4 = arrp_qn[rq, cq]
             qy_avg = (qy1 + qy2 + qy3 + qy4) / 4
-            q_vect = math.sqrt(qy_avg*qy_avg + q0*q0)
+            q_vect = sqrt(qy_avg*qy_avg + q0*q0)
             # calculate flow
             n = 0.5 * (arr_n[r, c] + arr_n[r, c-1])
             qup = arrp_qw[rq, cq-1]
@@ -107,7 +107,7 @@ def solve_q_loop(
             qx3 = arrp_qw[rq, cq-1]
             qx4 = arrp_qw[rq, cq]
             qx_avg = (qx1 + qx2 + qx3 + qx4) / 4
-            q_vect = math.sqrt(qx_avg*qx_avg + q0*q0)
+            q_vect = sqrt(qx_avg*qx_avg + q0*q0)
             # calculate flow
             n = 0.5 * (arr_n[r, c] + arr_n[r-1, c])
             qup = arrp_qn[rq-1, cq]
