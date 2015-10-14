@@ -7,8 +7,8 @@ import numpy as np
 ext_modules = [Extension("flow", ["flow.pyx"])]
 
 setup(
-  name = 't.sim.flood',
+  name = 'flow',
   cmdclass = {'build_ext': build_ext},
-  include_dirs = [np.get_include()],         # <---- New line
+  include_dirs = [np.get_include()],
   ext_modules = ext_modules
 )
