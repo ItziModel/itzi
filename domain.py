@@ -83,16 +83,18 @@ class SurfaceDomain(object):
         arr = arr_p[1:-1,1:-1]
         return arr, arr_p
 
-    def step(self, next_ts):
+    def step(self, next_ts, massbal):
         """Run a full simulation time-step
-        Input arrays should be set beforehand using set_input_arrays()
         """
         self.set_dt(next_ts)
-        self.apply_boundary_conditions()
+        boundary_vol = self.apply_boundary_conditions()
+        massbal.add_value('boundary_vol', boundary_vol)
         #~ self.solve_q()
         self.solve_q_c()
         self.solve_h()
+        massbal.add_value('old_dom_vol', self.old_domain_volume())
         self.copy_arrays_values_for_next_timestep()
+        massbal.add_value('new_dom_vol', self.old_domain_volume())
         return self
 
     def set_dt(self, next_ts):
@@ -116,6 +118,11 @@ class SurfaceDomain(object):
         else:
             self.sim_clock += self.dt
         return self
+
+    def old_domain_volume(self):
+        '''return domain volume from old h
+        '''
+        return np.sum(self.arr_h_old) * self.cell_surf
 
     def solve_h(self):
         """Calculate new water depth
@@ -270,6 +277,7 @@ class SurfaceDomain(object):
         n_boundary = Boundary(self.dx, self.dy, boundary_pos='N')
         s_boundary = Boundary(self.dx, self.dy, boundary_pos='S')
 
+        w_boundary_flow = self.arr_qw_new[:, 0]
         w_boundary.get_boundary_flow(qin=self.arr_qw[:, 1],
                                     hflow=self.arr_hfw[:, 1],
                                     n=self.arr_n[:, 0],
@@ -277,7 +285,8 @@ class SurfaceDomain(object):
                                     depth=self.arr_h_old[:, 0],
                                     bctype=self.arr_bctype[:, 0],
                                     bcvalue=self.arr_bcval[:, 0],
-                                    qboundary=self.arr_qw_new[:, 0])
+                                    qboundary=w_boundary_flow)
+        e_boundary_flow = self.arrp_qw_new[1:-1, -1]
         e_boundary.get_boundary_flow(qin=self.arr_qw[:, -1],
                                     hflow=self.arr_hfw[:, -1],
                                     n=self.arr_n[:, -1],
@@ -285,7 +294,8 @@ class SurfaceDomain(object):
                                     depth=self.arr_h_old[:, -1],
                                     bctype=self.arr_bctype[:, -1],
                                     bcvalue=self.arr_bcval[:, -1],
-                                    qboundary=self.arrp_qw_new[1:-1, -1])
+                                    qboundary=e_boundary_flow)
+        n_boundary_flow = self.arr_qn_new[0]
         n_boundary.get_boundary_flow(qin=self.arr_qn[1],
                                     hflow=self.arr_hfn[1],
                                     n=self.arr_n[0],
@@ -293,7 +303,8 @@ class SurfaceDomain(object):
                                     depth=self.arr_h_old[0],
                                     bctype=self.arr_bctype[0],
                                     bcvalue=self.arr_bcval[0],
-                                    qboundary=self.arr_qn_new[0])
+                                    qboundary=n_boundary_flow)
+        s_boundary_flow = self.arrp_qn_new[-1, 1:-1]
         s_boundary.get_boundary_flow(qin=self.arr_qn[-1, :],
                                     hflow=self.arr_hfn[-1],
                                     n=self.arr_n[-1],
@@ -301,8 +312,14 @@ class SurfaceDomain(object):
                                     depth=self.arr_h_old[-1],
                                     bctype=self.arr_bctype[-1],
                                     bcvalue=self.arr_bcval[-1],
-                                    qboundary=self.arrp_qn_new[-1, 1:-1])
-        return self
+                                    qboundary=s_boundary_flow)
+        # calculate volume entering through boundaries
+        x_boundary_len = (w_boundary_flow.shape[0] + e_boundary_flow.shape[0]) * self.dy
+        y_boundary_len = (n_boundary_flow.shape[0] + s_boundary_flow.shape[0]) * self.dx
+        x_boundary_flow = (np.sum(w_boundary_flow) - np.sum(e_boundary_flow)) * x_boundary_len
+        y_boundary_flow = np.sum(n_boundary_flow) - np.sum(s_boundary_flow) * y_boundary_len
+        boundary_vol = (x_boundary_flow + y_boundary_flow)
+        return boundary_vol
 
     def copy_arrays_values_for_next_timestep(self):
         """Copy values from calculated arrays to input arrays
@@ -398,12 +415,13 @@ class Boundary(object):
         """
         Gauckler-Manning-Strickler flow equation
         invert the results if a downstream boundary
+        flow in m2/s
         """
         v = (1./n) * np.power(hf, 2./3.) * np.power(slope, 1./2.)
         if self.postype == 'upstream':
-            return v * hf * self.cw
+            return v * hf
         elif self.postype == 'downstream':
-            return - v * hf * self.cw
+            return - v * hf
         else:
             assert False, "Unknown postype {}".format(self.postype)
 
