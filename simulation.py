@@ -204,16 +204,17 @@ class SuperficialFlowSimulation(object):
         assert isinstance(in_rain, np.ndarray), "not a np array!"
         assert isinstance(in_inf, np.ndarray), "not a np array!"
 
+        mmh_to_ms = 1000. * 3600.
         # mass balance in m3
         cell_surf = self.gis.dx * self.gis.dy
-        rain_vol = np.sum(in_rain / 1000. / 3600.) * cell_surf * self.dt
-        inf_vol = np.sum(in_inf / 1000. / 3600.) * cell_surf * self.dt
+        rain_vol = np.sum(in_rain) / mmh_to_ms * cell_surf * self.dt
+        inf_vol = np.sum(in_inf) / mmh_to_ms * cell_surf * self.dt
         inflow_vol = np.sum(in_q) * cell_surf * self.dt
         self.massbal.add_value('rain_vol', rain_vol)
         self.massbal.add_value('inf_vol', inf_vol)
         self.massbal.add_value('inflow_vol', inflow_vol)
 
-        return in_q + (in_rain - in_inf) / 1000. / 3600.
+        return in_q + (in_rain - in_inf) / mmh_to_ms
 
     def write_results_to_gis(self, record_counter):
         """Format the name of each maps using the record number as suffix
