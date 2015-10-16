@@ -336,7 +336,7 @@ class MassBal(object):
         '''
         if not file_name:
             file_name = "{}_mass_balance.csv".format(
-                str(datetime.now().strftime('%Y-%M-%dT%H:%M:%S')))
+                str(datetime.now().strftime('%Y-%m-%dT%H:%M:%S')))
         return file_name
 
     def create_file(self):
