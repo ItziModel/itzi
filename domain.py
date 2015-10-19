@@ -256,8 +256,32 @@ class SurfaceDomain(object):
         return self
 
     def solve_q_c(self):
+        '''Solve flow inside the domain using C/Cython function
         '''
-        '''
+        # definitions of slices on non-padded arrays
+        # don't compute first row or col: solved by boundary conditions
+        s_i_self = (slice(None), self.sc)
+        s_i_up = (slice(None), slice(None, -1))
+        s_j_self = (self.sc, slice(None))
+        s_j_up = (slice(None, -1), slice(None))
+        # Those are for flow arrays only. Should be
+        # used on padded array to get value from the boundary flow
+        s_i_down = (self.ss, slice(2, -1))
+        s_j_down = (slice(2, -1), self.ss)
+
+        z_i = self.arr_z[s_i_self]
+        z_i_up = self.arr_z[s_i_up]
+        z_j = self.arr_z[s_j_self]
+        z_j_up = self.arr_z[s_j_up]
+
+        h_i = self.arr_h_old[s_i_self]
+        h_i_up = self.arr_h_old[s_i_up]
+        h_j = self.arr_h_old[s_j_self]
+        h_j_up = self.arr_h_old[s_j_up]
+
+        n_i = self.arr_n[s_i_self]
+        n_j = self.arr_n[s_j_self]
+
         flow.solve_q_loop(self.arr_z, self.arr_n, self.arr_h_old,
             self.arrp_qw, self.arrp_qn, self.arr_qw_new, self.arr_qn_new,
             self.dt, self.dx, self.dy, self.g, self.theta, self.hf_min)
