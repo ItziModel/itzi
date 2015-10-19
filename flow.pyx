@@ -66,7 +66,7 @@ def solve_q_loop(
             qy2 = arrp_qn[rq-1, cq]
             qy3 = arrp_qn[rq, cq-1]
             qy4 = arrp_qn[rq, cq]
-            qy_avg = (qy1 + qy2 + qy3 + qy4) / 4
+            qy_avg = (qy1 + qy2 + qy3 + qy4) * 0.25
             q_vect = sqrt(qy_avg*qy_avg + q0*q0)
             # calculate flow
             n = 0.5 * (arr_n[r, c] + arr_n[r, c-1])
@@ -75,7 +75,7 @@ def solve_q_loop(
             if hf <= hf_min:
                 qw_new = 0
             else:
-                term_1 = (theta * q0 + ((1 - theta) / 2) * (qup + qdown))
+                term_1 = (theta * q0 + ((1 - theta) * 0.5) * (qup + qdown))
                 term_2 = (g * hf * (dt / dx) * (wse0 - wseup))
                 term_3 = (1 + g * dt * (n*n) * q_vect / pow(hf, 7./3.))
                 qw_new = (term_1 - term_2) / term_3
@@ -106,7 +106,7 @@ def solve_q_loop(
             qx2 = arrp_qw[rq-1, cq]
             qx3 = arrp_qw[rq, cq-1]
             qx4 = arrp_qw[rq, cq]
-            qx_avg = (qx1 + qx2 + qx3 + qx4) / 4
+            qx_avg = (qx1 + qx2 + qx3 + qx4) * 0.25
             q_vect = sqrt(qx_avg*qx_avg + q0*q0)
             # calculate flow
             n = 0.5 * (arr_n[r, c] + arr_n[r-1, c])
@@ -115,7 +115,7 @@ def solve_q_loop(
             if hf <= hf_min:
                 qn_new = 0
             else:
-                term_1 = (theta * q0 + ((1 - theta) / 2) * (qup + qdown))
+                term_1 = (theta * q0 + ((1 - theta) * 0.5) * (qup + qdown))
                 term_2 = (g * hf * (dt / dy) * (wse0 - wseup))
                 term_3 = (1 + g * dt * (n*n) * q_vect / pow(hf, 7./3.))
                 qn_new = (term_1 - term_2) / term_3
