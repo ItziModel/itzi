@@ -205,64 +205,6 @@ class SurfaceDomain(object):
         return arr1 / arr2
 
     def solve_q(self):
-        '''Calculate flow across the whole domain, appart from boundaries
-        '''
-        # Commented because uses old indexing
-
-        #~ # definitions of slices on non-padded arrays
-        #~ # don't compute first row or col: solved by boundary conditions
-        #~ s_i_self = (slice(None), self.sc)
-        #~ s_i_up = (slice(None), slice(None, -1))
-        #~ s_j_self = (self.sc, slice(None))
-        #~ s_j_up = (slice(None, -1), slice(None))
-        #~ # Those are for flow arrays only. Should be
-        #~ # used on padded array to get value from the boundary flow
-        #~ s_i_down = (self.ss, slice(2, -1))
-        #~ s_j_down = (slice(2, -1), self.ss)
-#~ 
-        #~ z_i = self.arr_z[s_i_self]
-        #~ z_i_up = self.arr_z[s_i_up]
-        #~ z_j = self.arr_z[s_j_self]
-        #~ z_j_up = self.arr_z[s_j_up]
-#~ 
-        #~ wse_i = self.add_arrays(self.arr_z[s_i_self], self.arr_h_old[s_i_self])
-        #~ wse_i_up = self.add_arrays(self.arr_z[s_i_up], self.arr_h_old[s_i_up])
-        #~ wse_j = self.add_arrays(self.arr_z[s_j_self], self.arr_h_old[s_j_self])
-        #~ wse_j_up = self.add_arrays(self.arr_z[s_j_up], self.arr_h_old[s_j_up])
-#~ 
-        #~ # Solve flow depth
-        #~ self.solve_hflow(wse_i_up, wse_i, z_i_up, z_i,
-                        #~ wse_j_up, wse_j, z_j_up, z_j)
-#~ 
-        #~ hfw = self.arr_hfw[s_i_self]
-        #~ hfn = self.arr_hfn[s_j_self]
-        #~ qw = self.arr_qw[s_i_self]
-        #~ qn = self.arr_qn[s_j_self]
-
-        #~ n_i = self.arr_n[s_i_self]
-        #~ n_j = self.arr_n[s_j_self]
-        #~ # upstream flow
-
-        #~ qwm1 = self.arr_qw[s_i_up]
-        #~ qnm1 = self.arr_qn[s_j_up]
-        #~ # downstream flow on padded array
-        #~ # Uses q_new because it's where has been applyed boundary flow
-        #~ # before the present function q_new == q_old, apart boundaries
-        #~ qwp1 = self.arrp_qw_new[s_i_down]
-        #~ qnp1 = self.arrp_qn_new[s_j_down]
-#~ 
-        #~ # Almeida 2013
-        #~ self.solve_qnorm()
-        #~ qnorm_w = self.arr_qw_norm[s_i_self]
-        #~ qnorm_n = self.arr_qn_norm[s_j_self]
-        #~ get_q = np.vectorize(self.almeida2013, otypes=[self.arr_qw.dtype])
-        #~ self.arr_qw_new[s_i_self] = get_q(self.dx, self.dy, wse_i, wse_i_up,
-                                         #~ hfw, qw, qnorm_w, qwm1, qwp1, n_i)
-        #~ self.arr_qn_new[s_j_self] = get_q(self.dy, self.dx, wse_j, wse_j_up,
-                                         #~ hfn, qn, qnorm_n, qnm1, qnp1, n_j)
-        return self
-
-    def solve_q_c(self):
         '''Solve flow inside the domain using C/Cython function
         prepare the arrays slices and pass them to the Cython function
         '''
@@ -284,8 +226,6 @@ class SurfaceDomain(object):
         z_j1 = self.arr_z[s_j_1]
         assert z_i0.shape == z_i1.shape
         assert z_j0.shape == z_j1.shape
-        #~ print 'z_i0 \n', z_i0
-        #~ print 'z_i1 \n', z_i1
 
         h_i0 = self.arr_h_old[s_i_0]
         h_i1 = self.arr_h_old[s_i_1]
@@ -345,10 +285,6 @@ class SurfaceDomain(object):
             dt=self.dt, cell_len=self.dy, g=self.g,
             theta=self.theta, hf_min=self.hf_min)
 
-        # Old cython function
-        #~ flow.solve_q_loop(self.arr_z, self.arr_n, self.arr_h_old,
-            #~ self.arrp_qw, self.arrp_qn, self.arr_qw_new, self.arr_qn_new,
-            #~ self.dt, self.dx, self.dy, self.g, self.theta, self.hf_min)
         return self
 
     def apply_boundary_conditions(self):
