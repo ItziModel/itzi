@@ -138,7 +138,7 @@ class SurfaceDomain(object):
                             (arr_Q_sum / self.cell_surf) * self.dt)
         # set to zero if negative
         if np.any(self.arr_h_new < 0):
-            self.arr_h_new = np.maximum(0, self.arr_h_new)
+            self.arr_h_new[:] = np.maximum(0, self.arr_h_new)
         return self
 
     def solve_hflow(self, wse_i_up, wse_i, z_i_up, z_i,
@@ -372,6 +372,33 @@ class SurfaceDomain(object):
             pass
         return out_arrays
 
+    def routing_flow(self):
+        '''Return an array of routing flow in m3/s
+        max flow is expressed in water depth
+        it is the comparison of the WSE of two neighbouring cells
+        '''
+        s_i_self = (slice(None), self.sc)
+        s_j_self = (self.sc, slice(None))
+        s_i_up = (slice(None), slice(None, -1))
+        s_j_up = (slice(None, -1), slice(None))
+
+        z_i = self.arr_z[s_i_self]
+        z_i_up = self.arr_z[s_i_up]
+        z_j = self.arr_z[s_j_self]
+        z_j_up = self.arr_z[s_j_up]
+
+        h_i = self.arr_h_old[s_i_self]
+        h_i_up = self.arr_h_old[s_i_up]
+        h_j = self.arr_h_old[s_j_self]
+        h_j_up = self.arr_h_old[s_j_up]
+
+        max_flow_i = (z_i + h_i) - (z_i_up + h_i_up)
+        # if WSE of neighbour is below the dem of the current cell, set to zero
+        max_flow_i[:] = np.minimum(max_flow_i, h_i)
+        # don't allow reverse flow
+        max_flow_i[:] = np.maximum(max_flow_i, 0)
+
+        return arr_route_q
 
 class Boundary(object):
     """
