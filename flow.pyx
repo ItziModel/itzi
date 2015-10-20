@@ -26,7 +26,7 @@ ctypedef np.float32_t DTYPE_t
 
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn of bounds-checking for entire function
-def solve_q_loop2(
+def solve_q(
         np.ndarray[DTYPE_t, ndim=2] arr_z0, np.ndarray[DTYPE_t, ndim=2] arr_z1,
         np.ndarray[DTYPE_t, ndim=2] arr_n0, np.ndarray[DTYPE_t, ndim=2] arr_n1,
         np.ndarray[DTYPE_t, ndim=2] arr_h0, np.ndarray[DTYPE_t, ndim=2] arr_h1,

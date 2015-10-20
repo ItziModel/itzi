@@ -87,8 +87,7 @@ class SurfaceDomain(object):
         """Run a full simulation time-step
         """
         self.set_dt(next_ts)
-        #~ self.solve_q()
-        self.solve_q_c()
+        self.solve_q()
         boundary_vol = self.apply_boundary_conditions()
         massbal.add_value('boundary_vol', boundary_vol)
         self.solve_h()
@@ -263,7 +262,7 @@ class SurfaceDomain(object):
         assert n_i0.shape == h_i0.shape == h_i1.shape == q_i0.shape
         assert q_i0.shape == q_i1.shape == q_im1.shape == q_vect_i.shape
         assert q_vect_i.shape == q_i0_new.shape
-        flow.solve_q_loop2(
+        flow.solve_q(
             arr_z0=z_i0, arr_z1=z_i1,
             arr_n0=n_i0, arr_n1=n_i1,
             arr_h0=h_i0, arr_h1=h_i1,
@@ -276,7 +275,7 @@ class SurfaceDomain(object):
         assert n_j0.shape == h_j0.shape == h_j1.shape == q_j0.shape
         assert q_j0.shape == q_j1.shape == q_jm1.shape == q_vect_j.shape
         assert q_vect_j.shape == q_j0_new.shape
-        flow.solve_q_loop2(
+        flow.solve_q(
             arr_z0=z_j0, arr_z1=z_j1,
             arr_n0=n_j0, arr_n1=n_j1,
             arr_h0=h_j0, arr_h1=h_j1,
