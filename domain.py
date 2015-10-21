@@ -36,7 +36,7 @@ class SurfaceDomain(object):
                 g=9.80665,     # Standard gravity
                 theta=0.9,     # default proposed by Almeida et al.(2012)
                 hf_min=0.0001,
-                hmin=0.0,
+                slope_threshold=0.05,
                 v_routing=0.1):  # simple routing velocity m/s):
         self.sim_clock = sim_clock
         self.dtmax = dtmax
@@ -44,10 +44,12 @@ class SurfaceDomain(object):
         self.g = g
         self.theta = theta
         self.hf_min = hf_min
-        self.hmin = hmin
+        self.sl_thresh = slope_threshold
+        self.v_routing = v_routing
         self.dx = dx
         self.dy = dy
         self.cell_surf = dx * dy
+
         # Slices for upstream and downstream cells on a padded array
         self.su = slice(None, -2)
         self.sd = slice(2, None)
@@ -56,14 +58,28 @@ class SurfaceDomain(object):
         # slice to crop last row or column of non-padded array
         # to not conflict with boundary condition
         self.sc = slice(None, -1)
+        # equivalent in 2D
+        self.s_i_0 = (slice(None), self.sc)
+        self.s_j_0 = (self.sc, slice(None))
+        # 'Downstream' slice: cells to the east or south
+        self.s_i_1 = (slice(None), slice(1, None))
+        self.s_j_1 = (slice(1, None), slice(None))
 
         # Input water depth
         self.arr_h_old = arr_h
         # Set internal arrays to a provided default
         # Input arrays are set externally with set_input_arrays()
         self.arr_h_new = np.copy(arr_def)
+        # flow depth
         self.arr_hfe = np.copy(arr_def)
         self.arr_hfs = np.copy(arr_def)
+        # wse slope without boundary value
+        self.arr_wse_sle = np.copy(arr_def[self.s_i_0])
+        self.arr_wse_sls = np.copy(arr_def[self.s_j_0])
+        # terrain slope without boundary value
+        self.arr_dem_sle = np.copy(arr_def[self.s_i_0])
+        self.arr_dem_sls = np.copy(arr_def[self.s_j_0])
+        # flows in m2/s
         self.arr_qe, self.arrp_qe = self.pad_array(np.copy(arr_def))
         self.arr_qs, self.arrp_qs = self.pad_array(np.copy(arr_def))
         self.arr_qe_new, self.arrp_qe_new = self.pad_array(np.copy(arr_def))
@@ -83,15 +99,41 @@ class SurfaceDomain(object):
         arr = arr_p[1:-1,1:-1]
         return arr, arr_p
 
+    def update_dem_slope(self):
+        '''Calculate the terrain slope at cell interface over the domain
+        '''
+        dem_i0 = self.arr_z[self.s_i_0]
+        dem_i1 = self.arr_z[self.s_i_1]
+        dem_j0 = self.arr_z[self.s_j_0]
+        dem_j1 = self.arr_z[self.s_j_1]
+
+        self.arr_dem_sle[:] = (dem_i1 - dem_i0) / self.dx
+        self.arr_dem_sls[:] = (dem_j1 - dem_j0) / self.dy
+        return self
+
+    def update_surface_slope(self):
+        '''Calculate the WSE slope at cell interface over the domain
+        '''
+        wse_i0 = self.arr_z[self.s_i_0] + self.arr_h_old[self.s_i_0]
+        wse_i1 = self.arr_z[self.s_i_1] + self.arr_h_old[self.s_i_1]
+        wse_j0 = self.arr_z[self.s_j_0] + self.arr_h_old[self.s_j_0]
+        wse_j1 = self.arr_z[self.s_j_1] + self.arr_h_old[self.s_j_1]
+
+        self.arr_wse_sle[:] = (wse_i1 - wse_i0) / self.dx
+        self.arr_wse_sls[:] = (wse_j1 - wse_j0) / self.dy
+        return self
+
     def step(self, next_ts, massbal):
         """Run a full simulation time-step
         """
         self.set_dt(next_ts)
         self.solve_q()
+        self.solve_routing_flow()
         boundary_vol = self.apply_boundary_conditions()
         massbal.add_value('boundary_vol', boundary_vol)
         self.solve_h()
         massbal.add_value('old_dom_vol', self.old_domain_volume())
+        self.update_surface_slope()
         self.copy_arrays_values_for_next_timestep()
         massbal.add_value('new_dom_vol', self.old_domain_volume())
         return self
@@ -207,55 +249,48 @@ class SurfaceDomain(object):
         '''Solve flow inside the domain using C/Cython function
         prepare the arrays slices and pass them to the Cython function
         '''
-        # definitions of slices on non-padded arrays
-        # don't compute first row or col: solved by boundary conditions
-        s_i_0 = (slice(None), self.sc)
-        s_j_0 = (self.sc, slice(None))
-        # 'Downstream' slice: cells to the east or south
-        s_i_1 = (slice(None), slice(1, None))
-        s_j_1 = (slice(1, None), slice(None))
         # Those are for padded flow arrays only.
         # Used to get the flow of the first boundary
         s_i_m1 = (self.ss, slice(0, -3))
         s_j_m1 = (slice(0, -3), self.ss)
 
-        z_i0 = self.arr_z[s_i_0]
-        z_i1 = self.arr_z[s_i_1]
-        z_j0 = self.arr_z[s_j_0]
-        z_j1 = self.arr_z[s_j_1]
+        z_i0 = self.arr_z[self.s_i_0]
+        z_i1 = self.arr_z[self.s_i_1]
+        z_j0 = self.arr_z[self.s_j_0]
+        z_j1 = self.arr_z[self.s_j_1]
         assert z_i0.shape == z_i1.shape
         assert z_j0.shape == z_j1.shape
 
-        h_i0 = self.arr_h_old[s_i_0]
-        h_i1 = self.arr_h_old[s_i_1]
-        h_j0 = self.arr_h_old[s_j_0]
-        h_j1 = self.arr_h_old[s_j_1]
+        h_i0 = self.arr_h_old[self.s_i_0]
+        h_i1 = self.arr_h_old[self.s_i_1]
+        h_j0 = self.arr_h_old[self.s_j_0]
+        h_j1 = self.arr_h_old[self.s_j_1]
         assert h_i0.shape == h_i1.shape
         assert h_j0.shape == h_j1.shape
 
-        n_i0 = self.arr_n[s_i_0]
-        n_i1 = self.arr_n[s_i_1]
-        n_j0 = self.arr_n[s_j_0]
-        n_j1 = self.arr_n[s_j_1]
+        n_i0 = self.arr_n[self.s_i_0]
+        n_i1 = self.arr_n[self.s_i_1]
+        n_j0 = self.arr_n[self.s_j_0]
+        n_j1 = self.arr_n[self.s_j_1]
         assert n_i0.shape == n_i1.shape
         assert n_j0.shape == n_j1.shape
 
         # flows
         self.solve_qnorm()
-        q_vect_i = self.arr_qe_norm[s_i_0]
-        q_vect_j = self.arr_qs_norm[s_j_0]
-        q_i0 = self.arr_qe[s_i_0]
-        q_i1 = self.arr_qe[s_i_1]
-        q_j0 = self.arr_qs[s_j_0]
-        q_j1 = self.arr_qs[s_j_1]
+        q_vect_i = self.arr_qe_norm[self.s_i_0]
+        q_vect_j = self.arr_qs_norm[self.s_j_0]
+        q_i0 = self.arr_qe[self.s_i_0]
+        q_i1 = self.arr_qe[self.s_i_1]
+        q_j0 = self.arr_qs[self.s_j_0]
+        q_j1 = self.arr_qs[self.s_j_1]
         # Uses padded array to get boundary flow
         q_im1 = self.arrp_qe[s_i_m1]
         q_jm1 = self.arrp_qs[s_j_m1]
         assert q_vect_i.shape == q_i0.shape == q_i1.shape == q_im1.shape
         assert q_vect_j.shape == q_j0.shape == q_j1.shape == q_jm1.shape
 
-        q_i0_new = self.arr_qe_new[s_i_0]
-        q_j0_new = self.arr_qs_new[s_j_0]
+        q_i0_new = self.arr_qe_new[self.s_i_0]
+        q_j0_new = self.arr_qs_new[self.s_j_0]
 
         # flow in x direction
         assert z_i0.shape == z_i1.shape == n_i0.shape == n_i1.shape
@@ -371,33 +406,68 @@ class SurfaceDomain(object):
             pass
         return out_arrays
 
-    def routing_flow(self):
-        '''Return an array of routing flow in m3/s
-        max flow is expressed in water depth
-        it is the comparison of the WSE of two neighbouring cells
+    def set_routing_flow(self, h0, h1, z0, z1):
+        '''Return a routing flow in m3/s
         '''
-        s_i_self = (slice(None), self.sc)
-        s_j_self = (self.sc, slice(None))
-        s_i_up = (slice(None), slice(None, -1))
-        s_j_up = (slice(None, -1), slice(None))
-
-        z_i = self.arr_z[s_i_self]
-        z_i_up = self.arr_z[s_i_up]
-        z_j = self.arr_z[s_j_self]
-        z_j_up = self.arr_z[s_j_up]
-
-        h_i = self.arr_h_old[s_i_self]
-        h_i_up = self.arr_h_old[s_i_up]
-        h_j = self.arr_h_old[s_j_self]
-        h_j_up = self.arr_h_old[s_j_up]
-
-        max_flow_i = (z_i + h_i) - (z_i_up + h_i_up)
-        # if WSE of neighbour is below the dem of the current cell, set to zero
-        max_flow_i[:] = np.minimum(max_flow_i, h_i)
+        # fraction of the depth to be routed
+        dh = (z0 + h0) - (z1 + h1)
+        # if WSE of neighbour is below the dem of the current cell, set to h0
+        dh[:] = np.minimum(dh, h0)
         # don't allow reverse flow
-        max_flow_i[:] = np.maximum(max_flow_i, 0)
+        dh[:] = np.maximum(dh, 0.)
+        # fraction of the flow to be routed during the time-step
+        flow_fraction = self.v_routing / self.dx
+        # prevent over-drainage of the cell in case of long time-step
+        if flow_fraction * self.dt > 1:
+            flow_fraction = 1 / self.dt
+        route_q = dh * flow_fraction * self.cell_surf
+        return route_q
 
-        return arr_route_q
+    def solve_routing_flow(self):
+        '''Select the cells where the dem slope is above the threshold
+        where slope is positive, assign inverse of routing_flow() to arr_q
+        where slope is negative, assign routing_flow() to arr_q
+        '''
+        # boolean arrays where slope is above threshold
+        b_slope_sup_i = (np.fabs(self.arr_dem_sle) > self.sl_thresh)
+        b_slope_sup_j = (np.fabs(self.arr_dem_sls) > self.sl_thresh)
+        # boolean arrays where slopes are above threshold and positive
+        b_pos_i = np.logical_and(b_slope_sup_i,
+            np.logical_and(self.arr_wse_sle > 0., self.arr_wse_sle > 0.))
+        b_pos_j = np.logical_and(b_slope_sup_j,
+            np.logical_and(self.arr_wse_sls > 0., self.arr_wse_sls > 0.))
+        # boolean arrays where slopes are above threshold and negative
+        b_neg_i =np.logical_and(b_slope_sup_i,
+            np.logical_and(self.arr_wse_sle < 0., self.arr_wse_sle < 0.))
+        b_neg_j =np.logical_and(b_slope_sup_j,
+            np.logical_and(self.arr_wse_sls < 0., self.arr_wse_sls < 0.))
+
+        # values to be used for flow calculation
+        z_i0 = self.arr_z[self.s_i_0]
+        z_i1 = self.arr_z[self.s_i_1]
+        z_j0 = self.arr_z[self.s_j_0]
+        z_j1 = self.arr_z[self.s_j_1]
+        h_i0 = self.arr_h_old[self.s_i_0]
+        h_i1 = self.arr_h_old[self.s_i_1]
+        h_j0 = self.arr_h_old[self.s_j_0]
+        h_j1 = self.arr_h_old[self.s_j_1]
+
+        # assign flows for positive slopes
+        self.arr_qe_new[self.s_i_0] = np.where(b_pos_i,
+            - self.set_routing_flow(h0=h_i1, h1=h_i0, z0=z_i1, z1=z_i0),
+            self.arr_qe_new[self.s_i_0])
+        self.arr_qs_new[self.s_j_0] = np.where(b_pos_j,
+            -  self.set_routing_flow(h0=h_j1, h1=h_j0, z0=z_j1, z1=z_j0),
+            self.arr_qs_new[self.s_j_0])
+        # assign flows for negative slopes
+        self.arr_qe_new[self.s_i_0] = np.where(b_neg_i,
+            self.set_routing_flow(h0=h_i0, h1=h_i1, z0=z_i0, z1=z_i1),
+            self.arr_qe_new[self.s_i_0])
+        self.arr_qs_new[self.s_j_0] = np.where(b_neg_j,
+            self.set_routing_flow(h0=h_j0, h1=h_j1, z0=z_j0, z1=z_j1),
+                                self.arr_qs_new[self.s_j_0])
+        return self
+
 
 class Boundary(object):
     """
@@ -452,7 +522,6 @@ class Boundary(object):
         slice_over = np.where(hf > 0)
         result[slice_over] = qin[slice_over] / hf[slice_over] * hf_boundary[slice_over]
         return result
-
 
     def get_slope(self, h, z, user_wse):
         """Return the slope between two water surface elevation
