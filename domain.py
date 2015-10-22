@@ -417,7 +417,7 @@ class SurfaceDomain(object):
         # don't allow reverse flow
         dh[:] = np.maximum(dh, 0.)
         # fraction of the flow to be routed during the time-step
-        flow_fraction = self.v_routing / self.dx
+        flow_fraction = self.v_routing / self.dx  # !! should be the cell length
         # prevent over-drainage of the cell in case of long time-step
         if flow_fraction * self.dt > 1:
             flow_fraction = 1 / self.dt
@@ -434,14 +434,14 @@ class SurfaceDomain(object):
         b_slope_sup_j = (np.fabs(self.arr_dem_sls) > self.sl_thresh)
         # boolean arrays where slopes are above threshold and positive
         b_pos_i = np.logical_and(b_slope_sup_i,
-            np.logical_and(self.arr_wse_sle > 0., self.arr_wse_sle > 0.))
+            np.logical_and(self.arr_wse_sle > 0., self.arr_dem_sle > 0.))
         b_pos_j = np.logical_and(b_slope_sup_j,
-            np.logical_and(self.arr_wse_sls > 0., self.arr_wse_sls > 0.))
+            np.logical_and(self.arr_wse_sls > 0., self.arr_dem_sls > 0.))
         # boolean arrays where slopes are above threshold and negative
         b_neg_i =np.logical_and(b_slope_sup_i,
-            np.logical_and(self.arr_wse_sle < 0., self.arr_wse_sle < 0.))
+            np.logical_and(self.arr_wse_sle < 0., self.arr_dem_sle < 0.))
         b_neg_j =np.logical_and(b_slope_sup_j,
-            np.logical_and(self.arr_wse_sls < 0., self.arr_wse_sls < 0.))
+            np.logical_and(self.arr_wse_sls < 0., self.arr_dem_sls < 0.))
 
         # values to be used for flow calculation
         z_i0 = self.arr_z[self.s_i_0]
