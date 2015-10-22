@@ -372,7 +372,7 @@ class MassBal(object):
         # sum of inflow (positive) / outflow (negative) volumes
         self.line['boundary_vol'] = sum(self.sim_data['boundary_vol'])
         self.line['rain_vol'] = sum(self.sim_data['rain_vol'])
-        self.line['inf_vol'] = sum(self.sim_data['inf_vol'])
+        self.line['inf_vol'] = - sum(self.sim_data['inf_vol'])
         self.line['inflow_vol'] = sum(self.sim_data['inflow_vol'])
         # For domain volume, take last value(i.e. current)
         last_vol = self.sim_data['new_dom_vol'][-1]
@@ -381,7 +381,7 @@ class MassBal(object):
         first_vol = self.sim_data['old_dom_vol'][0]
         sum_ext_vol = sum([self.line['boundary_vol'],
                                 self.line['rain_vol'],
-                                - self.line['inf_vol'],
+                                self.line['inf_vol'],
                                 self.line['inflow_vol']])
         dom_vol_theor = first_vol + sum_ext_vol
         self.line['vol_error'] = last_vol - dom_vol_theor
