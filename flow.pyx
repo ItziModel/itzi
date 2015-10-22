@@ -67,18 +67,19 @@ def solve_q(
 
                 # calculate flow
                 n = 0.5 * (arr_n0[r, c] + arr_n1[r, c])
-                slope = (wse1 - wse0) / cell_len
-                if hf <= hf_min:
-                    q0_new = 0
-                else:
-                    term_1 = (theta * q0 + ((1 - theta) * 0.5) * (qup + qdown))
-                    term_2 = (g * hf * dt * slope)
-                    term_3 = (1 + g * dt * (n*n) * q_vect / c_pow(hf, 7./3.))
+                if hf > hf_min:
+                    slope = (wse1 - wse0) / cell_len
+                    term_1 = theta * q0 + (1 - theta) * (qup + qdown) * 0.5
+                    term_2 = g * hf * dt * slope
+                    # If flow direction is not coherent with surface slope,
+                    # use only previous flow, i.e. ~switch to Bates 2010
+                    if term_1 * term_2 > 0:
+                        term_1 = q0
+                        # q_vect is calculated, why not using it ?
+                        # q_vect = c_abs(q0)
+                    term_3 = 1 + g * dt * (n*n) * q_vect / c_pow(hf, 7./3.)
                     q0_new = (term_1 - term_2) / term_3
-                # If flow is going upstream, recalculate with Bates 2010
-                if (wse0 - wse1) * q0_new < 0:
-                    num = q0 - g * hf * dt * slope
-                    den = 1 + g * hf * dt * n*n * c_abs(q0) / c_pow(hf, 10./3.)
-                    q0_new = num / den
+                else:
+                    q0_new = 0
                 # populate the array
                 arr_q0_new[r,c] = q0_new
