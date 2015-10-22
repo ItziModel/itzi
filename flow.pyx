@@ -24,6 +24,7 @@ from libc.math cimport fabs as c_abs
 DTYPE = np.float32
 ctypedef np.float32_t DTYPE_t
 
+@cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn of bounds-checking for entire function
 def solve_q(
@@ -32,8 +33,8 @@ def solve_q(
         np.ndarray[DTYPE_t, ndim=2] arr_h0, np.ndarray[DTYPE_t, ndim=2] arr_h1,
         np.ndarray[DTYPE_t, ndim=2] arr_q0, np.ndarray[DTYPE_t, ndim=2] arr_q1,
         np.ndarray[DTYPE_t, ndim=2] arr_qm1, np.ndarray[DTYPE_t, ndim=2] arr_qnorm,
-        np.ndarray[DTYPE_t, ndim=2] arr_q0_new,
-        float dt, float cell_len, float g, float theta, float hf_min):
+        np.ndarray[DTYPE_t, ndim=2] arr_q0_new, np.ndarray[DTYPE_t, ndim=2] arr_hf,
+        float dt, float cell_len, float g, float theta, float hf_min, float sl_thresh):
     '''Solve flow equation, including hflow, using
     loop through the domain
     '''
@@ -57,6 +58,8 @@ def solve_q(
                 wse0 = z0 + h0
                 # flow depth (hf)
                 hf = max(wse1, wse0) - max(z1, z0)
+                # update hflow array
+                arr_hf[r, c] = hf
 
                 # q
                 q0 = arr_q0[r, c]
@@ -67,8 +70,8 @@ def solve_q(
 
                 # calculate flow
                 n = 0.5 * (arr_n0[r, c] + arr_n1[r, c])
-                if hf > hf_min:
-                    slope = (wse1 - wse0) / cell_len
+                slope = (wse1 - wse0) / cell_len
+                if hf > hf_min and c_abs(slope) < sl_thresh:
                     term_1 = theta * q0 + (1 - theta) * (qup + qdown) * 0.5
                     term_2 = g * hf * dt * slope
                     # If flow direction is not coherent with surface slope,
@@ -83,3 +86,60 @@ def solve_q(
                     q0_new = 0
                 # populate the array
                 arr_q0_new[r,c] = q0_new
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn of bounds-checking for entire function
+cdef float routing_flow(float h0, float h1, float z0, float z1,
+    float cell_length, float v_routing, float dt) nogil:
+    '''Return a routing flow in m2/s
+    '''
+    cdef float dh
+    # fraction of the depth to be routed
+    dh = (z0 + h0) - (z1 + h1)
+    # if WSE of neighbour is below the dem of the current cell, set to h0
+    dh = min(dh, h0)
+    # don't allow reverse flow
+    dh = max(dh, 0.)
+    # prevent over-drainage of the cell in case of long time-step
+    if v_routing * dt > cell_length:
+        v_routing = cell_length / dt
+    return dh * cell_length * v_routing
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn of bounds-checking for entire function
+def route_flow(
+        np.ndarray[DTYPE_t, ndim=2] arr_dem_sl, np.ndarray[DTYPE_t, ndim=2] arr_wse_sl,
+        np.ndarray[DTYPE_t, ndim=2] arr_h0, np.ndarray[DTYPE_t, ndim=2] arr_h1,
+        np.ndarray[DTYPE_t, ndim=2] arr_z0, np.ndarray[DTYPE_t, ndim=2] arr_z1,
+        np.ndarray[DTYPE_t, ndim=2] arr_hf, np.ndarray[DTYPE_t, ndim=2] arr_q_new,
+        float cell_len, float v_rout, float dt, float sl_thresh, float hf_min):
+    '''assign routing flow to flow array
+    '''
+    cdef float dem_sl, wse_sl, h0, h1, z0, z1, hf, rout_q
+    cdef int rmax, cmax, r, c
+
+    rmax = arr_z0.shape[0]
+    cmax = arr_z0.shape[1]
+    with nogil:
+        for r in prange(rmax):
+            for c in range(cmax):
+                dem_sl = arr_dem_sl[r, c]
+                wse_sl = arr_wse_sl[r, c]
+                h0 = arr_h0[r, c]
+                h1 = arr_h1[r, c]
+                z0 = arr_z0[r, c]
+                z1 = arr_z1[r, c]
+                hf = arr_hf[r, c]
+
+                # only where wse slope is above threshold or under min minimum depth
+                if c_abs(wse_sl) >= sl_thresh or hf <= hf_min:
+                    if dem_sl > 0 and wse_sl > 0:
+                        rout_q = - routing_flow(h1, h0, z1, z0,
+                                            cell_len, v_rout, dt)
+                        arr_q_new[r, c] = rout_q
+                    elif dem_sl < 0 and wse_sl < 0:
+                        rout_q = routing_flow(h0, h1, z0, z1,
+                                            cell_len, v_rout, dt)
+                        arr_q_new[r, c] = rout_q

@@ -35,8 +35,8 @@ class SurfaceDomain(object):
                 a=0.5,         # CFL constant
                 g=9.80665,     # Standard gravity
                 theta=0.9,     # default proposed by Almeida et al.(2012)
-                hf_min=0.0001,
-                slope_threshold=0.05,
+                hf_min=0.01,
+                slope_threshold=0.5,
                 v_routing=0.1):  # simple routing velocity m/s):
         self.sim_clock = sim_clock
         self.dtmax = dtmax
@@ -133,7 +133,7 @@ class SurfaceDomain(object):
         """
         self.set_dt(next_ts)
         self.solve_q()
-        #~ self.solve_routing_flow()
+        self.solve_routing_flow()
         boundary_vol = self.apply_boundary_conditions()
         massbal.add_value('boundary_vol', boundary_vol)
         self.solve_h()
@@ -188,7 +188,7 @@ class SurfaceDomain(object):
                             (arr_Q_sum / self.cell_surf) * self.dt)
         # set to zero if negative
         #~ if np.any(self.arr_h_new < 0):
-        self.arr_h_new[:] = np.maximum(0, self.arr_h_new)
+        self.arr_h_new[:] = np.maximum(0., self.arr_h_new)
         assert not np.any(self.arr_h_new == np.nan)
         return self
 
@@ -280,6 +280,10 @@ class SurfaceDomain(object):
         assert n_i0.shape == n_i1.shape
         assert n_j0.shape == n_j1.shape
 
+        # flow depths
+        hf_i = self.arr_hfe[self.s_i_0]
+        hf_j = self.arr_hfs[self.s_j_0]
+
         # flows
         self.solve_qnorm()
         q_vect_i = self.arr_qe_norm[self.s_i_0]
@@ -307,9 +311,9 @@ class SurfaceDomain(object):
             arr_n0=n_i0, arr_n1=n_i1,
             arr_h0=h_i0, arr_h1=h_i1,
             arr_q0=q_i0, arr_q1=q_i1, arr_qm1=q_im1,
-            arr_qnorm=q_vect_i, arr_q0_new=q_i0_new,
+            arr_qnorm=q_vect_i, arr_q0_new=q_i0_new, arr_hf=hf_i,
             dt=self.dt, cell_len=self.dx, g=self.g,
-            theta=self.theta, hf_min=self.hf_min)
+            theta=self.theta, hf_min=self.hf_min, sl_thresh=self.sl_thresh)
         # flow in y direction
         assert z_j0.shape == z_j1.shape == n_j0.shape == n_j1.shape
         assert n_j0.shape == h_j0.shape == h_j1.shape == q_j0.shape
@@ -320,9 +324,9 @@ class SurfaceDomain(object):
             arr_n0=n_j0, arr_n1=n_j1,
             arr_h0=h_j0, arr_h1=h_j1,
             arr_q0=q_j0, arr_q1=q_j1, arr_qm1=q_jm1,
-            arr_qnorm=q_vect_j, arr_q0_new=q_j0_new,
+            arr_qnorm=q_vect_j, arr_q0_new=q_j0_new, arr_hf=hf_j,
             dt=self.dt, cell_len=self.dy, g=self.g,
-            theta=self.theta, hf_min=self.hf_min)
+            theta=self.theta, hf_min=self.hf_min, sl_thresh=self.sl_thresh)
 
         return self
 
@@ -407,42 +411,9 @@ class SurfaceDomain(object):
             pass
         return out_arrays
 
-    def set_routing_flow(self, h0, h1, z0, z1):
-        '''Return a routing flow in m3/s
-        '''
-        # fraction of the depth to be routed
-        dh = (z0 + h0) - (z1 + h1)
-        # if WSE of neighbour is below the dem of the current cell, set to h0
-        dh[:] = np.minimum(dh, h0)
-        # don't allow reverse flow
-        dh[:] = np.maximum(dh, 0.)
-        # fraction of the flow to be routed during the time-step
-        flow_fraction = self.v_routing / self.dx  # !! should be the cell length
-        # prevent over-drainage of the cell in case of long time-step
-        if flow_fraction * self.dt > 1:
-            flow_fraction = 1 / self.dt
-        route_q = dh * flow_fraction * self.cell_surf
-        return route_q
-
     def solve_routing_flow(self):
-        '''Select the cells where the dem slope is above the threshold
-        where slope is positive, assign inverse of routing_flow() to arr_q
-        where slope is negative, assign routing_flow() to arr_q
+        '''Call external C function to update the flowin rain_routing conditions
         '''
-        # boolean arrays where slope is above threshold
-        b_slope_sup_i = (np.fabs(self.arr_dem_sle) > self.sl_thresh)
-        b_slope_sup_j = (np.fabs(self.arr_dem_sls) > self.sl_thresh)
-        # boolean arrays where slopes are above threshold and positive
-        b_pos_i = np.logical_and(b_slope_sup_i,
-            np.logical_and(self.arr_wse_sle > 0., self.arr_dem_sle > 0.))
-        b_pos_j = np.logical_and(b_slope_sup_j,
-            np.logical_and(self.arr_wse_sls > 0., self.arr_dem_sls > 0.))
-        # boolean arrays where slopes are above threshold and negative
-        b_neg_i =np.logical_and(b_slope_sup_i,
-            np.logical_and(self.arr_wse_sle < 0., self.arr_dem_sle < 0.))
-        b_neg_j =np.logical_and(b_slope_sup_j,
-            np.logical_and(self.arr_wse_sls < 0., self.arr_dem_sls < 0.))
-
         # values to be used for flow calculation
         z_i0 = self.arr_z[self.s_i_0]
         z_i1 = self.arr_z[self.s_i_1]
@@ -452,21 +423,26 @@ class SurfaceDomain(object):
         h_i1 = self.arr_h_old[self.s_i_1]
         h_j0 = self.arr_h_old[self.s_j_0]
         h_j1 = self.arr_h_old[self.s_j_1]
+        # flow depths
+        hf_i = self.arr_hfe[self.s_i_0]
+        hf_j = self.arr_hfs[self.s_j_0]
 
-        # assign flows for positive slopes
-        self.arr_qe_new[self.s_i_0] = np.where(b_pos_i,
-            - self.set_routing_flow(h0=h_i1, h1=h_i0, z0=z_i1, z1=z_i0),
-            self.arr_qe_new[self.s_i_0])
-        self.arr_qs_new[self.s_j_0] = np.where(b_pos_j,
-            -  self.set_routing_flow(h0=h_j1, h1=h_j0, z0=z_j1, z1=z_j0),
-            self.arr_qs_new[self.s_j_0])
-        # assign flows for negative slopes
-        self.arr_qe_new[self.s_i_0] = np.where(b_neg_i,
-            self.set_routing_flow(h0=h_i0, h1=h_i1, z0=z_i0, z1=z_i1),
-            self.arr_qe_new[self.s_i_0])
-        self.arr_qs_new[self.s_j_0] = np.where(b_neg_j,
-            self.set_routing_flow(h0=h_j0, h1=h_j1, z0=z_j0, z1=z_j1),
-                                self.arr_qs_new[self.s_j_0])
+        # routing flow in x direction
+        flow.route_flow(
+            arr_dem_sl=self.arr_dem_sle,
+            arr_wse_sl=self.arr_wse_sle,
+            arr_h0=h_i0, arr_h1=h_i1, arr_z0=z_i0, arr_z1=z_i1,
+            arr_hf=hf_i,
+            arr_q_new=self.arr_qe_new[self.s_i_0],
+            cell_len=self.dx, v_rout=self.v_routing,
+            dt=self.dt, sl_thresh=self.sl_thresh, hf_min=self.hf_min)
+        # flow in y direction
+        flow.route_flow(
+            arr_dem_sl=self.arr_dem_sls, arr_wse_sl=self.arr_wse_sls,
+            arr_h0=h_j0, arr_h1=h_j1, arr_z0=z_j0, arr_z1=z_j1,
+            arr_hf=hf_j, arr_q_new=self.arr_qs_new[self.s_j_0],
+            cell_len=self.dy, v_rout=self.v_routing,
+            dt=self.dt, sl_thresh=self.sl_thresh, hf_min=self.hf_min)
         return self
 
 
@@ -727,3 +703,68 @@ class old_code():
             term_3 = (1 + self.g * self.dt * (n*n) * abs(q0) / pow(hf, 7./3.))
             q0_new = (term_1 - term_2) / term_3
             return q0_new * width
+
+    def new_routing(self):
+        '''Select the cells where the dem slope is above the threshold
+        where slope is positive, assign inverse of routing_flow() to arr_q
+        where slope is negative, assign routing_flow() to arr_q
+        '''
+        # boolean arrays where slope is above threshold
+        b_slope_sup_i = (np.fabs(self.arr_dem_sle) > self.sl_thresh)
+        b_slope_sup_j = (np.fabs(self.arr_dem_sls) > self.sl_thresh)
+        # boolean arrays where slopes are above threshold and positive
+        b_pos_i = np.logical_and(b_slope_sup_i,
+            np.logical_and(self.arr_wse_sle > 0., self.arr_dem_sle > 0.))
+        b_pos_j = np.logical_and(b_slope_sup_j,
+            np.logical_and(self.arr_wse_sls > 0., self.arr_dem_sls > 0.))
+        # boolean arrays where slopes are above threshold and negative
+        b_neg_i =np.logical_and(b_slope_sup_i,
+            np.logical_and(self.arr_wse_sle < 0., self.arr_dem_sle < 0.))
+        b_neg_j =np.logical_and(b_slope_sup_j,
+            np.logical_and(self.arr_wse_sls < 0., self.arr_dem_sls < 0.))
+
+        # values to be used for flow calculation
+        z_i0 = self.arr_z[self.s_i_0]
+        z_i1 = self.arr_z[self.s_i_1]
+        z_j0 = self.arr_z[self.s_j_0]
+        z_j1 = self.arr_z[self.s_j_1]
+        h_i0 = self.arr_h_old[self.s_i_0]
+        h_i1 = self.arr_h_old[self.s_i_1]
+        h_j0 = self.arr_h_old[self.s_j_0]
+        h_j1 = self.arr_h_old[self.s_j_1]
+        # flow depths
+        hf_i = self.arr_hfe[self.s_i_0]
+        hf_j = self.arr_hfs[self.s_j_0]
+
+        # assign flows for positive slopes
+        self.arr_qe_new[self.s_i_0] = np.where(b_pos_i,
+            - self.set_new_routing_flow(h0=h_i1, h1=h_i0, z0=z_i1, z1=z_i0),
+            self.arr_qe_new[self.s_i_0])
+        self.arr_qs_new[self.s_j_0] = np.where(b_pos_j,
+            -  self.set_new_routing_flow(h0=h_j1, h1=h_j0, z0=z_j1, z1=z_j0),
+            self.arr_qs_new[self.s_j_0])
+        # assign flows for negative slopes
+        self.arr_qe_new[self.s_i_0] = np.where(b_neg_i,
+            self.set_new_routing_flow(h0=h_i0, h1=h_i1, z0=z_i0, z1=z_i1),
+            self.arr_qe_new[self.s_i_0])
+        self.arr_qs_new[self.s_j_0] = np.where(b_neg_j,
+            self.set_new_routing_flow(h0=h_j0, h1=h_j1, z0=z_j0, z1=z_j1),
+                                self.arr_qs_new[self.s_j_0])
+        return self
+
+    def set_new_routing_flow(self, h0, h1, z0, z1):
+        '''Return a routing flow in m3/s
+        '''
+        # fraction of the depth to be routed
+        dh = (z0 + h0) - (z1 + h1)
+        # if WSE of neighbour is below the dem of the current cell, set to h0
+        dh[:] = np.minimum(dh, h0)
+        # don't allow reverse flow
+        dh[:] = np.maximum(dh, 0.)
+        # fraction of the flow to be routed during the time-step
+        flow_fraction = self.v_routing / self.dx  # !! should be the cell length
+        # prevent over-drainage of the cell in case of long time-step
+        if flow_fraction * self.dt > 1:
+            flow_fraction = 1 / self.dt
+        route_q = dh * flow_fraction * self.cell_surf
+        return route_q
