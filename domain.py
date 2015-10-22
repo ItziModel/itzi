@@ -89,6 +89,11 @@ class SurfaceDomain(object):
         self.arr_qs_norm = (np.copy(arr_def))
         del arr_def
 
+        # Instantiate boundary objects
+        self.w_boundary = Boundary(self.dy, self.dx, boundary_pos='W')
+        self.e_boundary = Boundary(self.dy, self.dx, boundary_pos='E')
+        self.n_boundary = Boundary(self.dx, self.dy, boundary_pos='N')
+        self.s_boundary = Boundary(self.dx, self.dy, boundary_pos='S')
 
     @staticmethod
     def pad_array(arr):
@@ -128,7 +133,7 @@ class SurfaceDomain(object):
         """
         self.set_dt(next_ts)
         self.solve_q()
-        self.solve_routing_flow()
+        #~ self.solve_routing_flow()
         boundary_vol = self.apply_boundary_conditions()
         massbal.add_value('boundary_vol', boundary_vol)
         self.solve_h()
@@ -330,13 +335,9 @@ class SurfaceDomain(object):
         'hflow' and 'qin' are the next value inside the domain
         Therefore, only 'qboundary' should need a padded array.
         '''
-        w_boundary = Boundary(self.dy, self.dx, boundary_pos='W')
-        e_boundary = Boundary(self.dy, self.dx, boundary_pos='E')
-        n_boundary = Boundary(self.dx, self.dy, boundary_pos='N')
-        s_boundary = Boundary(self.dx, self.dy, boundary_pos='S')
 
         w_boundary_flow = self.arrp_qe_new[1:-1, 0]
-        w_boundary.get_boundary_flow(qin=self.arr_qe_new[:, 0],
+        self.w_boundary.get_boundary_flow(qin=self.arr_qe_new[:, 0],
                                     hflow=self.arr_hfe[:, 0],
                                     n=self.arr_n[:, 0],
                                     z=self.arr_z[:, 0],
@@ -345,7 +346,7 @@ class SurfaceDomain(object):
                                     bcvalue=self.arr_bcval[:, 0],
                                     qboundary=w_boundary_flow)
         e_boundary_flow = self.arr_qe_new[:, -1]
-        e_boundary.get_boundary_flow(qin=self.arr_qe_new[:, -2],
+        self.e_boundary.get_boundary_flow(qin=self.arr_qe_new[:, -2],
                                     hflow=self.arr_hfe[:, -2],
                                     n=self.arr_n[:, -1],
                                     z=self.arr_z[:, -1],
@@ -354,7 +355,7 @@ class SurfaceDomain(object):
                                     bcvalue=self.arr_bcval[:, -1],
                                     qboundary=e_boundary_flow)
         n_boundary_flow = self.arrp_qs_new[0, 1:-1]
-        n_boundary.get_boundary_flow(qin=self.arr_qs_new[0],
+        self.n_boundary.get_boundary_flow(qin=self.arr_qs_new[0],
                                     hflow=self.arr_hfs[0],
                                     n=self.arr_n[0],
                                     z=self.arr_z[0],
@@ -363,7 +364,7 @@ class SurfaceDomain(object):
                                     bcvalue=self.arr_bcval[0],
                                     qboundary=n_boundary_flow)
         s_boundary_flow = self.arr_qs_new[-1]
-        s_boundary.get_boundary_flow(qin=self.arr_qs_new[-2],
+        self.s_boundary.get_boundary_flow(qin=self.arr_qs_new[-2],
                                     hflow=self.arr_hfs[-2],
                                     n=self.arr_n[-1],
                                     z=self.arr_z[-1],
