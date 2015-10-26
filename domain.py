@@ -35,7 +35,7 @@ class SurfaceDomain(object):
                 a=0.5,         # CFL constant
                 g=9.80665,     # Standard gravity
                 theta=0.9,     # default proposed by Almeida et al.(2012)
-                hf_min=0.01,
+                hf_min=0.001,
                 slope_threshold=0.5,
                 v_routing=0.1):  # simple routing velocity m/s):
         self.sim_clock = sim_clock
@@ -87,6 +87,9 @@ class SurfaceDomain(object):
         # arrays of flow vector norm
         self.arr_qe_norm = (np.copy(arr_def))
         self.arr_qs_norm = (np.copy(arr_def))
+        # direction arrays
+        self.arr_dire = np.full(arr_def[self.s_i_0].shape, -1, dtype = np.int8)
+        self.arr_dirs = np.full(arr_def[self.s_j_0].shape, -1, dtype = np.int8)
         del arr_def
 
         # Instantiate boundary objects
@@ -104,28 +107,77 @@ class SurfaceDomain(object):
         arr = arr_p[1:-1,1:-1]
         return arr, arr_p
 
-    def update_dem_slope(self):
-        '''Calculate the terrain slope at cell interface over the domain
+    #~ def update_dem_slope(self):
+        #~ '''Calculate the terrain slope at cell interface over the domain
+        #~ '''
+        #~ dem_i0 = self.arr_z[self.s_i_0]
+        #~ dem_i1 = self.arr_z[self.s_i_1]
+        #~ dem_j0 = self.arr_z[self.s_j_0]
+        #~ dem_j1 = self.arr_z[self.s_j_1]
+#~ 
+        #~ self.arr_dem_sle[:] = (dem_i1 - dem_i0) / self.dx
+        #~ self.arr_dem_sls[:] = (dem_j1 - dem_j0) / self.dy
+        #~ return self
+#~ 
+    #~ def update_surface_slope(self):
+        #~ '''Calculate the WSE slope at cell interface over the domain
+        #~ '''
+        #~ wse_i0 = self.arr_z[self.s_i_0] + self.arr_h_old[self.s_i_0]
+        #~ wse_i1 = self.arr_z[self.s_i_1] + self.arr_h_old[self.s_i_1]
+        #~ wse_j0 = self.arr_z[self.s_j_0] + self.arr_h_old[self.s_j_0]
+        #~ wse_j1 = self.arr_z[self.s_j_1] + self.arr_h_old[self.s_j_1]
+#~ 
+        #~ self.arr_wse_sle[:] = (wse_i1 - wse_i0) / self.dx
+        #~ self.arr_wse_sls[:] = (wse_j1 - wse_j0) / self.dy
+        #~ return self
+
+    def update_flow_dir(self):
+        ''' Return arrays of flow directions used for rain routing
+        each cell is assigned a direction in which it will drain
+        0: the flow is going dowstream, index-wise
+        1: the flow is going upstream, index-wise
+        -1: no routing happening on that face
         '''
-        dem_i0 = self.arr_z[self.s_i_0]
-        dem_i1 = self.arr_z[self.s_i_1]
-        dem_j0 = self.arr_z[self.s_j_0]
-        dem_j1 = self.arr_z[self.s_j_1]
+        # get a padded array
+        arrp_z = self.pad_array(self.arr_z)[1]
+        # define differences in Z
+        z0 = arrp_z[1:-1, 1:-1]
+        zN = arrp_z[0:-2, 1:-1]
+        zS = arrp_z[2:, 1:-1]
+        zE = arrp_z[1:-1, 2:]
+        zW = arrp_z[1:-1, 0:-2]
+        dN = z0 - zN
+        dE = z0 - zE
+        dS = z0 - zS
+        dW = z0 - zW
 
-        self.arr_dem_sle[:] = (dem_i1 - dem_i0) / self.dx
-        self.arr_dem_sls[:] = (dem_j1 - dem_j0) / self.dy
-        return self
+        # return maximum altitude difference
+        arr_max_dz = np.maximum(np.maximum(dN, dS), np.maximum(dE, dW))
 
-    def update_surface_slope(self):
-        '''Calculate the WSE slope at cell interface over the domain
-        '''
-        wse_i0 = self.arr_z[self.s_i_0] + self.arr_h_old[self.s_i_0]
-        wse_i1 = self.arr_z[self.s_i_1] + self.arr_h_old[self.s_i_1]
-        wse_j0 = self.arr_z[self.s_j_0] + self.arr_h_old[self.s_j_0]
-        wse_j1 = self.arr_z[self.s_j_1] + self.arr_h_old[self.s_j_1]
-
-        self.arr_wse_sle[:] = (wse_i1 - wse_i0) / self.dx
-        self.arr_wse_sls[:] = (wse_j1 - wse_j0) / self.dy
+        # y direction
+        for i, max_dz in np.ndenumerate(arr_max_dz[self.s_j_0]):
+            # no routing if the neighbour is higher than the cell
+            if max_dz > 0:
+                if max_dz == dN[i]:
+                    self.arr_dirs[i] = 0
+                elif max_dz == dS[i]:
+                    self.arr_dirs[i] = 1
+                else:
+                    self.arr_dirs[i] = -1
+            else:
+                self.arr_dirs[i] = -1
+        # x direction
+        for i, max_dz in np.ndenumerate(arr_max_dz[self.s_i_0]):
+            # no routing if the neighbour is higher than the cell
+            if max_dz > 0:
+                if max_dz == dE[i]:
+                    self.arr_dire[i] = 1
+                elif max_dz == dW[i]:
+                    self.arr_dire[i] = 0
+                else:
+                    self.arr_dire[i] = -1
+            else:
+                self.arr_dire[i] = -1
         return self
 
     def step(self, next_ts, massbal):
@@ -133,12 +185,11 @@ class SurfaceDomain(object):
         """
         self.set_dt(next_ts)
         self.solve_q()
-        self.solve_routing_flow()
+        #~ self.solve_routing_flow()
         boundary_vol = self.apply_boundary_conditions()
         massbal.add_value('boundary_vol', boundary_vol)
         self.solve_h()
         massbal.add_value('old_dom_vol', self.old_domain_volume())
-        self.update_surface_slope()
         self.copy_arrays_values_for_next_timestep()
         massbal.add_value('new_dom_vol', self.old_domain_volume())
         return self
@@ -244,11 +295,11 @@ class SurfaceDomain(object):
         self.arr_qs_norm[:] = np.sqrt(np.square(arr_qe_av) + np.square(arr_qs_i_j))
         return self
 
-    def add_arrays(self, arr1, arr2):
-        return arr1 + arr2
-
-    def div_arrays(self, arr1, arr2):
-        return arr1 / arr2
+    #~ def add_arrays(self, arr1, arr2):
+        #~ return arr1 + arr2
+#~ 
+    #~ def div_arrays(self, arr1, arr2):
+        #~ return arr1 / arr2
 
     def solve_q(self):
         '''Solve flow inside the domain using C/Cython function
@@ -306,27 +357,27 @@ class SurfaceDomain(object):
         assert n_i0.shape == h_i0.shape == h_i1.shape == q_i0.shape
         assert q_i0.shape == q_i1.shape == q_im1.shape == q_vect_i.shape
         assert q_vect_i.shape == q_i0_new.shape
-        flow.solve_q(
+        flow.solve_q(arr_dir=self.arr_dire,
             arr_z0=z_i0, arr_z1=z_i1,
             arr_n0=n_i0, arr_n1=n_i1,
             arr_h0=h_i0, arr_h1=h_i1,
             arr_q0=q_i0, arr_q1=q_i1, arr_qm1=q_im1,
             arr_qnorm=q_vect_i, arr_q0_new=q_i0_new, arr_hf=hf_i,
             dt=self.dt, cell_len=self.dx, g=self.g,
-            theta=self.theta, hf_min=self.hf_min, sl_thresh=self.sl_thresh)
+            theta=self.theta, hf_min=self.hf_min, v_rout=self.v_routing)
         # flow in y direction
         assert z_j0.shape == z_j1.shape == n_j0.shape == n_j1.shape
         assert n_j0.shape == h_j0.shape == h_j1.shape == q_j0.shape
         assert q_j0.shape == q_j1.shape == q_jm1.shape == q_vect_j.shape
         assert q_vect_j.shape == q_j0_new.shape
-        flow.solve_q(
+        flow.solve_q(arr_dir=self.arr_dirs,
             arr_z0=z_j0, arr_z1=z_j1,
             arr_n0=n_j0, arr_n1=n_j1,
             arr_h0=h_j0, arr_h1=h_j1,
             arr_q0=q_j0, arr_q1=q_j1, arr_qm1=q_jm1,
             arr_qnorm=q_vect_j, arr_q0_new=q_j0_new, arr_hf=hf_j,
             dt=self.dt, cell_len=self.dy, g=self.g,
-            theta=self.theta, hf_min=self.hf_min, sl_thresh=self.sl_thresh)
+            theta=self.theta, hf_min=self.hf_min, v_rout=self.v_routing)
 
         return self
 
@@ -428,21 +479,35 @@ class SurfaceDomain(object):
         hf_j = self.arr_hfs[self.s_j_0]
 
         # routing flow in x direction
-        flow.route_flow(
-            arr_dem_sl=self.arr_dem_sle,
-            arr_wse_sl=self.arr_wse_sle,
-            arr_h0=h_i0, arr_h1=h_i1, arr_z0=z_i0, arr_z1=z_i1,
-            arr_hf=hf_i,
-            arr_q_new=self.arr_qe_new[self.s_i_0],
-            cell_len=self.dx, v_rout=self.v_routing,
-            dt=self.dt, sl_thresh=self.sl_thresh, hf_min=self.hf_min)
+        flow.route_rain(arr_dir=self.arr_dire,
+                        arr_h0=h_i0, arr_h1=h_i1,
+                        arr_z0=z_i0, arr_z1=z_i1,
+                        arr_hf=hf_i,
+                        arr_q_new=self.arr_qe_new[self.s_i_0],
+                        cell_len=self.dx, v_rout=self.v_routing,
+                        dt=self.dt, hf_min=self.hf_min)
+        #~ flow.route_flow(
+            #~ arr_dem_sl=self.arr_dem_sle,
+            #~ arr_wse_sl=self.arr_wse_sle,
+            #~ arr_h0=h_i0, arr_h1=h_i1, arr_z0=z_i0, arr_z1=z_i1,
+            #~ arr_hf=hf_i,
+            #~ arr_q_new=self.arr_qe_new[self.s_i_0],
+            #~ cell_len=self.dx, v_rout=self.v_routing,
+            #~ dt=self.dt, sl_thresh=self.sl_thresh, hf_min=self.hf_min)
         # flow in y direction
-        flow.route_flow(
-            arr_dem_sl=self.arr_dem_sls, arr_wse_sl=self.arr_wse_sls,
-            arr_h0=h_j0, arr_h1=h_j1, arr_z0=z_j0, arr_z1=z_j1,
-            arr_hf=hf_j, arr_q_new=self.arr_qs_new[self.s_j_0],
-            cell_len=self.dy, v_rout=self.v_routing,
-            dt=self.dt, sl_thresh=self.sl_thresh, hf_min=self.hf_min)
+        flow.route_rain(arr_dir=self.arr_dirs,
+                        arr_h0=h_j0, arr_h1=h_j1,
+                        arr_z0=z_j0, arr_z1=z_j1,
+                        arr_hf=hf_j,
+                        arr_q_new=self.arr_qs_new[self.s_j_0],
+                        cell_len=self.dx, v_rout=self.v_routing,
+                        dt=self.dt, hf_min=self.hf_min)
+        #~ flow.route_flow(
+            #~ arr_dem_sl=self.arr_dem_sls, arr_wse_sl=self.arr_wse_sls,
+            #~ arr_h0=h_j0, arr_h1=h_j1, arr_z0=z_j0, arr_z1=z_j1,
+            #~ arr_hf=hf_j, arr_q_new=self.arr_qs_new[self.s_j_0],
+            #~ cell_len=self.dy, v_rout=self.v_routing,
+            #~ dt=self.dt, sl_thresh=self.sl_thresh, hf_min=self.hf_min)
         return self
 
 
@@ -523,47 +588,6 @@ class Boundary(object):
 
 
 class old_code():
-
-    def flow_dir(self):
-        '''
-        Return a "slope" array representing the flow direction
-        the resulting array is used for simple routing
-        '''
-        # define differences in Z
-        Z = self.arrp_z[1:-1, 1:-1]
-        N = self.arrp_z[0:-2, 1:-1]
-        S = self.arrp_z[2:, 1:-1]
-        E = self.arrp_z[1:-1, 2:]
-        W = self.arrp_z[1:-1, 0:-2]
-        dN = Z - N
-        dE = Z - E
-        dS = Z - S
-        dW = Z - W
-
-        # return minimum neighbour
-        arr_min = np.maximum(np.maximum(dN, dS), np.maximum(dE, dW))
-
-        # create a slope array
-        self.arr_slope = np.zeros(shape = Z.shape, dtype = np.uint8)
-        # affect values to keep a non-string array
-        # (to be compatible with cython)
-        W = 1
-        E = 2
-        S = 3
-        N = 4
-
-        for c, min_hdiff in np.ndenumerate(arr_min):
-            if min_hdiff <= 0:
-                self.arr_slope[c] = 0
-            elif min_hdiff == dN[c]:
-                self.arr_slope[c] = N
-            elif min_hdiff == dS[c]:
-                self.arr_slope[c] = S
-            elif min_hdiff == dE[c]:
-                self.arr_slope[c] = E
-            elif min_hdiff == dW[c]:
-                self.arr_slope[c] = W
-        return self
 
     def simple_routing(self):
         '''calculate a flow with a given velocity in a given direction
