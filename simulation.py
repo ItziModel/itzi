@@ -184,8 +184,10 @@ class SuperficialFlowSimulation(object):
 
         sim_time = self.start_time + timedelta(seconds=rast_dom.sim_clock)
 
-        rast_dom.arr_z = self.tarrays['in_z'].get_array(sim_time)
-        rast_dom.update_dem_slope()
+        if not self.tarrays['in_z'].is_valid(sim_time):
+            rast_dom.arr_z = self.tarrays['in_z'].get_array(sim_time)
+            #~ rast_dom.update_dem_slope()
+            rast_dom.update_flow_dir()
         rast_dom.arr_n = self.tarrays['in_n'].get_array(sim_time)
         rast_dom.arr_bcval = self.tarrays['in_bcval'].get_array(sim_time)
         rast_dom.arr_bctype = self.tarrays['in_bctype'].get_array(sim_time)
