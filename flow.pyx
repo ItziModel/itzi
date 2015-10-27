@@ -35,8 +35,7 @@ def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
         np.ndarray[DTYPE_t, ndim=2] arr_qm1, np.ndarray[DTYPE_t, ndim=2] arr_qnorm,
         np.ndarray[DTYPE_t, ndim=2] arr_q0_new, np.ndarray[DTYPE_t, ndim=2] arr_hf,
         float dt, float cell_len, float g, float theta, float hf_min, float v_rout):
-    '''Solve flow equation, including hflow, using
-    loop through the domain
+    '''Calculate flow through the domain, including hflow
     '''
 
     cdef int rmax, cmax, r, c, qdir
@@ -71,21 +70,14 @@ def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
                 # flow dir
                 qdir = arr_dir[r, c]
 
-                # calculate flow
                 n = 0.5 * (arr_n0[r, c] + arr_n1[r, c])
                 slope = (wse1 - wse0) / cell_len
                 if hf <= 0:
                     q0_new = 0
                 # Almeida 2013
                 elif hf >= hf_min:
-                    term_1 = theta * q0 + (1 - theta) * (qup + qdown) * 0.5
-                    term_2 = g * hf * dt * slope
-                    term_3 = 1 + g * dt * (n*n) * q_vect / c_pow(hf, 7./3.)
-                    # If flow direction is not coherent with surface slope,
-                    # use only previous flow, i.e. ~switch to Bates 2010
-                    if term_1 * term_2 > 0:
-                        term_1 = q0
-                    q0_new = (term_1 - term_2) / term_3
+                    q0_new = almeida2013(theta, q0, qup, qdown, n,
+                                        g, hf, dt, slope, q_vect)
                 # rain routing flow going W or N, i.e negative
                 elif hf < hf_min and qdir == 0 and wse1 > wse0:
                     q0_new = - rain_routing(h1, wse1, wse0, dt, cell_len, v_rout)
@@ -117,3 +109,20 @@ cdef float rain_routing(float h0, float wse0, float wse1, float dt,
     q_routing = dh * v_routing
     q_routing = min(q_routing, maxflow)
     return q_routing
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+cdef float almeida2013(float theta, float q0, float qup, float qdown, float n,
+        float g, float hf, float dt, float slope, float q_vect) nogil:
+    '''Solve flow using q-centered scheme from Almeida and Bates (2010)
+    '''
+    cdef float term_1, term_2, term_3
+    term_1 = theta * q0 + (1 - theta) * (qup + qdown) * 0.5
+    term_2 = g * hf * dt * slope
+    term_3 = 1 + g * dt * (n*n) * q_vect / c_pow(hf, 7./3.)
+    # If flow direction is not coherent with surface slope,
+    # use only previous flow, i.e. ~switch to Bates 2010
+    if term_1 * term_2 > 0:
+        term_1 = q0
+    return (term_1 - term_2) / term_3
