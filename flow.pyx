@@ -74,26 +74,24 @@ def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
                 # calculate flow
                 n = 0.5 * (arr_n0[r, c] + arr_n1[r, c])
                 slope = (wse1 - wse0) / cell_len
-                # rain routing flow going W or N
-                if qdir == 0 and wse1 > wse0 and hf < hf_min:
-                    q0_new = - rain_routing(h1, wse1, wse0, dt,
-                                cell_len, v_rout)
-                # rain routing flow going E or S
-                elif qdir == 1 and wse0 > wse1 and hf < hf_min:
-                    q0_new = rain_routing(h0, wse0, wse1, dt,
-                                cell_len, v_rout)
+                if hf <= 0:
+                    q0_new = 0
                 # Almeida 2013
-                elif hf > hf_min:
+                elif hf >= hf_min:
                     term_1 = theta * q0 + (1 - theta) * (qup + qdown) * 0.5
                     term_2 = g * hf * dt * slope
+                    term_3 = 1 + g * dt * (n*n) * q_vect / c_pow(hf, 7./3.)
                     # If flow direction is not coherent with surface slope,
                     # use only previous flow, i.e. ~switch to Bates 2010
                     if term_1 * term_2 > 0:
                         term_1 = q0
-                        # q_vect is calculated, why not using it ?
-                        # q_vect = c_abs(q0)
-                    term_3 = 1 + g * dt * (n*n) * q_vect / c_pow(hf, 7./3.)
                     q0_new = (term_1 - term_2) / term_3
+                # rain routing flow going W or N, i.e negative
+                elif hf < hf_min and qdir == 0 and wse1 > wse0:
+                    q0_new = - rain_routing(h1, wse1, wse0, dt, cell_len, v_rout)
+                # rain routing flow going E or S, i.e positive
+                elif hf < hf_min and qdir == 1 and wse0 > wse1:
+                    q0_new = rain_routing(h0, wse0, wse1, dt, cell_len, v_rout)
                 else:
                     q0_new = 0
                 # populate the array
@@ -130,50 +128,50 @@ cdef float rain_routing(float h0, float wse0, float wse1, float dt,
     cdef float dh = wse0 - wse1
     # fraction of the depth to be routed
     dh = wse0 - wse1
-    # make sure it's positive (should not happend)
+    # make sure it's positive (should not happend, checked before)
     dh = max(dh, 0)
-    # if WSE of direction cell is below the dem of the drained cell, set to h0
+    # if WSE of destination cell is below the dem of the drained cell, set to h0
     dh = min(dh, h0)
     maxflow = cell_len * dh / dt
     q_routing = dh * v_routing
     q_routing = min(q_routing, maxflow)
     return q_routing
 
-@cython.wraparound(False)  # Disable negative index check
-@cython.cdivision(True)  # Don't check division by zero
-@cython.boundscheck(False)  # turn off bounds-checking for entire function
-def route_rain(np.ndarray[np.int8_t, ndim=2] arr_dir,
-        np.ndarray[DTYPE_t, ndim=2] arr_h0, np.ndarray[DTYPE_t, ndim=2] arr_h1,
-        np.ndarray[DTYPE_t, ndim=2] arr_z0, np.ndarray[DTYPE_t, ndim=2] arr_z1,
-        np.ndarray[DTYPE_t, ndim=2] arr_hf, np.ndarray[DTYPE_t, ndim=2] arr_q_new,
-        float cell_len, float v_rout, float dt, float hf_min):
-    '''assign routing flow to flow array
-    '''
-    cdef float h0, h1, z0, z1, wse0, wse1, hf, rout_q
-    cdef int rmax, cmax, r, c, qdir
-    rmax = arr_q_new.shape[0]
-    cmax = arr_q_new.shape[1]
-    with nogil:
-        for r in prange(rmax):
-            for c in range(cmax):
-                h0 = arr_h0[r, c]
-                h1 = arr_h1[r, c]
-                z0 = arr_z0[r, c]
-                z1 = arr_z1[r, c]
-                wse0 = h0 + z1
-                wse1 = h1 + z1
-                hf = arr_hf[r, c]
-                qdir = arr_dir[r, c]
-
-                # only where flow depth under threshold
-                if hf <= hf_min:
-                    # flow going upstream, i.e. 'left', i.e. negative value
-                    if h1 > h0 and wse1 > wse0:
-                        rout_q = - rain_routing(h1, wse1, wse0, dt,
-                                    cell_len, v_rout)
-                        arr_q_new[r, c] = rout_q
-                    # flow going downstream, i.e. 'right', i.e. positive value
-                    elif h0 > h1 and wse0 > wse1:
-                        rout_q = rain_routing(h0, wse0, wse1, dt,
-                                    cell_len, v_rout)
-                        arr_q_new[r, c] = rout_q
+#~ @cython.wraparound(False)  # Disable negative index check
+#~ @cython.cdivision(True)  # Don't check division by zero
+#~ @cython.boundscheck(False)  # turn off bounds-checking for entire function
+#~ def route_rain(np.ndarray[np.int8_t, ndim=2] arr_dir,
+#~         np.ndarray[DTYPE_t, ndim=2] arr_h0, np.ndarray[DTYPE_t, ndim=2] arr_h1,
+#~         np.ndarray[DTYPE_t, ndim=2] arr_z0, np.ndarray[DTYPE_t, ndim=2] arr_z1,
+#~         np.ndarray[DTYPE_t, ndim=2] arr_hf, np.ndarray[DTYPE_t, ndim=2] arr_q_new,
+#~         float cell_len, float v_rout, float dt, float hf_min):
+#~     '''assign routing flow to flow array
+#~     '''
+#~     cdef float h0, h1, z0, z1, wse0, wse1, hf, rout_q
+#~     cdef int rmax, cmax, r, c, qdir
+#~     rmax = arr_q_new.shape[0]
+#~     cmax = arr_q_new.shape[1]
+#~     with nogil:
+#~         for r in prange(rmax):
+#~             for c in range(cmax):
+#~                 h0 = arr_h0[r, c]
+#~                 h1 = arr_h1[r, c]
+#~                 z0 = arr_z0[r, c]
+#~                 z1 = arr_z1[r, c]
+#~                 wse0 = h0 + z1
+#~                 wse1 = h1 + z1
+#~                 hf = arr_hf[r, c]
+#~                 qdir = arr_dir[r, c]
+#~ 
+#~                 # only where flow depth under threshold
+#~                 if hf <= hf_min:
+#~                     # flow going upstream, i.e. 'left', i.e. negative value
+#~                     if h1 > h0 and wse1 > wse0:
+#~                         rout_q = - rain_routing(h1, wse1, wse0, dt,
+#~                                     cell_len, v_rout)
+#~                         arr_q_new[r, c] = rout_q
+#~                     # flow going downstream, i.e. 'right', i.e. positive value
+#~                     elif h0 > h1 and wse0 > wse1:
+#~                         rout_q = rain_routing(h0, wse0, wse1, dt,
+#~                                     cell_len, v_rout)
+#~                         arr_q_new[r, c] = rout_q
