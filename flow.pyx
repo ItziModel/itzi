@@ -97,25 +97,6 @@ def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
                 # populate the array
                 arr_q0_new[r,c] = q0_new
 
-#~ @cython.wraparound(False)  # Disable negative index check
-#~ @cython.cdivision(True)  # Don't check division by zero
-#~ @cython.boundscheck(False)  # turn of bounds-checking for entire function
-#~ cdef float routing_flow(float h0, float h1, float z0, float z1,
-#~     float cell_length, float v_routing, float dt) nogil:
-#~     '''Return a routing flow in m2/s
-#~     '''
-#~     cdef float dh
-#~     # fraction of the depth to be routed
-#~     dh = (z0 + h0) - (z1 + h1)
-#~     # if WSE of neighbour is below the dem of the current cell, set to h0
-#~     dh = min(dh, h0)
-#~     # don't allow reverse flow
-#~     dh = max(dh, 0.)
-#~     # prevent over-drainage of the cell in case of long time-step
-#~     if v_routing * dt > cell_length:
-#~         v_routing = cell_length / dt
-#~     return dh * cell_length * v_routing
-
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
@@ -136,42 +117,3 @@ cdef float rain_routing(float h0, float wse0, float wse1, float dt,
     q_routing = dh * v_routing
     q_routing = min(q_routing, maxflow)
     return q_routing
-
-#~ @cython.wraparound(False)  # Disable negative index check
-#~ @cython.cdivision(True)  # Don't check division by zero
-#~ @cython.boundscheck(False)  # turn off bounds-checking for entire function
-#~ def route_rain(np.ndarray[np.int8_t, ndim=2] arr_dir,
-#~         np.ndarray[DTYPE_t, ndim=2] arr_h0, np.ndarray[DTYPE_t, ndim=2] arr_h1,
-#~         np.ndarray[DTYPE_t, ndim=2] arr_z0, np.ndarray[DTYPE_t, ndim=2] arr_z1,
-#~         np.ndarray[DTYPE_t, ndim=2] arr_hf, np.ndarray[DTYPE_t, ndim=2] arr_q_new,
-#~         float cell_len, float v_rout, float dt, float hf_min):
-#~     '''assign routing flow to flow array
-#~     '''
-#~     cdef float h0, h1, z0, z1, wse0, wse1, hf, rout_q
-#~     cdef int rmax, cmax, r, c, qdir
-#~     rmax = arr_q_new.shape[0]
-#~     cmax = arr_q_new.shape[1]
-#~     with nogil:
-#~         for r in prange(rmax):
-#~             for c in range(cmax):
-#~                 h0 = arr_h0[r, c]
-#~                 h1 = arr_h1[r, c]
-#~                 z0 = arr_z0[r, c]
-#~                 z1 = arr_z1[r, c]
-#~                 wse0 = h0 + z1
-#~                 wse1 = h1 + z1
-#~                 hf = arr_hf[r, c]
-#~                 qdir = arr_dir[r, c]
-#~ 
-#~                 # only where flow depth under threshold
-#~                 if hf <= hf_min:
-#~                     # flow going upstream, i.e. 'left', i.e. negative value
-#~                     if h1 > h0 and wse1 > wse0:
-#~                         rout_q = - rain_routing(h1, wse1, wse0, dt,
-#~                                     cell_len, v_rout)
-#~                         arr_q_new[r, c] = rout_q
-#~                     # flow going downstream, i.e. 'right', i.e. positive value
-#~                     elif h0 > h1 and wse0 > wse1:
-#~                         rout_q = rain_routing(h0, wse0, wse1, dt,
-#~                                     cell_len, v_rout)
-#~                         arr_q_new[r, c] = rout_q
