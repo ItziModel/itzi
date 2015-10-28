@@ -34,7 +34,7 @@ def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
         np.ndarray[DTYPE_t, ndim=2] arr_q0, np.ndarray[DTYPE_t, ndim=2] arr_q1,
         np.ndarray[DTYPE_t, ndim=2] arr_qm1, np.ndarray[DTYPE_t, ndim=2] arr_qnorm,
         np.ndarray[DTYPE_t, ndim=2] arr_q0_new, np.ndarray[DTYPE_t, ndim=2] arr_hf,
-        float dt, float cell_len, float g, float theta, float hf_min, float v_rout):
+        float dt, float cell_len, float g, float theta, float hf_min, float v_rout, float sl_thres):
     '''Calculate flow through the domain, including hflow
     '''
 
@@ -71,18 +71,18 @@ def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
                 qdir = arr_dir[r, c]
 
                 n = 0.5 * (arr_n0[r, c] + arr_n1[r, c])
-                slope = (wse1 - wse0) / cell_len
+                slope = (wse0 - wse1) / cell_len
                 if hf <= 0:
                     q0_new = 0
                 # Almeida 2013
-                elif hf >= hf_min:
+                elif c_abs(slope) <= sl_thres:
                     q0_new = almeida2013(theta, q0, qup, qdown, n,
                                         g, hf, dt, slope, q_vect)
                 # rain routing flow going W or N, i.e negative
-                elif hf < hf_min and qdir == 0 and wse1 > wse0:
+                elif slope < 0 and wse1 > wse0:
                     q0_new = - rain_routing(h1, wse1, wse0, dt, cell_len, v_rout)
                 # rain routing flow going E or S, i.e positive
-                elif hf < hf_min and qdir == 1 and wse0 > wse1:
+                elif slope > 0 and wse0 > wse1:
                     q0_new = rain_routing(h0, wse0, wse1, dt, cell_len, v_rout)
                 else:
                     q0_new = 0
@@ -123,6 +123,6 @@ cdef float almeida2013(float theta, float q0, float qup, float qdown, float n,
     term_3 = 1 + g * dt * (n*n) * q_vect / c_pow(hf, 7./3.)
     # If flow direction is not coherent with surface slope,
     # use only previous flow, i.e. ~switch to Bates 2010
-    if term_1 * term_2 > 0:
+    if term_1 * term_2 < 0:
         term_1 = q0
-    return (term_1 - term_2) / term_3
+    return (term_1 + term_2) / term_3

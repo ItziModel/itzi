@@ -295,8 +295,8 @@ class SurfaceDomain(object):
             arr_h0=h_i0, arr_h1=h_i1,
             arr_q0=q_i0, arr_q1=q_i1, arr_qm1=q_im1,
             arr_qnorm=q_vect_i, arr_q0_new=q_i0_new, arr_hf=hf_i,
-            dt=self.dt, cell_len=self.dx, g=self.g,
-            theta=self.theta, hf_min=self.hf_min, v_rout=self.v_routing)
+            dt=self.dt, cell_len=self.dx, g=self.g, theta=self.theta,
+            hf_min=self.hf_min, v_rout=self.v_routing, sl_thres=self.sl_thresh)
         # flow in y direction
         assert z_j0.shape == z_j1.shape == n_j0.shape == n_j1.shape
         assert n_j0.shape == h_j0.shape == h_j1.shape == q_j0.shape
@@ -308,9 +308,8 @@ class SurfaceDomain(object):
             arr_h0=h_j0, arr_h1=h_j1,
             arr_q0=q_j0, arr_q1=q_j1, arr_qm1=q_jm1,
             arr_qnorm=q_vect_j, arr_q0_new=q_j0_new, arr_hf=hf_j,
-            dt=self.dt, cell_len=self.dy, g=self.g,
-            theta=self.theta, hf_min=self.hf_min, v_rout=self.v_routing)
-
+            dt=self.dt, cell_len=self.dy, g=self.g, theta=self.theta,
+            hf_min=self.hf_min, v_rout=self.v_routing, sl_thres=self.sl_thresh)
         return self
 
     def apply_boundary_conditions(self):
