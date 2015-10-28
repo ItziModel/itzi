@@ -17,6 +17,7 @@ from __future__ import division
 import math
 import numpy as np
 import flow
+import time
 
 class SurfaceDomain(object):
     """Represents a staggered grid where flow is simulated
@@ -149,6 +150,7 @@ class SurfaceDomain(object):
     def step(self, next_ts, massbal):
         """Run a full simulation time-step
         """
+        start_clock = time.clock()
         self.set_dt(next_ts)
         self.solve_q()
         boundary_vol = self.apply_boundary_conditions()
@@ -157,6 +159,8 @@ class SurfaceDomain(object):
         self.update_h()
         massbal.add_value('new_dom_vol', self.domain_volume())
         self.copy_arrays_values_for_next_timestep()
+        end_clock = time.clock()
+        massbal.add_value('step_duration', end_clock - start_clock)
         return self
 
     def set_dt(self, next_ts):

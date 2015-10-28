@@ -61,7 +61,7 @@ class Igis(object):
         self.msgr = Messenger(raise_on_error=True)
         region = Region()
         self.xr = region.cols
-        self.ry = region.rows
+        self.yr = region.rows
         self.dx = region.ewres
         self.dy = region.nsres
         self.overwrite = grass.overwrite()

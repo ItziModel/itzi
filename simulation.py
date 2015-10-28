@@ -15,6 +15,7 @@ GNU General Public License for more details.
 """
 from __future__ import division
 import csv
+import warnings
 import numpy as np
 from datetime import datetime, timedelta
 import domain
@@ -65,7 +66,8 @@ class SuperficialFlowSimulation(object):
         # a dict containing lists of maps written to gis to be registered
         self.output_maplist = {k:[] for k in self.out_map_names.keys()}
         # Instantiate Massbal object
-        self.massbal = MassBal()
+        dom_size = self.gis.yr * self.gis.xr
+        self.massbal = MassBal(dom_size=dom_size)
 
     def set_duration(self, end_time, sim_duration):
         """If sim_duration is given, end_time is ignored
@@ -159,14 +161,14 @@ class SuperficialFlowSimulation(object):
         dtype is set to object's dtype.
         Intended to be used as default for most of the input model maps
         """
-        return np.zeros(shape=(self.gis.ry, self.gis.xr), dtype=self.dtype)
+        return np.zeros(shape=(self.gis.yr, self.gis.xr), dtype=self.dtype)
 
     def ones_array(self):
         """return a np array of the domain dimension, filled with ones
         dtype is set to unsigned integer.
         Intended to be used as default for bctype map
         """
-        return np.ones(shape=(self.gis.ry, self.gis.xr), dtype=np.uint8)
+        return np.ones(shape=(self.gis.yr, self.gis.xr), dtype=np.uint8)
 
     def next_timestep(self, next_record):
         """Given a next record time in seconds as entry,
@@ -317,19 +319,20 @@ class MassBal(object):
     at each record time, using write_values():
     averaged or cumulated values for the considered time difference are written to a CSV file
     """
-    def __init__(self, file_name=''):
-        self.name = file_name
+    def __init__(self, file_name='', dom_size=0):
+        self.dom_size = dom_size
         # values to be written on each record time
         self.fields = ['sim_time',  # either seconds or datetime
-                'avg_timestep', 'min_timestep', '#timesteps',
+                'avg_timestep', '#timesteps',
                 'boundary_vol', 'rain_vol', 'inf_vol', 'inflow_vol',
-                'domain_vol', 'vol_error']
+                'domain_vol', 'vol_error', '%error',
+                'comp_duration', 'avg_cell_per_sec']
         # data written to file as one line
         self.line = dict.fromkeys(self.fields)
         # data collected during simulation
         self.sim_data = {'tstep': [], 'boundary_vol': [],
-                        'rain_vol': [], 'inf_vol': [], 'inflow_vol': [],
-                        'old_dom_vol': [], 'new_dom_vol': []}
+            'rain_vol': [], 'inf_vol': [], 'inflow_vol': [],
+            'old_dom_vol': [], 'new_dom_vol': [], 'step_duration': []}
         # set file name and create file
         self.file_name = self.set_file_name(file_name)
         self.create_file()
@@ -338,7 +341,7 @@ class MassBal(object):
         '''Generate output file name
         '''
         if not file_name:
-            file_name = "{}_mass_balance.csv".format(
+            file_name = "{}_stats.csv".format(
                 str(datetime.now().strftime('%Y-%m-%dT%H:%M:%S')))
         return file_name
 
@@ -358,7 +361,7 @@ class MassBal(object):
         return self
 
     def write_values(self, sim_time):
-        '''prepare data line and write it to file
+        '''Calculate statistics and write them to the file
         '''
         # check if all elements have the same number of records
         rec_len = [len(l) for l in self.sim_data.values()]
@@ -367,27 +370,41 @@ class MassBal(object):
         self.line['sim_time'] = sim_time
         # number of time-step during the interval is the number of records
         self.line['#timesteps'] = len(self.sim_data['tstep'])
-        self.line['min_timestep'] = min(self.sim_data['tstep'])
         # average time-step calculation
         elapsed_time = sum(self.sim_data['tstep'])
-        self.line['avg_timestep'] = elapsed_time / self.line['#timesteps']
+        avg_timestep = elapsed_time / self.line['#timesteps']
+        self.line['avg_timestep'] = '{:.3f}'.format(avg_timestep)
+
         # sum of inflow (positive) / outflow (negative) volumes
-        self.line['boundary_vol'] = sum(self.sim_data['boundary_vol'])
-        self.line['rain_vol'] = sum(self.sim_data['rain_vol'])
-        self.line['inf_vol'] = - sum(self.sim_data['inf_vol'])
-        self.line['inflow_vol'] = sum(self.sim_data['inflow_vol'])
+        boundary_vol = sum(self.sim_data['boundary_vol'])
+        self.line['boundary_vol'] = '{:.3f}'.format(boundary_vol)
+        rain_vol = sum(self.sim_data['rain_vol'])
+        self.line['rain_vol'] = '{:.3f}'.format(rain_vol)
+        inf_vol = - sum(self.sim_data['inf_vol'])
+        self.line['inf_vol'] = '{:.3f}'.format(inf_vol)
+        inflow_vol = sum(self.sim_data['inflow_vol'])
+        self.line['inflow_vol'] = '{:.3f}'.format(inflow_vol)
+
         # For domain volume, take last value(i.e. current)
         last_vol = self.sim_data['new_dom_vol'][-1]
-        self.line['domain_vol'] = last_vol
+        self.line['domain_vol'] = '{:.3f}'.format(last_vol)
+
         # mass error is the diff. between the theor. vol and the actual vol
         first_vol = self.sim_data['old_dom_vol'][0]
-        sum_ext_vol = sum([self.line['boundary_vol'],
-                                self.line['rain_vol'],
-                                self.line['inf_vol'],
-                                self.line['inflow_vol']])
+        sum_ext_vol = sum([boundary_vol, rain_vol, inf_vol, inflow_vol])
         dom_vol_theor = first_vol + sum_ext_vol
-        self.line['vol_error'] = last_vol - dom_vol_theor
+        vol_error = last_vol - dom_vol_theor
+        self.line['vol_error'] = '{:.3f}'.format(vol_error)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.line['%error'] = '{:.2%}'.format(vol_error / last_vol)
 
+        # Performance
+        comp_duration = sum(self.sim_data['step_duration'])
+        self.line['comp_duration'] = '{:.3f}'.format(comp_duration)
+        # Average step computation time
+        avg_comp_time = comp_duration / rec_len[0]
+        self.line['avg_cell_per_sec'] = int(self.dom_size / avg_comp_time)
         # Add line to file
         with open(self.file_name, 'a') as f:
             writer = csv.DictWriter(f, fieldnames=self.fields)
