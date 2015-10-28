@@ -201,8 +201,6 @@ class Igis(object):
         """
         with raster.RasterRow(rast_name, mode='r') as rast:
             array = np.array(rast, dtype=self.dtype)
-        if np.any(np.isnan(array)):
-            self.msgr.fatal(_("NULL values found in map {}!".format(rast_name)))
         return array
 
     def write_raster_map(self, arr, rast_name, map_time, temporal_type):

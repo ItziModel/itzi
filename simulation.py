@@ -95,8 +95,7 @@ class SuperficialFlowSimulation(object):
         return self
 
     def create_timed_arrays(self):
-        """Create a set of TimedArray objects
-        Store the created objects in the tarrays dict
+        """Create TimedArray objects and store them in the tarrays dict
         """
         self.tarrays['in_z'] = TimedArray('in_z', self.gis, self.zeros_array)
         self.tarrays['in_n'] = TimedArray('in_n', self.gis, self.zeros_array)
@@ -157,7 +156,7 @@ class SuperficialFlowSimulation(object):
         return self
 
     def zeros_array(self):
-        """return a np array of the domain dimension, filled with ones
+        """return a np array of the domain dimension, filled with zeros
         dtype is set to object's dtype.
         Intended to be used as default for most of the input model maps
         """
@@ -176,28 +175,58 @@ class SuperficialFlowSimulation(object):
         """
         return min(next_record, self.duration.total_seconds())
 
+    def update_mask(self, arr_z):
+        '''Create a mask array marking NULL values.
+        '''
+        self.mask = np.isnan(arr_z)
+        return self
+
+    def mask_array(self, arr, default_value):
+        '''Replace NULL values in the input array by the default_value
+        '''
+        arr[self.mask] = default_value
+        return arr
+
+    def unmask_array(self, arr):
+        '''Replace values in the input array by NULL values from mask
+        '''
+        arr[self.mask] = np.nan
+        return arr
+
     def update_domain_arrays(self, rast_dom):
         """Takes a SurfaceDomain object as input
-        set the input arrays of the given object using TimedArray
-        auto-update capacity
+        get new array of the given object using TimedArray
+        Replace the NULL values
+        set new domain arrays
         """
         assert isinstance(rast_dom, domain.SurfaceDomain), \
             "rast_dom not the expected object!"
 
         sim_time = self.start_time + timedelta(seconds=rast_dom.sim_clock)
-
+        # DEM
         if not self.tarrays['in_z'].is_valid(sim_time):
-            rast_dom.arr_z = self.tarrays['in_z'].get_array(sim_time)
-            #~ rast_dom.update_dem_slope()
+            arr_z = self.tarrays['in_z'].get_array(sim_time)
+            self.update_mask(arr_z)
+            arr_z = self.mask_array(arr_z, np.finfo(self.dtype).max)
+            rast_dom.arr_z = arr_z
             rast_dom.update_flow_dir()
+        # Friction
         rast_dom.arr_n = self.tarrays['in_n'].get_array(sim_time)
-        rast_dom.arr_bcval = self.tarrays['in_bcval'].get_array(sim_time)
-        rast_dom.arr_bctype = self.tarrays['in_bctype'].get_array(sim_time)
-        # Combine three arrays for the ext array
-        rast_dom.arr_ext = self.set_ext_array(
+        # Boundary conditions values
+        arr_bcval = self.tarrays['in_bcval'].get_array(sim_time)
+        arr_bcval = self.mask_array(arr_bcval, 0)
+        rast_dom.arr_bcval = arr_bcval
+        # Boundary conditions types. Replace NULL by 1 (closed boundary)
+        arr_bctype = self.tarrays['in_bctype'].get_array(sim_time)
+        arr_bctype = self.mask_array(arr_bctype, 1)
+        rast_dom.arr_bctype = arr_bctype
+        # External values array
+        arr_ext = self.set_ext_array(
             in_q=self.tarrays['in_q'].get_array(sim_time),
             in_rain=self.tarrays['in_rain'].get_array(sim_time),
             in_inf=self.tarrays['in_inf'].get_array(sim_time))
+        arr_ext = self.mask_array(arr_ext, 0)
+        rast_dom.arr_ext = arr_ext
         return self
 
     def set_ext_array(self, in_q, in_rain, in_inf):
@@ -225,12 +254,13 @@ class SuperficialFlowSimulation(object):
         """Format the name of each maps using the record number as suffix
         Send a couple array, name to the GIS writing function.
         """
-        for k,arr in self.output_arrays.iteritems():
+        for k, arr in self.output_arrays.iteritems():
             if arr != None:
                 assert isinstance(arr, np.ndarray), "arr not a np array!"
                 suffix = str(record_counter).zfill(6)
                 map_name = "{}_{}".format(self.out_map_names[k], suffix)
-                self.gis.write_raster_map(arr, map_name,
+                arr_unmasked = self.unmask_array(arr)
+                self.gis.write_raster_map(arr_unmasked, map_name,
                                     self.sim_time, self.temporal_type)
                 # add map name to the revelant list
                 self.output_maplist[k].append(map_name)
@@ -294,7 +324,7 @@ class TimedArray(object):
         """
         # Retrieve values
         arr, arr_start, arr_end = self.igis.get_array(self.mkey, sim_time)
-        # set to default if necessary
+        # set to default if no array retrieved
         if arr == None:
             arr = self.f_arr_def()
         # check retrieved values
