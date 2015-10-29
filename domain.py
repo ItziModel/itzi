@@ -117,34 +117,12 @@ class SurfaceDomain(object):
         dE = z0 - zE
         dS = z0 - zS
         dW = z0 - zW
-
-        # return maximum altitude difference
+        # maximum altitude difference
         arr_max_dz = np.maximum(np.maximum(dN, dS), np.maximum(dE, dW))
-
         # y direction
-        for i, max_dz in np.ndenumerate(arr_max_dz[self.s_j_0]):
-            # no routing if the neighbour is higher than the cell
-            if max_dz > 0:
-                if max_dz == dN[i]:
-                    self.arr_dirs[i] = 0
-                elif max_dz == dS[i]:
-                    self.arr_dirs[i] = 1
-                else:
-                    self.arr_dirs[i] = -1
-            else:
-                self.arr_dirs[i] = -1
+        flow.flow_dir(arr_max_dz[self.s_j_0], dN, dS, self.arr_dirs)
         # x direction
-        for i, max_dz in np.ndenumerate(arr_max_dz[self.s_i_0]):
-            # no routing if the neighbour is higher than the cell
-            if max_dz > 0:
-                if max_dz == dE[i]:
-                    self.arr_dire[i] = 1
-                elif max_dz == dW[i]:
-                    self.arr_dire[i] = 0
-                else:
-                    self.arr_dire[i] = -1
-            else:
-                self.arr_dire[i] = -1
+        flow.flow_dir(arr_max_dz[self.s_i_0], dW, dE, self.arr_dire)
         return self
 
     def step(self, next_ts, massbal):

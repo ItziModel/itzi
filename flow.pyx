@@ -25,6 +25,41 @@ DTYPE = np.float32
 ctypedef np.float32_t DTYPE_t
 
 @cython.wraparound(False)  # Disable negative index check
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+def flow_dir(np.ndarray[DTYPE_t, ndim=2] arr_max_dz,
+            np.ndarray[DTYPE_t, ndim=2] arr_dz0,
+            np.ndarray[DTYPE_t, ndim=2] arr_dz1,
+            np.ndarray[np.int8_t, ndim=2] arr_dir):
+    '''Populate arr_dir with a rain-routing direction:
+    0: the flow is going dowstream, index-wise
+    1: the flow is going upstream, index-wise
+    -1: no routing happening on that face
+    '''
+    cdef int rmax, cmax, r, c, qdir
+    cdef float max_dz, dz0, dz1
+    rmax = arr_max_dz.shape[0]
+    cmax = arr_max_dz.shape[1]
+    with nogil:
+        for r in prange(rmax):
+            for c in range(cmax):
+                max_dz = arr_max_dz[r, c]
+                dz0 = arr_dz0[r, c]
+                dz1 = arr_dz1[r, c]
+                qdir = arr_dir[r, c]
+                if max_dz > 0:
+                    if max_dz == dz0:
+                        qdir = 0
+                    elif max_dz == dz1:
+                        qdir = 1
+                    else:
+                        qdir = -1
+                else:
+                    qdir = -1
+                # update results array
+                arr_dir[r, c] = qdir
+
+
+@cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
 def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
@@ -78,16 +113,14 @@ def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
                 elif hf > hf_min:
                     q0_new = almeida2013(theta, q0, qup, qdown, n,
                                         g, hf, dt, slope, q_vect)
-                # rain routing
-                elif hf <= hf_min:
-                    # flow going W or N, i.e negative
-                    if qdir == 0 and wse1 > wse0:
-                        q0_new = - rain_routing(h1, wse1, wse0,
-                                                dt, cell_len, v_rout)
-                    # flow going E or S, i.e positive
-                    elif qdir == 1 and wse0 > wse1:
-                        q0_new = rain_routing(h0, wse0, wse1,
-                                                dt, cell_len, v_rout)
+                # flow going W or N, i.e negative
+                elif hf <= hf_min and qdir == 0 and wse1 > wse0:
+                    q0_new = - rain_routing(h1, wse1, wse0,
+                                            dt, cell_len, v_rout)
+                # flow going E or S, i.e positive
+                elif hf <= hf_min and  qdir == 1 and wse0 > wse1:
+                    q0_new = rain_routing(h0, wse0, wse1,
+                                            dt, cell_len, v_rout)
                 else:
                     q0_new = 0
                 # populate the array
