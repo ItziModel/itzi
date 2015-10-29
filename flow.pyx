@@ -75,15 +75,19 @@ def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
                 if hf <= 0:
                     q0_new = 0
                 # Almeida 2013
-                elif c_abs(slope) <= sl_thres:
+                elif hf > hf_min:
                     q0_new = almeida2013(theta, q0, qup, qdown, n,
                                         g, hf, dt, slope, q_vect)
-                # rain routing flow going W or N, i.e negative
-                elif slope < 0 and wse1 > wse0:
-                    q0_new = - rain_routing(h1, wse1, wse0, dt, cell_len, v_rout)
-                # rain routing flow going E or S, i.e positive
-                elif slope > 0 and wse0 > wse1:
-                    q0_new = rain_routing(h0, wse0, wse1, dt, cell_len, v_rout)
+                # rain routing
+                elif hf <= hf_min:
+                    # flow going W or N, i.e negative
+                    if qdir == 0 and wse1 > wse0:
+                        q0_new = - rain_routing(h1, wse1, wse0,
+                                                dt, cell_len, v_rout)
+                    # flow going E or S, i.e positive
+                    elif qdir == 1 and wse0 > wse1:
+                        q0_new = rain_routing(h0, wse0, wse1,
+                                                dt, cell_len, v_rout)
                 else:
                     q0_new = 0
                 # populate the array
