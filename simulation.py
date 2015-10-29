@@ -52,6 +52,7 @@ class SuperficialFlowSimulation(object):
         self.set_temporal_type()
         self.in_map_names = input_maps
         self.out_map_names = output_maps
+
         self.dtype=dtype
         # instantiate a Igis object
         self.gis = gis.Igis(start_time=self.start_time,
@@ -68,6 +69,9 @@ class SuperficialFlowSimulation(object):
         # Instantiate Massbal object
         dom_size = self.gis.yr * self.gis.xr
         self.massbal = MassBal(dom_size=dom_size)
+        # mask array
+        self.mask = np.full(shape=(self.gis.yr, self.gis.xr),
+                fill_value=False, dtype=np.bool_)
 
     def set_duration(self, end_time, sim_duration):
         """If sim_duration is given, end_time is ignored
@@ -113,10 +117,13 @@ class SuperficialFlowSimulation(object):
         including recording of data and mass_balance calculation
         """
         # Instantiate SurfaceDomain object
+        start_h_masked = self.mask_array(
+            self.tarrays['in_h'].get_array(self.start_time), 0)
+        assert not np.any(np.isnan(start_h_masked))
         rast_dom = domain.SurfaceDomain(
                 dx=self.gis.dx,
                 dy=self.gis.dy,
-                arr_h=self.tarrays['in_h'].get_array(self.start_time),
+                arr_h=start_h_masked,
                 arr_def=self.zeros_array())
         record_counter = 1
         duration_s = self.duration.total_seconds()
@@ -128,7 +135,12 @@ class SuperficialFlowSimulation(object):
             self.update_domain_arrays(rast_dom)
             # time-stepping
             next_record = record_counter*self.record_step.total_seconds()
-            rast_dom.step(self.next_timestep(next_record), self.massbal)
+            try:
+                rast_dom.step(self.next_timestep(next_record), self.massbal)
+            except ValueError:
+                self.write_error_to_gis(rast_dom.arr_h, rast_dom.arr_err)
+                self.gis.msgr.warning(_("Error in simulation at time {}, terminating").format(self.sim_time))
+                break
             # update simulation time and dt
             self.sim_time = self.start_time + timedelta(seconds=rast_dom.sim_clock)
             self.dt = rast_dom.dt
@@ -178,7 +190,7 @@ class SuperficialFlowSimulation(object):
     def update_mask(self, arr_z):
         '''Create a mask array marking NULL values.
         '''
-        self.mask = np.isnan(arr_z)
+        self.mask[:] = np.isnan(arr_z)
         return self
 
     def mask_array(self, arr, default_value):
@@ -191,8 +203,9 @@ class SuperficialFlowSimulation(object):
     def unmask_array(self, arr):
         '''Replace values in the input array by NULL values from mask
         '''
-        arr[self.mask] = np.nan
-        return arr
+        unmasked_array = np.copy(arr)
+        unmasked_array[self.mask] = np.nan
+        return unmasked_array
 
     def update_domain_arrays(self, rast_dom):
         """Takes a SurfaceDomain object as input
@@ -208,25 +221,32 @@ class SuperficialFlowSimulation(object):
         if not self.tarrays['in_z'].is_valid(sim_time):
             arr_z = self.tarrays['in_z'].get_array(sim_time)
             self.update_mask(arr_z)
-            arr_z = self.mask_array(arr_z, np.finfo(self.dtype).max)
+            arr_z[:] = self.mask_array(arr_z, np.finfo(self.dtype).max)
+            assert not np.any(np.isnan(arr_z))
             rast_dom.arr_z = arr_z
             rast_dom.update_flow_dir()
         # Friction
-        rast_dom.arr_n = self.tarrays['in_n'].get_array(sim_time)
+        arr_n = self.tarrays['in_n'].get_array(sim_time)
+        arr_n[:] = self.mask_array(arr_n, 1)
+        assert not np.any(np.isnan(arr_n))
+        rast_dom.arr_n = arr_n
         # Boundary conditions values
         arr_bcval = self.tarrays['in_bcval'].get_array(sim_time)
-        arr_bcval = self.mask_array(arr_bcval, 0)
+        arr_bcval[:] = self.mask_array(arr_bcval, 0)
+        assert not np.any(np.isnan(arr_bcval))
         rast_dom.arr_bcval = arr_bcval
         # Boundary conditions types. Replace NULL by 1 (closed boundary)
         arr_bctype = self.tarrays['in_bctype'].get_array(sim_time)
-        arr_bctype = self.mask_array(arr_bctype, 1)
+        arr_bctype[:] = self.mask_array(arr_bctype, 1)
+        assert not np.any(np.isnan(arr_bctype))
         rast_dom.arr_bctype = arr_bctype
         # External values array
         arr_ext = self.set_ext_array(
             in_q=self.tarrays['in_q'].get_array(sim_time),
             in_rain=self.tarrays['in_rain'].get_array(sim_time),
             in_inf=self.tarrays['in_inf'].get_array(sim_time))
-        arr_ext = self.mask_array(arr_ext, 0)
+        arr_ext[:] = self.mask_array(arr_ext, 0)
+        assert not np.any(np.isnan(arr_ext))
         rast_dom.arr_ext = arr_ext
         return self
 
@@ -242,9 +262,9 @@ class SuperficialFlowSimulation(object):
         mmh_to_ms = 1000. * 3600.
         # mass balance in m3
         cell_surf = self.gis.dx * self.gis.dy
-        rain_vol = np.sum(in_rain) / mmh_to_ms * cell_surf * self.dt
-        inf_vol = np.sum(in_inf) / mmh_to_ms * cell_surf * self.dt
-        inflow_vol = np.sum(in_q) * cell_surf * self.dt
+        rain_vol = np.nansum(in_rain[np.logical_not(self.mask)]) / mmh_to_ms * cell_surf * self.dt
+        inf_vol = np.nansum(in_inf[np.logical_not(self.mask)]) / mmh_to_ms * cell_surf * self.dt
+        inflow_vol = np.nansum(in_q[np.logical_not(self.mask)]) * cell_surf * self.dt
         self.massbal.add_value('rain_vol', rain_vol)
         self.massbal.add_value('inf_vol', inf_vol)
         self.massbal.add_value('inflow_vol', inflow_vol)
@@ -265,6 +285,18 @@ class SuperficialFlowSimulation(object):
                                     self.sim_time, self.temporal_type)
                 # add map name to the revelant list
                 self.output_maplist[k].append(map_name)
+        return self
+
+    def write_error_to_gis(self, arr_h, arr_error):
+        '''Write a given depth array and boolean error array to the GIS
+        '''
+        #~ arr_h_unmasked = self.unmask_array(arr_h)
+        #~ arr_err_unmasked = self.unmask_array(arr_error)
+        map_h_name = "{}_error".format(self.out_map_names['out_h'])
+        self.gis.write_raster_map(arr_h, map_h_name,
+                                    self.sim_time, self.temporal_type)
+        # add map name to the revelant list
+        self.output_maplist['out_h'].append(map_h_name)
         return self
 
     def register_results_in_gis(self):

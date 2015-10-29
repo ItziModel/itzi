@@ -33,7 +33,7 @@ class SurfaceDomain(object):
                 a=0.5,         # CFL constant
                 g=9.80665,     # Standard gravity
                 theta=0.9,     # default proposed by Almeida et al.(2012)
-                hf_min=0.001,
+                hf_min=0.005,
                 slope_threshold=0.5,
                 v_routing=0.1):  # simple routing velocity m/s):
         self.sim_clock = sim_clock
@@ -157,6 +157,9 @@ class SurfaceDomain(object):
         massbal.add_value('boundary_vol', boundary_vol)
         massbal.add_value('old_dom_vol', self.domain_volume())
         self.update_h()
+        self.arr_err = np.isnan(self.arr_h)
+        if np.any(self.arr_err):
+            raise ValueError
         massbal.add_value('new_dom_vol', self.domain_volume())
         self.copy_arrays_values_for_next_timestep()
         end_clock = time.clock()
@@ -188,7 +191,7 @@ class SurfaceDomain(object):
     def domain_volume(self):
         '''return domain volume
         '''
-        return np.sum(self.arr_h) * self.cell_surf
+        return np.nansum(self.arr_h) * self.cell_surf
 
     def update_h(self):
         """Calculate new water depth
@@ -207,9 +210,7 @@ class SurfaceDomain(object):
                             self.arr_ext * self.dt +
                             (arr_Q_sum / self.cell_surf) * self.dt)
         # set to zero if negative
-        #~ if np.any(self.arr_h < 0):
         self.arr_h[:] = np.maximum(0., self.arr_h)
-        assert not np.any(self.arr_h == np.nan)
         return self
 
     def solve_qnorm(self):
@@ -222,6 +223,7 @@ class SurfaceDomain(object):
         arr_qs_i_ju = self.arrp_qs[self.su, self.ss]
         arr_qs_id_j = self.arrp_qs[self.ss, self.sd]
         arr_qs_id_ju = self.arrp_qs[self.su, self.sd]
+
         # values in the X dim, used to calculate an average of X flows
         arr_qe_i_j = self.arr_qe
         arr_qe_iu_j = self.arrp_qe[self.ss, self.su]
@@ -231,6 +233,8 @@ class SurfaceDomain(object):
         # average values of flows in relevant dimension
         arr_qs_av = (arr_qs_i_j + arr_qs_i_ju + arr_qs_id_j + arr_qs_id_ju) * .25
         arr_qe_av = (arr_qe_i_j + arr_qe_iu_j + arr_qe_i_jd + arr_qe_iu_jd) * .25
+        assert not np.any(np.isnan(arr_qs_av))
+        assert not np.any(np.isnan(arr_qe_av))
 
         # norm for one dim. uses the average of flows in the other dim.
         self.arr_qe_norm[:] = np.sqrt(np.square(arr_qs_av) + np.square(arr_qe_i_j))
@@ -365,8 +369,8 @@ class SurfaceDomain(object):
         # calculate volume entering through boundaries
         x_boundary_len = (w_boundary_flow.shape[0] + e_boundary_flow.shape[0]) * self.dy
         y_boundary_len = (n_boundary_flow.shape[0] + s_boundary_flow.shape[0]) * self.dx
-        x_boundary_flow = (np.sum(w_boundary_flow) - np.sum(e_boundary_flow)) * x_boundary_len
-        y_boundary_flow = (np.sum(n_boundary_flow) - np.sum(s_boundary_flow)) * y_boundary_len
+        x_boundary_flow = (np.nansum(w_boundary_flow) - np.nansum(e_boundary_flow)) * x_boundary_len
+        y_boundary_flow = (np.nansum(n_boundary_flow) - np.nansum(s_boundary_flow)) * y_boundary_len
         boundary_vol = (x_boundary_flow + y_boundary_flow)
         return boundary_vol
 
