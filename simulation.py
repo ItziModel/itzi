@@ -184,7 +184,8 @@ class SuperficialFlowSimulation(object):
     def mask_array(self, arr, default_value):
         '''Replace NULL values in the input array by the default_value
         '''
-        arr[self.mask] = default_value
+        mask = np.logical_or(np.isnan(arr), self.mask)
+        arr[mask] = default_value
         return arr
 
     def unmask_array(self, arr):
