@@ -226,20 +226,23 @@ class SuperficialFlowSimulation(object):
             rast_dom.arr_z = arr_z
             rast_dom.update_flow_dir()
         # Friction
-        arr_n = self.tarrays['in_n'].get_array(sim_time)
-        arr_n[:] = self.mask_array(arr_n, 1)
-        assert not np.any(np.isnan(arr_n))
-        rast_dom.arr_n = arr_n
+        if not self.tarrays['in_n'].is_valid(sim_time):
+            arr_n = self.tarrays['in_n'].get_array(sim_time)
+            arr_n[:] = self.mask_array(arr_n, 1)
+            assert not np.any(np.isnan(arr_n))
+            rast_dom.arr_n = arr_n
         # Boundary conditions values
-        arr_bcval = self.tarrays['in_bcval'].get_array(sim_time)
-        arr_bcval[:] = self.mask_array(arr_bcval, 0)
-        assert not np.any(np.isnan(arr_bcval))
-        rast_dom.arr_bcval = arr_bcval
+        if not self.tarrays['in_bcval'].is_valid(sim_time):
+            arr_bcval = self.tarrays['in_bcval'].get_array(sim_time)
+            arr_bcval[:] = self.mask_array(arr_bcval, 0)
+            assert not np.any(np.isnan(arr_bcval))
+            rast_dom.arr_bcval = arr_bcval
         # Boundary conditions types. Replace NULL by 1 (closed boundary)
-        arr_bctype = self.tarrays['in_bctype'].get_array(sim_time)
-        arr_bctype[:] = self.mask_array(arr_bctype, 1)
-        assert not np.any(np.isnan(arr_bctype))
-        rast_dom.arr_bctype = arr_bctype
+        if not self.tarrays['in_bctype'].is_valid(sim_time):
+            arr_bctype = self.tarrays['in_bctype'].get_array(sim_time)
+            arr_bctype[:] = self.mask_array(arr_bctype, 1)
+            assert not np.any(np.isnan(arr_bctype))
+            rast_dom.arr_bctype = arr_bctype
         # External values array
         arr_ext = self.set_ext_array(
             in_q=self.tarrays['in_q'].get_array(sim_time),
@@ -468,6 +471,7 @@ class MassBal(object):
         # Average step computation time
         avg_comp_time = comp_duration / rec_len[0]
         self.line['avg_cell_per_sec'] = int(self.dom_size / avg_comp_time)
+
         # Add line to file
         with open(self.file_name, 'a') as f:
             writer = csv.DictWriter(f, fieldnames=self.fields)
