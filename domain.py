@@ -174,21 +174,17 @@ class SurfaceDomain(object):
     def update_h(self):
         """Calculate new water depth
         """
-        # flows converted from m2/s to m3/s
         flow_west = self.arrp_qe_new[self.ss, self.su]
         flow_east = self.arr_qe_new
         flow_north = self.arrp_qs_new[self.su, self.ss]
         flow_south = self.arr_qs_new
         assert flow_west.shape == flow_east.shape == flow_north.shape == flow_south.shape
-        arr_Q_sum = ((flow_west - flow_east) * self.dy
-                    + (flow_north - flow_south) * self.dx)
 
-        # arr_ext converted from m/s to m, Q from m3/s to m
-        self.arr_h[:] = (self.arr_h +
-                            self.arr_ext * self.dt +
-                            (arr_Q_sum / self.cell_surf) * self.dt)
-        # set to zero if negative
-        self.arr_h[:] = np.maximum(0., self.arr_h)
+        flow.solve_h(arr_ext=self.arr_ext,
+                    arr_qe=flow_east, arr_qw=flow_west,
+                    arr_qn=flow_north, arr_qs=flow_south,
+                    arr_h=self.arr_h,
+                    dx=self.dx, dy=self.dy, dt=self.dt)
         return self
 
     def solve_qnorm(self):

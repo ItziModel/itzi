@@ -191,3 +191,34 @@ cdef float almeida2013(float theta, float q0, float qup, float qdown, float n,
     if term_1 * term_2 < 0:
         term_1 = q0
     return (term_1 + term_2) / term_3
+
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+def solve_h(np.ndarray[DTYPE_t, ndim=2] arr_ext,
+        np.ndarray[DTYPE_t, ndim=2] arr_qe, np.ndarray[DTYPE_t, ndim=2] arr_qw,
+        np.ndarray[DTYPE_t, ndim=2] arr_qn, np.ndarray[DTYPE_t, ndim=2] arr_qs,
+        np.ndarray[DTYPE_t, ndim=2] arr_h, float dx, float dy, float dt):
+    '''Update the water depth
+    '''
+    cdef int rmax, cmax, r, c
+    cdef float qext, qe, qw, qn, qs, h, q_sum, h_new
+
+    rmax = arr_qe.shape[0]
+    cmax = arr_qe.shape[1]
+    with nogil:
+        for r in prange(rmax):
+            for c in range(cmax):
+                qext = arr_ext[r, c]
+                qe = arr_qe[r, c]
+                qw = arr_qw[r, c]
+                qn = arr_qn[r, c]
+                qs = arr_qs[r, c]
+                h = arr_h[r, c]
+                # Sum of flows in m/s
+                q_sum = (qw - qe) / dx + (qn - qs) / dy
+                # calculatre new flow depth, min depth zero
+                h_new = max(h + (qext + q_sum) * dt, 0)
+                # Update depth array
+                arr_h[r, c] = h_new
