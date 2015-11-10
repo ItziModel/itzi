@@ -208,15 +208,18 @@ class SurfaceDomain(object):
         arr_qe_i_jd = self.arrp_qe[self.sd, self.ss]
         arr_qe_iu_jd = self.arrp_qe[self.sd, self.su]
 
-        # average values of flows in relevant dimension
-        arr_qs_av = (arr_qs_i_j + arr_qs_i_ju + arr_qs_id_j + arr_qs_id_ju) * .25
-        arr_qe_av = (arr_qe_i_j + arr_qe_iu_j + arr_qe_i_jd + arr_qe_iu_jd) * .25
-        assert not np.any(np.isnan(arr_qs_av))
-        assert not np.any(np.isnan(arr_qe_av))
-
-        # norm for one dim. uses the average of flows in the other dim.
-        self.arr_qe_norm[:] = np.sqrt(np.square(arr_qs_av) + np.square(arr_qe_i_j))
-        self.arr_qs_norm[:] = np.sqrt(np.square(arr_qe_av) + np.square(arr_qs_i_j))
+        # qnorm in x direction
+        flow.solve_qnorm(arr_q0=arr_qe_i_j,
+                        arr_q1=arr_qs_i_j, arr_q2=arr_qs_i_ju,
+                        arr_q3=arr_qs_id_j, arr_q4=arr_qs_id_ju,
+                        arr_qnorm=self.arr_qe_norm)
+        assert not np.any(np.isnan(self.arr_qe_norm))
+        # qnorm in y direction
+        flow.solve_qnorm(arr_q0=arr_qs_i_j,
+                        arr_q1=arr_qe_iu_j, arr_q2=arr_qe_i_jd,
+                        arr_q3=arr_qe_i_jd, arr_q4=arr_qe_iu_jd,
+                        arr_qnorm=self.arr_qs_norm)
+        assert not np.any(np.isnan(self.arr_qs_norm))
         return self
 
     def solve_q(self):

@@ -62,6 +62,34 @@ def flow_dir(np.ndarray[DTYPE_t, ndim=2] arr_max_dz,
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
+def solve_qnorm(np.ndarray[DTYPE_t, ndim=2] arr_q0,
+        np.ndarray[DTYPE_t, ndim=2] arr_q1, np.ndarray[DTYPE_t, ndim=2] arr_q2,
+        np.ndarray[DTYPE_t, ndim=2] arr_q3, np.ndarray[DTYPE_t, ndim=2] arr_q4,
+        np.ndarray[DTYPE_t, ndim=2] arr_qnorm):
+    '''Calculate the qnorm
+    '''
+    cdef int rmax, cmax, r, c
+    cdef float q0, q1, q2, q3, q4, q_st
+
+    rmax = arr_q0.shape[0]
+    cmax = arr_q0.shape[1]
+    with nogil:
+        for r in prange(rmax):
+            for c in range(cmax):
+                q0 = arr_q0[r, c]
+                q1 = arr_q1[r, c]
+                q2 = arr_q2[r, c]
+                q3 = arr_q3[r, c]
+                q4 = arr_q4[r, c]
+                # calculate average flow from stencil
+                q_st = (q1 + q2 + q3 + q4) * .25
+                # calculate qnorm
+                arr_qnorm[r, c] = c_sqrt(q0*q0 + q_st*q_st)
+
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
 def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
         np.ndarray[DTYPE_t, ndim=2] arr_z0, np.ndarray[DTYPE_t, ndim=2] arr_z1,
         np.ndarray[DTYPE_t, ndim=2] arr_n0, np.ndarray[DTYPE_t, ndim=2] arr_n1,
