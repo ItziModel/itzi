@@ -193,7 +193,7 @@ def main():
     stat_stream = StringIO.StringIO()
     sortby = 'time'
     ps = pstats.Stats(pr, stream=stat_stream).sort_stats(sortby)
-    ps.print_stats(5)
+    ps.print_stats(10)
     print stat_stream.getvalue()
 
 def str_to_timedelta(inp_str):
