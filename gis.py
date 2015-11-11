@@ -17,6 +17,7 @@ from __future__ import division
 import numpy as np
 from datetime import datetime, timedelta
 from collections import namedtuple
+import os
 
 import grass.script as grass
 import grass.temporal as tgis
@@ -61,7 +62,7 @@ class Igis(object):
         self.msgr = Messenger(raise_on_error=True)
         region = Region()
         self.xr = region.cols
-        self.ry = region.rows
+        self.yr = region.rows
         self.dx = region.ewres
         self.dy = region.nsres
         self.overwrite = grass.overwrite()
@@ -73,6 +74,10 @@ class Igis(object):
         self.cols = ['id','start_time','end_time']
                 #~ 'name','west','east','south','north']
         self.MapData = namedtuple('MapData', self.cols)
+
+        # color tables files
+        file_dir = os.path.dirname(__file__)
+        self.rules_h = os.path.join(file_dir, 'colortable_depth.txt')
 
     def grass_dtype(self, dtype):
         if dtype in self.dtype_conv['DCELL']:
@@ -201,8 +206,6 @@ class Igis(object):
         """
         with raster.RasterRow(rast_name, mode='r') as rast:
             array = np.array(rast, dtype=self.dtype)
-        if np.any(np.isnan(array)):
-            self.msgr.fatal(_("NULL values found in map {}!".format(rast_name)))
         return array
 
     def write_raster_map(self, arr, rast_name):
@@ -238,8 +241,7 @@ class Igis(object):
                     return arr, m.start_time, m.end_time
 
     def register_maps_in_strds(self, mkey, strds_name, map_list, t_type):
-        '''Register given maps
-        map_list contains tuples of (raster_name, map_time)
+        '''Register given maps and apply color table
         '''
         assert isinstance(mkey, basestring), "not a string!"
         assert isinstance(strds_name, basestring), "not a string!"
@@ -274,4 +276,12 @@ class Igis(object):
         # Finaly register the maps
         tgis.register.register_map_object_list('raster', raster_dts_lst,
                 strds, delete_empty=True, unit='seconds')
+
+        # apply color table
+        if mkey == 'out_h':
+            lst = strds.get_registered_maps(columns="id")
+            lst = [s[0] for s in lst]
+            maps = ','.join(lst)
+            grass.run_command('r.colors', quiet=True,
+                        rules=self.rules_h, map=maps)
         return self

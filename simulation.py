@@ -14,6 +14,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 from __future__ import division
+import csv
+import warnings
 import numpy as np
 from datetime import datetime, timedelta
 import domain
@@ -45,10 +47,12 @@ class SuperficialFlowSimulation(object):
         self.set_duration(end_time, sim_duration)
         # set simulation time to start_time a the beginning
         self.sim_time = self.start_time
+        self.dt = 0
         # set temporal type of results
         self.set_temporal_type()
         self.in_map_names = input_maps
         self.out_map_names = output_maps
+
         self.dtype=dtype
         # instantiate a Igis object
         self.gis = gis.Igis(start_time=self.start_time,
@@ -62,6 +66,12 @@ class SuperficialFlowSimulation(object):
         self.create_timed_arrays()
         # a dict containing lists of maps written to gis to be registered
         self.output_maplist = {k:[] for k in self.out_map_names.keys()}
+        # Instantiate Massbal object
+        dom_size = self.gis.yr * self.gis.xr
+        self.massbal = MassBal(dom_size=dom_size)
+        # mask array
+        self.mask = np.full(shape=(self.gis.yr, self.gis.xr),
+                fill_value=False, dtype=np.bool_)
 
     def set_duration(self, end_time, sim_duration):
         """If sim_duration is given, end_time is ignored
@@ -89,8 +99,7 @@ class SuperficialFlowSimulation(object):
         return self
 
     def create_timed_arrays(self):
-        """Create a set of TimedArray objects
-        Store the created objects in the tarrays dict
+        """Create TimedArray objects and store them in the tarrays dict
         """
         self.tarrays['in_z'] = TimedArray('in_z', self.gis, self.zeros_array)
         self.tarrays['in_n'] = TimedArray('in_n', self.gis, self.zeros_array)
@@ -107,10 +116,14 @@ class SuperficialFlowSimulation(object):
         """Perform a full superficial flow simulation
         including recording of data and mass_balance calculation
         """
+        # Instantiate SurfaceDomain object
+        start_h_masked = self.mask_array(
+            self.tarrays['in_h'].get_array(self.start_time), 0)
+        assert not np.any(np.isnan(start_h_masked))
         rast_dom = domain.SurfaceDomain(
                 dx=self.gis.dx,
                 dy=self.gis.dy,
-                arr_h=self.tarrays['in_h'].get_array(self.start_time),
+                arr_h=start_h_masked,
                 arr_def=self.zeros_array())
         record_counter = 1
         duration_s = self.duration.total_seconds()
@@ -122,32 +135,51 @@ class SuperficialFlowSimulation(object):
             self.update_domain_arrays(rast_dom)
             # time-stepping
             next_record = record_counter*self.record_step.total_seconds()
-            rast_dom.step(self.next_timestep(next_record))
-            # update simulation time
+            try:
+                rast_dom.step(self.next_timestep(next_record), self.massbal)
+            except ValueError:
+                self.write_error_to_gis(rast_dom.arr_h, rast_dom.arr_err)
+                self.gis.msgr.warning(_("Error in simulation at time {}, terminating").format(self.sim_time))
+                break
+            # update simulation time and dt
             self.sim_time = self.start_time + timedelta(seconds=rast_dom.sim_clock)
+            self.dt = rast_dom.dt
+            self.massbal.add_value('tstep', self.dt)
             # write simulation results
             rec_time = rast_dom.sim_clock / self.record_step.total_seconds()
             if rec_time >= record_counter:
                 self.output_arrays = rast_dom.get_output_arrays(self.out_map_names)
                 self.write_results_to_gis(record_counter)
                 record_counter += 1
+                self.write_mass_balance(rast_dom.sim_clock)
         # register generated maps in GIS
         self.register_results_in_gis()
         return self
 
+    def write_mass_balance(self, sim_clock):
+        '''
+        '''
+        if self.temporal_type == 'absolute':
+            self.massbal.write_values(self.sim_time)
+        elif self.temporal_type == 'relative':
+            self.massbal.write_values(sim_clock)
+        else:
+            assert False, "unknown temporal type!"
+        return self
+
     def zeros_array(self):
-        """return a np array of the domain dimension, filled with ones
+        """return a np array of the domain dimension, filled with zeros
         dtype is set to object's dtype.
         Intended to be used as default for most of the input model maps
         """
-        return np.zeros(shape=(self.gis.ry, self.gis.xr), dtype=self.dtype)
+        return np.zeros(shape=(self.gis.yr, self.gis.xr), dtype=self.dtype)
 
     def ones_array(self):
         """return a np array of the domain dimension, filled with ones
         dtype is set to unsigned integer.
         Intended to be used as default for bctype map
         """
-        return np.ones(shape=(self.gis.ry, self.gis.xr), dtype=np.uint8)
+        return np.ones(shape=(self.gis.yr, self.gis.xr), dtype=np.uint8)
 
     def next_timestep(self, next_record):
         """Given a next record time in seconds as entry,
@@ -155,49 +187,118 @@ class SuperficialFlowSimulation(object):
         """
         return min(next_record, self.duration.total_seconds())
 
+    def update_mask(self, arr_z):
+        '''Create a mask array marking NULL values.
+        '''
+        self.mask[:] = np.isnan(arr_z)
+        return self
+
+    def mask_array(self, arr, default_value):
+        '''Replace NULL values in the input array by the default_value
+        '''
+        mask = np.logical_or(np.isnan(arr), self.mask)
+        arr[mask] = default_value
+        return arr
+
+    def unmask_array(self, arr):
+        '''Replace values in the input array by NULL values from mask
+        '''
+        unmasked_array = np.copy(arr)
+        unmasked_array[self.mask] = np.nan
+        return unmasked_array
+
     def update_domain_arrays(self, rast_dom):
         """Takes a SurfaceDomain object as input
-        set the input arrays of the given object using TimedArray
-        auto-update capacity
+        get new array of the given object using TimedArray
+        Replace the NULL values
+        set new domain arrays
         """
         assert isinstance(rast_dom, domain.SurfaceDomain), \
             "rast_dom not the expected object!"
 
         sim_time = self.start_time + timedelta(seconds=rast_dom.sim_clock)
-
-        rast_dom.arr_z = self.tarrays['in_z'].get_array(sim_time)
-        rast_dom.arr_n = self.tarrays['in_n'].get_array(sim_time)
-        rast_dom.arr_bcval = self.tarrays['in_bcval'].get_array(sim_time)
-        rast_dom.arr_bctype = self.tarrays['in_bctype'].get_array(sim_time)
-        # Combine three arrays for the ext array
-        rast_dom.arr_ext = self.set_ext_array(
+        # DEM
+        if not self.tarrays['in_z'].is_valid(sim_time):
+            arr_z = self.tarrays['in_z'].get_array(sim_time)
+            self.update_mask(arr_z)
+            arr_z[:] = self.mask_array(arr_z, np.finfo(self.dtype).max)
+            assert not np.any(np.isnan(arr_z))
+            rast_dom.arr_z = arr_z
+            rast_dom.update_flow_dir()
+        # Friction
+        if not self.tarrays['in_n'].is_valid(sim_time):
+            arr_n = self.tarrays['in_n'].get_array(sim_time)
+            arr_n[:] = self.mask_array(arr_n, 1)
+            assert not np.any(np.isnan(arr_n))
+            rast_dom.arr_n = arr_n
+        # Boundary conditions values
+        if not self.tarrays['in_bcval'].is_valid(sim_time):
+            arr_bcval = self.tarrays['in_bcval'].get_array(sim_time)
+            arr_bcval[:] = self.mask_array(arr_bcval, 0)
+            assert not np.any(np.isnan(arr_bcval))
+            rast_dom.arr_bcval = arr_bcval
+        # Boundary conditions types. Replace NULL by 1 (closed boundary)
+        if not self.tarrays['in_bctype'].is_valid(sim_time):
+            arr_bctype = self.tarrays['in_bctype'].get_array(sim_time)
+            arr_bctype[:] = self.mask_array(arr_bctype, 1)
+            assert not np.any(np.isnan(arr_bctype))
+            rast_dom.arr_bctype = arr_bctype
+        # External values array
+        arr_ext = self.set_ext_array(
             in_q=self.tarrays['in_q'].get_array(sim_time),
             in_rain=self.tarrays['in_rain'].get_array(sim_time),
             in_inf=self.tarrays['in_inf'].get_array(sim_time))
+        arr_ext[:] = self.mask_array(arr_ext, 0)
+        assert not np.any(np.isnan(arr_ext))
+        rast_dom.arr_ext = arr_ext
         return self
 
     def set_ext_array(self, in_q, in_rain, in_inf):
-        """Combine rain, infiltration etc. into a unique array
+        """Combine rain, infiltration etc. into a unique array in m/s
         rainfall and infiltration are considered in mm/h
+        send relevant values to MassBal
         """
         assert isinstance(in_q, np.ndarray), "not a np array!"
         assert isinstance(in_rain, np.ndarray), "not a np array!"
         assert isinstance(in_inf, np.ndarray), "not a np array!"
 
-        return in_q + (in_rain + in_inf) / 1000. / 3600.
+        mmh_to_ms = 1000. * 3600.
+        # mass balance in m3
+        cell_surf = self.gis.dx * self.gis.dy
+        rain_vol = np.nansum(in_rain[np.logical_not(self.mask)]) / mmh_to_ms * cell_surf * self.dt
+        inf_vol = np.nansum(in_inf[np.logical_not(self.mask)]) / mmh_to_ms * cell_surf * self.dt
+        inflow_vol = np.nansum(in_q[np.logical_not(self.mask)]) * cell_surf * self.dt
+        self.massbal.add_value('rain_vol', rain_vol)
+        self.massbal.add_value('inf_vol', inf_vol)
+        self.massbal.add_value('inflow_vol', inflow_vol)
+
+        return in_q + (in_rain - in_inf) / mmh_to_ms
 
     def write_results_to_gis(self, record_counter):
         """Format the name of each maps using the record number as suffix
         Send a couple array, name to the GIS writing function.
         """
-        for k,arr in self.output_arrays.iteritems():
+        for k, arr in self.output_arrays.iteritems():
             if arr != None:
                 assert isinstance(arr, np.ndarray), "arr not a np array!"
                 suffix = str(record_counter).zfill(6)
                 map_name = "{}_{}".format(self.out_map_names[k], suffix)
-                self.gis.write_raster_map(arr, map_name)
+                arr_unmasked = self.unmask_array(arr)
+                self.gis.write_raster_map(arr_unmasked, map_name)
                 # add map name and time to the corresponding list
                 self.output_maplist[k].append((map_name, self.sim_time))
+        return self
+
+    def write_error_to_gis(self, arr_h, arr_error):
+        '''Write a given depth array and boolean error array to the GIS
+        '''
+        #~ arr_h_unmasked = self.unmask_array(arr_h)
+        #~ arr_err_unmasked = self.unmask_array(arr_error)
+        map_h_name = "{}_error".format(self.out_map_names['out_h'])
+        self.gis.write_raster_map(arr_h, map_h_name,
+                                    self.sim_time, self.temporal_type)
+        # add map name to the revelant list
+        self.output_maplist['out_h'].append(map_h_name)
         return self
 
     def register_results_in_gis(self):
@@ -259,7 +360,7 @@ class TimedArray(object):
         """
         # Retrieve values
         arr, arr_start, arr_end = self.igis.get_array(self.mkey, sim_time)
-        # set to default if necessary
+        # set to default if no array retrieved
         if arr == None:
             arr = self.f_arr_def()
         # check retrieved values
@@ -271,4 +372,112 @@ class TimedArray(object):
         self.a_start = arr_start
         self.a_end = arr_end
         self.arr = arr
+        return self
+
+
+class MassBal(object):
+    """Follow-up the mass balance during the simulation run
+    Mass balance error is the difference between the actual volume and
+    the theoretical volume. The later is the old volume + input - output.
+    Intended use:
+    at each time-step, using add_value():
+    individual simulation operations send relevant values to the MassBal object
+    at each record time, using write_values():
+    averaged or cumulated values for the considered time difference are written to a CSV file
+    """
+    def __init__(self, file_name='', dom_size=0):
+        self.dom_size = dom_size
+        # values to be written on each record time
+        self.fields = ['sim_time',  # either seconds or datetime
+                'avg_timestep', '#timesteps',
+                'boundary_vol', 'rain_vol', 'inf_vol', 'inflow_vol',
+                'domain_vol', 'vol_error', '%error',
+                'comp_duration', 'avg_cell_per_sec']
+        # data written to file as one line
+        self.line = dict.fromkeys(self.fields)
+        # data collected during simulation
+        self.sim_data = {'tstep': [], 'boundary_vol': [],
+            'rain_vol': [], 'inf_vol': [], 'inflow_vol': [],
+            'old_dom_vol': [], 'new_dom_vol': [], 'step_duration': []}
+        # set file name and create file
+        self.file_name = self.set_file_name(file_name)
+        self.create_file()
+
+    def set_file_name(self, file_name):
+        '''Generate output file name
+        '''
+        if not file_name:
+            file_name = "{}_stats.csv".format(
+                str(datetime.now().strftime('%Y-%m-%dT%H:%M:%S')))
+        return file_name
+
+    def create_file(self):
+        '''Create a csv file and write headers
+        '''
+        with open(self.file_name, 'w') as f:
+            writer = csv.DictWriter(f, fieldnames=self.fields)
+            writer.writeheader()
+        return self
+
+    def add_value(self, key, value):
+        '''add a value to sim_data
+        '''
+        assert key in self.sim_data, "unknown key!"
+        self.sim_data[key].append(value)
+        return self
+
+    def write_values(self, sim_time):
+        '''Calculate statistics and write them to the file
+        '''
+        # check if all elements have the same number of records
+        rec_len = [len(l) for l in self.sim_data.values()]
+        assert rec_len[1:] == rec_len[:-1], "inconsistent number of records!"
+
+        self.line['sim_time'] = sim_time
+        # number of time-step during the interval is the number of records
+        self.line['#timesteps'] = len(self.sim_data['tstep'])
+        # average time-step calculation
+        elapsed_time = sum(self.sim_data['tstep'])
+        avg_timestep = elapsed_time / self.line['#timesteps']
+        self.line['avg_timestep'] = '{:.3f}'.format(avg_timestep)
+
+        # sum of inflow (positive) / outflow (negative) volumes
+        boundary_vol = sum(self.sim_data['boundary_vol'])
+        self.line['boundary_vol'] = '{:.3f}'.format(boundary_vol)
+        rain_vol = sum(self.sim_data['rain_vol'])
+        self.line['rain_vol'] = '{:.3f}'.format(rain_vol)
+        inf_vol = - sum(self.sim_data['inf_vol'])
+        self.line['inf_vol'] = '{:.3f}'.format(inf_vol)
+        inflow_vol = sum(self.sim_data['inflow_vol'])
+        self.line['inflow_vol'] = '{:.3f}'.format(inflow_vol)
+
+        # For domain volume, take last value(i.e. current)
+        last_vol = self.sim_data['new_dom_vol'][-1]
+        self.line['domain_vol'] = '{:.3f}'.format(last_vol)
+
+        # mass error is the diff. between the theor. vol and the actual vol
+        first_vol = self.sim_data['old_dom_vol'][0]
+        sum_ext_vol = sum([boundary_vol, rain_vol, inf_vol, inflow_vol])
+        dom_vol_theor = first_vol + sum_ext_vol
+        vol_error = last_vol - dom_vol_theor
+        self.line['vol_error'] = '{:.3f}'.format(vol_error)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.line['%error'] = '{:.2%}'.format(vol_error / last_vol)
+
+        # Performance
+        comp_duration = sum(self.sim_data['step_duration'])
+        self.line['comp_duration'] = '{:.3f}'.format(comp_duration)
+        # Average step computation time
+        avg_comp_time = comp_duration / rec_len[0]
+        self.line['avg_cell_per_sec'] = int(self.dom_size / avg_comp_time)
+
+        # Add line to file
+        with open(self.file_name, 'a') as f:
+            writer = csv.DictWriter(f, fieldnames=self.fields)
+            writer.writerow(self.line)
+
+        # empty dictionaries
+        self.sim_data = {k:[] for k in self.sim_data.keys()}
+        self.line = dict.fromkeys(self.line.keys())
         return self

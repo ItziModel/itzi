@@ -1,0 +1,8 @@
+0.00 white
+0.01 white
+0.30 blue
+0.50 yellow
+1.00 red
+2.00 magenta
+nv white
+default magenta

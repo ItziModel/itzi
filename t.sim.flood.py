@@ -156,8 +156,8 @@ import simulation
 
 def main():
     # start profiler
-    #~ pr = cProfile.Profile()
-    #~ pr.enable()
+    pr = cProfile.Profile()
+    pr.enable()
 
     # start messenger
     msgr = Messenger()
@@ -189,12 +189,12 @@ def main():
     sim.run()
 
     # end profiling
-    #~ pr.disable()
-    #~ stat_stream = StringIO.StringIO()
-    #~ sortby = 'time'
-    #~ ps = pstats.Stats(pr, stream=stat_stream).sort_stats(sortby)
-    #~ ps.print_stats(5)
-    #~ print stat_stream.getvalue()
+    pr.disable()
+    stat_stream = StringIO.StringIO()
+    sortby = 'time'
+    ps = pstats.Stats(pr, stream=stat_stream).sort_stats(sortby)
+    ps.print_stats(10)
+    print stat_stream.getvalue()
 
 def str_to_timedelta(inp_str):
     """Takes a string in the form HH:MM:SS

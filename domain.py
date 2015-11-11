@@ -16,11 +16,15 @@ GNU General Public License for more details.
 from __future__ import division
 import math
 import numpy as np
-import numexpr as ne
+import flow
+import time
 
 class SurfaceDomain(object):
     """Represents a staggered grid where flow is simulated
-    Accessed using the step() and get_output_arrays() methods
+    Accessed through step() and get_output_arrays() methods
+    By convention the flow is:
+     - calculated at the East and South faces of each cell
+     - positive from West to East and from North to South
     """
 
     def __init__(self, dx, dy, arr_def, arr_h,
@@ -29,8 +33,8 @@ class SurfaceDomain(object):
                 a=0.5,         # CFL constant
                 g=9.80665,     # Standard gravity
                 theta=0.9,     # default proposed by Almeida et al.(2012)
-                hf_min=0.0001,
-                hmin=0.0,
+                hf_min=0.005,
+                slope_threshold=0.5,
                 v_routing=0.1):  # simple routing velocity m/s):
         self.sim_clock = sim_clock
         self.dtmax = dtmax
@@ -38,38 +42,52 @@ class SurfaceDomain(object):
         self.g = g
         self.theta = theta
         self.hf_min = hf_min
-        self.hmin = hmin
+        self.sl_thresh = slope_threshold
+        self.v_routing = v_routing
         self.dx = dx
         self.dy = dy
         self.cell_surf = dx * dy
+
         # Slices for upstream and downstream cells on a padded array
         self.su = slice(None, -2)
         self.sd = slice(2, None)
-        # uniform crop
+        # uniform crop, i.e. equivalent to non-padded array
         self.ss = slice(1, -1)
-        # slice to crop first row or column of non-padded array
+        # slice to crop last row or column of non-padded array
         # to not conflict with boundary condition
-        self.sc = slice(1, None)
+        self.sc = slice(None, -1)
+        # equivalent in 2D
+        self.s_i_0 = (slice(None), self.sc)
+        self.s_j_0 = (self.sc, slice(None))
+        # 'Downstream' slice: cells to the east or south
+        self.s_i_1 = (slice(None), slice(1, None))
+        self.s_j_1 = (slice(1, None), slice(None))
 
         # Input water depth
-        self.arr_h_old = arr_h
+        self.arr_h = arr_h
         # Set internal arrays to a provided default
         # Input arrays are set externally with set_input_arrays()
-        self.arr_h_new = np.copy(arr_def)
-        self.arr_hfw = np.copy(arr_def)
-        self.arr_hfn = np.copy(arr_def)
-        #~ self.arr_qw_new = np.copy(arr_def)
-        #~ self.arr_qn_new = np.copy(arr_def)
-        self.arr_qw, self.arrp_qw = self.pad_array(np.copy(arr_def))
-        self.arr_qn, self.arrp_qn = self.pad_array(np.copy(arr_def))
-        self.arr_qw_new, self.arrp_qw_new = self.pad_array(np.copy(arr_def))
-        self.arr_qn_new, self.arrp_qn_new = self.pad_array(np.copy(arr_def))
+        # flow depth
+        self.arr_hfe = np.copy(arr_def)
+        self.arr_hfs = np.copy(arr_def)
+        # flows in m2/s
+        self.arr_qe, self.arrp_qe = self.pad_array(np.copy(arr_def))
+        self.arr_qs, self.arrp_qs = self.pad_array(np.copy(arr_def))
+        self.arr_qe_new, self.arrp_qe_new = self.pad_array(np.copy(arr_def))
+        self.arr_qs_new, self.arrp_qs_new = self.pad_array(np.copy(arr_def))
         # arrays of flow vector norm
-        self.arr_qw_norm = (np.copy(arr_def))
-        self.arr_qn_norm = (np.copy(arr_def))
+        self.arr_qe_norm = (np.copy(arr_def))
+        self.arr_qs_norm = (np.copy(arr_def))
+        # direction arrays
+        self.arr_dire = np.full(arr_def[self.s_i_0].shape, -1, dtype = np.int8)
+        self.arr_dirs = np.full(arr_def[self.s_j_0].shape, -1, dtype = np.int8)
         del arr_def
 
-
+        # Instantiate boundary objects
+        self.w_boundary = Boundary(self.dy, self.dx, boundary_pos='W')
+        self.e_boundary = Boundary(self.dy, self.dx, boundary_pos='E')
+        self.n_boundary = Boundary(self.dx, self.dy, boundary_pos='N')
+        self.s_boundary = Boundary(self.dx, self.dy, boundary_pos='S')
 
     @staticmethod
     def pad_array(arr):
@@ -80,15 +98,50 @@ class SurfaceDomain(object):
         arr = arr_p[1:-1,1:-1]
         return arr, arr_p
 
-    def step(self, next_ts):
+    def update_flow_dir(self):
+        ''' Return arrays of flow directions used for rain routing
+        each cell is assigned a direction in which it will drain
+        0: the flow is going dowstream, index-wise
+        1: the flow is going upstream, index-wise
+        -1: no routing happening on that face
+        '''
+        # get a padded array
+        arrp_z = self.pad_array(self.arr_z)[1]
+        # define differences in Z
+        z0 = arrp_z[1:-1, 1:-1]
+        zN = arrp_z[0:-2, 1:-1]
+        zS = arrp_z[2:, 1:-1]
+        zE = arrp_z[1:-1, 2:]
+        zW = arrp_z[1:-1, 0:-2]
+        dN = z0 - zN
+        dE = z0 - zE
+        dS = z0 - zS
+        dW = z0 - zW
+        # maximum altitude difference
+        arr_max_dz = np.maximum(np.maximum(dN, dS), np.maximum(dE, dW))
+        # y direction
+        flow.flow_dir(arr_max_dz[self.s_j_0], dN, dS, self.arr_dirs)
+        # x direction
+        flow.flow_dir(arr_max_dz[self.s_i_0], dW, dE, self.arr_dire)
+        return self
+
+    def step(self, next_ts, massbal):
         """Run a full simulation time-step
-        Input arrays should be set beforehand using set_input_arrays()
         """
+        start_clock = time.clock()
         self.set_dt(next_ts)
-        self.apply_boundary_conditions()
         self.solve_q()
-        self.solve_h()
+        boundary_vol = self.apply_boundary_conditions()
+        massbal.add_value('boundary_vol', boundary_vol)
+        massbal.add_value('old_dom_vol', self.domain_volume())
+        self.update_h()
+        self.arr_err = np.isnan(self.arr_h)
+        if np.any(self.arr_err):
+            raise ValueError
+        massbal.add_value('new_dom_vol', self.domain_volume())
         self.copy_arrays_values_for_next_timestep()
+        end_clock = time.clock()
+        massbal.add_value('step_duration', end_clock - start_clock)
         return self
 
     def set_dt(self, next_ts):
@@ -97,7 +150,7 @@ class SurfaceDomain(object):
         accomodate non-square cells
         The time-step is limited by the maximum time-step dtmax.
         """
-        hmax = np.amax(self.arr_h_old)  # max depth in domain
+        hmax = np.amax(self.arr_h)  # max depth in domain
         min_dim = min(self.dx, self.dy)
         if hmax > 0:
             self.dt = min(self.dtmax,
@@ -113,135 +166,140 @@ class SurfaceDomain(object):
             self.sim_clock += self.dt
         return self
 
-    def solve_h(self):
+    def domain_volume(self):
+        '''return domain volume
+        '''
+        return np.nansum(self.arr_h) * self.cell_surf
+
+    def update_h(self):
         """Calculate new water depth
         """
-        # flows converted from m2/s to m3/s
-        arr_Q_sum = (
-            (self.arr_qw_new - self.arrp_qw_new[self.ss, self.sd]) * self.dy
-            + (self.arr_qn_new - self.arrp_qn_new[self.sd, self.ss]) * self.dx)
+        flow_west = self.arrp_qe_new[self.ss, self.su]
+        flow_east = self.arr_qe_new
+        flow_north = self.arrp_qs_new[self.su, self.ss]
+        flow_south = self.arr_qs_new
+        assert flow_west.shape == flow_east.shape == flow_north.shape == flow_south.shape
 
-        # arr_ext converted from m/s to m, Q from m3/s to m
-        self.arr_h_new[:] = (self.arr_h_old +
-                            self.arr_ext * self.dt +
-                            (arr_Q_sum / self.cell_surf) * self.dt)
-        # set to zero if negative
-        if np.any(self.arr_h_new < 0):
-            self.arr_h_new = np.maximum(0, self.arr_h_new)
+        flow.solve_h(arr_ext=self.arr_ext,
+                    arr_qe=flow_east, arr_qw=flow_west,
+                    arr_qn=flow_north, arr_qs=flow_south,
+                    arr_h=self.arr_h,
+                    dx=self.dx, dy=self.dy, dt=self.dt)
+        assert not np.any(self.arr_h < 0)
         return self
-
-    def solve_hflow(self, wse_i_up, wse_i, z_i_up, z_i,
-                        wse_j_up, wse_j, z_j_up, z_j):
-        """calculate the difference between
-        the highest water free surface
-        and the highest terrain elevevation of the two adjacent cells
-        This acts as an approximation of the hydraulic radius
-        """
-        self.arr_hfw[:, self.sc] = (np.maximum(wse_i_up, wse_i)
-                                     - np.maximum(z_i_up, z_i))
-        self.arr_hfn[self.sc, :] = (np.maximum(wse_j_up, wse_j)
-                                       - np.maximum(z_j_up, z_j))
-        return self
-
-    def almeida2013(self, length, width, wse0, wsem1, hf, q0, qnorm, qm1, qp1, n):
-        '''Flow formula from Almeida & Bates 2013'''
-        if hf <= self.hf_min:
-            return 0
-        else:
-            # flow formula (formula #41 in almeida et al 2012)
-            term_1 = (self.theta * q0 + ((1 - self.theta) / 2) * (qm1 + qp1))
-            term_2 = (self.g * hf * (self.dt / length) * (wse0 - wsem1))
-            term_3 = (1 + self.g * self.dt * (n*n) * qnorm / pow(hf, 7./3.))
-            q0_new = (term_1 - term_2) / term_3
-            return q0_new
 
     def solve_qnorm(self):
         """Calculate the flow vector norm to be used in the flow equation
         This method uses values in i-1 and j-1, which seems more logical
         than the version given in Almeida and Bates (2013)
         """
-        # values in the Y dim, used to calculate an average of N flows
-        arr_qn_i_j = self.arr_qn
-        arr_qn_i_jd = self.arrp_qn[self.sd, self.ss]
-        arr_qn_iu_j = self.arrp_qn[self.ss, self.su]
-        arr_qn_iu_jd = self.arrp_qn[self.sd, self.su]
+        # values in the Y dim, used to calculate an average of Y flows
+        arr_qs_i_j = self.arr_qs
+        arr_qs_i_ju = self.arrp_qs[self.su, self.ss]
+        arr_qs_id_j = self.arrp_qs[self.ss, self.sd]
+        arr_qs_id_ju = self.arrp_qs[self.su, self.sd]
+        assert arr_qs_i_j.shape == arr_qs_i_ju.shape == arr_qs_id_j.shape
+        assert arr_qs_i_j.shape == arr_qs_id_ju.shape
+
         # values in the X dim, used to calculate an average of X flows
-        arr_qw_i_j = self.arr_qw
-        arr_qw_id_j = self.arrp_qw[self.ss, self.sd]
-        arr_qw_i_ju = self.arrp_qw[self.su, self.ss]
-        arr_qw_id_ju = self.arrp_qw[self.su, self.sd]
+        arr_qe_i_j = self.arr_qe
+        arr_qe_iu_j = self.arrp_qe[self.ss, self.su]
+        arr_qe_i_jd = self.arrp_qe[self.sd, self.ss]
+        arr_qe_iu_jd = self.arrp_qe[self.sd, self.su]
+        assert arr_qe_i_j.shape == arr_qe_iu_j.shape == arr_qe_i_jd.shape
+        assert arr_qe_i_j.shape == arr_qe_iu_jd.shape
 
-        # average values of flows in relevant dimension
-        arr_qn_av = (arr_qn_i_j + arr_qn_i_jd + arr_qn_iu_j + arr_qn_iu_jd) / 4.
-        arr_qw_av = (arr_qw_i_j + arr_qw_id_j + arr_qw_i_ju + arr_qw_id_ju) / 4.
-
-        # norm for one dim. uses the average of flows in the other dim.
-        self.arr_qw_norm[:] = np.sqrt(np.square(arr_qn_av) + np.square(arr_qw_i_j))
-        self.arr_qn_norm[:] = np.sqrt(np.square(arr_qw_av) + np.square(arr_qn_i_j))
+        # qnorm in x direction
+        flow.solve_qnorm(arr_q0=arr_qe_i_j,
+                        arr_q1=arr_qs_i_j, arr_q2=arr_qs_i_ju,
+                        arr_q3=arr_qs_id_j, arr_q4=arr_qs_id_ju,
+                        arr_qnorm=self.arr_qe_norm)
+        assert not np.any(np.isnan(self.arr_qe_norm))
+        # qnorm in y direction
+        flow.solve_qnorm(arr_q0=arr_qs_i_j,
+                        arr_q1=arr_qe_iu_j, arr_q2=arr_qe_i_jd,
+                        arr_q3=arr_qe_i_jd, arr_q4=arr_qe_iu_jd,
+                        arr_qnorm=self.arr_qs_norm)
+        assert not np.any(np.isnan(self.arr_qs_norm))
         return self
 
-    def add_arrays(self, arr1, arr2):
-        return arr1 + arr2
-
-    def div_arrays(self, arr1, arr2):
-        return arr1 / arr2
-
     def solve_q(self):
-        '''Calculate flow across the whole domain, appart from boundaries
+        '''Solve flow inside the domain using C/Cython function
+        prepare the arrays slices and pass them to the Cython function
         '''
-        # definitions of slices on non-padded arrays
-        # don't compute first row or col: solved by boundary conditions
-        s_i_self = (slice(None), self.sc)
-        s_i_up = (slice(None), slice(None, -1))
-        s_j_self = (self.sc, slice(None))
-        s_j_up = (slice(None, -1), slice(None))
-        # Those are for flow arrays only. Should be
-        # used on padded array to get value from the boundary flow
-        s_i_down = (self.ss, slice(2, -1))
-        s_j_down = (slice(2, -1), self.ss)
+        # Those are for padded flow arrays only.
+        # Used to get the flow of the first boundary
+        s_i_m1 = (self.ss, slice(0, -3))
+        s_j_m1 = (slice(0, -3), self.ss)
 
-        z_i = self.arr_z[s_i_self]
-        z_i_up = self.arr_z[s_i_up]
-        z_j = self.arr_z[s_j_self]
-        z_j_up = self.arr_z[s_j_up]
+        z_i0 = self.arr_z[self.s_i_0]
+        z_i1 = self.arr_z[self.s_i_1]
+        z_j0 = self.arr_z[self.s_j_0]
+        z_j1 = self.arr_z[self.s_j_1]
+        assert z_i0.shape == z_i1.shape
+        assert z_j0.shape == z_j1.shape
 
-        wse_i = self.add_arrays(self.arr_z[s_i_self], self.arr_h_old[s_i_self])
-        wse_i_up = self.add_arrays(self.arr_z[s_i_up], self.arr_h_old[s_i_up])
-        wse_j = self.add_arrays(self.arr_z[s_j_self], self.arr_h_old[s_j_self])
-        wse_j_up = self.add_arrays(self.arr_z[s_j_up], self.arr_h_old[s_j_up])
+        h_i0 = self.arr_h[self.s_i_0]
+        h_i1 = self.arr_h[self.s_i_1]
+        h_j0 = self.arr_h[self.s_j_0]
+        h_j1 = self.arr_h[self.s_j_1]
+        assert h_i0.shape == h_i1.shape
+        assert h_j0.shape == h_j1.shape
 
-        # Solve flow depth
-        self.solve_hflow(wse_i_up, wse_i, z_i_up, z_i,
-                        wse_j_up, wse_j, z_j_up, z_j)
+        n_i0 = self.arr_n[self.s_i_0]
+        n_i1 = self.arr_n[self.s_i_1]
+        n_j0 = self.arr_n[self.s_j_0]
+        n_j1 = self.arr_n[self.s_j_1]
+        assert n_i0.shape == n_i1.shape
+        assert n_j0.shape == n_j1.shape
 
-        hfw = self.arr_hfw[s_i_self]
-        hfn = self.arr_hfn[s_j_self]
-        qw = self.arr_qw[s_i_self]
-        qn = self.arr_qn[s_j_self]
-        #~ qw = self.div_arrays(self.arr_qw[s_i_self], self.dy)
-        #~ qn = self.div_arrays(self.arr_qn[s_j_self], self.dx)
-        n_i = self.arr_n[s_i_self]
-        n_j = self.arr_n[s_j_self]
-        # upstream flow
-        #~ qwm1 = self.div_arrays(self.arr_qw[s_i_up], self.dy)
-        #~ qnm1 = self.div_arrays(self.arr_qn[s_j_up], self.dx)
-        qwm1 = self.arr_qw[s_i_up]
-        qnm1 = self.arr_qn[s_j_up]
-        # downstream flow on padded array
-        # Uses q_new because it's where has been applyed boundary flow
-        # before the present function q_new == q_old, apart boundaries
-        qwp1 = self.arrp_qw_new[s_i_down]
-        qnp1 = self.arrp_qn_new[s_j_down]
+        # flow depths
+        hf_i = self.arr_hfe[self.s_i_0]
+        hf_j = self.arr_hfs[self.s_j_0]
 
-        # Almeida 2013
+        # flows
         self.solve_qnorm()
-        qnorm_w = self.arr_qw_norm[s_i_self]
-        qnorm_n = self.arr_qn_norm[s_j_self]
-        get_q = np.vectorize(self.almeida2013, otypes=[self.arr_qw.dtype])
-        self.arr_qw_new[s_i_self] = get_q(self.dx, self.dy, wse_i, wse_i_up,
-                                         hfw, qw, qnorm_w, qwm1, qwp1, n_i)
-        self.arr_qn_new[s_j_self] = get_q(self.dy, self.dx, wse_j, wse_j_up,
-                                         hfn, qn, qnorm_n, qnm1, qnp1, n_j)
+        q_vect_i = self.arr_qe_norm[self.s_i_0]
+        q_vect_j = self.arr_qs_norm[self.s_j_0]
+        q_i0 = self.arr_qe[self.s_i_0]
+        q_i1 = self.arr_qe[self.s_i_1]
+        q_j0 = self.arr_qs[self.s_j_0]
+        q_j1 = self.arr_qs[self.s_j_1]
+        # Uses padded array to get boundary flow
+        q_im1 = self.arrp_qe[s_i_m1]
+        q_jm1 = self.arrp_qs[s_j_m1]
+        assert q_vect_i.shape == q_i0.shape == q_i1.shape == q_im1.shape
+        assert q_vect_j.shape == q_j0.shape == q_j1.shape == q_jm1.shape
+
+        q_i0_new = self.arr_qe_new[self.s_i_0]
+        q_j0_new = self.arr_qs_new[self.s_j_0]
+
+        # flow in x direction
+        assert z_i0.shape == z_i1.shape == n_i0.shape == n_i1.shape
+        assert n_i0.shape == h_i0.shape == h_i1.shape == q_i0.shape
+        assert q_i0.shape == q_i1.shape == q_im1.shape == q_vect_i.shape
+        assert q_vect_i.shape == q_i0_new.shape
+        flow.solve_q(arr_dir=self.arr_dire,
+            arr_z0=z_i0, arr_z1=z_i1,
+            arr_n0=n_i0, arr_n1=n_i1,
+            arr_h0=h_i0, arr_h1=h_i1,
+            arr_q0=q_i0, arr_q1=q_i1, arr_qm1=q_im1,
+            arr_qnorm=q_vect_i, arr_q0_new=q_i0_new, arr_hf=hf_i,
+            dt=self.dt, cell_len=self.dx, g=self.g, theta=self.theta,
+            hf_min=self.hf_min, v_rout=self.v_routing, sl_thres=self.sl_thresh)
+        # flow in y direction
+        assert z_j0.shape == z_j1.shape == n_j0.shape == n_j1.shape
+        assert n_j0.shape == h_j0.shape == h_j1.shape == q_j0.shape
+        assert q_j0.shape == q_j1.shape == q_jm1.shape == q_vect_j.shape
+        assert q_vect_j.shape == q_j0_new.shape
+        flow.solve_q(arr_dir=self.arr_dirs,
+            arr_z0=z_j0, arr_z1=z_j1,
+            arr_n0=n_j0, arr_n1=n_j1,
+            arr_h0=h_j0, arr_h1=h_j1,
+            arr_q0=q_j0, arr_q1=q_j1, arr_qm1=q_jm1,
+            arr_qnorm=q_vect_j, arr_q0_new=q_j0_new, arr_hf=hf_j,
+            dt=self.dt, cell_len=self.dy, g=self.g, theta=self.theta,
+            hf_min=self.hf_min, v_rout=self.v_routing, sl_thres=self.sl_thresh)
         return self
 
     def apply_boundary_conditions(self):
@@ -253,51 +311,56 @@ class SurfaceDomain(object):
         'hflow' and 'qin' are the next value inside the domain
         Therefore, only 'qboundary' should need a padded array.
         '''
-        w_boundary = Boundary(self.dy, self.dx, boundary_pos='W')
-        e_boundary = Boundary(self.dy, self.dx, boundary_pos='E')
-        n_boundary = Boundary(self.dx, self.dy, boundary_pos='N')
-        s_boundary = Boundary(self.dx, self.dy, boundary_pos='S')
 
-        w_boundary.get_boundary_flow(qin=self.arr_qw[:, 1],
-                                    hflow=self.arr_hfw[:, 1],
+        w_boundary_flow = self.arrp_qe_new[1:-1, 0]
+        self.w_boundary.get_boundary_flow(qin=self.arr_qe_new[:, 0],
+                                    hflow=self.arr_hfe[:, 0],
                                     n=self.arr_n[:, 0],
                                     z=self.arr_z[:, 0],
-                                    depth=self.arr_h_old[:, 0],
+                                    depth=self.arr_h[:, 0],
                                     bctype=self.arr_bctype[:, 0],
                                     bcvalue=self.arr_bcval[:, 0],
-                                    qboundary=self.arr_qw_new[:, 0])
-        e_boundary.get_boundary_flow(qin=self.arr_qw[:, -1],
-                                    hflow=self.arr_hfw[:, -1],
+                                    qboundary=w_boundary_flow)
+        e_boundary_flow = self.arr_qe_new[:, -1]
+        self.e_boundary.get_boundary_flow(qin=self.arr_qe_new[:, -2],
+                                    hflow=self.arr_hfe[:, -2],
                                     n=self.arr_n[:, -1],
                                     z=self.arr_z[:, -1],
-                                    depth=self.arr_h_old[:, -1],
+                                    depth=self.arr_h[:, -1],
                                     bctype=self.arr_bctype[:, -1],
                                     bcvalue=self.arr_bcval[:, -1],
-                                    qboundary=self.arrp_qw_new[1:-1, -1])
-        n_boundary.get_boundary_flow(qin=self.arr_qn[1],
-                                    hflow=self.arr_hfn[1],
+                                    qboundary=e_boundary_flow)
+        n_boundary_flow = self.arrp_qs_new[0, 1:-1]
+        self.n_boundary.get_boundary_flow(qin=self.arr_qs_new[0],
+                                    hflow=self.arr_hfs[0],
                                     n=self.arr_n[0],
                                     z=self.arr_z[0],
-                                    depth=self.arr_h_old[0],
+                                    depth=self.arr_h[0],
                                     bctype=self.arr_bctype[0],
                                     bcvalue=self.arr_bcval[0],
-                                    qboundary=self.arr_qn_new[0])
-        s_boundary.get_boundary_flow(qin=self.arr_qn[-1, :],
-                                    hflow=self.arr_hfn[-1],
+                                    qboundary=n_boundary_flow)
+        s_boundary_flow = self.arr_qs_new[-1]
+        self.s_boundary.get_boundary_flow(qin=self.arr_qs_new[-2],
+                                    hflow=self.arr_hfs[-2],
                                     n=self.arr_n[-1],
                                     z=self.arr_z[-1],
-                                    depth=self.arr_h_old[-1],
+                                    depth=self.arr_h[-1],
                                     bctype=self.arr_bctype[-1],
                                     bcvalue=self.arr_bcval[-1],
-                                    qboundary=self.arrp_qn_new[-1, 1:-1])
-        return self
+                                    qboundary=s_boundary_flow)
+        # calculate volume entering through boundaries
+        x_boundary_len = (w_boundary_flow.shape[0] + e_boundary_flow.shape[0]) * self.dy
+        y_boundary_len = (n_boundary_flow.shape[0] + s_boundary_flow.shape[0]) * self.dx
+        x_boundary_flow = (np.nansum(w_boundary_flow) - np.nansum(e_boundary_flow)) * x_boundary_len
+        y_boundary_flow = (np.nansum(n_boundary_flow) - np.nansum(s_boundary_flow)) * y_boundary_len
+        boundary_vol = (x_boundary_flow + y_boundary_flow)
+        return boundary_vol
 
     def copy_arrays_values_for_next_timestep(self):
         """Copy values from calculated arrays to input arrays
         """
-        self.arr_qw[:] = self.arr_qw_new
-        self.arr_qn[:] = self.arr_qn_new
-        self.arr_h_old[:] = self.arr_h_new
+        self.arr_qe[:] = self.arr_qe_new
+        self.arr_qs[:] = self.arr_qs_new
         return self
 
     def get_output_arrays(self, out_names):
@@ -306,9 +369,9 @@ class SurfaceDomain(object):
         """
         out_arrays = {}
         if out_names['out_h'] != None:
-            out_arrays['out_h'] = self.arr_h_new
+            out_arrays['out_h'] = self.arr_h
         if out_names['out_wse'] != None:
-            out_arrays['out_wse'] = self.arr_h_new + self.arr_z
+            out_arrays['out_wse'] = self.arr_h + self.arr_z
         if out_names['out_vx'] != None:
             pass
         if out_names['out_vy'] != None:
@@ -374,7 +437,6 @@ class Boundary(object):
         result[slice_over] = qin[slice_over] / hf[slice_over] * hf_boundary[slice_over]
         return result
 
-
     def get_slope(self, h, z, user_wse):
         """Return the slope between two water surface elevation
         """
@@ -386,194 +448,12 @@ class Boundary(object):
         """
         Gauckler-Manning-Strickler flow equation
         invert the results if a downstream boundary
+        flow in m2/s
         """
         v = (1./n) * np.power(hf, 2./3.) * np.power(slope, 1./2.)
         if self.postype == 'upstream':
-            return v * hf * self.cw
+            return v * hf
         elif self.postype == 'downstream':
-            return - v * hf * self.cw
+            return - v * hf
         else:
             assert False, "Unknown postype {}".format(self.postype)
-
-
-class old_code():
-
-    def flow_dir(self):
-        '''
-        Return a "slope" array representing the flow direction
-        the resulting array is used for simple routing
-        '''
-        # define differences in Z
-        Z = self.arrp_z[1:-1, 1:-1]
-        N = self.arrp_z[0:-2, 1:-1]
-        S = self.arrp_z[2:, 1:-1]
-        E = self.arrp_z[1:-1, 2:]
-        W = self.arrp_z[1:-1, 0:-2]
-        dN = Z - N
-        dE = Z - E
-        dS = Z - S
-        dW = Z - W
-
-        # return minimum neighbour
-        arr_min = np.maximum(np.maximum(dN, dS), np.maximum(dE, dW))
-
-        # create a slope array
-        self.arr_slope = np.zeros(shape = Z.shape, dtype = np.uint8)
-        # affect values to keep a non-string array
-        # (to be compatible with cython)
-        W = 1
-        E = 2
-        S = 3
-        N = 4
-
-        for c, min_hdiff in np.ndenumerate(arr_min):
-            if min_hdiff <= 0:
-                self.arr_slope[c] = 0
-            elif min_hdiff == dN[c]:
-                self.arr_slope[c] = N
-            elif min_hdiff == dS[c]:
-                self.arr_slope[c] = S
-            elif min_hdiff == dE[c]:
-                self.arr_slope[c] = E
-            elif min_hdiff == dW[c]:
-                self.arr_slope[c] = W
-        return self
-
-    def simple_routing(self):
-        '''calculate a flow with a given velocity in a given direction
-        Application of the automated routing scheme proposed by
-        Sampson et al (2013)
-        For flows at W and S borders, the calculations are centered
-        on the current cells.
-        For flows at E and S borders, are considered
-        those of the neighbouring cells at W and S borders, respectively
-        '''
-        # water surface elevation
-        arrp_wse_np1 = self.arrp_z + self.arrp_h_np1
-
-        # water depth
-        arrp_h_np1_e = self.arrp_h_np1[1:-1, 2:]
-        arrp_h_np1_n = self.arrp_h_np1[:-2, 1:-1]
-
-        # arrays of wse
-        arr_wse_w = arrp_wse_np1[1:-1, :-2]
-        arr_wse_e = arrp_wse_np1[1:-1, 2:]
-        arr_wse_s = arrp_wse_np1[2:, 1:-1]
-        arr_wse_n = arrp_wse_np1[:-2, 1:-1]
-        arr_wse = arrp_wse_np1[1:-1, 1:-1]
-
-        # Identify cells with adequate values
-        idx_rout = np.where(np.logical_and(
-                        self.arr_h_np1 < self.hmin,
-                        self.arr_h_np1 > 0))
-
-        # max routed depth
-        arr_h_w = np.minimum(self.arr_h_np1[idx_rout],
-                    np.maximum(0, arr_wse[idx_rout] - arr_wse_w[idx_rout]))
-        arr_h_s = np.minimum(self.arr_h_np1[idx_rout],
-                    np.maximum(0, arr_wse[idx_rout] - arr_wse_s[idx_rout]))
-        arr_h_e = np.minimum(self.arr_h_np1[idx_rout],
-                    np.maximum(0, arr_wse[idx_rout] - arr_wse_e[idx_rout]))
-        arr_h_n = np.minimum(self.arr_h_np1[idx_rout],
-                    np.maximum(0, arr_wse[idx_rout] - arr_wse_n[idx_rout]))
-
-        # arrays of flows
-        arr_q_w = self.arr_q[idx_rout]['W']
-        arr_q_s = self.arr_q[idx_rout]['S']
-        # flows of the neighbouring cells for E and N
-        arr_q_e = self.arrp_q[1:-1, 2:]['W']
-        arr_q_n = self.arrp_q[:-2, 1:-1]['S']
-        arr_q_e = arr_q_e[idx_rout]
-        arr_q_n = arr_q_n[idx_rout]
-
-        # arrays of calculated routing flow
-        arr_sflow_w = - self.dx * arr_h_w * self.v_routing
-        arr_sflow_s = - self.dy * arr_h_s * self.v_routing
-        arr_sflow_e = self.dx * arr_h_e * self.v_routing
-        arr_sflow_n = self.dy * arr_h_n * self.v_routing
-
-        # can route
-        idx_route_s = np.where(self.arr_slope[idx_rout] == 'S')
-        idx_route_w = np.where(self.arr_slope[idx_rout] == 'W')
-        idx_route_e = np.where(self.arr_slope[idx_rout] == 'E')
-        idx_route_n = np.where(self.arr_slope[idx_rout] == 'N')
-
-        # affect calculated flow to the flow grid
-        arr_q_s[idx_route_s] = arr_sflow_s[idx_route_s]
-        arr_q_w[idx_route_w] = arr_sflow_w[idx_route_w]
-        arr_q_e[idx_route_e] = arr_sflow_e[idx_route_e]
-        arr_q_n[idx_route_n] = arr_sflow_n[idx_route_n]
-
-        return self
-
-    def solve_q(self):
-        # Bates 2010
-        arr_qw_new = self.arr_qw_new[s_i_self]
-        arr_qn_new = self.arr_qn_new[s_j_self]
-        # select cells above and under the threshold
-        slice_under_w = (hfw <= self.hf_min)
-        slice_over_w = (hfw > self.hf_min)
-        slice_under_n = (hfn <= self.hf_min)
-        slice_over_n = (hfn > self.hf_min)
-
-        # calculate flow
-        arr_qw_new[slice_under_w] = 0.
-        arr_qw_new[slice_over_w] = self.bates2010_ne(self.dx, self.dy,
-                wse_i[slice_over_w], wse_i_up[slice_over_w],
-                hfw[slice_over_w], qw[slice_over_w], n_i[slice_over_w])
-        arr_qn_new[slice_under_n] = 0.
-        arr_qn_new[slice_over_n] = self.bates2010_ne(self.dy, self.dx,
-                wse_j[slice_over_n], wse_j_up[slice_over_n],
-                hfn[slice_over_n], qn[slice_over_n], n_j[slice_over_n])
-
-        # Almeida 2012
-        #~ get_q = np.vectorize(self.almeida2012, otypes=[self.arr_qw.dtype])
-        #~ self.arr_qw_new[s_i_self] = get_q(self.dx, self.dy, wse_i, wse_i_up,
-                                         #~ hfw, qw, qwm1, qwp1, n_i)
-        #~ self.arr_qn_new[s_j_self] = get_q(self.dy, self.dx, wse_j, wse_j_up,
-                                         #~ hfn, qn, qnm1, qnp1, n_j)
-        return self
-
-    def bates2010(self, length, width, wse_0, wse_up, hf, q0, n):
-        '''flow formula from
-        Bates, P. D., Horritt, M. S., & Fewtrell, T. J. (2010).
-        A simple inertial formulation of the shallow water equations for
-        efficient two-dimensional flood inundation modelling.
-        Journal of Hydrology, 387(1), 33–45.
-        http://doi.org/10.1016/j.jhydrol.2010.03.027
-        '''
-        slope = (wse_0 - wse_up) / length
-        # from article
-        num = q0 - self.g * hf * self.dt * slope
-        den = 1 + self.g * hf * self.dt * n*n * abs(q0) / np.power(hf, 10./3.)
-        # from lisflood code
-        #~ den = (1 + self.dt * self.g * n*n * abs(q0) / (pow(hf, 4./3) * hf))
-        # similar to Almeida and Bates 2013
-        #~ den = 1 + self.g * self.dt * n*n * abs(q0) / np.power(hf, 7./3.)
-        return (num / den) * width
-
-    def bates2010_ne(self, length, width, wse_0, wse_up, hf, q0, n):
-        '''flow formula from
-        Bates, P. D., Horritt, M. S., & Fewtrell, T. J. (2010).
-        A simple inertial formulation of the shallow water equations for
-        efficient two-dimensional flood inundation modelling.
-        Journal of Hydrology, 387(1), 33–45.
-        http://doi.org/10.1016/j.jhydrol.2010.03.027
-        '''
-        g = self.g
-        dt = self.dt
-        return ne.evaluate("((q0 - g * hf * dt * ((wse_0 - wse_up) / length)) / (1 + g * hf * dt * n*n * abs(q0) / (hf**(10./3.)))) * width")
-
-    def almeida2012(self, length, width, wse0, wsem1, hf, q0, qm1, qp1, n):
-        '''Flow formula from Almeida et al. 2012
-        Without vector norm which is from Almeida and Bates 2013
-        '''
-        if hf <= self.hf_min:
-            return 0
-        else:
-            # flow formula (formula #41 in almeida et al 2012)
-            term_1 = (self.theta * q0 + ((1 - self.theta) / 2) * (qm1 + qp1))
-            term_2 = (self.g * hf * (self.dt / length) * (wse0 - wsem1))
-            term_3 = (1 + self.g * self.dt * (n*n) * abs(q0) / pow(hf, 7./3.))
-            q0_new = (term_1 - term_2) / term_3
-            return q0_new * width
