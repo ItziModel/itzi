@@ -185,6 +185,7 @@ class SurfaceDomain(object):
                     arr_qn=flow_north, arr_qs=flow_south,
                     arr_h=self.arr_h,
                     dx=self.dx, dy=self.dy, dt=self.dt)
+        assert not np.any(self.arr_h < 0)
         return self
 
     def solve_qnorm(self):
@@ -197,12 +198,16 @@ class SurfaceDomain(object):
         arr_qs_i_ju = self.arrp_qs[self.su, self.ss]
         arr_qs_id_j = self.arrp_qs[self.ss, self.sd]
         arr_qs_id_ju = self.arrp_qs[self.su, self.sd]
+        assert arr_qs_i_j.shape == arr_qs_i_ju.shape == arr_qs_id_j.shape
+        assert arr_qs_i_j.shape == arr_qs_id_ju.shape
 
         # values in the X dim, used to calculate an average of X flows
         arr_qe_i_j = self.arr_qe
         arr_qe_iu_j = self.arrp_qe[self.ss, self.su]
         arr_qe_i_jd = self.arrp_qe[self.sd, self.ss]
         arr_qe_iu_jd = self.arrp_qe[self.sd, self.su]
+        assert arr_qe_i_j.shape == arr_qe_iu_j.shape == arr_qe_i_jd.shape
+        assert arr_qe_i_j.shape == arr_qe_iu_jd.shape
 
         # qnorm in x direction
         flow.solve_qnorm(arr_q0=arr_qe_i_j,
