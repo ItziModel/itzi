@@ -60,11 +60,11 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 #~ #% required: no
 #~ #%end
 
-#~ #%option G_OPT_R_INPUT
-#~ #% key: in_inf
-#~ #% description: Name of input infiltration raster map
-#~ #% required: no
-#~ #%end
+#%option G_OPT_STRDS_INPUT
+#% key: in_inf
+#% description: Name of input infiltration raster space-time dataset
+#% required: no
+#%end
 
 #%option G_OPT_STRDS_INPUT
 #% key: in_rain
