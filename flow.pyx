@@ -169,9 +169,11 @@ cdef float rain_routing(float h0, float wse0, float wse1, float dt,
     dh = max(dh, 0)
     # if WSE of destination cell is below the dem of the drained cell, set to h0
     dh = min(dh, h0)
-    maxflow = cell_len * h0 / dt
-    q_routing = dh * v_routing
-    q_routing = min(q_routing, maxflow)
+    maxflow = cell_len * dh / dt
+    if dh <= 0.0001:
+        q_routing = maxflow
+    else:
+        q_routing = min(dh * v_routing, maxflow)
     return q_routing
 
 @cython.wraparound(False)  # Disable negative index check
