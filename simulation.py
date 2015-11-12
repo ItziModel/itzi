@@ -29,7 +29,8 @@ class SuperficialFlowSimulation(object):
                 dtype=np.float32,
                 start_time=datetime(1,1,1),
                 end_time=datetime(1,1,1),
-                sim_duration=timedelta(0)):
+                sim_duration=timedelta(0),
+                hf_min=0.005):
         assert isinstance(start_time, datetime), \
             "start_time not a datetime object!"
         #~ assert isinstance(end_time, datetime), \
@@ -72,6 +73,8 @@ class SuperficialFlowSimulation(object):
         # mask array
         self.mask = np.full(shape=(self.gis.yr, self.gis.xr),
                 fill_value=False, dtype=np.bool_)
+
+        self.hf_min = hf_min
 
     def set_duration(self, end_time, sim_duration):
         """If sim_duration is given, end_time is ignored
@@ -124,7 +127,8 @@ class SuperficialFlowSimulation(object):
                 dx=self.gis.dx,
                 dy=self.gis.dy,
                 arr_h=start_h_masked,
-                arr_def=self.zeros_array())
+                arr_def=self.zeros_array(),
+                hf_min=self.hf_min)
         record_counter = 1
         duration_s = self.duration.total_seconds()
 
@@ -284,6 +288,8 @@ class SuperficialFlowSimulation(object):
                 suffix = str(record_counter).zfill(6)
                 map_name = "{}_{}".format(self.out_map_names[k], suffix)
                 arr_unmasked = self.unmask_array(arr)
+                if k == 'out_h':
+                    arr_unmasked[arr_unmasked <= 0] = np.nan
                 self.gis.write_raster_map(arr_unmasked, map_name)
                 # add map name and time to the corresponding list
                 self.output_maplist[k].append((map_name, self.sim_time))
