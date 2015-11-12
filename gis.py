@@ -123,6 +123,7 @@ class Igis(object):
         """return True if the name given as input is a registered strds
         False if not
         """
+        # create an strds list if not existing
         if not hasattr(self, 'stds_list'):
             stds_dict = tgis.get_dataset_list('strds', '', columns='id')
             self.stds_list = [v[0] for l in stds_dict.values() for v in l]
@@ -143,6 +144,24 @@ class Igis(object):
         else:
             return True
 
+    def get_sim_extend_in_stds_unit(self, strds):
+        """Take a strds object as input
+        Return the simulation start_time and end_time, expressed in
+        the unit of the input strds
+        """
+        if strds.get_temporal_type() == 'relative':
+            # get start time and end time in seconds
+            rel_end_time = (self.end_time - self.start_time).total_seconds()
+            rel_unit = strds.get_relative_time_unit().encode('ascii','ignore')
+            start_time_in_stds_unit = 0
+            end_time_in_stds_unit = self.from_s(rel_unit, rel_end_time)
+        elif strds.get_temporal_type() == 'absolute':
+            start_time_in_stds_unit = self.start_time
+            end_time_in_stds_unit = self.end_time
+        else:
+            assert False, "unknown temporal type"
+        return start_time_in_stds_unit, end_time_in_stds_unit
+
     def read(self, map_names):
         """Read maps names from GIS
         take as input map_names, a dictionary of maps/STDS names
@@ -155,12 +174,16 @@ class Igis(object):
         each map is stored as a MapData namedtuple
         store result in instance's dictionary
         """
-        for k,map_name in map_names.iteritems():
+        for k, map_name in map_names.iteritems():
             if not map_name:
                 map_list = None
                 continue
             elif self.name_is_stds(map_name):
-                map_list = self.raster_list_from_strds(self.format_id(map_name))
+                strds_id = self.format_id(map_name)
+                if not self.stds_temporal_sanity(strds_id):
+                    self.msgr.fatal(_
+                        ("{}: inadequate temporal format".format(map_name)))
+                map_list = self.raster_list_from_strds(strds_id)
             elif self.name_is_map(map_name):
                 map_list = [self.MapData(id=self.format_id(map_name),
                     start_time=self.start_time, end_time=self.end_time)]
@@ -169,6 +192,34 @@ class Igis(object):
             self.maps[k] = map_list
         return self
 
+    def stds_temporal_sanity(self, stds_id):
+        """Make the following check on the given stds:
+        - Topology is valid
+        - No gap
+        - Cover all simulation time
+        return True if all the above is True, False otherwise
+        """
+        out = True
+        stds = tgis.open_stds.open_old_stds(stds_id, 'strds')
+        # valid topology
+        if not stds.check_temporal_topology():
+            out = False
+            self.msgr.warning(_("{}: invalid topology".format(stds_id)))
+        # no gap
+        if stds.count_gaps() != 0:
+            out = False
+            self.msgr.warning(_("{}: gaps found".format(stds_id)))
+        # cover all simulation time
+        sim_start, sim_end = self.get_sim_extend_in_stds_unit(stds)
+        stds_start, stds_end = stds.get_temporal_extent_as_tuple()
+        if stds_start > sim_start:
+            out = False
+            self.msgr.warning(_("{}: starts after simulation".format(stds_id)))
+        if stds_end < sim_end:
+            out = False
+            self.msgr.warning(_("{}: ends before simulation".format(stds_id)))
+        return out
+
     def raster_list_from_strds(self, strds_name):
         """Return a list of maps from a given strds
         for all the simulation duration
@@ -176,27 +227,19 @@ class Igis(object):
         """
         assert isinstance(strds_name, basestring), "expect a string"
 
+        # transform simulation start and end time in strds unit
         strds = tgis.open_stds.open_old_stds(strds_name, 'strds')
-        if strds.get_temporal_type() == 'relative':
-            # get start time and end time in seconds
-            rel_end_time = (self.end_time - self.start_time).total_seconds()
-            rel_unit = strds.get_relative_time_unit().encode('ascii','ignore')
-            start_time_in_stds_unit = 0
-            end_time_in_stds_unit = self.from_s(rel_unit, rel_end_time)
-        elif strds.get_temporal_type() == 'absolute':
-            start_time_in_stds_unit = self.start_time
-            end_time_in_stds_unit = self.end_time
-        else:
-            assert False, "unknown temporal type"
+        sim_start, sim_end = self.get_sim_extend_in_stds_unit(strds)
 
         # retrieve data from DB
         where = 'start_time <= {e} AND end_time >= {s}'.format(
-            e=str(end_time_in_stds_unit), s=str(start_time_in_stds_unit))
+            e=str(sim_end), s=str(sim_start))
         maplist = strds.get_registered_maps(columns=','.join(self.cols),
                                             where=where,
                                             order='start_time')
         # change time data to datetime format
         if strds.get_temporal_type() == 'relative':
+            rel_unit = strds.get_relative_time_unit().encode('ascii','ignore')
             maplist = [(i[0], self.to_datetime(rel_unit, i[1]),
                 self.to_datetime(rel_unit, i[2])) for i in maplist]
         return [self.MapData(*i) for i in maplist]
@@ -239,6 +282,9 @@ class Igis(object):
                 if m.start_time <= sim_time <= m.end_time:
                     arr = self.read_raster_map(m.id)
                     return arr, m.start_time, m.end_time
+            else:
+                assert None, "No map found for {k} at time {t}".format(
+                                            k=mkey, t=sim_time)
 
     def register_maps_in_strds(self, mkey, strds_name, map_list, t_type):
         '''Register given maps and apply color table
