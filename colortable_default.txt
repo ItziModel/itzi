@@ -1,0 +1,3 @@
+0% aqua
+50% yellow
+100% red
