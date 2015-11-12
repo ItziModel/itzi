@@ -30,7 +30,7 @@ class SuperficialFlowSimulation(object):
                 start_time=datetime(1,1,1),
                 end_time=datetime(1,1,1),
                 sim_duration=timedelta(0),
-                hf_min=0.005):
+                hf_min=0.01):
         assert isinstance(start_time, datetime), \
             "start_time not a datetime object!"
         #~ assert isinstance(end_time, datetime), \
@@ -291,7 +291,7 @@ class SuperficialFlowSimulation(object):
                 if k == 'out_h':
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        arr_unmasked[arr_unmasked <= 0] = np.nan
+                        arr_unmasked[arr_unmasked <= self.hf_min] = np.nan
                 self.gis.write_raster_map(arr_unmasked, map_name)
                 # add map name and time to the corresponding list
                 self.output_maplist[k].append((map_name, self.sim_time))
