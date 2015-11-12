@@ -289,7 +289,9 @@ class SuperficialFlowSimulation(object):
                 map_name = "{}_{}".format(self.out_map_names[k], suffix)
                 arr_unmasked = self.unmask_array(arr)
                 if k == 'out_h':
-                    arr_unmasked[arr_unmasked <= 0] = np.nan
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        arr_unmasked[arr_unmasked <= 0] = np.nan
                 self.gis.write_raster_map(arr_unmasked, map_name)
                 # add map name and time to the corresponding list
                 self.output_maplist[k].append((map_name, self.sim_time))
