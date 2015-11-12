@@ -200,11 +200,12 @@ cdef float almeida2013(float theta, float q0, float qup, float qdown, float n,
 def solve_h(np.ndarray[DTYPE_t, ndim=2] arr_ext,
         np.ndarray[DTYPE_t, ndim=2] arr_qe, np.ndarray[DTYPE_t, ndim=2] arr_qw,
         np.ndarray[DTYPE_t, ndim=2] arr_qn, np.ndarray[DTYPE_t, ndim=2] arr_qs,
-        np.ndarray[DTYPE_t, ndim=2] arr_h, float dx, float dy, float dt):
-    '''Update the water depth
+        np.ndarray[DTYPE_t, ndim=2] arr_h, np.ndarray[DTYPE_t, ndim=2] arr_hmax,
+        float dx, float dy, float dt):
+    '''Update the water depth and max depth
     '''
     cdef int rmax, cmax, r, c
-    cdef float qext, qe, qw, qn, qs, h, q_sum, h_new
+    cdef float qext, qe, qw, qn, qs, h, q_sum, h_new, hmax
 
     rmax = arr_qe.shape[0]
     cmax = arr_qe.shape[1]
@@ -217,9 +218,12 @@ def solve_h(np.ndarray[DTYPE_t, ndim=2] arr_ext,
                 qn = arr_qn[r, c]
                 qs = arr_qs[r, c]
                 h = arr_h[r, c]
+                hmax = arr_hmax[r, c]
                 # Sum of flows in m/s
                 q_sum = (qw - qe) / dx + (qn - qs) / dy
                 # calculatre new flow depth, min depth zero
                 h_new = max(h + (qext + q_sum) * dt, 0)
+                # Update max depth array
+                arr_hmax[r, c] = max(h_new, hmax)
                 # Update depth array
                 arr_h[r, c] = h_new

@@ -78,6 +78,7 @@ class Igis(object):
         # color tables files
         file_dir = os.path.dirname(__file__)
         self.rules_h = os.path.join(file_dir, 'colortable_depth.txt')
+        self.rules_def = os.path.join(file_dir, 'colortable_default.txt')
 
     def grass_dtype(self, dtype):
         if dtype in self.dtype_conv['DCELL']:
@@ -251,7 +252,7 @@ class Igis(object):
             array = np.array(rast, dtype=self.dtype)
         return array
 
-    def write_raster_map(self, arr, rast_name):
+    def write_raster_map(self, arr, rast_name, mkey):
         """Take a numpy array and write it to GRASS DB
         """
         assert isinstance(arr, np.ndarray), "arr not a np array!"
@@ -264,6 +265,8 @@ class Igis(object):
             for row in arr:
                 newrow[:] = row[:]
                 newraster.put_row(newrow)
+        # apply color table
+        self.apply_color_table(rast_name, mkey)
         return self
 
     def get_array(self, mkey, sim_time):
@@ -322,12 +325,15 @@ class Igis(object):
         # Finaly register the maps
         tgis.register.register_map_object_list('raster', raster_dts_lst,
                 strds, delete_empty=True, unit='seconds')
+        return self
 
-        # apply color table
+    def apply_color_table(self, map_name, mkey):
+        '''apply a color table determined by mkey to the given map
+        '''
         if mkey == 'out_h':
-            lst = strds.get_registered_maps(columns="id")
-            lst = [s[0] for s in lst]
-            maps = ','.join(lst)
-            grass.run_command('r.colors', quiet=True,
-                        rules=self.rules_h, map=maps)
+            colors_rules = self.rules_h
+        else:
+            colors_rules = self.rules_def
+        grass.run_command('r.colors', quiet=True,
+                        rules=colors_rules, map=map_name)
         return self

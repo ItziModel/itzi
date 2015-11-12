@@ -158,6 +158,7 @@ class SuperficialFlowSimulation(object):
                 self.write_mass_balance(rast_dom.sim_clock)
         # register generated maps in GIS
         self.register_results_in_gis()
+        self.write_hmax_to_gis(rast_dom.arr_hmax)
         return self
 
     def write_mass_balance(self, sim_clock):
@@ -292,7 +293,7 @@ class SuperficialFlowSimulation(object):
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
                         arr_unmasked[arr_unmasked <= self.hf_min] = np.nan
-                self.gis.write_raster_map(arr_unmasked, map_name)
+                self.gis.write_raster_map(arr_unmasked, map_name, k)
                 # add map name and time to the corresponding list
                 self.output_maplist[k].append((map_name, self.sim_time))
         return self
@@ -303,10 +304,17 @@ class SuperficialFlowSimulation(object):
         #~ arr_h_unmasked = self.unmask_array(arr_h)
         #~ arr_err_unmasked = self.unmask_array(arr_error)
         map_h_name = "{}_error".format(self.out_map_names['out_h'])
-        self.gis.write_raster_map(arr_h, map_h_name,
-                                    self.sim_time, self.temporal_type)
+        self.gis.write_raster_map(arr_h, map_h_name)
         # add map name to the revelant list
         self.output_maplist['out_h'].append(map_h_name)
+        return self
+
+    def write_hmax_to_gis(self, arr_hmax):
+        '''Write a given depth array to the GIS
+        '''
+        arr_hmax_unmasked = self.unmask_array(arr_hmax)
+        map_hmax_name = "{}_max".format(self.out_map_names['out_h'])
+        self.gis.write_raster_map(arr_hmax_unmasked, map_hmax_name, 'out_h')
         return self
 
     def register_results_in_gis(self):

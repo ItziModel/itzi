@@ -67,6 +67,8 @@ class SurfaceDomain(object):
         self.arr_h = arr_h
         # Set internal arrays to a provided default
         # Input arrays are set externally with set_input_arrays()
+        # max depth
+        self.arr_hmax = np.copy(arr_def)
         # flow depth
         self.arr_hfe = np.copy(arr_def)
         self.arr_hfs = np.copy(arr_def)
@@ -183,7 +185,7 @@ class SurfaceDomain(object):
         flow.solve_h(arr_ext=self.arr_ext,
                     arr_qe=flow_east, arr_qw=flow_west,
                     arr_qn=flow_north, arr_qs=flow_south,
-                    arr_h=self.arr_h,
+                    arr_h=self.arr_h, arr_hmax=self.arr_hmax,
                     dx=self.dx, dy=self.dy, dt=self.dt)
         assert not np.any(self.arr_h < 0)
         return self
