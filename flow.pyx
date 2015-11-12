@@ -158,19 +158,18 @@ def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
 cdef float rain_routing(float h0, float wse0, float wse1, float dt,
-                 float cell_len, float v_routing) nogil:
+                        float cell_len, float v_routing) nogil:
     """Calculate flow routing at a face in m2/s
     Cf. Sampson et al. (2013)
     """
-    cdef float maxflow, q_routing
-    cdef float dh = wse0 - wse1
+    cdef float maxflow, q_routing, dh
     # fraction of the depth to be routed
     dh = wse0 - wse1
     # make sure it's positive (should not happend, checked before)
     dh = max(dh, 0)
     # if WSE of destination cell is below the dem of the drained cell, set to h0
     dh = min(dh, h0)
-    maxflow = cell_len * dh / dt
+    maxflow = cell_len * h0 / dt
     q_routing = dh * v_routing
     q_routing = min(q_routing, maxflow)
     return q_routing
