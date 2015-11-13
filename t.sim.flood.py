@@ -34,109 +34,166 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 #% keywords: Shallow Water Equations
 #% keywords: flow
 #% keywords: flood
+#% keywords: inundation
 #%end
 
 #%option G_OPT_R_ELEV
 #% key: in_z
-#% description: Name of input elevation raster map
+#% description: Input elevation (raster map/stds)
 #% required: yes
 #%end
 
 #%option G_OPT_R_INPUT
 #% key: in_n
-#% description: Name of input friction coefficient raster map
+#% description: Input friction coefficient (raster map/stds)
 #% required: yes
 #%end
 
 #%option G_OPT_R_INPUT
 #% key: in_h
-#% description: Name of input water depth raster map
+#% description: Input starting water depth (raster map)
 #% required: no
 #%end
 
 #~ #%option G_OPT_R_INPUT
 #~ #% key: in_y
-#~ #% description: Name of input water surface elevation raster map
+#~ #% description: Input starting water surface elevation (raster map)
 #~ #% required: no
 #~ #%end
 
 #%option G_OPT_STRDS_INPUT
 #% key: in_inf
-#% description: Name of input infiltration raster space-time dataset
+#% description: Input infiltration (raster map/stds)
 #% required: no
 #%end
 
 #%option G_OPT_STRDS_INPUT
 #% key: in_rain
-#% description: Name of input rainfall raster space-time dataset
+#% description: Input rainfall (raster map/stds)
 #% required: no
 #%end
 
 #%option G_OPT_STRDS_INPUT
 #% key: in_q
-#% description: Name of input user flow raster space-time dataset
+#% description: Input user flow (raster map/stds)
 #% required: no
 #%end
 
-#%option G_OPT_R_INPUT
+#%option G_OPT_STRDS_INPUT
 #% key: in_bctype
-#% description: Name of input boundary conditions type map
+#% description: Input boundary conditions type (raster map/stds)
 #% required: no
 #%end
 
 #%option G_OPT_STRDS_INPUT
 #% key: in_bcval
-#% description: Name of input boundary conditions values raster STDS
+#% description: Input boundary conditions values (raster map/stds)
 #% required: no
 #%end
 
 
 #%option G_OPT_STRDS_OUTPUT
 #% key: out_h
-#% description: Name of output water depth raster space-time dataset
+#% description: Output water depth (strds)
 #% required: no
 #%end
 
 #%option G_OPT_STRDS_OUTPUT
 #% key: out_wse
-#% description: Name of output water surface elevation space-time dataset
+#% description: Output water surface elevation (strds)
 #% required: no
 #%end
 
 #~ #%option G_OPT_R_OUTPUT
-#~ #% key: out_qx
-#~ #% description: Name of output flow raster map for x direction
+#~ #% key: out_vx
+#~ #% description: Output velocity strds for x direction (strds)
 #~ #% required: no
 #~ #%end
 #~ 
 #~ #%option G_OPT_R_OUTPUT
-#~ #% key: out_qy
-#~ #% description: Name of output flow raster map for y direction
+#~ #% key: out_vy
+#~ #% description: Output velocity strds for y direction (strds)
 #~ #% required: no
 #~ #%end
 
-#%option G_OPT_UNDEFINED
+#%option
+#% key: hmin
+#% description: Water depth threshold in metres
+#% required: no
+#% multiple: no
+#% guisection: Parameters
+#%end
+
+#%option
+#% key: slmax
+#% description: Slope threshold in m/m
+#% required: no
+#% multiple: no
+#% guisection: Parameters
+#%end
+
+#%option
+#% key: cfl
+#% description: CFL coefficient used to calculate time-step
+#% required: no
+#% multiple: no
+#% guisection: Parameters
+#%end
+
+#%option
+#% key: theta
+#% description: Flow weighting coefficient
+#% required: no
+#% multiple: no
+#% guisection: Parameters
+#%end
+
+#%option
+#% key: vrouting
+#% description: Rain routing velocity in m/s
+#% required: no
+#% multiple: no
+#% guisection: Parameters
+#%end
+
+#%option
+#% key: dtmax
+#% description: Maximum time-step in seconds
+#% required: no
+#% multiple: no
+#% guisection: Parameters
+#%end
+
+#%option
 #% key: start_time
-#% description: Start of the simulation, format yyyy-mm-dd HH:MM
+#% description: Start of the simulation. Format yyyy-mm-dd HH:MM
 #% required: no
+#% multiple: no
+#% guisection: Time
 #%end
 
-#%option G_OPT_UNDEFINED
+#%option
 #% key: end_time
-#% description: End of the simulation, format yyyy-mm-dd HH:MM
+#% description: End of the simulation. Format yyyy-mm-dd HH:MM
 #% required: no
+#% multiple: no
+#% guisection: Time
 #%end
 
-#%option G_OPT_UNDEFINED
+#%option
 #% key: sim_duration
-#% description: Duration of the simulation, format HH:MM:SS
+#% description: Duration of the simulation. Format HH:MM:SS
 #% required: no
+#% multiple: no
+#% guisection: Time
 #%end
 
-#%option G_OPT_UNDEFINED
+#%option
 #% key: record_step
-#% description: Duration between two records, format HH:MM:SS
+#% description: Duration between two records. Format HH:MM:SS
 #% required: yes
+#% multiple: no
+#% guisection: Time
 #%end
 
 import sys
@@ -167,6 +224,7 @@ def main():
         msgr.fatal(_("latlong location is not supported"))
 
     # values to be passed to simulation
+    sim_param = {'hmin':0.005, 'cfl':0.7, 'theta':0.9, 'vrouting':0.1, 'dtmax':5., 'slmax':.5}
     input_times = {'start':None,'end':None,'duration':None,'rec_step':None}
     input_map_names = {'in_z': None, 'in_n': None, 'in_h': None, 'in_inf':None,
         'in_rain': None, 'in_q':None, 'in_bcval': None, 'in_bctype': None}
@@ -176,6 +234,7 @@ def main():
     # check and load input values
     read_input_time(msgr, options, input_times)
     read_maps_names(msgr, options, input_map_names, output_map_names)
+    read_sim_param(msgr, options, sim_param)
 
     # Run simulation
     sim = simulation.SuperficialFlowSimulation(
@@ -185,7 +244,8 @@ def main():
                         record_step=input_times['rec_step'],
                         dtype=np.float32,
                         input_maps=input_map_names,
-                        output_maps=output_map_names)
+                        output_maps=output_map_names,
+                        sim_param=sim_param)
     sim.run()
 
     # end profiling
@@ -262,11 +322,18 @@ def read_input_time(msgr, opts, input_times):
 def read_maps_names(msgr, opt, input_map_names, output_map_names):
     """Read options and populate input and output name dictionaries
     """
-    for k,v in opt.iteritems():
+    for k, v in opt.iteritems():
         if k in input_map_names.keys() and v:
             input_map_names[k] = v
         if k in output_map_names.keys() and v:
             output_map_names[k] = v
+
+def read_sim_param(msgr, opt, sim_param):
+    """Read simulation parameters and populate the corresponding dictionary
+    """
+    for k, v in opt.iteritems():
+        if k in sim_param.keys() and v:
+            sim_param[k] = float(v)
 
 
 if __name__ == "__main__":

@@ -29,13 +29,20 @@ class SurfaceDomain(object):
 
     def __init__(self, dx, dy, arr_def, arr_h,
                 sim_clock=0,
-                dtmax=5,
-                a=0.5,         # CFL constant
+                dtmax=None,
+                a=None,         # CFL constant
                 g=9.80665,     # Standard gravity
-                theta=0.9,     # default proposed by Almeida et al.(2012)
-                hf_min=0.005,
-                slope_threshold=0.5,
-                v_routing=0.1):  # simple routing velocity m/s):
+                theta=None,
+                hf_min=None,
+                slope_threshold=None,
+                v_routing=None):  # simple routing velocity m/s
+        assert dtmax != None
+        assert a != None
+        assert theta != None
+        assert hf_min != None
+        assert slope_threshold != None
+        assert v_routing != None
+
         self.sim_clock = sim_clock
         self.dtmax = dtmax
         self.cfl = a

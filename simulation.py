@@ -30,18 +30,16 @@ class SuperficialFlowSimulation(object):
                 start_time=datetime(1,1,1),
                 end_time=datetime(1,1,1),
                 sim_duration=timedelta(0),
-                hf_min=0.01):
+                sim_param=None):
         assert isinstance(start_time, datetime), \
             "start_time not a datetime object!"
-        #~ assert isinstance(end_time, datetime), \
-            #~ "end_time not a datetime object!"
-        #~ assert start_time <= end_time, "start_time > end_time!"
         assert isinstance(sim_duration, timedelta), \
             "sim_duration not a timedelta object!"
         assert sim_duration >= timedelta(0), "sim_duration is negative!"
         assert isinstance(record_step, timedelta), \
             "record_step not a timedelta object!"
         assert record_step > timedelta(0), "record_step must be > 0"
+        assert sim_param != None
 
         self.record_step = record_step
         self.start_time = start_time
@@ -74,7 +72,8 @@ class SuperficialFlowSimulation(object):
         self.mask = np.full(shape=(self.gis.yr, self.gis.xr),
                 fill_value=False, dtype=np.bool_)
 
-        self.hf_min = hf_min
+        # simulation parameters
+        self.sim_param = sim_param
 
     def set_duration(self, end_time, sim_duration):
         """If sim_duration is given, end_time is ignored
@@ -128,7 +127,12 @@ class SuperficialFlowSimulation(object):
                 dy=self.gis.dy,
                 arr_h=start_h_masked,
                 arr_def=self.zeros_array(),
-                hf_min=self.hf_min)
+                hf_min=self.sim_param['hmin'],
+                theta=self.sim_param['theta'],
+                dtmax=self.sim_param['dtmax'],
+                a=self.sim_param['cfl'],
+                slope_threshold=self.sim_param['slmax'],
+                v_routing=self.sim_param['vrouting'])
         record_counter = 1
         duration_s = self.duration.total_seconds()
 
