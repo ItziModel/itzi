@@ -196,6 +196,12 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 #% guisection: Time
 #%end
 
+#%option G_OPT_F_INPUT
+#% key: file
+#% required: no
+#% label: Input file with parameters, one per line
+#%end
+
 import sys
 import os
 from datetime import datetime, timedelta
