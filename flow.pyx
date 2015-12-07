@@ -227,3 +227,25 @@ def solve_h(np.ndarray[DTYPE_t, ndim=2] arr_ext,
                 arr_hmax[r, c] = max(h_new, hmax)
                 # Update depth array
                 arr_h[r, c] = h_new
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+def set_ext_array(np.ndarray[DTYPE_t, ndim=2] arr_qext,
+        np.ndarray[DTYPE_t, ndim=2] arr_rain, np.ndarray[DTYPE_t, ndim=2] arr_inf,
+        np.ndarray[DTYPE_t, ndim=2] arr_ext, float multiplicator):
+    '''Update the water depth and max depth
+    '''
+    cdef int rmax, cmax, r, c
+    cdef float qext, rain, inf
+
+    rmax = arr_qext.shape[0]
+    cmax = arr_qext.shape[1]
+    with nogil:
+        for r in prange(rmax):
+            for c in range(cmax):
+                qext = arr_qext[r, c]
+                rain = arr_rain[r, c]
+                inf = arr_inf[r, c]
+                # Solve
+                arr_ext[r, c] = qext + (rain - inf) / multiplicator

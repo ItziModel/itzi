@@ -21,6 +21,7 @@ from datetime import datetime, timedelta
 import bottleneck as bn
 import domain
 import gis
+import flow
 
 class SuperficialFlowSimulation(object):
     """
@@ -288,7 +289,10 @@ class SuperficialFlowSimulation(object):
             self.massbal.add_value('inf_vol', inf_vol)
             self.massbal.add_value('inflow_vol', inflow_vol)
 
-        return in_q + (in_rain - in_inf) / mmh_to_ms
+        arr_ext = np.copy(in_q)
+        flow.set_ext_array(in_q, in_rain, in_inf, arr_ext, mmh_to_ms)
+
+        return arr_ext
 
     def write_results_to_gis(self, record_counter):
         """Format the name of each maps using the record number as suffix
