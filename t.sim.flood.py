@@ -37,6 +37,11 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 #% keywords: inundation
 #%end
 
+#%flag
+#% key: p
+#% description: Activate profiler
+#%end
+
 #%option G_OPT_R_ELEV
 #% key: in_z
 #% description: Input elevation (raster map/stds)
@@ -197,9 +202,14 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 #%end
 
 #%option G_OPT_F_INPUT
-#% key: file
+#% key: param_file
 #% required: no
-#% label: Input file with parameters, one per line
+#%end
+
+#%option
+#% key: stats_file
+#% required: no
+#% label: Output statistic file
 #%end
 
 import sys
@@ -219,8 +229,9 @@ import simulation
 
 def main():
     # start profiler
-    pr = cProfile.Profile()
-    pr.enable()
+    if flags['p']:
+        pr = cProfile.Profile()
+        pr.enable()
 
     # start messenger
     msgr = Messenger()
@@ -248,6 +259,7 @@ def main():
                         end_time=input_times['end'],
                         sim_duration=input_times['duration'],
                         record_step=input_times['rec_step'],
+                        stats_file = options['stats_file'],
                         dtype=np.float32,
                         input_maps=input_map_names,
                         output_maps=output_map_names,
@@ -255,12 +267,13 @@ def main():
     sim.run()
 
     # end profiling
-    pr.disable()
-    stat_stream = StringIO.StringIO()
-    sortby = 'time'
-    ps = pstats.Stats(pr, stream=stat_stream).sort_stats(sortby)
-    ps.print_stats(10)
-    print stat_stream.getvalue()
+    if flags['p']:
+        pr.disable()
+        stat_stream = StringIO.StringIO()
+        sortby = 'time'
+        ps = pstats.Stats(pr, stream=stat_stream).sort_stats(sortby)
+        ps.print_stats(10)
+        print stat_stream.getvalue()
 
 def str_to_timedelta(inp_str):
     """Takes a string in the form HH:MM:SS

@@ -28,6 +28,7 @@ class SuperficialFlowSimulation(object):
 
     def __init__(self,record_step, input_maps, output_maps,
                 dtype=np.float32,
+                stats_file=None,
                 start_time=datetime(1,1,1),
                 end_time=datetime(1,1,1),
                 sim_duration=timedelta(0),
@@ -67,8 +68,10 @@ class SuperficialFlowSimulation(object):
         # a dict containing lists of maps written to gis to be registered
         self.output_maplist = {k:[] for k in self.out_map_names.keys()}
         # Instantiate Massbal object
-        dom_size = self.gis.yr * self.gis.xr
-        self.massbal = MassBal(dom_size=dom_size)
+        self.massbal = None
+        if stats_file:
+            dom_size = self.gis.yr * self.gis.xr
+            self.massbal = MassBal(dom_size=dom_size, file_name=stats_file)
         # mask array
         self.mask = np.full(shape=(self.gis.yr, self.gis.xr),
                 fill_value=False, dtype=np.bool_)
@@ -153,14 +156,16 @@ class SuperficialFlowSimulation(object):
             # update simulation time and dt
             self.sim_time = self.start_time + timedelta(seconds=rast_dom.sim_clock)
             self.dt = rast_dom.dt
-            self.massbal.add_value('tstep', self.dt)
+            if self.massbal:
+                self.massbal.add_value('tstep', self.dt)
             # write simulation results
             rec_time = rast_dom.sim_clock / self.record_step.total_seconds()
             if rec_time >= record_counter:
                 self.output_arrays = rast_dom.get_output_arrays(self.out_map_names)
                 self.write_results_to_gis(record_counter)
                 record_counter += 1
-                self.write_mass_balance(rast_dom.sim_clock)
+                if self.massbal:
+                    self.write_mass_balance(rast_dom.sim_clock)
         # register generated maps in GIS
         self.register_results_in_gis()
         self.write_hmax_to_gis(rast_dom.arr_hmax)
@@ -274,13 +279,14 @@ class SuperficialFlowSimulation(object):
 
         mmh_to_ms = 1000. * 3600.
         # mass balance in m3
-        surf_dt = self.gis.dx * self.gis.dy * self.dt
-        rain_vol = bn.nansum(in_rain[np.logical_not(self.mask)]) / mmh_to_ms * surf_dt
-        inf_vol = bn.nansum(in_inf[np.logical_not(self.mask)]) / mmh_to_ms * surf_dt
-        inflow_vol = bn.nansum(in_q[np.logical_not(self.mask)]) * surf_dt
-        self.massbal.add_value('rain_vol', rain_vol)
-        self.massbal.add_value('inf_vol', inf_vol)
-        self.massbal.add_value('inflow_vol', inflow_vol)
+        if self.massbal:
+            surf_dt = self.gis.dx * self.gis.dy * self.dt
+            rain_vol = bn.nansum(in_rain[np.logical_not(self.mask)]) / mmh_to_ms * surf_dt
+            inf_vol = bn.nansum(in_inf[np.logical_not(self.mask)]) / mmh_to_ms * surf_dt
+            inflow_vol = bn.nansum(in_q[np.logical_not(self.mask)]) * surf_dt
+            self.massbal.add_value('rain_vol', rain_vol)
+            self.massbal.add_value('inf_vol', inf_vol)
+            self.massbal.add_value('inflow_vol', inflow_vol)
 
         return in_q + (in_rain - in_inf) / mmh_to_ms
 
@@ -289,8 +295,7 @@ class SuperficialFlowSimulation(object):
         Send a couple array, name to the GIS writing function.
         """
         for k, arr in self.output_arrays.iteritems():
-            if arr != None:
-                assert isinstance(arr, np.ndarray), "arr not a np array!"
+            if isinstance(arr, np.ndarray):
                 suffix = str(record_counter).zfill(6)
                 map_name = "{}_{}".format(self.out_map_names[k], suffix)
                 arr_unmasked = self.unmask_array(arr)
@@ -383,10 +388,9 @@ class TimedArray(object):
         # Retrieve values
         arr, arr_start, arr_end = self.igis.get_array(self.mkey, sim_time)
         # set to default if no array retrieved
-        if arr == None:
+        if not isinstance(arr, np.ndarray):
             arr = self.f_arr_def()
         # check retrieved values
-        assert isinstance(arr, np.ndarray), "not a np.ndarray!"
         assert isinstance(arr_start, datetime), "not a datetime object!"
         assert isinstance(arr_end, datetime), "not a datetime object!"
         assert arr_start <= sim_time <= arr_end, "wrong time retrieved!"

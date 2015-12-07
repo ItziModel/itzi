@@ -142,16 +142,19 @@ class SurfaceDomain(object):
         self.set_dt(next_ts)
         self.solve_q()
         boundary_vol = self.apply_boundary_conditions()
-        massbal.add_value('boundary_vol', boundary_vol)
-        massbal.add_value('old_dom_vol', self.domain_volume())
+        if massbal:
+            massbal.add_value('boundary_vol', boundary_vol)
+            massbal.add_value('old_dom_vol', self.domain_volume())
         self.update_h()
         self.arr_err = np.isnan(self.arr_h)
         if np.any(self.arr_err):
             raise ValueError
-        massbal.add_value('new_dom_vol', self.domain_volume())
+        if massbal:
+            massbal.add_value('new_dom_vol', self.domain_volume())
         self.copy_arrays_values_for_next_timestep()
         end_clock = time.clock()
-        massbal.add_value('step_duration', end_clock - start_clock)
+        if massbal:
+            massbal.add_value('step_duration', end_clock - start_clock)
         return self
 
     def set_dt(self, next_ts):
