@@ -16,6 +16,7 @@ GNU General Public License for more details.
 from __future__ import division
 import math
 import numpy as np
+import bottleneck as bn
 import flow
 import time
 
@@ -178,7 +179,7 @@ class SurfaceDomain(object):
     def domain_volume(self):
         '''return domain volume
         '''
-        return np.nansum(self.arr_h) * self.cell_surf
+        return bn.nansum(self.arr_h) * self.cell_surf
 
     def update_h(self):
         """Calculate new water depth
@@ -360,8 +361,8 @@ class SurfaceDomain(object):
         # calculate volume entering through boundaries
         x_boundary_len = (w_boundary_flow.shape[0] + e_boundary_flow.shape[0]) * self.dy
         y_boundary_len = (n_boundary_flow.shape[0] + s_boundary_flow.shape[0]) * self.dx
-        x_boundary_flow = (np.nansum(w_boundary_flow) - np.nansum(e_boundary_flow)) * x_boundary_len
-        y_boundary_flow = (np.nansum(n_boundary_flow) - np.nansum(s_boundary_flow)) * y_boundary_len
+        x_boundary_flow = (bn.nansum(w_boundary_flow) - bn.nansum(e_boundary_flow)) * x_boundary_len
+        y_boundary_flow = (bn.nansum(n_boundary_flow) - bn.nansum(s_boundary_flow)) * y_boundary_len
         boundary_vol = (x_boundary_flow + y_boundary_flow)
         return boundary_vol
 

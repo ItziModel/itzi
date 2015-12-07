@@ -18,6 +18,7 @@ import csv
 import warnings
 import numpy as np
 from datetime import datetime, timedelta
+import bottleneck as bn
 import domain
 import gis
 
@@ -273,10 +274,10 @@ class SuperficialFlowSimulation(object):
 
         mmh_to_ms = 1000. * 3600.
         # mass balance in m3
-        cell_surf = self.gis.dx * self.gis.dy
-        rain_vol = np.nansum(in_rain[np.logical_not(self.mask)]) / mmh_to_ms * cell_surf * self.dt
-        inf_vol = np.nansum(in_inf[np.logical_not(self.mask)]) / mmh_to_ms * cell_surf * self.dt
-        inflow_vol = np.nansum(in_q[np.logical_not(self.mask)]) * cell_surf * self.dt
+        surf_dt = self.gis.dx * self.gis.dy * self.dt
+        rain_vol = bn.nansum(in_rain[np.logical_not(self.mask)]) / mmh_to_ms * surf_dt
+        inf_vol = bn.nansum(in_inf[np.logical_not(self.mask)]) / mmh_to_ms * surf_dt
+        inflow_vol = bn.nansum(in_q[np.logical_not(self.mask)]) * surf_dt
         self.massbal.add_value('rain_vol', rain_vol)
         self.massbal.add_value('inf_vol', inf_vol)
         self.massbal.add_value('inflow_vol', inflow_vol)
@@ -482,8 +483,9 @@ class MassBal(object):
         dom_vol_theor = first_vol + sum_ext_vol
         vol_error = last_vol - dom_vol_theor
         self.line['vol_error'] = '{:.3f}'.format(vol_error)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+        if last_vol <= 0:
+            self.line['%error'] = '-'
+        else:
             self.line['%error'] = '{:.2%}'.format(vol_error / last_vol)
 
         # Performance
