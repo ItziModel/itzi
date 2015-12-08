@@ -317,13 +317,7 @@ def read_input_time(msgr, opts, input_times):
     if not (b_dur or b_start_dur or b_start_end):
         msgr.fatal(_(comb_err_msg))
 
-    if opts['sim_duration']:
-        try:
-            input_times['duration'] = str_to_timedelta(opts['sim_duration'])
-        except:
-            msgr.fatal(_(rel_err_msg.format('sim_duration')))
-
-    if options['end_time']:
+    if opts['end_time']:
         try:
             input_times['end'] = datetime.strptime(opts['end_time'], date_format)
         except ValueError:
@@ -337,6 +331,14 @@ def read_input_time(msgr, opts, input_times):
             msgr.fatal(_(abs_err_msg.format('start_time')))
     else:
         input_times['start'] = datetime.min
+
+    if opts['sim_duration']:
+        try:
+            input_times['duration'] = str_to_timedelta(opts['sim_duration'])
+        except:
+            msgr.fatal(_(rel_err_msg.format('sim_duration')))
+    else:
+        input_times['duration'] = input_times['end'] - input_times['start']
 
 def read_maps_names(msgr, opt, input_map_names, output_map_names):
     """Read options and populate input and output name dictionaries

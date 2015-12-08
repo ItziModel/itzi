@@ -124,12 +124,7 @@ class Igis(object):
         """return True if the name given as input is a registered strds
         False if not
         """
-        # create an strds list if not existing
-        if not hasattr(self, 'stds_list'):
-            stds_dict = tgis.get_dataset_list('strds', '', columns='id')
-            self.stds_list = [v[0] for l in stds_dict.values() for v in l]
-
-        if self.format_id(name) in self.stds_list:
+        if tgis.SpaceTimeRasterDataset(self.format_id(name)).is_in_db():
             return True
         else:
             return False
@@ -233,7 +228,7 @@ class Igis(object):
         sim_start, sim_end = self.get_sim_extend_in_stds_unit(strds)
 
         # retrieve data from DB
-        where = 'start_time <= {e} AND end_time >= {s}'.format(
+        where = "start_time <= '{e}' AND end_time >= '{s}'".format(
             e=str(sim_end), s=str(sim_start))
         maplist = strds.get_registered_maps(columns=','.join(self.cols),
                                             where=where,
@@ -323,8 +318,14 @@ class Igis(object):
             # populate the list
             raster_dts_lst.append(raster_dts)
         # Finaly register the maps
+        if t_type == 'relative':
+            r_unit='seconds'
+        elif t_type == 'absolute':
+            r_unit=''
+        else:
+            assert False, "unknown temporal type!"
         tgis.register.register_map_object_list('raster', raster_dts_lst,
-                strds, delete_empty=True, unit='seconds')
+                strds, delete_empty=True, unit=r_unit)
         return self
 
     def apply_color_table(self, map_name, mkey):
