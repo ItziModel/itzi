@@ -193,12 +193,15 @@ class SurfaceDomain(object):
         flow_south = self.arr_qs_new
         assert flow_west.shape == flow_east.shape == flow_north.shape == flow_south.shape
 
+        self.hfix_vol = 0.
         flow.solve_h(arr_ext=self.arr_ext,
                     arr_qe=flow_east, arr_qw=flow_west,
                     arr_qn=flow_north, arr_qs=flow_south,
+                    arr_bct=self.arr_bctype, arr_bcv=self.arr_bcval,
                     arr_h=self.arr_h, arr_hmax=self.arr_hmax,
-                    dx=self.dx, dy=self.dy, dt=self.dt)
+                    dx=self.dx, dy=self.dy, dt=self.dt, hfix_vol=self.hfix_vol)
         assert not np.any(self.arr_h < 0)
+        #~ print self.hfix_vol
         return self
 
     def solve_qnorm(self):

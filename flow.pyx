@@ -200,12 +200,13 @@ cdef float almeida2013(float theta, float q0, float qup, float qdown, float n,
 def solve_h(np.ndarray[DTYPE_t, ndim=2] arr_ext,
         np.ndarray[DTYPE_t, ndim=2] arr_qe, np.ndarray[DTYPE_t, ndim=2] arr_qw,
         np.ndarray[DTYPE_t, ndim=2] arr_qn, np.ndarray[DTYPE_t, ndim=2] arr_qs,
+        np.ndarray[DTYPE_t, ndim=2] arr_bct, np.ndarray[DTYPE_t, ndim=2] arr_bcv,
         np.ndarray[DTYPE_t, ndim=2] arr_h, np.ndarray[DTYPE_t, ndim=2] arr_hmax,
-        float dx, float dy, float dt):
+        float dx, float dy, float dt, float hfix_vol):
     '''Update the water depth and max depth
     '''
     cdef int rmax, cmax, r, c
-    cdef float qext, qe, qw, qn, qs, h, q_sum, h_new, hmax
+    cdef float qext, qe, qw, qn, qs, h, q_sum, h_new, hmax, bct, bcv, hfix_h
 
     rmax = arr_qe.shape[0]
     cmax = arr_qe.shape[1]
@@ -217,16 +218,25 @@ def solve_h(np.ndarray[DTYPE_t, ndim=2] arr_ext,
                 qw = arr_qw[r, c]
                 qn = arr_qn[r, c]
                 qs = arr_qs[r, c]
+                bct = arr_bct[r, c]
+                bcv = arr_bcv[r, c]
                 h = arr_h[r, c]
                 hmax = arr_hmax[r, c]
                 # Sum of flows in m/s
                 q_sum = (qw - qe) / dx + (qn - qs) / dy
                 # calculatre new flow depth, min depth zero
                 h_new = max(h + (qext + q_sum) * dt, 0)
+                # Apply fixed water level
+                if bct == 4:
+                    # Positive if water enters the domain
+                    hfix_h += (bcv - h_new)
+                    h_new = bcv
                 # Update max depth array
                 arr_hmax[r, c] = max(h_new, hmax)
                 # Update depth array
                 arr_h[r, c] = h_new
+    # calculate volume entering or leaving the domain by boundary condition
+    hfix_vol = hfix_h * dx * dy
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
