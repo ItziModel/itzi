@@ -19,6 +19,7 @@ import numpy as np
 import bottleneck as bn
 import flow
 import time
+from chac_error import NullError
 
 class SurfaceDomain(object):
     """Represents a staggered grid where flow is simulated
@@ -148,7 +149,7 @@ class SurfaceDomain(object):
         self.update_h()
         self.arr_err = np.isnan(self.arr_h)
         if np.any(self.arr_err):
-            raise ValueError
+            raise NullError
         if massbal:
             massbal.add_value('new_dom_vol', self.domain_volume())
         self.copy_arrays_values_for_next_timestep()
@@ -201,7 +202,6 @@ class SurfaceDomain(object):
                     arr_h=self.arr_h, arr_hmax=self.arr_hmax,
                     dx=self.dx, dy=self.dy, dt=self.dt, hfix_vol=self.hfix_vol)
         assert not np.any(self.arr_h < 0)
-        #~ print self.hfix_vol
         return self
 
     def solve_qnorm(self):

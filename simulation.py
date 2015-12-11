@@ -22,6 +22,7 @@ import bottleneck as bn
 import domain
 import gis
 import flow
+from chac_error import NullError
 
 class SuperficialFlowSimulation(object):
     """
@@ -150,7 +151,7 @@ class SuperficialFlowSimulation(object):
             next_record = record_counter*self.record_step.total_seconds()
             try:
                 rast_dom.step(self.next_timestep(next_record), self.massbal)
-            except ValueError:
+            except NullError:
                 self.write_error_to_gis(rast_dom.arr_h, rast_dom.arr_err)
                 self.gis.msgr.warning(_("Error in simulation at time {}, terminating").format(self.sim_time))
                 break
@@ -195,7 +196,7 @@ class SuperficialFlowSimulation(object):
         dtype is set to unsigned integer.
         Intended to be used as default for bctype map
         """
-        return np.ones(shape=(self.gis.yr, self.gis.xr), dtype=np.uint8)
+        return np.ones(shape=(self.gis.yr, self.gis.xr), dtype=self.dtype)
 
     def next_timestep(self, next_record):
         """Given a next record time in seconds as entry,
@@ -291,7 +292,6 @@ class SuperficialFlowSimulation(object):
 
         arr_ext = np.copy(in_q)
         flow.set_ext_array(in_q, in_rain, in_inf, arr_ext, mmh_to_ms)
-
         return arr_ext
 
     def write_results_to_gis(self, record_counter):
