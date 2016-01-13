@@ -22,11 +22,9 @@ An automated routing methodology to enable direct rainfall in high resolution sh
 Hydrological Processes, 27(3), pp.467–476.
 
 It outputs space-time raster datasets of:
-  - water depth
-  - water surface elevation (depth + DEM)
 
-# Validity
-To be completed
+* water depth
+* water surface elevation (depth + DEM)
 
 # Usage
 ## Input data
@@ -36,28 +34,32 @@ First, the module try to load a STRDS of the given name.
 If unsuccessful, it will load the given map, and stop with an error if the name does not correspond to either a map or a STRDS
 
 The following raster maps are necessary:
-  - Digital elevation model in meters
-  - Friction, expressed as Manning's n
+
+  * Digital elevation model in meters
+  * Friction, expressed as Manning's n
 
 The following raster space-time datasets are optional:
-  - rain map in mm/h
-  - user defined inflow in m/s (vertical velocity, i.e for 20 m3/s on a 10x10 cell, the velocity is 0.2 m/s)
-  - boundary condition type: an integer map (see below)
-  - boundary condition value: a map for boundary conditions using user-given value
+
+  * rain map in mm/h
+  * user defined inflow in m/s (vertical velocity, i.e for 20 m3/s on a 10x10 cell, the velocity is 0.2 m/s)
+  * boundary condition type: an integer map (see below)
+  * boundary condition value: a map for boundary conditions using user-given value
 
 The following informations are needed to start the simulation:
-  - the simulation duration could be given by a combination of start_time, end_time and sim_duration.
-  If only the duration is given, the results will be written as relative time STRDS
-  - record_step: the step in which results maps are written to the disk
 
-## Boundary values
-  Only the cells on the edge of the map are used by the module. All other values are ignored
+* the simulation duration could be given by a combination of start_time, end_time and sim_duration.
+  If only the duration is given, the results will be written as relative time STRDS
+* record_step: the step in which results maps are written to the disk
+
+## Boundary conditions
   The boundary type is defined by the following cell values:
-  - 1: closed: flow = 0
-  - 2: open: z=neighbour, depth=neighbour, v=neighbour
-  - 3: fixed_h: z=neighbour,  water surface elevation=user defined, q=variable
+
+  * 1: closed: flow = 0
+  * 2: open: velocity at the boundary is equal to the velocity inside the domain
+  * 3: user-defined water surface elevation at the boundary
+  * 4: user-defined water depth inside the domain
   
-  The boundary value map is used in the case of type 3 boundary condition
+  The boundary value map is used in the case of type 3 or 4 boundary condition
 
 ## Output data
 The user can choose to output the following:
@@ -77,7 +79,7 @@ $ cython flow.pyx
 
 Compile the generated C file
 
-$ gcc -shared -pthread -fPIC -O3 -Wall -fno-strict-aliasing -fopenmp -I/usr/include/python2.7 -o flow.so flow.c
+$ gcc -shared -pthread -fPIC -O3 -fno-strict-aliasing -fopenmp -I/usr/include/python2.7 -o flow.so flow.c
 
 Launch GRASS
 
@@ -86,8 +88,3 @@ $ grass70
 Check usage of the module
 
 $ python t.sim.flood.py --h
-
-# Known issues
-
-  - NULL cells are not handled. Any map containing such cell would lead to the program generating unpredictable results
-  - Instabilities may occur in high slopes.
