@@ -204,41 +204,6 @@ class SurfaceDomain(object):
         assert not np.any(self.arr_h < 0)
         return self
 
-    def solve_qnorm(self):
-        """Calculate the flow vector norm to be used in the flow equation
-        This method uses values in i-1 and j-1, which seems more logical
-        than the version given in Almeida and Bates (2013)
-        """
-        # values in the Y dim, used to calculate an average of Y flows
-        arr_qs_i_j = self.arr_qs
-        arr_qs_i_ju = self.arrp_qs[self.su, self.ss]
-        arr_qs_id_j = self.arrp_qs[self.ss, self.sd]
-        arr_qs_id_ju = self.arrp_qs[self.su, self.sd]
-        assert arr_qs_i_j.shape == arr_qs_i_ju.shape == arr_qs_id_j.shape
-        assert arr_qs_i_j.shape == arr_qs_id_ju.shape
-
-        # values in the X dim, used to calculate an average of X flows
-        arr_qe_i_j = self.arr_qe
-        arr_qe_iu_j = self.arrp_qe[self.ss, self.su]
-        arr_qe_i_jd = self.arrp_qe[self.sd, self.ss]
-        arr_qe_iu_jd = self.arrp_qe[self.sd, self.su]
-        assert arr_qe_i_j.shape == arr_qe_iu_j.shape == arr_qe_i_jd.shape
-        assert arr_qe_i_j.shape == arr_qe_iu_jd.shape
-
-        # qnorm in x direction
-        flow.solve_qnorm(arr_q0=arr_qe_i_j,
-                        arr_q1=arr_qs_i_j, arr_q2=arr_qs_i_ju,
-                        arr_q3=arr_qs_id_j, arr_q4=arr_qs_id_ju,
-                        arr_qnorm=self.arr_qe_norm)
-        assert not np.any(np.isnan(self.arr_qe_norm))
-        # qnorm in y direction
-        flow.solve_qnorm(arr_q0=arr_qs_i_j,
-                        arr_q1=arr_qe_iu_j, arr_q2=arr_qe_i_jd,
-                        arr_q3=arr_qe_i_jd, arr_q4=arr_qe_iu_jd,
-                        arr_qnorm=self.arr_qs_norm)
-        assert not np.any(np.isnan(self.arr_qs_norm))
-        return self
-
     def solve_q(self):
         '''Solve flow inside the domain using C/Cython function
         prepare the arrays slices and pass them to the Cython function
@@ -273,8 +238,23 @@ class SurfaceDomain(object):
         hf_i = self.arr_hfe[self.s_i_0]
         hf_j = self.arr_hfs[self.s_j_0]
 
+        # values in the Y dim, used to calculate qnorm in X dimension
+        arr_qs_i_j = self.arr_qs
+        arr_qs_i_ju = self.arrp_qs[self.su, self.ss]
+        arr_qs_id_j = self.arrp_qs[self.ss, self.sd]
+        arr_qs_id_ju = self.arrp_qs[self.su, self.sd]
+        assert arr_qs_i_j.shape == arr_qs_i_ju.shape == arr_qs_id_j.shape
+        assert arr_qs_i_j.shape == arr_qs_id_ju.shape
+
+        # values in the X dim, used to calculate qnorm in Y dimension
+        arr_qe_i_j = self.arr_qe
+        arr_qe_iu_j = self.arrp_qe[self.ss, self.su]
+        arr_qe_i_jd = self.arrp_qe[self.sd, self.ss]
+        arr_qe_iu_jd = self.arrp_qe[self.sd, self.su]
+        assert arr_qe_i_j.shape == arr_qe_iu_j.shape == arr_qe_i_jd.shape
+        assert arr_qe_i_j.shape == arr_qe_iu_jd.shape
+
         # flows
-        self.solve_qnorm()
         q_vect_i = self.arr_qe_norm[self.s_i_0]
         q_vect_j = self.arr_qs_norm[self.s_j_0]
         q_i0 = self.arr_qe[self.s_i_0]
@@ -300,7 +280,9 @@ class SurfaceDomain(object):
             arr_n0=n_i0, arr_n1=n_i1,
             arr_h0=h_i0, arr_h1=h_i1,
             arr_q0=q_i0, arr_q1=q_i1, arr_qm1=q_im1,
-            arr_qnorm=q_vect_i, arr_q0_new=q_i0_new, arr_hf=hf_i,
+            arr_qn1=arr_qs_i_j, arr_qn2=arr_qs_i_ju,
+            arr_qn3=arr_qs_id_j, arr_qn4=arr_qs_id_ju,
+            arr_q0_new=q_i0_new, arr_hf=hf_i,
             dt=self.dt, cell_len=self.dx, g=self.g, theta=self.theta,
             hf_min=self.hf_min, v_rout=self.v_routing, sl_thres=self.sl_thresh)
         # flow in y direction
@@ -313,7 +295,9 @@ class SurfaceDomain(object):
             arr_n0=n_j0, arr_n1=n_j1,
             arr_h0=h_j0, arr_h1=h_j1,
             arr_q0=q_j0, arr_q1=q_j1, arr_qm1=q_jm1,
-            arr_qnorm=q_vect_j, arr_q0_new=q_j0_new, arr_hf=hf_j,
+            arr_qn1=arr_qe_iu_j, arr_qn2=arr_qe_i_jd,
+            arr_qn3=arr_qe_i_jd, arr_qn4=arr_qe_iu_jd,
+            arr_q0_new=q_j0_new, arr_hf=hf_j,
             dt=self.dt, cell_len=self.dy, g=self.g, theta=self.theta,
             hf_min=self.hf_min, v_rout=self.v_routing, sl_thres=self.sl_thresh)
         return self
