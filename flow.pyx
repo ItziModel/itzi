@@ -39,24 +39,23 @@ def flow_dir(np.ndarray[DTYPE_t, ndim=2] arr_max_dz,
     cdef float max_dz, dz0, dz1
     rmax = arr_max_dz.shape[0]
     cmax = arr_max_dz.shape[1]
-    with nogil:
-        for r in prange(rmax):
-            for c in range(cmax):
-                max_dz = arr_max_dz[r, c]
-                dz0 = arr_dz0[r, c]
-                dz1 = arr_dz1[r, c]
-                qdir = arr_dir[r, c]
-                if max_dz > 0:
-                    if max_dz == dz0:
-                        qdir = 0
-                    elif max_dz == dz1:
-                        qdir = 1
-                    else:
-                        qdir = -1
+    for r in prange(rmax, nogil=True):
+        for c in range(cmax):
+            max_dz = arr_max_dz[r, c]
+            dz0 = arr_dz0[r, c]
+            dz1 = arr_dz1[r, c]
+            qdir = arr_dir[r, c]
+            if max_dz > 0:
+                if max_dz == dz0:
+                    qdir = 0
+                elif max_dz == dz1:
+                    qdir = 1
                 else:
                     qdir = -1
-                # update results array
-                arr_dir[r, c] = qdir
+            else:
+                qdir = -1
+            # update results array
+            arr_dir[r, c] = qdir
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
@@ -81,59 +80,58 @@ def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
 
     rmax = arr_z0.shape[0]
     cmax = arr_z0.shape[1]
-    with nogil:
-        for r in prange(rmax):
-            for c in xrange(cmax):
-                # calculate wse
-                z1 = arr_z1[r, c]
-                z0 = arr_z0[r, c]
-                h1 = arr_h1[r, c]
-                h0 = arr_h0[r, c]
-                wse1 = z1 + h1
-                wse0 = z0 + h0
-                # flow depth (hf)
-                hf = max(wse1, wse0) - max(z1, z0)
-                # update hflow array
-                arr_hf[r, c] = hf
+    for r in prange(rmax, nogil=True):
+        for c in xrange(cmax):
+            # calculate wse
+            z1 = arr_z1[r, c]
+            z0 = arr_z0[r, c]
+            h1 = arr_h1[r, c]
+            h0 = arr_h0[r, c]
+            wse1 = z1 + h1
+            wse0 = z0 + h0
+            # flow depth (hf)
+            hf = max(wse1, wse0) - max(z1, z0)
+            # update hflow array
+            arr_hf[r, c] = hf
 
-                # q
-                q0 = arr_q0[r, c]
-                qup = arr_qm1[r, c]
-                qdown = arr_q1[r, c]
+            # q
+            q0 = arr_q0[r, c]
+            qup = arr_qm1[r, c]
+            qdown = arr_q1[r, c]
 
-                # qnorm
-                qn1 = arr_qn1[r, c]
-                qn2 = arr_qn2[r, c]
-                qn3 = arr_qn3[r, c]
-                qn4 = arr_qn4[r, c]
-                # calculate average flow from stencil
-                q_st = (qn1 + qn2 + qn3 + qn4) * .25
-                # calculate qnorm
-                q_vect = c_sqrt(q0*q0 + q_st*q_st)
+            # qnorm
+            qn1 = arr_qn1[r, c]
+            qn2 = arr_qn2[r, c]
+            qn3 = arr_qn3[r, c]
+            qn4 = arr_qn4[r, c]
+            # calculate average flow from stencil
+            q_st = (qn1 + qn2 + qn3 + qn4) * .25
+            # calculate qnorm
+            q_vect = c_sqrt(q0*q0 + q_st*q_st)
 
-                # flow dir
-                qdir = arr_dir[r, c]
+            # flow dir
+            qdir = arr_dir[r, c]
 
-                n = 0.5 * (arr_n0[r, c] + arr_n1[r, c])
-                slope = (wse0 - wse1) / cell_len
-                if hf <= 0:
-                    q0_new = 0
-                # Almeida 2013
-                elif hf > hf_min:
-                    q0_new = almeida2013(theta, q0, qup, qdown, n,
-                                        g, hf, dt, slope, q_vect)
-                # flow going W or N, i.e negative
-                elif hf <= hf_min and qdir == 0 and wse1 > wse0:
-                    q0_new = - rain_routing(h1, wse1, wse0,
-                                            dt, cell_len, v_rout)
-                # flow going E or S, i.e positive
-                elif hf <= hf_min and  qdir == 1 and wse0 > wse1:
-                    q0_new = rain_routing(h0, wse0, wse1,
-                                            dt, cell_len, v_rout)
-                else:
-                    q0_new = 0
-                # populate the array
-                arr_q0_new[r,c] = q0_new
+            n = 0.5 * (arr_n0[r, c] + arr_n1[r, c])
+            slope = (wse0 - wse1) / cell_len
+            if hf <= 0:
+                q0_new = 0
+            # Almeida 2013
+            elif hf > hf_min:
+                q0_new = almeida2013(theta, q0, qup, qdown, n,
+                                    g, hf, dt, slope, q_vect)
+            # flow going W or N, i.e negative
+            elif hf <= hf_min and qdir == 0 and wse1 > wse0:
+                q0_new = - rain_routing(h1, wse1, wse0,
+                                        dt, cell_len, v_rout)
+            # flow going E or S, i.e positive
+            elif hf <= hf_min and  qdir == 1 and wse0 > wse1:
+                q0_new = rain_routing(h0, wse0, wse1,
+                                        dt, cell_len, v_rout)
+            else:
+                q0_new = 0
+            # populate the array
+            arr_q0_new[r,c] = q0_new
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
@@ -190,31 +188,30 @@ def solve_h(np.ndarray[DTYPE_t, ndim=2] arr_ext,
 
     rmax = arr_qe.shape[0]
     cmax = arr_qe.shape[1]
-    with nogil:
-        for r in prange(rmax):
-            for c in range(cmax):
-                qext = arr_ext[r, c]
-                qe = arr_qe[r, c]
-                qw = arr_qw[r, c]
-                qn = arr_qn[r, c]
-                qs = arr_qs[r, c]
-                bct = arr_bct[r, c]
-                bcv = arr_bcv[r, c]
-                h = arr_h[r, c]
-                hmax = arr_hmax[r, c]
-                # Sum of flows in m/s
-                q_sum = (qw - qe) / dx + (qn - qs) / dy
-                # calculatre new flow depth, min depth zero
-                h_new = max(h + (qext + q_sum) * dt, 0)
-                # Apply fixed water level
-                if bct == 4:
-                    # Positive if water enters the domain
-                    hfix_h += (bcv - h_new)
-                    h_new = bcv
-                # Update max depth array
-                arr_hmax[r, c] = max(h_new, hmax)
-                # Update depth array
-                arr_h[r, c] = h_new
+    for r in prange(rmax, nogil=True):
+        for c in range(cmax):
+            qext = arr_ext[r, c]
+            qe = arr_qe[r, c]
+            qw = arr_qw[r, c]
+            qn = arr_qn[r, c]
+            qs = arr_qs[r, c]
+            bct = arr_bct[r, c]
+            bcv = arr_bcv[r, c]
+            h = arr_h[r, c]
+            hmax = arr_hmax[r, c]
+            # Sum of flows in m/s
+            q_sum = (qw - qe) / dx + (qn - qs) / dy
+            # calculatre new flow depth, min depth zero
+            h_new = max(h + (qext + q_sum) * dt, 0)
+            # Apply fixed water level
+            if bct == 4:
+                # Positive if water enters the domain
+                hfix_h += (bcv - h_new)
+                h_new = bcv
+            # Update max depth array
+            arr_hmax[r, c] = max(h_new, hmax)
+            # Update depth array
+            arr_h[r, c] = h_new
     # calculate volume entering or leaving the domain by boundary condition
     hfix_vol = hfix_h * dx * dy
 
@@ -231,11 +228,10 @@ def set_ext_array(np.ndarray[DTYPE_t, ndim=2] arr_qext,
 
     rmax = arr_qext.shape[0]
     cmax = arr_qext.shape[1]
-    with nogil:
-        for r in prange(rmax):
-            for c in range(cmax):
-                qext = arr_qext[r, c]
-                rain = arr_rain[r, c]
-                inf = arr_inf[r, c]
-                # Solve
-                arr_ext[r, c] = qext + (rain - inf) / multiplicator
+    for r in prange(rmax, nogil=True):
+        for c in range(cmax):
+            qext = arr_qext[r, c]
+            rain = arr_rain[r, c]
+            inf = arr_inf[r, c]
+            # Solve
+            arr_ext[r, c] = qext + (rain - inf) / multiplicator
