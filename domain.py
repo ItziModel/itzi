@@ -147,6 +147,8 @@ class SurfaceDomain(object):
             massbal.add_value('boundary_vol', boundary_vol)
             massbal.add_value('old_dom_vol', self.domain_volume())
         self.update_h()
+        if massbal:
+            massbal.add_value('hfix_vol', self.hfix_vol)
         self.arr_err = np.isnan(self.arr_h)
         if np.any(self.arr_err):
             raise NullError
@@ -194,13 +196,12 @@ class SurfaceDomain(object):
         flow_south = self.arr_qs_new
         assert flow_west.shape == flow_east.shape == flow_north.shape == flow_south.shape
 
-        self.hfix_vol = 0.
-        flow.solve_h(arr_ext=self.arr_ext,
+        self.hfix_vol = flow.solve_h(arr_ext=self.arr_ext,
                     arr_qe=flow_east, arr_qw=flow_west,
                     arr_qn=flow_north, arr_qs=flow_south,
                     arr_bct=self.arr_bctype, arr_bcv=self.arr_bcval,
                     arr_h=self.arr_h, arr_hmax=self.arr_hmax,
-                    dx=self.dx, dy=self.dy, dt=self.dt, hfix_vol=self.hfix_vol)
+                    dx=self.dx, dy=self.dy, dt=self.dt)
         assert not np.any(self.arr_h < 0)
         return self
 

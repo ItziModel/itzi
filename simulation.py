@@ -419,16 +419,17 @@ class MassBal(object):
         self.dom_size = dom_size
         # values to be written on each record time
         self.fields = ['sim_time',  # either seconds or datetime
-                'avg_timestep', '#timesteps',
-                'boundary_vol', 'rain_vol', 'inf_vol', 'inflow_vol',
-                'domain_vol', 'vol_error', '%error',
-                'comp_duration', 'avg_cell_per_sec']
+            'avg_timestep', '#timesteps',
+            'boundary_vol', 'rain_vol', 'inf_vol', 'inflow_vol', 'hfix_vol',
+            'domain_vol', 'vol_error', '%error',
+            'comp_duration', 'avg_cell_per_sec']
         # data written to file as one line
         self.line = dict.fromkeys(self.fields)
         # data collected during simulation
         self.sim_data = {'tstep': [], 'boundary_vol': [],
             'rain_vol': [], 'inf_vol': [], 'inflow_vol': [],
-            'old_dom_vol': [], 'new_dom_vol': [], 'step_duration': []}
+            'old_dom_vol': [], 'new_dom_vol': [], 'step_duration': [],
+            'hfix_vol': []}
         # set file name and create file
         self.file_name = self.set_file_name(file_name)
         self.create_file()
@@ -480,6 +481,8 @@ class MassBal(object):
         self.line['inf_vol'] = '{:.3f}'.format(inf_vol)
         inflow_vol = sum(self.sim_data['inflow_vol'])
         self.line['inflow_vol'] = '{:.3f}'.format(inflow_vol)
+        hfix_vol = sum(self.sim_data['hfix_vol'])
+        self.line['hfix_vol'] = '{:.3f}'.format(hfix_vol)
 
         # For domain volume, take last value(i.e. current)
         last_vol = self.sim_data['new_dom_vol'][-1]
@@ -487,7 +490,7 @@ class MassBal(object):
 
         # mass error is the diff. between the theor. vol and the actual vol
         first_vol = self.sim_data['old_dom_vol'][0]
-        sum_ext_vol = sum([boundary_vol, rain_vol, inf_vol, inflow_vol])
+        sum_ext_vol = sum([boundary_vol, rain_vol, inf_vol, inflow_vol, hfix_vol])
         dom_vol_theor = first_vol + sum_ext_vol
         vol_error = last_vol - dom_vol_theor
         self.line['vol_error'] = '{:.3f}'.format(vol_error)

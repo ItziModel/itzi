@@ -180,11 +180,12 @@ def solve_h(np.ndarray[DTYPE_t, ndim=2] arr_ext,
         np.ndarray[DTYPE_t, ndim=2] arr_qn, np.ndarray[DTYPE_t, ndim=2] arr_qs,
         np.ndarray[DTYPE_t, ndim=2] arr_bct, np.ndarray[DTYPE_t, ndim=2] arr_bcv,
         np.ndarray[DTYPE_t, ndim=2] arr_h, np.ndarray[DTYPE_t, ndim=2] arr_hmax,
-        float dx, float dy, float dt, float hfix_vol):
+        float dx, float dy, float dt):
     '''Update the water depth and max depth
     '''
     cdef int rmax, cmax, r, c
     cdef float qext, qe, qw, qn, qs, h, q_sum, h_new, hmax, bct, bcv, hfix_h
+    hfix_h = 0.
 
     rmax = arr_qe.shape[0]
     cmax = arr_qe.shape[1]
@@ -213,7 +214,7 @@ def solve_h(np.ndarray[DTYPE_t, ndim=2] arr_ext,
             # Update depth array
             arr_h[r, c] = h_new
     # calculate volume entering or leaving the domain by boundary condition
-    hfix_vol = hfix_h * dx * dy
+    return hfix_h * dx * dy
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
