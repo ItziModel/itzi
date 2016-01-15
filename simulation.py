@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding=utf8
 """
-Copyright (C) 2015  Laurent Courty
+Copyright (C) 2015-2016  Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -25,7 +25,10 @@ import flow
 from chac_error import NullError
 
 class SuperficialFlowSimulation(object):
-    """
+    """Manage the general simulation:
+    - update input values for each time-step
+    - trigger the writing of results and statistics
+    Accessed via the run() method
     """
 
     def __init__(self,record_step, input_maps, output_maps,
