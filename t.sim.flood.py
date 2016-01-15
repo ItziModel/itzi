@@ -67,14 +67,38 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 #~ #%end
 
 #%option G_OPT_STRDS_INPUT
-#% key: in_inf
-#% description: Input infiltration (raster map/stds)
+#% key: in_rain
+#% description: Input rainfall (raster map/stds)
 #% required: no
 #%end
 
 #%option G_OPT_STRDS_INPUT
-#% key: in_rain
-#% description: Input rainfall (raster map/stds)
+#% key: in_inf
+#% description: Input infiltration rate (raster map/stds)
+#% required: no
+#%end
+
+#%option G_OPT_STRDS_INPUT
+#% key: in_total_por
+#% description: Total porosity (raster map/stds)
+#% required: no
+#%end
+
+#%option G_OPT_STRDS_INPUT
+#% key: in_eff_por
+#% description: Effective porosity (raster map/stds)
+#% required: no
+#%end
+
+#%option G_OPT_STRDS_INPUT
+#% key: in_cap_pressure
+#% description: Wetting front capillary pressure head (raster map/stds)
+#% required: no
+#%end
+
+#%option G_OPT_STRDS_INPUT
+#% key: in_hyd_conduct
+#% description: Hydraulic conductivity (raster map/stds)
 #% required: no
 #%end
 
@@ -243,8 +267,10 @@ def main():
     # values to be passed to simulation
     sim_param = {'hmin':0.005, 'cfl':0.7, 'theta':0.9, 'vrouting':0.1, 'dtmax':5., 'slmax':.5}
     input_times = {'start':None,'end':None,'duration':None,'rec_step':None}
-    input_map_names = {'in_z': None, 'in_n': None, 'in_h': None, 'in_inf':None,
-        'in_rain': None, 'in_q':None, 'in_bcval': None, 'in_bctype': None}
+    input_map_names = {'in_z': None, 'in_n': None, 'in_h': None, 'in_rain': None,
+        'in_inf':None, 'in_total_por': None, 'in_eff_por': None,
+        'in_cap_pressure': None, 'in_hyd_conduct': None,
+        'in_q':None, 'in_bcval': None, 'in_bctype': None}
     output_map_names = {'out_h':None, 'out_wse':None,
         'out_vx':None, 'out_vy':None, 'out_qx':None, 'out_qy':None}
 
@@ -348,6 +374,10 @@ def read_maps_names(msgr, opt, input_map_names, output_map_names):
             input_map_names[k] = v
         if k in output_map_names.keys() and v:
             output_map_names[k] = v
+    # check coherence of infiltration maps
+    ga_rast = ['in_total_por', 'in_eff_por', 'in_cap_pressure', 'in_hyd_conduct']
+    if 'in_f' in input_map_names.values() and any(ga_rast) in input_map_names.values():
+        msgr.fatal(_("Infiltration model incompatible with user-defined rate"))
 
 def read_sim_param(msgr, opt, sim_param):
     """Read simulation parameters and populate the corresponding dictionary
