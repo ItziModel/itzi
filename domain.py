@@ -16,7 +16,10 @@ GNU General Public License for more details.
 from __future__ import division
 import math
 import numpy as np
-import bottleneck as bn
+try:
+    import bottleneck as bn
+except ImportError:
+    bn = np
 import flow
 import time
 from chac_error import NullError
