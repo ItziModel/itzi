@@ -20,7 +20,7 @@ class Infiltration(object):
     """Base class for Infiltration
     infiltration is calculated in mm/h
     """
-    def __init__(self, dt):
+    def __init__(self):
         self.infrate = None
         self.dt_h = None
 
@@ -28,8 +28,8 @@ class Infiltration(object):
         """Cap the infiltration rate to not create negative depths
         """
         # max rate in mm/h
-        self.dt_h = dt / 3600
-        arr_h_mm = arr_h * 1000
+        self.dt_h = dt / 3600.
+        arr_h_mm = arr_h * 1000.
         arr_max_rate = arr_h_mm / self.dt_h
         # cap the rate
         self.infrate = np.minimum(arr_max_rate, self.infrate)
@@ -39,7 +39,12 @@ class InfConstantRate(Infiltration):
     """Calculate infiltration using a constant user-defined infiltration
     rate given by a raster map or serie of maps.
     """
-    def __init__(self, arr_inf):
+    def __init__(self, xr, yr):
+        self.infrate = None
+        self.xr = xr
+        self.yr = yr
+
+    def update_input(self, arr_inf):
         assert isinstance(arr_inf, np.ndarray), "not a np array!"
         self.infrate = arr_inf
 
@@ -47,7 +52,7 @@ class InfConstantRate(Infiltration):
         """Used to get the infiltration rate at each time step
         """
         assert isinstance(arr_h, np.ndarray), "not a np array!"
-        assert isinstance(dt, float), "not a float!"
+        #~ assert isinstance(dt, float), "not a float!"
         self.cap_rate(arr_h, dt)
         return self.infrate
 
@@ -55,19 +60,24 @@ class InfConstantRate(Infiltration):
 class InfGreenAmpt(Infiltration):
     """Calculate infiltration using Green-Ampt formula
     """
-    def __init__(self, total_por, eff_por, cap_pressure, hyd_conduct):
-        assert isinstance(total_por, np.ndarray), "not a np array!"
+    def __init__(self, xr, yr):
+        self.xr = xr
+        self.yr = yr
+        self.eff_porosity = None
+        self.capilary_pressure = None
+        self.hyd_conduct = None
+        # Initial water soil content set to zero
+        self.init_wat_soil_content = np.zeros(shape=(self.gis.yr, self.gis.xr))
+        # Initial cumulative infiltration set to one mm (prevent division by zero)
+        self.infiltration_amount = np.ones(shape=(self.gis.yr, self.gis.xr))
+
+    def update_input(self, eff_por, cap_pressure, hyd_conduct):
         assert isinstance(eff_por, np.ndarray), "not a np array!"
         assert isinstance(cap_pressure, np.ndarray), "not a np array!"
         assert isinstance(hyd_conduct, np.ndarray), "not a np array!"
-
-        self.total_porosity = total_por
         self.eff_porosity = eff_por
         self.capilary_pressure = cap_pressure
         self.hyd_conduct = hyd_conduct
-        # starting values (at zero)
-        self.init_wat_soil_content = np.zeros_like(total_porosity)
-        self.infiltration_amount = np.zeros_like(total_porosity)
 
     def solve_green_ampt(self):
         avail_porosity = self.eff_porosity - self.init_wat_soil_content

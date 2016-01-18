@@ -22,6 +22,7 @@ import bottleneck as bn
 import domain
 import gis
 import flow
+import infiltration
 from chac_error import NullError
 
 class SuperficialFlowSimulation(object):
@@ -66,6 +67,15 @@ class SuperficialFlowSimulation(object):
                             dtype=dtype, mkeys=self.in_map_names.keys())
         self.gis.msgr.verbose(_("Reading GIS..."))
         self.gis.read(self.in_map_names)
+
+        # Determine infiltration type
+        if self.in_map_names['in_inf']:
+            self.inftype = 'fix'
+            self.infiltration = infiltration.InfConstantRate(self.gis.yr, self.gis.xr)
+        else:
+            self.inftype = 'ga'
+            self.infiltration = infiltration.InfGreenAmpt(self.gis.yr, self.gis.xr)
+
         # dict to store TimedArrays objects
         self.tarrays = dict.fromkeys(self.in_map_names.keys())
         # Populate it
@@ -116,6 +126,9 @@ class SuperficialFlowSimulation(object):
         self.tarrays['in_n'] = TimedArray('in_n', self.gis, self.zeros_array)
         self.tarrays['in_h'] = TimedArray('in_h', self.gis, self.zeros_array)
         self.tarrays['in_inf'] = TimedArray('in_inf', self.gis, self.zeros_array)
+        self.tarrays['in_eff_por'] = TimedArray('in_eff_por', self.gis, self.zeros_array)
+        self.tarrays['in_cap_pressure'] = TimedArray('in_cap_pressure', self.gis, self.zeros_array)
+        self.tarrays['in_hyd_conduct'] = TimedArray('in_hyd_conduct', self.gis, self.zeros_array)
         self.tarrays['in_rain'] = TimedArray('in_rain', self.gis, self.zeros_array)
         self.tarrays['in_q'] = TimedArray('in_q', self.gis, self.zeros_array)
         self.tarrays['in_bcval'] = TimedArray('in_bcval', self.gis, self.zeros_array)
@@ -227,6 +240,21 @@ class SuperficialFlowSimulation(object):
         unmasked_array[self.mask] = np.nan
         return unmasked_array
 
+    def calculate_infiltration(self, arr_h, sim_time):
+        """Calculate an array of infiltration rates in mm/h
+        """
+        if self.inftype == 'fix':
+            self.infiltration.update_input(self.tarrays['in_inf'].get_array(sim_time))
+        elif self.inftype == 'ga':
+            self.infiltration.update_input(
+                self.tarrays['in_eff_por'].get_array(sim_time),
+                self.tarrays['in_cap_pressure'].get_array(sim_time),
+                self.tarrays['in_hyd_conduct'].get_array(sim_time))
+        else:
+            assert False, "unknown infiltration type"
+        # set infiltration rate array
+        self.arr_inf = self.infiltration.get_inf_rate(arr_h, self.dt)
+
     def update_domain_arrays(self, rast_dom):
         """Takes a SurfaceDomain object as input
         get new array of the given object using TimedArray
@@ -263,11 +291,13 @@ class SuperficialFlowSimulation(object):
             arr_bctype[:] = self.mask_array(arr_bctype, 1)
             assert not np.any(np.isnan(arr_bctype))
             rast_dom.arr_bctype = arr_bctype
+        # Calculate infiltration
+        self.calculate_infiltration(rast_dom.arr_h, sim_time)
         # External values array
         arr_ext = self.set_ext_array(
             in_q=self.tarrays['in_q'].get_array(sim_time),
             in_rain=self.tarrays['in_rain'].get_array(sim_time),
-            in_inf=self.tarrays['in_inf'].get_array(sim_time))
+            in_inf=self.arr_inf)
         arr_ext[:] = self.mask_array(arr_ext, 0)
         assert not np.any(np.isnan(arr_ext))
         rast_dom.arr_ext = arr_ext
