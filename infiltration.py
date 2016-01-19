@@ -15,6 +15,7 @@ GNU General Public License for more details.
 
 from __future__ import division
 import numpy as np
+import flow
 
 class Infiltration(object):
     """Base class for Infiltration
@@ -23,16 +24,6 @@ class Infiltration(object):
     def __init__(self):
         self.infrate = None
         self.dt_h = None
-
-    def cap_rate(self, arr_h, dt):
-        """Cap the infiltration rate to not create negative depths
-        """
-        # max rate in mm/h
-        self.dt_h = dt / 3600.
-        arr_h_mm = arr_h * 1000.
-        arr_max_rate = arr_h_mm / self.dt_h
-        # cap the rate
-        self.infrate = np.minimum(arr_max_rate, self.infrate)
 
 
 class InfConstantRate(Infiltration):
@@ -46,15 +37,15 @@ class InfConstantRate(Infiltration):
 
     def update_input(self, arr_inf):
         assert isinstance(arr_inf, np.ndarray), "not a np array!"
-        self.infrate = arr_inf
+        self.inf_in = arr_inf
+        self.inf_out = np.copy(arr_inf)
 
     def get_inf_rate(self, arr_h, dt):
         """Used to get the infiltration rate at each time step
         """
         assert isinstance(arr_h, np.ndarray), "not a np array!"
-        #~ assert isinstance(dt, float), "not a float!"
-        self.cap_rate(arr_h, dt)
-        return self.infrate
+        flow.inf_user(arr_h, self.inf_in, self.inf_out, dt)
+        return self.inf_out
 
 
 class InfGreenAmpt(Infiltration):

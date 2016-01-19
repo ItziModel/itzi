@@ -236,3 +236,26 @@ def set_ext_array(np.ndarray[DTYPE_t, ndim=2] arr_qext,
             inf = arr_inf[r, c]
             # Solve
             arr_ext[r, c] = qext + (rain - inf) / multiplicator
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+def inf_user(np.ndarray[DTYPE_t, ndim=2] arr_h,
+        np.ndarray[DTYPE_t, ndim=2] arr_inf_in,
+        np.ndarray[DTYPE_t, ndim=2] arr_inf_out,
+        float dt):
+    '''
+    '''
+    cdef int rmax, cmax, r, c
+    cdef float max_rate, dt_h, h_mm, infrate
+
+    rmax = arr_h.shape[0]
+    cmax = arr_h.shape[1]
+    for r in prange(rmax, nogil=True):
+        for c in range(cmax):
+            dt_h = dt / 3600.
+            h_mm = arr_h[r, c] * 1000.
+            max_rate = h_mm / dt_h
+            infrate = arr_inf_in[r, c]
+            # cap the rate
+            arr_inf_out[r, c] = min(max_rate, infrate)
