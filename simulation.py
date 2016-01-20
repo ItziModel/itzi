@@ -165,12 +165,13 @@ class SuperficialFlowSimulation(object):
             self.update_domain_arrays(rast_dom)
             # time-stepping
             next_record = record_counter*self.record_step.total_seconds()
+            # step() raise NullError in case of NaN/NULL cell
+            # if this happen, stop simulation and output a map showing the errors
             try:
                 rast_dom.step(self.next_timestep(next_record), self.massbal)
             except NullError:
                 self.write_error_to_gis(rast_dom.arr_h, rast_dom.arr_err)
-                self.gis.msgr.warning(_("Error in simulation at time {}, terminating").format(self.sim_time))
-                break
+                self.gis.msgr.fatal(_("Null detected in simulation at time {}, terminating").format(self.sim_time))
             # update simulation time and dt
             self.sim_time = self.start_time + timedelta(seconds=rast_dom.sim_clock)
             self.dt = rast_dom.dt

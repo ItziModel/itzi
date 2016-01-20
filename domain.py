@@ -149,6 +149,7 @@ class SurfaceDomain(object):
         self.update_h()
         if massbal:
             massbal.add_value('hfix_vol', self.hfix_vol)
+        # in case of NaN/NULL cells, raise a NullError to be catched by run()
         self.arr_err = np.isnan(self.arr_h)
         if np.any(self.arr_err):
             raise NullError
