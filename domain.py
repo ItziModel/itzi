@@ -149,12 +149,12 @@ class SurfaceDomain(object):
         self.update_h()
         if massbal:
             massbal.add_value('hfix_vol', self.hfix_vol)
+            massbal.add_value('new_dom_vol', self.domain_volume())
         # in case of NaN/NULL cells, raise a NullError to be catched by run()
         self.arr_err = np.isnan(self.arr_h)
         if np.any(self.arr_err):
             raise NullError
-        if massbal:
-            massbal.add_value('new_dom_vol', self.domain_volume())
+
         self.copy_arrays_values_for_next_timestep()
         end_clock = time.clock()
         if massbal:
