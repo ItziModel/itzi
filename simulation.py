@@ -54,7 +54,7 @@ class SuperficialFlowSimulation(object):
         self.set_duration(end_time, sim_duration)
         # set simulation time to start_time a the beginning
         self.sim_time = self.start_time
-        self.dt = 0
+        self.dt = sim_param['dtmax']
         # set temporal type of results
         self.set_temporal_type()
         self.in_map_names = input_maps
