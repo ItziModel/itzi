@@ -241,18 +241,57 @@ def set_ext_array(DTYPE_t [:, :] arr_qext,
 def inf_user(DTYPE_t [:, :] arr_h,
         DTYPE_t [:, :] arr_inf_in, DTYPE_t [:, :] arr_inf_out,
         float dt):
-    '''
+    '''Calculate infiltration using a user-defined fixed rate
     '''
     cdef int rmax, cmax, r, c
-    cdef float max_rate, dt_h, h_mm, infrate
+    cdef float dt_h, infrate
 
     rmax = arr_h.shape[0]
     cmax = arr_h.shape[1]
     for r in prange(rmax, nogil=True):
         for c in range(cmax):
-            dt_h = dt / 3600.
-            h_mm = arr_h[r, c] * 1000.
-            max_rate = h_mm / dt_h
+            dt_h = dt / 3600.  # dt from sec to hours
             infrate = arr_inf_in[r, c]
             # cap the rate
-            arr_inf_out[r, c] = min(max_rate, infrate)
+            arr_inf_out[r, c] = cap_inf_rate(dt_h, arr_h[r, c], infrate)
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+def inf_ga(DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_eff_por,
+        DTYPE_t [:, :] arr_pressure, DTYPE_t [:, :] arr_conduct,
+        DTYPE_t [:, :] arr_inf_amount, DTYPE_t [:, :] arr_water_soil_content,
+        DTYPE_t [:, :] arr_inf_out, float dt):
+    '''Calculate infiltration rate using the Green-Ampt formula
+    '''
+    cdef int rmax, cmax, r, c
+    cdef float dt_h, infrate, avail_porosity, poros_cappress, conduct
+    rmax = arr_h.shape[0]
+    cmax = arr_h.shape[1]
+    for r in prange(rmax, nogil=True):
+        for c in range(cmax):
+            dt_h = dt / 3600.  # dt from sec to hours
+            conduct = arr_conduct[r, c]
+            avail_porosity = arr_eff_por[r, c] - arr_water_soil_content[r, c]
+            poros_cappress = avail_porosity * arr_pressure[r, c]
+            infrate = conduct * (1 +
+                            (poros_cappress / arr_inf_amount[r, c]))
+            # cap the rate
+            infrate = cap_inf_rate(dt, arr_h[r, c], infrate)
+            # update total infiltration amount
+            arr_inf_amount[r, c] += infrate * dt_h
+            # populate output infiltration array
+            arr_inf_out[r, c] = infrate
+
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+cdef float cap_inf_rate(float dt_h, float h, float infrate) nogil:
+    '''Cap the infiltration rate to not generate negative depths
+    '''
+    cdef float h_mm, max_rate
+    # calculate the max_rate
+    h_mm = h * 1000.
+    max_rate = h_mm / dt_h
+    return min(max_rate, infrate)

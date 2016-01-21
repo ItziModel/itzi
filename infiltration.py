@@ -22,8 +22,7 @@ class Infiltration(object):
     infiltration is calculated in mm/h
     """
     def __init__(self):
-        self.infrate = None
-        self.dt_h = None
+        pass
 
 
 class InfConstantRate(Infiltration):
@@ -52,15 +51,14 @@ class InfGreenAmpt(Infiltration):
     """Calculate infiltration using Green-Ampt formula
     """
     def __init__(self, xr, yr):
-        self.xr = xr
-        self.yr = yr
         self.eff_porosity = None
         self.capilary_pressure = None
         self.hyd_conduct = None
+        self.infrate = np.zeros(shape=(yr, xr), dtype=np.float32)
         # Initial water soil content set to zero
-        self.init_wat_soil_content = np.zeros(shape=(self.gis.yr, self.gis.xr))
+        self.init_wat_soil_content = np.zeros(shape=(yr, xr), dtype=np.float32)
         # Initial cumulative infiltration set to one mm (prevent division by zero)
-        self.infiltration_amount = np.ones(shape=(self.gis.yr, self.gis.xr))
+        self.infiltration_amount = np.ones(shape=(yr, xr), dtype=np.float32)
 
     def update_input(self, eff_por, cap_pressure, hyd_conduct):
         assert isinstance(eff_por, np.ndarray), "not a np array!"
@@ -70,18 +68,12 @@ class InfGreenAmpt(Infiltration):
         self.capilary_pressure = cap_pressure
         self.hyd_conduct = hyd_conduct
 
-    def solve_green_ampt(self):
-        avail_porosity = self.eff_porosity - self.init_wat_soil_content
-        poros_cappress = avail_porosity * self.capilary_pressure
-        self.infrate = self.hyd_conduct * (1 +
-                            (poros_cappress / self.infiltration_amount))
-
     def get_inf_rate(self, arr_h, dt):
         """Used to get the infiltration rate at each time step
         """
-        self.solve_green_ampt()
-        self.cap_rate(arr_h, dt)
-        self.infiltration_amount += self.infrate * self.dt_h
+        flow.inf_ga(arr_h, self.eff_porosity, self.capilary_pressure,
+        self.hyd_conduct, self.infiltration_amount, self.init_wat_soil_content,
+        self.infrate, dt)
         return self.infrate
 
 
