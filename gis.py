@@ -111,30 +111,35 @@ class Igis(object):
         """
         return self.start_time + timedelta(seconds=self.to_s(unit, time))
 
-    def format_id(self, name):
+    @staticmethod
+    def format_id(name):
         """Take a map or stds name as input
         and return a fully qualified name, i.e. including mapset
         """
         if '@' in name:
             return name
         else:
-            return '@'.join((name, self.mapset))
+            return '@'.join((name, gutils.getenv('MAPSET')))
 
-    def name_is_stds(self, name):
+    @staticmethod
+    def name_is_stds(name):
         """return True if the name given as input is a registered strds
         False if not
         """
-        if tgis.SpaceTimeRasterDataset(self.format_id(name)).is_in_db():
+        # make sure temporal module is initialized
+        tgis.init(raise_fatal_error=True)
+        if tgis.SpaceTimeRasterDataset(name).is_in_db():
             return True
         else:
             return False
 
-    def name_is_map(self, name):
+    @staticmethod
+    def name_is_map(map_id):
         """return True if the given name is a map in the grass database
         False if not
         """
         try:
-            grass.read_command('r.info', map=self.format_id(name),flags='r')
+            grass.read_command('r.info', map=map_id,flags='r')
         except CalledModuleError:
             return False
         else:
@@ -174,13 +179,13 @@ class Igis(object):
             if not map_name:
                 map_list = None
                 continue
-            elif self.name_is_stds(map_name):
+            elif self.name_is_stds(self.format_id(map_name)):
                 strds_id = self.format_id(map_name)
                 if not self.stds_temporal_sanity(strds_id):
                     self.msgr.fatal(_
                         ("{}: inadequate temporal format".format(map_name)))
                 map_list = self.raster_list_from_strds(strds_id)
-            elif self.name_is_map(map_name):
+            elif self.name_is_map(self.format_id(map_name)):
                 map_list = [self.MapData(id=self.format_id(map_name),
                     start_time=self.start_time, end_time=self.end_time)]
             else:

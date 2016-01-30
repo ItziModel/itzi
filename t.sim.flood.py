@@ -243,6 +243,7 @@ from grass.pygrass.gis.region import Region
 from grass.pygrass.messages import Messenger
 
 import simulation
+import gis
 
 
 def main():
@@ -294,6 +295,14 @@ def main():
         ps = pstats.Stats(pr, stream=stat_stream).sort_stats(sortby)
         ps.print_stats(10)
         print stat_stream.getvalue()
+
+def file_exist(map_id):
+    """Return True if name is an existing map or stds, False otherwise
+    """
+    if gis.Igis.name_is_map(map_id) or gis.Igis.name_is_stds(map_id):
+        return True
+    else:
+        return False
 
 def str_to_timedelta(inp_str):
     """Takes a string in the form HH:MM:SS
@@ -367,7 +376,10 @@ def read_maps_names(msgr, opt, input_map_names, output_map_names):
         if k in input_map_names.keys() and v:
             input_map_names[k] = v
         if k in output_map_names.keys() and v:
-            output_map_names[k] = v
+            if file_exist(gis.Igis.format_id(v)) and not grass.overwrite():
+                msgr.fatal(_("File {} exists and will not be overwritten".format(v)))
+            else:
+                output_map_names[k] = v
     # check coherence of infiltration maps
     ga_list = ['in_eff_por', 'in_cap_pressure', 'in_hyd_conduct']
     for i in ga_list:
