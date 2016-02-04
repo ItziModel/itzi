@@ -139,7 +139,7 @@ class Igis(object):
         False if not
         """
         try:
-            grass.read_command('r.info', map=map_id,flags='r')
+            grass.read_command('g.findfile', file='start_h@3x3_big', element='cell')
         except CalledModuleError:
             return False
         else:
