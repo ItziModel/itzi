@@ -15,9 +15,13 @@ GNU General Public License for more details.
 from __future__ import division
 import csv
 import warnings
-import numpy as np
 from datetime import datetime, timedelta
-import bottleneck as bn
+import numpy as np
+try:
+    import bottleneck as bn
+except ImportError:
+    bn = np
+
 import domain
 import gis
 import flow

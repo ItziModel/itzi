@@ -20,6 +20,7 @@ try:
     import bottleneck as bn
 except ImportError:
     bn = np
+
 import flow
 import time
 from chac_error import NullError
