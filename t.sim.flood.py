@@ -181,7 +181,15 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 
 #%option
 #% key: dtmax
-#% description: Maximum time-step in seconds
+#% description: Maximum superficial flow time-step in seconds
+#% required: no
+#% multiple: no
+#% guisection: Parameters
+#%end
+
+#%option
+#% key: dtinf
+#% description: Infiltration time-step in seconds
 #% required: no
 #% multiple: no
 #% guisection: Parameters
@@ -260,7 +268,8 @@ def main():
         msgr.fatal(_("latlong location is not supported"))
 
     # values to be passed to simulation
-    sim_param = {'hmin':0.005, 'cfl':0.7, 'theta':0.9, 'vrouting':0.1, 'dtmax':5., 'slmax':.5}
+    sim_param = {'hmin': 0.005, 'cfl': 0.7, 'theta': 0.9,
+            'vrouting': 0.1, 'dtmax': 5., 'slmax': .5, 'dtinf': 60.}
     input_times = {'start':None,'end':None,'duration':None,'rec_step':None}
     input_map_names = {'in_z': None, 'in_n': None, 'in_h': None,
         'in_rain': None, 'in_inf':None,

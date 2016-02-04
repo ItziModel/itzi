@@ -24,6 +24,15 @@ class Infiltration(object):
     def __init__(self):
         pass
 
+    def set_dt(self, dt_inf, sim_clock, next_inf_ts):
+        """adjust infiltration time-step to not overstep a forced time-step
+        dt_inf, sim_clock and next_ts in seconds
+        """
+        self.dt = dt_inf
+        if sim_clock + self.dt > next_inf_ts:
+            self.dt = next_inf_ts - sim_clock
+        return self
+
 
 class InfConstantRate(Infiltration):
     """Calculate infiltration using a constant user-defined infiltration
@@ -39,11 +48,11 @@ class InfConstantRate(Infiltration):
         self.inf_in = arr_inf
         self.inf_out = np.copy(arr_inf)
 
-    def get_inf_rate(self, arr_h, dt):
+    def get_inf_rate(self, arr_h):
         """Used to get the infiltration rate at each time step
         """
         assert isinstance(arr_h, np.ndarray), "not a np array!"
-        flow.inf_user(arr_h, self.inf_in, self.inf_out, dt)
+        flow.inf_user(arr_h, self.inf_in, self.inf_out, self.dt)
         return self.inf_out
 
 
@@ -68,12 +77,12 @@ class InfGreenAmpt(Infiltration):
         self.capilary_pressure = cap_pressure
         self.hyd_conduct = hyd_conduct
 
-    def get_inf_rate(self, arr_h, dt):
+    def get_inf_rate(self, arr_h):
         """Used to get the infiltration rate at each time step
         """
         flow.inf_ga(arr_h, self.eff_porosity, self.capilary_pressure,
         self.hyd_conduct, self.infiltration_amount, self.init_wat_soil_content,
-        self.infrate, dt)
+        self.infrate, self.dt)
         return self.infrate
 
 
