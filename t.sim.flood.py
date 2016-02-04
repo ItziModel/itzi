@@ -67,14 +67,32 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 #~ #%end
 
 #%option G_OPT_STRDS_INPUT
-#% key: in_inf
-#% description: Input infiltration (raster map/stds)
+#% key: in_rain
+#% description: Input rainfall (raster map/stds)
 #% required: no
 #%end
 
 #%option G_OPT_STRDS_INPUT
-#% key: in_rain
-#% description: Input rainfall (raster map/stds)
+#% key: in_inf
+#% description: Input infiltration rate (raster map/stds)
+#% required: no
+#%end
+
+#%option G_OPT_STRDS_INPUT
+#% key: in_eff_por
+#% description: Effective porosity (raster map/stds)
+#% required: no
+#%end
+
+#%option G_OPT_STRDS_INPUT
+#% key: in_cap_pressure
+#% description: Wetting front capillary pressure head (raster map/stds)
+#% required: no
+#%end
+
+#%option G_OPT_STRDS_INPUT
+#% key: in_hyd_conduct
+#% description: Hydraulic conductivity (raster map/stds)
 #% required: no
 #%end
 
@@ -163,7 +181,15 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 
 #%option
 #% key: dtmax
-#% description: Maximum time-step in seconds
+#% description: Maximum superficial flow time-step in seconds
+#% required: no
+#% multiple: no
+#% guisection: Parameters
+#%end
+
+#%option
+#% key: dtinf
+#% description: Infiltration time-step in seconds
 #% required: no
 #% multiple: no
 #% guisection: Parameters
@@ -225,6 +251,7 @@ from grass.pygrass.gis.region import Region
 from grass.pygrass.messages import Messenger
 
 import simulation
+import gis
 
 
 def main():
@@ -241,10 +268,13 @@ def main():
         msgr.fatal(_("latlong location is not supported"))
 
     # values to be passed to simulation
-    sim_param = {'hmin':0.005, 'cfl':0.7, 'theta':0.9, 'vrouting':0.1, 'dtmax':5., 'slmax':.5}
+    sim_param = {'hmin': 0.005, 'cfl': 0.7, 'theta': 0.9,
+            'vrouting': 0.1, 'dtmax': 5., 'slmax': .5, 'dtinf': 60.}
     input_times = {'start':None,'end':None,'duration':None,'rec_step':None}
-    input_map_names = {'in_z': None, 'in_n': None, 'in_h': None, 'in_inf':None,
-        'in_rain': None, 'in_q':None, 'in_bcval': None, 'in_bctype': None}
+    input_map_names = {'in_z': None, 'in_n': None, 'in_h': None,
+        'in_rain': None, 'in_inf':None,
+        'in_eff_por': None, 'in_cap_pressure': None, 'in_hyd_conduct': None,
+        'in_q':None, 'in_bcval': None, 'in_bctype': None}
     output_map_names = {'out_h':None, 'out_wse':None,
         'out_vx':None, 'out_vy':None, 'out_qx':None, 'out_qy':None}
 
@@ -274,6 +304,14 @@ def main():
         ps = pstats.Stats(pr, stream=stat_stream).sort_stats(sortby)
         ps.print_stats(10)
         print stat_stream.getvalue()
+
+def file_exist(map_id):
+    """Return True if name is an existing map or stds, False otherwise
+    """
+    if gis.Igis.name_is_map(map_id) or gis.Igis.name_is_stds(map_id):
+        return True
+    else:
+        return False
 
 def str_to_timedelta(inp_str):
     """Takes a string in the form HH:MM:SS
@@ -347,7 +385,22 @@ def read_maps_names(msgr, opt, input_map_names, output_map_names):
         if k in input_map_names.keys() and v:
             input_map_names[k] = v
         if k in output_map_names.keys() and v:
-            output_map_names[k] = v
+            if file_exist(gis.Igis.format_id(v)) and not grass.overwrite():
+                msgr.fatal(_("File {} exists and will not be overwritten".format(v)))
+            else:
+                output_map_names[k] = v
+    # check coherence of infiltration maps
+    ga_list = ['in_eff_por', 'in_cap_pressure', 'in_hyd_conduct']
+    for i in ga_list:
+        if i in input_map_names.values():
+            ga_bool = True
+        else:
+            ga_bool = False
+    if 'in_f' in input_map_names.values() and ga_bool:
+        msgr.fatal(_("Infiltration model incompatible with user-defined rate"))
+    # check if all maps for Green-Ampt are presents
+    if ga_bool and not all(i in input_map_names.values() for i in ga_list):
+        msgr.fatal(_("{} are mutualy inclusive".format(ga_list)))
 
 def read_sim_param(msgr, opt, sim_param):
     """Read simulation parameters and populate the corresponding dictionary

@@ -26,10 +26,8 @@ ctypedef np.float32_t DTYPE_t
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-def flow_dir(np.ndarray[DTYPE_t, ndim=2] arr_max_dz,
-            np.ndarray[DTYPE_t, ndim=2] arr_dz0,
-            np.ndarray[DTYPE_t, ndim=2] arr_dz1,
-            np.ndarray[np.int8_t, ndim=2] arr_dir):
+def flow_dir(DTYPE_t [:, :] arr_max_dz, DTYPE_t [:, :] arr_dz0,
+        DTYPE_t [:, :] arr_dz1, np.int8_t [:, :] arr_dir):
     '''Populate arr_dir with a rain-routing direction:
     0: the flow is going dowstream, index-wise
     1: the flow is going upstream, index-wise
@@ -61,14 +59,13 @@ def flow_dir(np.ndarray[DTYPE_t, ndim=2] arr_max_dz,
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
 def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
-        np.ndarray[DTYPE_t, ndim=2] arr_z0, np.ndarray[DTYPE_t, ndim=2] arr_z1,
-        np.ndarray[DTYPE_t, ndim=2] arr_n0, np.ndarray[DTYPE_t, ndim=2] arr_n1,
-        np.ndarray[DTYPE_t, ndim=2] arr_h0, np.ndarray[DTYPE_t, ndim=2] arr_h1,
-        np.ndarray[DTYPE_t, ndim=2] arr_q0, np.ndarray[DTYPE_t, ndim=2] arr_q1,
-        np.ndarray[DTYPE_t, ndim=2] arr_qm1,
-        np.ndarray[DTYPE_t, ndim=2] arr_qn1, np.ndarray[DTYPE_t, ndim=2] arr_qn2,
-        np.ndarray[DTYPE_t, ndim=2] arr_qn3, np.ndarray[DTYPE_t, ndim=2] arr_qn4,
-        np.ndarray[DTYPE_t, ndim=2] arr_q0_new, np.ndarray[DTYPE_t, ndim=2] arr_hf,
+        DTYPE_t [:, :] arr_z0, DTYPE_t [:, :] arr_z1,
+        DTYPE_t [:, :] arr_n0, DTYPE_t [:, :] arr_n1,
+        DTYPE_t [:, :] arr_h0, DTYPE_t [:, :] arr_h1,
+        DTYPE_t [:, :] arr_q0, DTYPE_t [:, :] arr_q1, DTYPE_t [:, :] arr_qm1,
+        DTYPE_t [:, :] arr_qn1, DTYPE_t [:, :] arr_qn2,
+        DTYPE_t [:, :] arr_qn3, DTYPE_t [:, :] arr_qn4,
+        DTYPE_t [:, :] arr_q0_new, DTYPE_t [:, :] arr_hf,
         float dt, float cell_len, float g, float theta, float hf_min, float v_rout, float sl_thres):
     '''Calculate flow through the domain, including hflow and qnorm
     '''
@@ -175,17 +172,18 @@ cdef float almeida2013(float theta, float q0, float qup, float qdown, float n,
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-def solve_h(np.ndarray[DTYPE_t, ndim=2] arr_ext,
-        np.ndarray[DTYPE_t, ndim=2] arr_qe, np.ndarray[DTYPE_t, ndim=2] arr_qw,
-        np.ndarray[DTYPE_t, ndim=2] arr_qn, np.ndarray[DTYPE_t, ndim=2] arr_qs,
-        np.ndarray[DTYPE_t, ndim=2] arr_bct, np.ndarray[DTYPE_t, ndim=2] arr_bcv,
-        np.ndarray[DTYPE_t, ndim=2] arr_h, np.ndarray[DTYPE_t, ndim=2] arr_hmax,
+def solve_h(DTYPE_t [:, :] arr_ext,
+        DTYPE_t [:, :] arr_qe, DTYPE_t [:, :] arr_qw,
+        DTYPE_t [:, :] arr_qn, DTYPE_t [:, :] arr_qs,
+        DTYPE_t [:, :] arr_bct, DTYPE_t [:, :] arr_bcv,
+        DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_hmax,
         float dx, float dy, float dt):
     '''Update the water depth and max depth
+    Adjust water depth according to in-domain 'boundary' condition
     '''
     cdef int rmax, cmax, r, c
-    cdef float qext, qe, qw, qn, qs, h, q_sum, h_new, hmax, bct, bcv, hfix_h
-    hfix_h = 0.
+    cdef float qext, qe, qw, qn, qs, h, q_sum, h_new, hmax, bct, bcv
+    cdef float hfix_h = 0.
 
     rmax = arr_qe.shape[0]
     cmax = arr_qe.shape[1]
@@ -219,9 +217,9 @@ def solve_h(np.ndarray[DTYPE_t, ndim=2] arr_ext,
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-def set_ext_array(np.ndarray[DTYPE_t, ndim=2] arr_qext,
-        np.ndarray[DTYPE_t, ndim=2] arr_rain, np.ndarray[DTYPE_t, ndim=2] arr_inf,
-        np.ndarray[DTYPE_t, ndim=2] arr_ext, float multiplicator):
+def set_ext_array(DTYPE_t [:, :] arr_qext,
+        DTYPE_t [:, :] arr_rain, DTYPE_t [:, :] arr_inf,
+        DTYPE_t [:, :] arr_ext, float multiplicator):
     '''Update the water depth and max depth
     '''
     cdef int rmax, cmax, r, c
@@ -236,3 +234,64 @@ def set_ext_array(np.ndarray[DTYPE_t, ndim=2] arr_qext,
             inf = arr_inf[r, c]
             # Solve
             arr_ext[r, c] = qext + (rain - inf) / multiplicator
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+def inf_user(DTYPE_t [:, :] arr_h,
+        DTYPE_t [:, :] arr_inf_in, DTYPE_t [:, :] arr_inf_out,
+        float dt):
+    '''Calculate infiltration using a user-defined fixed rate
+    '''
+    cdef int rmax, cmax, r, c
+    cdef float dt_h, infrate
+
+    rmax = arr_h.shape[0]
+    cmax = arr_h.shape[1]
+    for r in prange(rmax, nogil=True):
+        for c in range(cmax):
+            dt_h = dt / 3600.  # dt from sec to hours
+            infrate = arr_inf_in[r, c]
+            # cap the rate
+            arr_inf_out[r, c] = cap_inf_rate(dt_h, arr_h[r, c], infrate)
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+def inf_ga(DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_eff_por,
+        DTYPE_t [:, :] arr_pressure, DTYPE_t [:, :] arr_conduct,
+        DTYPE_t [:, :] arr_inf_amount, DTYPE_t [:, :] arr_water_soil_content,
+        DTYPE_t [:, :] arr_inf_out, float dt):
+    '''Calculate infiltration rate using the Green-Ampt formula
+    '''
+    cdef int rmax, cmax, r, c
+    cdef float dt_h, infrate, avail_porosity, poros_cappress, conduct
+    rmax = arr_h.shape[0]
+    cmax = arr_h.shape[1]
+    for r in prange(rmax, nogil=True):
+        for c in range(cmax):
+            dt_h = dt / 3600.  # dt from sec to hours
+            conduct = arr_conduct[r, c]
+            avail_porosity = arr_eff_por[r, c] - arr_water_soil_content[r, c]
+            poros_cappress = avail_porosity * arr_pressure[r, c]
+            infrate = conduct * (1 +
+                            (poros_cappress / arr_inf_amount[r, c]))
+            # cap the rate
+            infrate = cap_inf_rate(dt, arr_h[r, c], infrate)
+            # update total infiltration amount
+            arr_inf_amount[r, c] += infrate * dt_h
+            # populate output infiltration array
+            arr_inf_out[r, c] = infrate
+
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+cdef float cap_inf_rate(float dt_h, float h, float infrate) nogil:
+    '''Cap the infiltration rate to not generate negative depths
+    '''
+    cdef float h_mm, max_rate
+    # calculate the max_rate
+    h_mm = h * 1000.
+    max_rate = h_mm / dt_h
+    return min(max_rate, infrate)
