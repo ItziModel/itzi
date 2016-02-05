@@ -127,17 +127,17 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 #% required: no
 #%end
 
-#~ #%option G_OPT_R_OUTPUT
-#~ #% key: out_vx
-#~ #% description: Output velocity strds for x direction (strds)
-#~ #% required: no
-#~ #%end
-#~ 
-#~ #%option G_OPT_R_OUTPUT
-#~ #% key: out_vy
-#~ #% description: Output velocity strds for y direction (strds)
-#~ #% required: no
-#~ #%end
+#%option G_OPT_R_OUTPUT
+#% key: out_vx
+#% description: Output velocity strds for x direction (strds)
+#% required: no
+#%end
+
+#%option G_OPT_R_OUTPUT
+#% key: out_vy
+#% description: Output velocity strds for y direction (strds)
+#% required: no
+#%end
 
 #%option
 #% key: hmin
@@ -245,6 +245,7 @@ import numpy as np
 import cProfile
 import pstats
 import StringIO
+import ConfigParser
 
 import grass.script as grass
 from grass.pygrass.gis.region import Region
@@ -271,18 +272,29 @@ def main():
     sim_param = {'hmin': 0.005, 'cfl': 0.7, 'theta': 0.9,
             'vrouting': 0.1, 'dtmax': 5., 'slmax': .5, 'dtinf': 60.}
     input_times = {'start':None,'end':None,'duration':None,'rec_step':None}
-    input_map_names = {'in_z': None, 'in_n': None, 'in_h': None,
-        'in_rain': None, 'in_inf':None,
-        'in_eff_por': None, 'in_cap_pressure': None, 'in_hyd_conduct': None,
-        'in_q':None, 'in_bcval': None, 'in_bctype': None}
     output_map_names = {'out_h':None, 'out_wse':None,
         'out_vx':None, 'out_vy':None, 'out_qx':None, 'out_qy':None}
+    input_map_names = {}  # to become conjunction of following dicts:
+    dict_input = {'in_z': None, 'in_n': None, 'in_h': None, 'in_y': None}
+    dict_inf= {'in_inf':None,
+        'in_eff_por': None, 'in_cap_pressure': None, 'in_hyd_conduct': None}
+    dict_bc = {'in_rain': None,
+        'in_q':None, 'in_bcval': None, 'in_bctype': None}
+
+    # read configuration file
+    if options['param_file']:
+        read_param_file(options['param_file'], sim_param, input_times,
+            output_map_names, dict_input, dict_inf, dict_bc)
 
     # check and load input values
+    # values already read from configuration file are overwritten
     read_input_time(msgr, options, input_times)
-    read_maps_names(msgr, options, input_map_names, output_map_names)
+    read_maps_names(msgr, options, output_map_names, dict_input, dict_inf, dict_bc)
     read_sim_param(msgr, options, sim_param)
 
+    # Join all dictionaries containing input map names
+    for d in [dict_input, dict_inf, dict_bc]:
+        input_map_names.update(d)
     # Run simulation
     sim = simulation.SuperficialFlowSimulation(
                         start_time=input_times['start'],
@@ -329,6 +341,23 @@ def str_to_timedelta(inp_str):
                     minutes=minutes,
                     seconds=seconds)
     return obj_dt
+
+def read_param_file(param_file, sim_param, input_times,
+            output_map_names, dict_input, dict_inf, dict_bc):
+    """Read the parameter file and populate the relevant dictionaries
+    """
+    # read the file
+    params = ConfigParser.SafeConfigParser(defaults=sim_param,
+                                            allow_no_value=True)
+    params.read(param_file)
+    # populate dictionaries
+    for k, v in sim_param.iteritems():
+        v = params.getfloat('options', v)
+    input_times.update()params.items('time')
+    output_map_names.update()params.items('output')
+    dict_input.update()params.items('input')
+    dict_inf.update()params.items('infiltration')
+    dict_bc.update()params.items('boundaries')
 
 def read_input_time(msgr, opts, input_times):
     """Check the sanity of input time information
@@ -378,28 +407,35 @@ def read_input_time(msgr, opts, input_times):
     else:
         input_times['duration'] = input_times['end'] - input_times['start']
 
-def read_maps_names(msgr, opt, input_map_names, output_map_names):
+def read_maps_names(msgr, opt, output_map_names, dict_input, dict_inf, dict_bc):
     """Read options and populate input and output name dictionaries
     """
     for k, v in opt.iteritems():
-        if k in input_map_names.keys() and v:
-            input_map_names[k] = v
-        if k in output_map_names.keys() and v:
+        if k in dict_input.keys() and v:
+            dict_input[k] = v
+        elif k in dict_inf.keys() and v:
+            dict_inf[k] = v
+        elif k in dict_bc.keys() and v:
+            dict_bc[k] = v
+        elif k in output_map_names.keys() and v:
             if file_exist(gis.Igis.format_id(v)) and not grass.overwrite():
                 msgr.fatal(_("File {} exists and will not be overwritten".format(v)))
             else:
                 output_map_names[k] = v
+        else:
+            assert False "{}: unknown key".format(k)
+
     # check coherence of infiltration maps
     ga_list = ['in_eff_por', 'in_cap_pressure', 'in_hyd_conduct']
+    ga_bool = False
     for i in ga_list:
-        if i in input_map_names.values():
+        if i in dict_inf.values():
             ga_bool = True
-        else:
-            ga_bool = False
-    if 'in_f' in input_map_names.values() and ga_bool:
+
+    if 'in_f' in dict_inf.values() and ga_bool:
         msgr.fatal(_("Infiltration model incompatible with user-defined rate"))
     # check if all maps for Green-Ampt are presents
-    if ga_bool and not all(i in input_map_names.values() for i in ga_list):
+    if ga_bool and not all(i in dict_inf.values() for i in ga_list):
         msgr.fatal(_("{} are mutualy inclusive".format(ga_list)))
 
 def read_sim_param(msgr, opt, sim_param):
