@@ -5,8 +5,8 @@ MODULE:    t.sim.flood
 
 AUTHOR(S): Laurent Courty
 
-PURPOSE:   Simulate superficial water flows using a quasi-2D implementation
-           of the Shallow Water Equations.
+PURPOSE:   Simulate dynamic superficial water flows using a
+           quasi-2D implementation of the Shallow Water Equations.
            See:
            De Almeida, G. & Bates, P., 2013. Applicability of the local
            inertial approximation of the shallow water equations to
@@ -272,6 +272,7 @@ def main():
     sim_param = {'hmin': 0.005, 'cfl': 0.7, 'theta': 0.9,
             'vrouting': 0.1, 'dtmax': 5., 'slmax': .5, 'dtinf': 60.}
     input_times = {'start':None,'end':None,'duration':None,'rec_step':None}
+    raw_input_times = input_times.copy()
     output_map_names = {'out_h':None, 'out_wse':None,
         'out_vx':None, 'out_vy':None, 'out_qx':None, 'out_qy':None}
     input_map_names = {}  # to become conjunction of following dicts:
@@ -283,13 +284,15 @@ def main():
 
     # read configuration file
     if options['param_file']:
-        read_param_file(options['param_file'], sim_param, input_times,
+        read_param_file(options['param_file'], sim_param, raw_input_times,
             output_map_names, dict_input, dict_inf, dict_bc)
-
     # check and load input values
     # values already read from configuration file are overwritten
-    read_input_time(msgr, options, input_times)
+    read_input_time(options, raw_input_times)
+    check_input_time(msgr, raw_input_times, input_times)
     read_maps_names(msgr, options, output_map_names, dict_input, dict_inf, dict_bc)
+    check_inf_maps(dict_inf)
+    check_output_files(msgr, output_map_names)
     read_sim_param(msgr, options, sim_param)
 
     # Join all dictionaries containing input map names
@@ -317,13 +320,14 @@ def main():
         ps.print_stats(10)
         print stat_stream.getvalue()
 
-def file_exist(map_id):
+def file_exist(name):
     """Return True if name is an existing map or stds, False otherwise
     """
-    if gis.Igis.name_is_map(map_id) or gis.Igis.name_is_stds(map_id):
-        return True
-    else:
+    if not name:
         return False
+    else:
+        return (gis.Igis.name_is_map(gis.Igis.format_id(name)) or
+                gis.Igis.name_is_stds(gis.Igis.format_id(name)))
 
 def str_to_timedelta(inp_str):
     """Takes a string in the form HH:MM:SS
@@ -342,24 +346,41 @@ def str_to_timedelta(inp_str):
                     seconds=seconds)
     return obj_dt
 
-def read_param_file(param_file, sim_param, input_times,
+def read_param_file(param_file, sim_param, raw_input_times,
             output_map_names, dict_input, dict_inf, dict_bc):
     """Read the parameter file and populate the relevant dictionaries
     """
     # read the file
-    params = ConfigParser.SafeConfigParser(defaults=sim_param,
-                                            allow_no_value=True)
+    params = ConfigParser.SafeConfigParser(allow_no_value=True)
     params.read(param_file)
-    # populate dictionaries
-    for k, v in sim_param.iteritems():
-        v = params.getfloat('options', v)
-    input_times.update()params.items('time')
-    output_map_names.update()params.items('output')
-    dict_input.update()params.items('input')
-    dict_inf.update()params.items('infiltration')
-    dict_bc.update()params.items('boundaries')
+    # populate dictionaries using loops instead of using update() method
+    # in order to not add invalid key
+    for k in sim_param:
+        if params.has_option('options', k):
+            sim_param[k] = params.getfloat('options', k)
+    for k in raw_input_times:
+        if params.has_option('time', k):
+            raw_input_times[k] = params.get('time', k)
+    for k in output_map_names:
+        if params.has_option('output', k):
+            output_map_names[k] = params.get('output', k)
+    for k in dict_input:
+        if params.has_option('input', k):
+            dict_input[k] = params.get('input', k)
+    for k in dict_inf:
+        if params.has_option('infiltration', k):
+            dict_inf[k] = params.get('infiltration', k)
+    for k in dict_bc:
+        if params.has_option('boundaries', k):
+            dict_bc[k] = params.get('boundaries', k)
 
-def read_input_time(msgr, opts, input_times):
+def read_input_time(opts, raw_input_times):
+    raw_input_times['rec_step'] = opts['record_step']
+    raw_input_times['duration'] = opts['sim_duration']
+    raw_input_times['start'] = opts['start_time']
+    raw_input_times['end'] = opts['end_time']
+
+def check_input_time(msgr, raw_input_times, input_times):
     """Check the sanity of input time information
     write the value to relevant dict
     """
@@ -370,38 +391,39 @@ def read_input_time(msgr, opts, input_times):
                 ).format(d='sim_duration', s='start_time', e='end_time')
     # record step
     try:
-        input_times['rec_step'] = str_to_timedelta(opts['record_step'])
+        input_times['rec_step'] = str_to_timedelta(raw_input_times['rec_step'])
     except:
         msgr.fatal(_(rel_err_msg.format('record_step')))
 
-    # check valid combination to get simulation duration
-    b_dur = (opts['sim_duration']
-                and not opts['start_time'] and not opts['end_time'])
-    b_start_dur = (opts['start_time'] and opts['sim_duration']
-                and not opts['end_time'])
-    b_start_end = (opts['start_time'] and opts['end_time']
-                and not opts['sim_duration'])
+    # check valid time options combinations
+    b_dur = (raw_input_times['duration']
+                and not raw_input_times['start'] and not raw_input_times['end'])
+    b_start_dur = (raw_input_times['start'] and raw_input_times['duration']
+                and not raw_input_times['end'])
+    b_start_end = (raw_input_times['start'] and raw_input_times['end']
+                and not raw_input_times['duration'])
     if not (b_dur or b_start_dur or b_start_end):
         msgr.fatal(_(comb_err_msg))
 
-    if opts['end_time']:
+    # change strings to datetime objects and store them in input_times dict
+    if raw_input_times['end']:
         try:
-            input_times['end'] = datetime.strptime(opts['end_time'], date_format)
+            input_times['end'] = datetime.strptime(raw_input_times['end'], date_format)
         except ValueError:
             msgr.fatal(_(abs_err_msg.format('end_time')))
 
-    if opts['start_time']:
+    if raw_input_times['start']:
         try:
-            input_times['start'] = datetime.strptime(opts['start_time'],
-                                                    date_format)
+            input_times['start'] = datetime.strptime(raw_input_times['start'], date_format)
         except ValueError:
             msgr.fatal(_(abs_err_msg.format('start_time')))
     else:
+        # datetime.min will be interpreted as a relative time simulation
         input_times['start'] = datetime.min
 
-    if opts['sim_duration']:
+    if raw_input_times['duration']:
         try:
-            input_times['duration'] = str_to_timedelta(opts['sim_duration'])
+            input_times['duration'] = str_to_timedelta(raw_input_times['duration'])
         except:
             msgr.fatal(_(rel_err_msg.format('sim_duration')))
     else:
@@ -418,14 +440,18 @@ def read_maps_names(msgr, opt, output_map_names, dict_input, dict_inf, dict_bc):
         elif k in dict_bc.keys() and v:
             dict_bc[k] = v
         elif k in output_map_names.keys() and v:
-            if file_exist(gis.Igis.format_id(v)) and not grass.overwrite():
-                msgr.fatal(_("File {} exists and will not be overwritten".format(v)))
-            else:
-                output_map_names[k] = v
-        else:
-            assert False "{}: unknown key".format(k)
+            output_map_names[k] = v
 
-    # check coherence of infiltration maps
+def check_output_files(msgr, output_map_names):
+    """Check if the output files do not exist
+    """
+    for v in output_map_names.itervalues():
+        if file_exist(v) and not grass.overwrite():
+            msgr.fatal(_("File {} exists and will not be overwritten".format(v)))
+
+def check_inf_maps(dict_inf):
+    """check coherence of input infiltration maps
+    """
     ga_list = ['in_eff_por', 'in_cap_pressure', 'in_hyd_conduct']
     ga_bool = False
     for i in ga_list:
