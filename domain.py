@@ -1,4 +1,3 @@
-#! /usr/bin/python
 # coding=utf8
 """
 Copyright (C) 2015-2016 Laurent Courty
