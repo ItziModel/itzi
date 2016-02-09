@@ -362,12 +362,19 @@ class SuperficialFlowSimulation(object):
                 suffix = str(record_counter).zfill(6)
                 map_name = "{}_{}".format(self.out_map_names[k], suffix)
                 arr_unmasked = self.unmask_array(arr)
-                # Export depth map only if above hfmin
+                # Export depth if above hfmin. If not, export NaN
                 if k == 'out_h':
                     hfmin = self.sim_param['hmin']
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
                         arr_unmasked[arr_unmasked <= hfmin] = np.nan
+                # Export velocity if above vrouting. If not, export NaN
+                if k == 'out_vx' or k == 'out_vy':
+                    vrouting = self.sim_param['vrouting']
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        arr_unmasked[np.abs(arr_unmasked) <= vrouting] = np.nan
+                # write the raster
                 self.gis.write_raster_map(arr_unmasked, map_name, k)
                 # add map name and time to the corresponding list
                 self.output_maplist[k].append((map_name, self.sim_time))
