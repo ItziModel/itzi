@@ -45,13 +45,13 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 #%option G_OPT_R_ELEV
 #% key: in_z
 #% description: Input elevation (raster map/stds)
-#% required: yes
+#% required: no
 #%end
 
 #%option G_OPT_R_INPUT
 #% key: in_n
 #% description: Input friction coefficient (raster map/stds)
-#% required: yes
+#% required: no
 #%end
 
 #%option G_OPT_R_INPUT
@@ -222,7 +222,7 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 #%option
 #% key: record_step
 #% description: Duration between two records. Format HH:MM:SS
-#% required: yes
+#% required: no
 #% multiple: no
 #% guisection: Time
 #%end
@@ -295,6 +295,10 @@ def main():
     check_output_files(msgr, output_map_names)
     read_sim_param(msgr, options, sim_param)
 
+    # check if mandatory files are present
+    if not dict_input['in_z'] or not dict_input['in_n'] or not input_times['rec_step']:
+        msgr.fatal(_("options <in_z>, <in_n> and <rec_step> are mandatory"))
+
     # Join all dictionaries containing input map names
     for d in [dict_input, dict_inf, dict_bc]:
         input_map_names.update(d)
@@ -355,12 +359,18 @@ def read_param_file(param_file, sim_param, raw_input_times,
     params.read(param_file)
     # populate dictionaries using loops instead of using update() method
     # in order to not add invalid key
+    if params.has_option('time','record_step'):
+        raw_input_times['rec_step'] = params.get('time', 'record_step')
+    if params.has_option('time','sim_duration'):
+        raw_input_times['duration'] = params.get('time', 'sim_duration')
+    if params.has_option('time','start_time'):
+        raw_input_times['start'] = params.get('time', 'start_time')
+    if params.has_option('time','end_time'):
+        raw_input_times['end'] = params.get('time', 'end_time')
+
     for k in sim_param:
         if params.has_option('options', k):
             sim_param[k] = params.getfloat('options', k)
-    for k in raw_input_times:
-        if params.has_option('time', k):
-            raw_input_times[k] = params.get('time', k)
     for k in output_map_names:
         if params.has_option('output', k):
             output_map_names[k] = params.get('output', k)
@@ -375,10 +385,14 @@ def read_param_file(param_file, sim_param, raw_input_times,
             dict_bc[k] = params.get('boundaries', k)
 
 def read_input_time(opts, raw_input_times):
-    raw_input_times['rec_step'] = opts['record_step']
-    raw_input_times['duration'] = opts['sim_duration']
-    raw_input_times['start'] = opts['start_time']
-    raw_input_times['end'] = opts['end_time']
+    if opts['record_step']:
+        raw_input_times['rec_step'] = opts['record_step']
+    if opts['sim_duration']:
+        raw_input_times['duration'] = opts['sim_duration']
+    if opts['start_time']:
+        raw_input_times['start'] = opts['start_time']
+    if opts['end_time']:
+        raw_input_times['end'] = opts['end_time']
 
 def check_input_time(msgr, raw_input_times, input_times):
     """Check the sanity of input time information
