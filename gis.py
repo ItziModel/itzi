@@ -78,6 +78,7 @@ class Igis(object):
         # color tables files
         file_dir = os.path.dirname(__file__)
         self.rules_h = os.path.join(file_dir, 'colortable_depth.txt')
+        self.rules_v = os.path.join(file_dir, 'colortable_velocity.txt')
         self.rules_def = os.path.join(file_dir, 'colortable_default.txt')
 
     def grass_dtype(self, dtype):
@@ -338,6 +339,8 @@ class Igis(object):
         '''
         if mkey == 'out_h':
             colors_rules = self.rules_h
+        elif mkey == 'out_vx' or 'out_vy':
+            colors_rules = self.rules_v
         else:
             colors_rules = self.rules_def
         grass.run_command('r.colors', quiet=True,

@@ -379,9 +379,15 @@ class SurfaceDomain(object):
         if out_names['out_wse'] != None:
             out_arrays['out_wse'] = self.arr_h + self.arr_z
         if out_names['out_vx'] != None:
-            pass
+            arr_vx = np.empty_like(self.arr_h)
+            flow.solve_v(self.arr_qe_new, self.arr_hfe, arr_vx)
+            assert not np.any(np.isnan(arr_vx))
+            out_arrays['out_vx'] = arr_vx
         if out_names['out_vy'] != None:
-            pass
+            arr_vy = np.empty_like(self.arr_h)
+            flow.solve_v(self.arr_qs_new, self.arr_hfs, arr_vy)
+            assert not np.any(np.isnan(arr_vy))
+            out_arrays['out_vy'] = arr_vy
         if out_names['out_qx'] != None:
             pass
         if out_names['out_qy'] != None:

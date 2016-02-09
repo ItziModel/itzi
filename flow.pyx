@@ -67,7 +67,7 @@ def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
         DTYPE_t [:, :] arr_qn3, DTYPE_t [:, :] arr_qn4,
         DTYPE_t [:, :] arr_q0_new, DTYPE_t [:, :] arr_hf,
         float dt, float cell_len, float g, float theta, float hf_min, float v_rout, float sl_thres):
-    '''Calculate flow through the domain, including hflow and qnorm
+    '''Calculate flow in m2/s in the domain, including hflow and qnorm
     '''
 
     cdef int rmax, cmax, r, c, qdir
@@ -146,10 +146,7 @@ cdef float rain_routing(float h0, float wse0, float wse1, float dt,
     # if WSE of destination cell is below the dem of the drained cell, set to h0
     dh = min(dh, h0)
     maxflow = cell_len * dh / dt
-    if dh <= 0.0001:
-        q_routing = maxflow
-    else:
-        q_routing = min(dh * v_routing, maxflow)
+    q_routing = min(dh * v_routing, maxflow)
     return q_routing
 
 @cython.wraparound(False)  # Disable negative index check
@@ -234,6 +231,26 @@ def set_ext_array(DTYPE_t [:, :] arr_qext,
             inf = arr_inf[r, c]
             # Solve
             arr_ext[r, c] = qext + (rain - inf) / multiplicator
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+def solve_v(DTYPE_t [:, :] arr_q, DTYPE_t [:, :] arr_hf, DTYPE_t [:, :] arr_v):
+    '''Calculate a velocity map
+    arr_q: flow map in m2/s
+    arr_hf: flow depth map in m
+    arr_v is the calculated average velocity map in m/s
+    '''
+    cdef int rmax, cmax, r, c
+
+    rmax = arr_v.shape[0]
+    cmax = arr_v.shape[1]
+    for r in prange(rmax, nogil=True):
+        for c in range(cmax):
+            if arr_hf[r, c] <= 0:
+                arr_v[r, c] = 0
+            else:
+                arr_v[r, c] = arr_q[r, c] / arr_hf[r, c]
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
