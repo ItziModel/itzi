@@ -204,7 +204,8 @@ class SuperficialFlowSimulation(object):
                     self.write_mass_balance(rast_dom.sim_clock)
         # register generated maps in GIS
         self.register_results_in_gis()
-        self.write_hmax_to_gis(rast_dom.arr_hmax)
+        if self.out_map_names['out_h']:
+            self.write_hmax_to_gis(rast_dom.arr_hmax)
         return self
 
     def write_mass_balance(self, sim_clock):
@@ -361,6 +362,7 @@ class SuperficialFlowSimulation(object):
                 suffix = str(record_counter).zfill(6)
                 map_name = "{}_{}".format(self.out_map_names[k], suffix)
                 arr_unmasked = self.unmask_array(arr)
+                # Export depth map only if above hfmin
                 if k == 'out_h':
                     hfmin = self.sim_param['hmin']
                     with warnings.catch_warnings():
