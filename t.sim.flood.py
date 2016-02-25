@@ -282,6 +282,7 @@ def main():
     dict_bc = {'in_rain': None,
         'in_q':None, 'in_bcval': None, 'in_bctype': None}
 
+    msgr.verbose(_("Reading entry data..."))
     # read configuration file
     if options['param_file']:
         read_param_file(options['param_file'], sim_param, raw_input_times,
@@ -303,6 +304,7 @@ def main():
     for d in [dict_input, dict_inf, dict_bc]:
         input_map_names.update(d)
     # Run simulation
+    msgr.verbose(_("Starting simulation..."))
     sim = simulation.SuperficialFlowSimulation(
                         start_time=input_times['start'],
                         end_time=input_times['end'],

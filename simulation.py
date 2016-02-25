@@ -76,10 +76,10 @@ class SuperficialFlowSimulation(object):
         # Coherence of given input maps is checked upstream
         if self.in_map_names['in_inf']:
             self.inftype = 'fix'
-            self.infiltration = infiltration.InfConstantRate(self.gis.yr, self.gis.xr)
+            self.infiltration = infiltration.InfConstantRate()
         else:
             self.inftype = 'ga'
-            self.infiltration = infiltration.InfGreenAmpt(self.gis.yr, self.gis.xr)
+            self.infiltration = infiltration.InfGreenAmpt(self.gis.xr, self.gis.yr)
 
         # dict to store TimedArrays objects
         self.tarrays = dict.fromkeys(self.in_map_names.keys())
@@ -164,6 +164,7 @@ class SuperficialFlowSimulation(object):
         last_inf = 0.
         duration_s = self.duration.total_seconds()
 
+        self.gis.msgr.verbose(_("Starting time-stepping..."))
         while self.sim_time < self.end_time:
             # display advance of simulation
             self.gis.msgr.percent(rast_dom.sim_clock, duration_s, 1)
@@ -197,6 +198,7 @@ class SuperficialFlowSimulation(object):
             # write simulation results
             rec_time = rast_dom.sim_clock / self.record_step.total_seconds()
             if rec_time >= record_counter:
+                self.gis.msgr.verbose(_("Writting output map..."))
                 self.output_arrays = rast_dom.get_output_arrays(self.out_map_names)
                 self.write_results_to_gis(record_counter)
                 record_counter += 1

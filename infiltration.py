@@ -38,10 +38,8 @@ class InfConstantRate(Infiltration):
     """Calculate infiltration using a constant user-defined infiltration
     rate given by a raster map or serie of maps.
     """
-    def __init__(self, xr, yr):
-        self.infrate = None
-        self.xr = xr
-        self.yr = yr
+    def __init__(self):
+        pass
 
     def update_input(self, arr_inf):
         assert isinstance(arr_inf, np.ndarray), "not a np array!"
@@ -68,11 +66,13 @@ class InfGreenAmpt(Infiltration):
         self.init_wat_soil_content = np.zeros(shape=(yr, xr), dtype=np.float32)
         # Initial cumulative infiltration set to one mm (prevent division by zero)
         self.infiltration_amount = np.ones(shape=(yr, xr), dtype=np.float32)
+        assert self.infrate.shape == self.init_wat_soil_content.shape == self.infiltration_amount.shape
 
     def update_input(self, eff_por, cap_pressure, hyd_conduct):
         assert isinstance(eff_por, np.ndarray), "not a np array!"
         assert isinstance(cap_pressure, np.ndarray), "not a np array!"
         assert isinstance(hyd_conduct, np.ndarray), "not a np array!"
+        assert eff_por.shape == cap_pressure.shape == hyd_conduct.shape, "inconsistant shape!"
         self.eff_porosity = eff_por
         self.capilary_pressure = cap_pressure
         self.hyd_conduct = hyd_conduct
@@ -80,6 +80,10 @@ class InfGreenAmpt(Infiltration):
     def get_inf_rate(self, arr_h):
         """Used to get the infiltration rate at each time step
         """
+        assert self.eff_porosity.shape == arr_h.shape
+        assert self.eff_porosity.shape == self.infiltration_amount.shape
+        assert self.eff_porosity.shape == self.init_wat_soil_content.shape
+
         flow.inf_ga(arr_h, self.eff_porosity, self.capilary_pressure,
         self.hyd_conduct, self.infiltration_amount, self.init_wat_soil_content,
         self.infrate, self.dt)
