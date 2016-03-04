@@ -370,12 +370,6 @@ class SuperficialFlowSimulation(object):
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
                         arr_unmasked[arr_unmasked <= hfmin] = np.nan
-                # Export velocity if above vrouting. If not, export NaN
-                if k == 'out_vx' or k == 'out_vy':
-                    vrouting = self.sim_param['vrouting']
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore")
-                        arr_unmasked[np.abs(arr_unmasked) <= vrouting] = np.nan
                 # write the raster
                 self.gis.write_raster_map(arr_unmasked, map_name, k)
                 # add map name and time to the corresponding list
@@ -388,7 +382,7 @@ class SuperficialFlowSimulation(object):
         #~ arr_h_unmasked = self.unmask_array(arr_h)
         #~ arr_err_unmasked = self.unmask_array(arr_error)
         map_h_name = "{}_error".format(self.out_map_names['out_h'])
-        self.gis.write_raster_map(arr_h, map_h_name)
+        self.gis.write_raster_map(arr_h, map_h_name, 'out_h')
         # add map name to the revelant list
         self.output_maplist['out_h'].append(map_h_name)
         return self
