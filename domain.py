@@ -388,9 +388,9 @@ class SurfaceDomain(object):
             assert not np.any(np.isnan(arr_vy))
             out_arrays['out_vy'] = arr_vy
         if out_names['out_qx'] != None:
-            pass
+            out_arrays['out_qx'] = self.arr_qe_new
         if out_names['out_qy'] != None:
-            pass
+            out_arrays['out_qy'] = self.arr_qs_new
         return out_arrays
 
 

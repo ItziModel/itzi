@@ -129,13 +129,25 @@ COPYRIGHT: (C) 2015 by Laurent Courty
 
 #%option G_OPT_R_OUTPUT
 #% key: out_vx
-#% description: Output velocity strds for x direction (strds)
+#% description: Output velocity in m/s for x direction (strds)
 #% required: no
 #%end
 
 #%option G_OPT_R_OUTPUT
 #% key: out_vy
-#% description: Output velocity strds for y direction (strds)
+#% description: Output velocity in m/s for y direction (strds)
+#% required: no
+#%end
+
+#%option G_OPT_R_OUTPUT
+#% key: out_qx
+#% description: Output flow in m²/s for x direction (strds)
+#% required: no
+#%end
+
+#%option G_OPT_R_OUTPUT
+#% key: out_qy
+#% description: Output flow in m²/s for y direction (strds)
 #% required: no
 #%end
 
