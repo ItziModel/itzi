@@ -338,7 +338,7 @@ class Igis(object):
         '''
         if mkey == 'out_h':
             colors_rules = self.rules_h
-        elif mkey == 'out_vx' or 'out_vy':
+        elif mkey.startswith('out_v'):
             colors_rules = self.rules_v
         else:
             colors_rules = self.rules_def
