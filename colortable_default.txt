@@ -1,3 +1,11 @@
-0% aqua
-50% yellow
-100% red
+0% black
+-10 blue
+-1 aqua
+-.1 cyan
+0 white
+.1 yellow
+1 orange
+10 red
+100% magenta
+nv white
+default white
