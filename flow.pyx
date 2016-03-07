@@ -20,7 +20,6 @@ import numpy as np
 from libc.math cimport pow as c_pow
 from libc.math cimport sqrt as c_sqrt
 from libc.math cimport fabs as c_abs
-from libc.math cimport isnan as c_isnan
 
 DTYPE = np.float32
 ctypedef np.float32_t DTYPE_t
@@ -72,7 +71,7 @@ def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
     '''
 
     cdef int rmax, cmax, r, c, qdir
-    cdef float z1, z0, h1, h0, wse1, wse0, hf, aslope, hf_max
+    cdef float z1, z0, h1, h0, wse1, wse0, hf
     cdef float q0, qup, qdown, qn1, qn2, qn3, qn4, q_st, q_vect, n
     cdef float term_1, term_2, term_3, q0_new, slope, num, den
 
@@ -112,45 +111,22 @@ def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
 
             n = 0.5 * (arr_n0[r, c] + arr_n1[r, c])
             slope = (wse0 - wse1) / cell_len
-            aslope = c_abs(slope)
-
-#~             if hf <= 0:
-#~                 q0_new = 0
-#~             # Almeida 2013
-#~             elif hf > hf_min:
-#~                 q0_new = almeida2013(theta, q0, qup, qdown, n,
-#~                                     g, hf, dt, slope, q_vect)
-#~             # flow going W or N, i.e negative
-#~             elif hf <= hf_min and qdir == 0 and wse1 > wse0:
-#~                 q0_new = - rain_routing(h1, wse1, wse0,
-#~                                         dt, cell_len, v_rout)
-#~             # flow going E or S, i.e positive
-#~             elif hf <= hf_min and  qdir == 1 and wse0 > wse1:
-#~                 q0_new = rain_routing(h0, wse0, wse1,
-#~                                         dt, cell_len, v_rout)
-#~             else:
-#~                 q0_new = 0
-
-
-            hf_max = 1.0
             if hf <= 0:
                 q0_new = 0
             # Almeida 2013
-            elif aslope < sl_thres or hf > hf_max:
-#~                 if hf > hf_min:
+            elif hf > hf_min:
                 q0_new = almeida2013(theta, q0, qup, qdown, n,
-                                        g, hf, dt, slope, q_vect)
-#~                 # flow going W or N, i.e negative
-#~                 elif hf <= hf_min and qdir == 0 and wse1 > wse0:
-#~                     q0_new = -rain_routing(h1, wse1, wse0, dt, cell_len, v_rout)
-#~                 # flow going E or S, i.e positive
-#~                 elif hf <= hf_min and  qdir == 1 and wse0 > wse1:
-#~                     q0_new = rain_routing(h0, wse0, wse1, dt, cell_len, v_rout)
-            elif aslope >= sl_thres and hf <= hf_max:
-                q0_new = gms(n, hf, slope, cell_len, dt)
+                                    g, hf, dt, slope, q_vect)
+            # flow going W or N, i.e negative
+            elif hf <= hf_min and qdir == 0 and wse1 > wse0:
+                q0_new = - rain_routing(h1, wse1, wse0,
+                                        dt, cell_len, v_rout)
+            # flow going E or S, i.e positive
+            elif hf <= hf_min and  qdir == 1 and wse0 > wse1:
+                q0_new = rain_routing(h0, wse0, wse1,
+                                        dt, cell_len, v_rout)
             else:
                 q0_new = 0
-
             # populate the array
             arr_q0_new[r,c] = q0_new
 
@@ -193,26 +169,6 @@ cdef float almeida2013(float theta, float q0, float qup, float qdown, float n,
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-cdef float gms(float n, float hf, float slope, float cell_len, float dt) nogil:
-    '''Solve flow using Gauckler-Manning-Strickler formula
-    '''
-    cdef float q, maxflow
-    # define a maximum slope to limit flow
-    slope = min(slope, 0.5)
-    # calculate flow
-    q = (1./n) * hf**(2/3.) * slope**(1/2.) * hf
-    # set to 0 if non valid output
-    if c_isnan(q):
-        q = 0
-    # max the flow to prevent emptying the cell
-    maxflow = cell_len * hf / dt
-    q = min(q, maxflow)
-
-    return q
-
-@cython.wraparound(False)  # Disable negative index check
-@cython.cdivision(True)  # Don't check division by zero
-@cython.boundscheck(False)  # turn off bounds-checking for entire function
 def solve_h(DTYPE_t [:, :] arr_ext,
         DTYPE_t [:, :] arr_qe, DTYPE_t [:, :] arr_qw,
         DTYPE_t [:, :] arr_qn, DTYPE_t [:, :] arr_qs,
@@ -226,8 +182,8 @@ def solve_h(DTYPE_t [:, :] arr_ext,
     cdef float qext, qe, qw, qn, qs, h, q_sum, h_new, hmax, bct, bcv
     cdef float hfix_h = 0.
 
-    rmax = arr_h.shape[0]
-    cmax = arr_h.shape[1]
+    rmax = arr_qe.shape[0]
+    cmax = arr_qe.shape[1]
     for r in prange(rmax, nogil=True):
         for c in range(cmax):
             qext = arr_ext[r, c]
@@ -283,7 +239,7 @@ def solve_v(DTYPE_t [:, :] arr_q, DTYPE_t [:, :] arr_hf, DTYPE_t [:, :] arr_v):
     '''Calculate a velocity map
     arr_q: flow map in m2/s
     arr_hf: flow depth map in m
-    arr_v is the calculated velocity map in m/s
+    arr_v is the calculated average velocity map in m/s
     '''
     cdef int rmax, cmax, r, c
 
