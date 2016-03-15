@@ -38,7 +38,7 @@ class Igis(object):
     t_unit_conv = {'seconds': 1, 'minutes': 60, 'hours': 3600, 'days': 86400}
     # datatype conversion between GRASS and numpy
     dtype_conv = {'FCELL': ('float16', 'float32'),
-                'DCELL': ('float_', 'float64', 'float128'),
+                'DCELL': ('float_', 'float64'),
                 'CELL': ('bool_', 'int_', 'intc', 'intp',
                         'int8', 'int16', 'int32', 'int64',
                         'uint8', 'uint16', 'uint32', 'uint64')}
