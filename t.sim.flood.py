@@ -15,7 +15,7 @@ PURPOSE:   Simulate dynamic superficial water flows using a
            to enable direct rainfall in high resolution shallow water models.
            Hydrological Processes, 27(3), pp.467–476.
 
-COPYRIGHT: (C) 2015 by Laurent Courty
+COPYRIGHT: (C) 2015-2016 by Laurent Courty
 
             This program is free software; you can redistribute it and/or
             modify it under the terms of the GNU General Public License
