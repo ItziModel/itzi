@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2015  Laurent Courty
+Copyright (C) 2015-2016 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -38,7 +38,7 @@ class Igis(object):
     t_unit_conv = {'seconds': 1, 'minutes': 60, 'hours': 3600, 'days': 86400}
     # datatype conversion between GRASS and numpy
     dtype_conv = {'FCELL': ('float16', 'float32'),
-                'DCELL': ('float_', 'float64', 'float128'),
+                'DCELL': ('float_', 'float64'),
                 'CELL': ('bool_', 'int_', 'intc', 'intp',
                         'int8', 'int16', 'int32', 'int64',
                         'uint8', 'uint16', 'uint32', 'uint64')}
