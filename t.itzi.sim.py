@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-MODULE:    t.sim.flood
+MODULE:    t.itzi.sim
 
 AUTHOR(S): Laurent Courty
 

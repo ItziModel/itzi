@@ -26,7 +26,7 @@ import domain
 import gis
 import flow
 import infiltration
-from chac_error import NullError
+from itzi_error import NullError
 
 class SuperficialFlowSimulation(object):
     """Manage the general simulation:

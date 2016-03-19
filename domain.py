@@ -22,7 +22,7 @@ except ImportError:
 
 import flow
 import time
-from chac_error import NullError
+from itzi_error import NullError
 
 class SurfaceDomain(object):
     """Represents a staggered grid where flow is simulated
