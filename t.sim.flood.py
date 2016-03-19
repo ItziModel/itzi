@@ -315,8 +315,27 @@ def main():
     # Join all dictionaries containing input map names
     for d in [dict_input, dict_inf, dict_bc]:
         input_map_names.update(d)
+
+    # check if bottleneck is available
+    try:
+        import bottleneck
+    except ImportError:
+        msgr.verbose(_(u"bottleneck not available. Using standard numpy"))
+    else:
+        msgr.verbose(_(u"Using bottleneck"))
+    # display simulation parameters
+    msgr.verbose(u"Using the following parameters:")
+    txt_template = u"{}: {}"
+    for k, v in input_times.iteritems():
+        msgr.verbose(txt_template.format(k, v))
+    for k, v in input_map_names.iteritems():
+        msgr.verbose(txt_template.format(k, v))
+    for k, v in output_map_names.iteritems():
+        msgr.verbose(txt_template.format(k, v))
+    for k, v in sim_param.iteritems():
+        msgr.verbose(txt_template.format(k, v))
     # Run simulation
-    msgr.verbose(_("Starting simulation..."))
+    msgr.verbose(_(u"Starting simulation..."))
     sim = simulation.SuperficialFlowSimulation(
                         start_time=input_times['start'],
                         end_time=input_times['end'],
