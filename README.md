@@ -1,5 +1,5 @@
-# t.sim.flood
-A GRASS GIS 7 module that simulates 2D superficial flows using simplified shallow water equations
+# t.itzi.sim
+A GRASS module that simulates 2D superficial flows using simplified shallow water equations
 
 # Description
 This module is aimed at modelling floodplain inundations using simplified shallow water equations.
@@ -38,10 +38,12 @@ The following raster maps are necessary:
   * Digital elevation model in meters
   * Friction, expressed as Manning's n
 
-The following raster space-time datasets are optional:
+The following space-time raster datasets are optional:
 
   * rain map in mm/h
-  * user defined inflow in m/s (vertical velocity, i.e for 20 m3/s on a 10x10 cell, the velocity is 0.2 m/s)
+  * point inflow in m/s (vertical velocity, i.e for 20 m3/s on a 10x10 cell, the velocity is 0.2 m/s)
+  * fixed infiltration rate in mm/h
+  * Green-Ampt infiltration parameters
   * boundary condition type: an integer map (see below)
   * boundary condition value: a map for boundary conditions using user-given value
 
@@ -77,14 +79,14 @@ Run cython:
 
 $ cython flow.pyx
 
-Compile the generated C file
+Compile the generated C file. Here an example for GCC under Linux:
 
 $ gcc -shared -pthread -fPIC -O3 -fno-strict-aliasing -fopenmp -I/usr/include/python2.7 -o flow.so flow.c
 
 Launch GRASS
 
-$ grass70
+$ grass
 
 Check usage of the module
 
-$ python t.sim.flood.py --h
+$ python t.itzi.sim.py --h
