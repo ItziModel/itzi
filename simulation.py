@@ -69,7 +69,7 @@ class SuperficialFlowSimulation(object):
         self.gis = gis.Igis(start_time=self.start_time,
                             end_time=self.end_time,
                             dtype=dtype, mkeys=self.in_map_names.keys())
-        self.gis.msgr.verbose(_("Reading GIS..."))
+        self.gis.msgr.verbose(_(u"Reading GIS..."))
         self.gis.read(self.in_map_names)
 
         # Determine infiltration type by checking if constant infiltration is given
@@ -164,7 +164,7 @@ class SuperficialFlowSimulation(object):
         last_inf = 0.
         duration_s = self.duration.total_seconds()
 
-        self.gis.msgr.verbose(_("Starting time-stepping..."))
+        self.gis.msgr.verbose(_(u"Starting time-stepping..."))
         while self.sim_time < self.end_time:
             # display advance of simulation
             self.gis.msgr.percent(rast_dom.sim_clock, duration_s, 1)
@@ -189,7 +189,7 @@ class SuperficialFlowSimulation(object):
                 rast_dom.step(next_ts, self.massbal)
             except NullError:
                 self.write_error_to_gis(rast_dom.arr_h, rast_dom.arr_err)
-                self.gis.msgr.fatal(_("Null value detected in simulation at time {}, terminating").format(self.sim_time))
+                self.gis.msgr.fatal(_(u"Null value detected in simulation at time {}, terminating").format(self.sim_time))
             # update simulation time and dt
             self.sim_time = self.start_time + timedelta(seconds=rast_dom.sim_clock)
             self.dt = rast_dom.dt
@@ -198,7 +198,7 @@ class SuperficialFlowSimulation(object):
             # write simulation results
             rec_time = rast_dom.sim_clock / self.record_step.total_seconds()
             if rec_time >= record_counter:
-                self.gis.msgr.verbose(_("Writting output map..."))
+                self.gis.msgr.verbose(_(u"Writting output map..."))
                 self.output_arrays = rast_dom.get_output_arrays(self.out_map_names)
                 self.write_results_to_gis(record_counter)
                 record_counter += 1

@@ -183,13 +183,13 @@ class Igis(object):
                 strds_id = self.format_id(map_name)
                 if not self.stds_temporal_sanity(strds_id):
                     self.msgr.fatal(_
-                        ("{}: inadequate temporal format".format(map_name)))
+                        (u"{}: inadequate temporal format".format(map_name)))
                 map_list = self.raster_list_from_strds(strds_id)
             elif self.name_is_map(self.format_id(map_name)):
                 map_list = [self.MapData(id=self.format_id(map_name),
                     start_time=self.start_time, end_time=self.end_time)]
             else:
-                self.msgr.fatal(_("{} not found!".format(map_name)))
+                self.msgr.fatal(_(u"{} not found!".format(map_name)))
             self.maps[k] = map_list
         return self
 
@@ -205,20 +205,20 @@ class Igis(object):
         # valid topology
         if not stds.check_temporal_topology():
             out = False
-            self.msgr.warning(_("{}: invalid topology".format(stds_id)))
+            self.msgr.warning(_(u"{}: invalid topology".format(stds_id)))
         # no gap
         if stds.count_gaps() != 0:
             out = False
-            self.msgr.warning(_("{}: gaps found".format(stds_id)))
+            self.msgr.warning(_(u"{}: gaps found".format(stds_id)))
         # cover all simulation time
         sim_start, sim_end = self.get_sim_extend_in_stds_unit(stds)
         stds_start, stds_end = stds.get_temporal_extent_as_tuple()
         if stds_start > sim_start:
             out = False
-            self.msgr.warning(_("{}: starts after simulation".format(stds_id)))
+            self.msgr.warning(_(u"{}: starts after simulation".format(stds_id)))
         if stds_end < sim_end:
             out = False
-            self.msgr.warning(_("{}: ends before simulation".format(stds_id)))
+            self.msgr.warning(_(u"{}: ends before simulation".format(stds_id)))
         return out
 
     def raster_list_from_strds(self, strds_name):

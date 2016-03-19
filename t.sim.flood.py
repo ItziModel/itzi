@@ -278,7 +278,7 @@ def main():
 
     # stop program if location is latlong
     if grass.locn_is_latlong():
-        msgr.fatal(_("latlong location is not supported"))
+        msgr.fatal(_(u"latlong location is not supported"))
 
     # values to be passed to simulation
     sim_param = {'hmin': 0.005, 'cfl': 0.7, 'theta': 0.9,
@@ -294,7 +294,7 @@ def main():
     dict_bc = {'in_rain': None,
         'in_q':None, 'in_bcval': None, 'in_bctype': None}
 
-    msgr.verbose(_("Reading entry data..."))
+    msgr.verbose(_(u"Reading entry data..."))
     # read configuration file
     if options['param_file']:
         read_param_file(options['param_file'], sim_param, raw_input_times,
@@ -310,7 +310,7 @@ def main():
 
     # check if mandatory files are present
     if not dict_input['in_z'] or not dict_input['in_n'] or not input_times['rec_step']:
-        msgr.fatal(_("options <in_z>, <in_n> and <rec_step> are mandatory"))
+        msgr.fatal(_(u"options <in_z>, <in_n> and <rec_step> are mandatory"))
 
     # Join all dictionaries containing input map names
     for d in [dict_input, dict_inf, dict_bc]:
@@ -432,9 +432,9 @@ def check_input_time(msgr, raw_input_times, input_times):
     write the value to relevant dict
     """
     date_format = '%Y-%m-%d %H:%M'
-    rel_err_msg = "{}: format should be HH:MM:SS"
-    abs_err_msg = "{}: format should be yyyy-mm-dd HH:MM"
-    comb_err_msg = ("accepted combinations:{d} alone, {s} and {d}, {s} and {e}"
+    rel_err_msg = u"{}: format should be HH:MM:SS"
+    abs_err_msg = u"{}: format should be yyyy-mm-dd HH:MM"
+    comb_err_msg = (u"accepted combinations:{d} alone, {s} and {d}, {s} and {e}"
                 ).format(d='sim_duration', s='start_time', e='end_time')
     # record step
     try:
@@ -494,7 +494,7 @@ def check_output_files(msgr, output_map_names):
     """
     for v in output_map_names.itervalues():
         if file_exist(v) and not grass.overwrite():
-            msgr.fatal(_("File {} exists and will not be overwritten".format(v)))
+            msgr.fatal(_(u"File {} exists and will not be overwritten".format(v)))
 
 def check_inf_maps(dict_inf):
     """check coherence of input infiltration maps
@@ -506,10 +506,10 @@ def check_inf_maps(dict_inf):
             ga_bool = True
 
     if 'in_f' in dict_inf.values() and ga_bool:
-        msgr.fatal(_("Infiltration model incompatible with user-defined rate"))
+        msgr.fatal(_(u"Infiltration model incompatible with user-defined rate"))
     # check if all maps for Green-Ampt are presents
     if ga_bool and not all(i in dict_inf.values() for i in ga_list):
-        msgr.fatal(_("{} are mutualy inclusive".format(ga_list)))
+        msgr.fatal(_(u"{} are mutualy inclusive".format(ga_list)))
 
 def read_sim_param(msgr, opt, sim_param):
     """Read simulation parameters and populate the corresponding dictionary
