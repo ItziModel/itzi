@@ -26,6 +26,7 @@ from grass.pygrass.messages import Messenger
 import grass.pygrass.utils as gutils
 from grass.exceptions import FatalError, CalledModuleError
 
+
 class Igis(object):
     """
     A class providing an access to GRASS GIS Python interfaces:
@@ -38,15 +39,15 @@ class Igis(object):
     t_unit_conv = {'seconds': 1, 'minutes': 60, 'hours': 3600, 'days': 86400}
     # datatype conversion between GRASS and numpy
     dtype_conv = {'FCELL': ('float16', 'float32'),
-                'DCELL': ('float_', 'float64'),
-                'CELL': ('bool_', 'int_', 'intc', 'intp',
-                        'int8', 'int16', 'int32', 'int64',
-                        'uint8', 'uint16', 'uint32', 'uint64')}
+                  'DCELL': ('float_', 'float64'),
+                  'CELL': ('bool_', 'int_', 'intc', 'intp',
+                           'int8', 'int16', 'int32', 'int64',
+                           'uint8', 'uint16', 'uint32', 'uint64')}
     # conversion from month number to accepted grass month notation
     # datetime object strftime can't be used because it depend on the locale
     month_conv = {1: 'jan', 2: 'feb', 3: 'mar', 4: 'apr',
-                5: 'may', 6: 'june', 7: 'july', 8: 'aug',
-                9: 'Sept', 10: 'oct', 11: 'Nov', 12: 'dec'}
+                  5: 'may', 6: 'june', 7: 'july', 8: 'aug',
+                  9: 'Sept', 10: 'oct', 11: 'Nov', 12: 'dec'}
 
     def __init__(self, start_time, end_time, dtype, mkeys):
         assert isinstance(start_time, datetime), \
@@ -70,7 +71,7 @@ class Igis(object):
         # init temporal module
         tgis.init(raise_fatal_error=True)
         # define MapData namedtuple and cols to retrieve from STRDS
-        self.cols = ['id','start_time','end_time']
+        self.cols = ['id', 'start_time', 'end_time']
                 #~ 'name','west','east','south','north']
         self.MapData = namedtuple('MapData', self.cols)
 
@@ -153,7 +154,7 @@ class Igis(object):
         if strds.get_temporal_type() == 'relative':
             # get start time and end time in seconds
             rel_end_time = (self.end_time - self.start_time).total_seconds()
-            rel_unit = strds.get_relative_time_unit().encode('ascii','ignore')
+            rel_unit = strds.get_relative_time_unit().encode('ascii', 'ignore')
             start_time_in_stds_unit = 0
             end_time_in_stds_unit = self.from_s(rel_unit, rel_end_time)
         elif strds.get_temporal_type() == 'absolute':
@@ -187,7 +188,8 @@ class Igis(object):
                 map_list = self.raster_list_from_strds(strds_id)
             elif self.name_is_map(self.format_id(map_name)):
                 map_list = [self.MapData(id=self.format_id(map_name),
-                    start_time=self.start_time, end_time=self.end_time)]
+                                         start_time=self.start_time,
+                                         end_time=self.end_time)]
             else:
                 self.msgr.fatal(_(u"{} not found!".format(map_name)))
             self.maps[k] = map_list
@@ -240,9 +242,9 @@ class Igis(object):
                                             order='start_time')
         # change time data to datetime format
         if strds.get_temporal_type() == 'relative':
-            rel_unit = strds.get_relative_time_unit().encode('ascii','ignore')
+            rel_unit = strds.get_relative_time_unit().encode('ascii', 'ignore')
             maplist = [(i[0], self.to_datetime(rel_unit, i[1]),
-                self.to_datetime(rel_unit, i[2])) for i in maplist]
+                       self.to_datetime(rel_unit, i[2])) for i in maplist]
         return [self.MapData(*i) for i in maplist]
 
     def read_raster_map(self, rast_name):
@@ -257,10 +259,9 @@ class Igis(object):
         """
         assert isinstance(arr, np.ndarray), "arr not a np array!"
         assert isinstance(rast_name, basestring), "not a string!"
-        if self.overwrite == True and raster.RasterRow(rast_name).exist() == True:
-            gutils.remove(rast_name, 'raster')
         mtype = self.grass_dtype(arr.dtype)
-        with raster.RasterRow(rast_name, mode='w', mtype=mtype) as newraster:
+        with raster.RasterRow(rast_name, mode='w', mtype=mtype,
+                              overwrite=self.overwrite) as newraster:
             newrow = raster.Buffer((arr.shape[1],), mtype=mtype)
             for row in arr:
                 newrow[:] = row[:]
@@ -300,7 +301,8 @@ class Igis(object):
         strds_title = mkey
         strds_desc = ""
         strds = tgis.open_new_stds(strds_id, 'strds', t_type,
-            strds_title, strds_desc, "mean", overwrite=self.overwrite)
+                                   strds_title, strds_desc, "mean",
+                                   overwrite=self.overwrite)
 
         # create RasterDataset objects list
         raster_dts_lst = []
@@ -324,13 +326,14 @@ class Igis(object):
             raster_dts_lst.append(raster_dts)
         # Finaly register the maps
         if t_type == 'relative':
-            r_unit='seconds'
+            r_unit = 'seconds'
         elif t_type == 'absolute':
-            r_unit=''
+            r_unit = ''
         else:
             assert False, "unknown temporal type!"
         tgis.register.register_map_object_list('raster', raster_dts_lst,
-                strds, delete_empty=True, unit=r_unit)
+                                               strds, delete_empty=True,
+                                               unit=r_unit)
         return self
 
     def apply_color_table(self, map_name, mkey):
@@ -343,5 +346,5 @@ class Igis(object):
         else:
             colors_rules = self.rules_def
         grass.run_command('r.colors', quiet=True,
-                        rules=colors_rules, map=map_name)
+                          rules=colors_rules, map=map_name)
         return self
