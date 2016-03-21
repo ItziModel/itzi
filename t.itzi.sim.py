@@ -280,6 +280,11 @@ def main():
     if grass.locn_is_latlong():
         msgr.fatal(_(u"latlong location is not supported"))
 
+    # stop program if neither option or flag is given
+    if not (bool([a for a in options.values() if a]) or
+            bool([a for a in flags.values() if a])):
+        msgr.fatal(_(u"No parameter given. Please use '--h' to check usage"))
+
     # values to be passed to simulation
     sim_param = {'hmin': 0.005, 'cfl': 0.7, 'theta': 0.9,
                  'vrouting': 0.1, 'dtmax': 5., 'slmax': .5, 'dtinf': 60.}
@@ -447,10 +452,11 @@ def check_input_time(msgr, raw_input_times, input_times):
     comb_err_msg = (u"accepted combinations:{d} alone, {s} and {d}, {s} and {e}"
                     ).format(d='sim_duration', s='start_time', e='end_time')
     # record step
-    try:
-        input_times['rec_step'] = str_to_timedelta(raw_input_times['rec_step'])
-    except:
-        msgr.fatal(_(rel_err_msg.format('record_step')))
+    if input_times['rec_step']:
+        try:
+            input_times['rec_step'] = str_to_timedelta(raw_input_times['rec_step'])
+        except:
+            msgr.fatal(_(rel_err_msg.format('record_step')))
 
     # check valid time options combinations
     b_dur = (raw_input_times['duration'] and
