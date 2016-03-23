@@ -318,9 +318,9 @@ def main():
     read_sim_param(msgr, options, sim_param)
 
     # check if mandatory files are present
-    if (not dict_input['in_z'] or not dict_input['in_n'] or
-            not input_times['rec_step']):
-        msgr.fatal(_(u"options <in_z>, <in_n> and <rec_step> are mandatory"))
+    if (dict_input['in_z'] is None or dict_input['in_n'] is None or
+            input_times['rec_step'] is None):
+        msgr.fatal(_(u"options <in_z>, <in_n> and <record_step> are mandatory"))
 
     # Join all dictionaries containing input map names
     for d in [dict_input, dict_inf, dict_bc]:
@@ -452,7 +452,7 @@ def check_input_time(msgr, raw_input_times, input_times):
     comb_err_msg = (u"accepted combinations:{d} alone, {s} and {d}, {s} and {e}"
                     ).format(d='sim_duration', s='start_time', e='end_time')
     # record step
-    if input_times['rec_step']:
+    if raw_input_times['rec_step']:
         try:
             input_times['rec_step'] = str_to_timedelta(raw_input_times['rec_step'])
         except:
