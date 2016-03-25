@@ -253,6 +253,7 @@ COPYRIGHT: (C) 2015-2016 by Laurent Courty
 import sys
 import os
 from datetime import datetime, timedelta
+import time
 import numpy as np
 import cProfile
 import pstats
@@ -346,6 +347,7 @@ def main():
         msgr.verbose(txt_template.format(k, v))
     # Run simulation
     msgr.verbose(_(u"Starting simulation..."))
+    sim_start = time.clock()
     sim = simulation.SuperficialFlowSimulation(
                         start_time=input_times['start'],
                         end_time=input_times['end'],
@@ -366,6 +368,11 @@ def main():
         ps = pstats.Stats(pr, stream=stat_stream).sort_stats(sortby)
         ps.print_stats(10)
         print stat_stream.getvalue()
+
+    # display total computation duration
+    elapsed_time = timedelta(seconds=int(time.clock() - sim_start))
+    grass.message(_("Simulation complete. "
+                    "Elapsed time: {}").format(elapsed_time))
 
 
 def file_exist(name):
