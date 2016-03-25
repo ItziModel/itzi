@@ -78,10 +78,14 @@ class SuperficialFlowSimulation(object):
         if self.in_map_names['in_inf']:
             self.inftype = 'fix'
             self.infiltration = infiltration.InfConstantRate()
-        else:
+        elif self.in_map_names['in_cap_pressure']:
             self.inftype = 'ga'
             self.infiltration = infiltration.InfGreenAmpt(self.gis.xr,
                                                           self.gis.yr)
+        else:
+            self.inftype = None
+        # instantiate an array with defult at zero
+        self.arr_inf = self.zeros_array()
 
         # dict to store TimedArrays objects
         self.tarrays = dict.fromkeys(self.in_map_names.keys())
@@ -291,15 +295,18 @@ class SuperficialFlowSimulation(object):
         if self.inftype == 'fix':
             self.infiltration.update_input(
                 self.tarrays['in_inf'].get_array(self.sim_time))
+            self.arr_inf[:] = self.infiltration.get_inf_rate(arr_h)
         elif self.inftype == 'ga':
             self.infiltration.update_input(
                 self.tarrays['in_eff_por'].get_array(self.sim_time),
                 self.tarrays['in_cap_pressure'].get_array(self.sim_time),
                 self.tarrays['in_hyd_conduct'].get_array(self.sim_time))
+            self.arr_inf[:] = self.infiltration.get_inf_rate(arr_h)
+        elif self.inftype is None:
+            pass  # arr_inf is set to zero at init
         else:
             assert False, "unknown infiltration type"
-        # set infiltration rate array
-        self.arr_inf = self.infiltration.get_inf_rate(arr_h)
+
 
     def update_domain_arrays(self, rast_dom):
         """Takes a SurfaceDomain object as input
