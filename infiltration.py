@@ -96,6 +96,10 @@ class InfGreenAmpt(Infiltration):
                     self.init_wat_soil_content, self.infrate, self.dt)
         return self.infrate
 
+class InfNull(Infiltration):
+    """Dummy class for cases where no inflitration is calculated
+    """
+    pass
 
 #~ class InfHoltan(Infiltration):
     #~ """

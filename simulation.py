@@ -84,6 +84,7 @@ class SuperficialFlowSimulation(object):
                                                           self.gis.yr)
         else:
             self.inftype = None
+            self.infiltration = infiltration.InfNull()
         # instantiate an array with defult at zero
         self.arr_inf = self.zeros_array()
 
