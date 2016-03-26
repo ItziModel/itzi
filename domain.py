@@ -143,7 +143,7 @@ class SurfaceDomain(object):
     def step(self, next_ts, massbal):
         """Run a full simulation time-step
         """
-        start_clock = time.clock()
+        start_clock = time.time()
         self.set_dt(next_ts)
         self.solve_q()
         boundary_vol = self.apply_boundary_conditions()
@@ -160,7 +160,7 @@ class SurfaceDomain(object):
             raise NullError
 
         self.copy_arrays_values_for_next_timestep()
-        end_clock = time.clock()
+        end_clock = time.time()
         if massbal:
             massbal.add_value('step_duration', end_clock - start_clock)
         return self

@@ -347,7 +347,7 @@ def main():
         msgr.verbose(txt_template.format(k, v))
     # Run simulation
     msgr.verbose(_(u"Starting simulation..."))
-    sim_start = time.clock()
+    sim_start = time.time()
     sim = simulation.SuperficialFlowSimulation(
                         start_time=input_times['start'],
                         end_time=input_times['end'],
@@ -370,7 +370,7 @@ def main():
         print stat_stream.getvalue()
 
     # display total computation duration
-    elapsed_time = timedelta(seconds=int(time.clock() - sim_start))
+    elapsed_time = timedelta(seconds=int(time.time() - sim_start))
     grass.message(_("Simulation complete. "
                     "Elapsed time: {}").format(elapsed_time))
 
