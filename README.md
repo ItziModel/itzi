@@ -1,8 +1,8 @@
 # t.itzi.sim
-A GRASS module that simulates 2D superficial flows using simplified shallow water equations
+A GRASS module that simulates 2D superficial flows using simplified shallow water equations. It is developed at the Engineering Institute of the Universidad Nacional Autónoma de México by Laurent Courty thanks to a PhD grant from the UNAM.
 
 # Description
-This module is aimed at modelling floodplain inundations using simplified shallow water equations.
+This module is aimed at modeling floodplain inundations using simplified shallow water equations.
 As of March 2016, it is under development and subject to many kinds of changes and bugs.
 
 It implements the q-centered numerical scheme described in:
