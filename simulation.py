@@ -28,6 +28,7 @@ import flow
 import infiltration
 from itzi_error import NullError
 
+
 class SuperficialFlowSimulation(object):
     """Manage the general simulation:
     - update input values for each time-step
@@ -35,13 +36,13 @@ class SuperficialFlowSimulation(object):
     Accessed via the run() method
     """
 
-    def __init__(self,record_step, input_maps, output_maps,
-                dtype=np.float32,
-                stats_file=None,
-                start_time=datetime(1,1,1),
-                end_time=datetime(1,1,1),
-                sim_duration=timedelta(0),
-                sim_param=None):
+    def __init__(self, record_step, input_maps, output_maps,
+                 dtype=np.float32,
+                 stats_file=None,
+                 start_time=datetime(1, 1, 1),
+                 end_time=datetime(1, 1, 1),
+                 sim_duration=timedelta(0),
+                 sim_param=None):
         assert isinstance(start_time, datetime), \
             "start_time not a datetime object!"
         assert isinstance(sim_duration, timedelta), \
@@ -50,7 +51,7 @@ class SuperficialFlowSimulation(object):
         assert isinstance(record_step, timedelta), \
             "record_step not a timedelta object!"
         assert record_step > timedelta(0), "record_step must be > 0"
-        assert sim_param != None
+        assert sim_param is not None
 
         self.record_step = record_step
         self.start_time = start_time
@@ -64,7 +65,7 @@ class SuperficialFlowSimulation(object):
         self.in_map_names = input_maps
         self.out_map_names = output_maps
 
-        self.dtype=dtype
+        self.dtype = dtype
         # instantiate a Igis object
         self.gis = gis.Igis(start_time=self.start_time,
                             end_time=self.end_time,
@@ -72,21 +73,27 @@ class SuperficialFlowSimulation(object):
         self.gis.msgr.verbose(_(u"Reading GIS..."))
         self.gis.read(self.in_map_names)
 
-        # Determine infiltration type by checking if constant infiltration is given
+        # Determine infiltration type by checking if const. infiltr. is given
         # Coherence of given input maps is checked upstream
         if self.in_map_names['in_inf']:
             self.inftype = 'fix'
             self.infiltration = infiltration.InfConstantRate()
-        else:
+        elif self.in_map_names['in_cap_pressure']:
             self.inftype = 'ga'
-            self.infiltration = infiltration.InfGreenAmpt(self.gis.xr, self.gis.yr)
+            self.infiltration = infiltration.InfGreenAmpt(self.gis.xr,
+                                                          self.gis.yr)
+        else:
+            self.inftype = None
+            self.infiltration = infiltration.InfNull()
+        # instantiate an array with defult at zero
+        self.arr_inf = self.zeros_array()
 
         # dict to store TimedArrays objects
         self.tarrays = dict.fromkeys(self.in_map_names.keys())
         # Populate it
         self.create_timed_arrays()
         # a dict containing lists of maps written to gis to be registered
-        self.output_maplist = {k:[] for k in self.out_map_names.keys()}
+        self.output_maplist = {k: [] for k in self.out_map_names.keys()}
         # Instantiate Massbal object
         self.massbal = None
         if stats_file:
@@ -94,7 +101,7 @@ class SuperficialFlowSimulation(object):
             self.massbal = MassBal(dom_size=dom_size, file_name=stats_file)
         # mask array
         self.mask = np.full(shape=(self.gis.yr, self.gis.xr),
-                fill_value=False, dtype=np.bool_)
+                            fill_value=False, dtype=np.bool_)
 
         # simulation parameters
         self.sim_param = sim_param
@@ -130,15 +137,25 @@ class SuperficialFlowSimulation(object):
         self.tarrays['in_z'] = TimedArray('in_z', self.gis, self.zeros_array)
         self.tarrays['in_n'] = TimedArray('in_n', self.gis, self.zeros_array)
         self.tarrays['in_h'] = TimedArray('in_h', self.gis, self.zeros_array)
-        self.tarrays['in_inf'] = TimedArray('in_inf', self.gis, self.zeros_array)
-        self.tarrays['in_eff_por'] = TimedArray('in_eff_por', self.gis, self.zeros_array)
-        self.tarrays['in_cap_pressure'] = TimedArray('in_cap_pressure', self.gis, self.zeros_array)
-        self.tarrays['in_hyd_conduct'] = TimedArray('in_hyd_conduct', self.gis, self.zeros_array)
-        self.tarrays['in_rain'] = TimedArray('in_rain', self.gis, self.zeros_array)
-        self.tarrays['in_q'] = TimedArray('in_q', self.gis, self.zeros_array)
-        self.tarrays['in_bcval'] = TimedArray('in_bcval', self.gis, self.zeros_array)
+        self.tarrays['in_inf'] = TimedArray('in_inf',
+                                            self.gis, self.zeros_array)
+        self.tarrays['in_eff_por'] = TimedArray('in_eff_por',
+                                                self.gis, self.zeros_array)
+        self.tarrays['in_cap_pressure'] = TimedArray('in_cap_pressure',
+                                                     self.gis,
+                                                     self.zeros_array)
+        self.tarrays['in_hyd_conduct'] = TimedArray('in_hyd_conduct',
+                                                    self.gis,
+                                                    self.zeros_array)
+        self.tarrays['in_rain'] = TimedArray('in_rain',
+                                             self.gis, self.zeros_array)
+        self.tarrays['in_q'] = TimedArray('in_q',
+                                          self.gis, self.zeros_array)
+        self.tarrays['in_bcval'] = TimedArray('in_bcval',
+                                              self.gis, self.zeros_array)
         # Default of bctypes is an int array filled with ones
-        self.tarrays['in_bctype'] = TimedArray('in_bctype', self.gis, self.ones_array)
+        self.tarrays['in_bctype'] = TimedArray('in_bctype',
+                                               self.gis, self.ones_array)
         return self
 
     def run(self):
@@ -174,7 +191,8 @@ class SuperficialFlowSimulation(object):
 
             # calculate infiltration
             self.set_inf_forced_timestep(next_record)
-            self.infiltration.set_dt(self.dtinf, rast_dom.sim_clock, self.inf_forced_ts)
+            self.infiltration.set_dt(self.dtinf, rast_dom.sim_clock,
+                                     self.inf_forced_ts)
             if last_inf + self.infiltration.dt >= rast_dom.sim_clock:
                 self.calculate_infiltration(rast_dom.arr_h)
                 last_inf = float(rast_dom.sim_clock)
@@ -184,14 +202,16 @@ class SuperficialFlowSimulation(object):
             # next forced flow time-step
             next_ts = self.next_forced_timestep()
             # step() raise NullError in case of NaN/NULL cell
-            # if this happen, stop simulation and output a map showing the errors
+            # if this happen, stop simulation and
+            # output a map showing the errors
             try:
                 rast_dom.step(next_ts, self.massbal)
             except NullError:
                 self.write_error_to_gis(rast_dom.arr_h, rast_dom.arr_err)
                 self.gis.msgr.fatal(_(u"Null value detected in simulation at time {}, terminating").format(self.sim_time))
             # update simulation time and dt
-            self.sim_time = self.start_time + timedelta(seconds=rast_dom.sim_clock)
+            self.sim_time = (self.start_time +
+                             timedelta(seconds=rast_dom.sim_clock))
             self.dt = rast_dom.dt
             if self.massbal:
                 self.massbal.add_value('tstep', self.dt)
@@ -274,16 +294,20 @@ class SuperficialFlowSimulation(object):
         """Calculate an array of infiltration rates in mm/h
         """
         if self.inftype == 'fix':
-            self.infiltration.update_input(self.tarrays['in_inf'].get_array(self.sim_time))
+            self.infiltration.update_input(
+                self.tarrays['in_inf'].get_array(self.sim_time))
+            self.arr_inf[:] = self.infiltration.get_inf_rate(arr_h)
         elif self.inftype == 'ga':
             self.infiltration.update_input(
                 self.tarrays['in_eff_por'].get_array(self.sim_time),
                 self.tarrays['in_cap_pressure'].get_array(self.sim_time),
                 self.tarrays['in_hyd_conduct'].get_array(self.sim_time))
+            self.arr_inf[:] = self.infiltration.get_inf_rate(arr_h)
+        elif self.inftype is None:
+            pass  # arr_inf is set to zero at init
         else:
             assert False, "unknown infiltration type"
-        # set infiltration rate array
-        self.arr_inf = self.infiltration.get_inf_rate(arr_h)
+
 
     def update_domain_arrays(self, rast_dom):
         """Takes a SurfaceDomain object as input
@@ -344,8 +368,10 @@ class SuperficialFlowSimulation(object):
         # mass balance in m3
         if self.massbal:
             surf_dt = self.gis.dx * self.gis.dy * self.dt
-            rain_vol = bn.nansum(in_rain[np.logical_not(self.mask)]) / mmh_to_ms * surf_dt
-            inf_vol = bn.nansum(in_inf[np.logical_not(self.mask)]) / mmh_to_ms * surf_dt
+            rain_vol = (bn.nansum(in_rain[np.logical_not(self.mask)]) /
+                        mmh_to_ms * surf_dt)
+            inf_vol = (bn.nansum(in_inf[np.logical_not(self.mask)]) /
+                       mmh_to_ms * surf_dt)
             inflow_vol = bn.nansum(in_q[np.logical_not(self.mask)]) * surf_dt
             self.massbal.add_value('rain_vol', rain_vol)
             self.massbal.add_value('inf_vol', inf_vol)
@@ -379,8 +405,6 @@ class SuperficialFlowSimulation(object):
     def write_error_to_gis(self, arr_h, arr_error):
         '''Write a given depth array and boolean error array to the GIS
         '''
-        #~ arr_h_unmasked = self.unmask_array(arr_h)
-        #~ arr_err_unmasked = self.unmask_array(arr_error)
         map_h_name = "{}_error".format(self.out_map_names['out_h'])
         self.gis.write_raster_map(arr_h, map_h_name, 'out_h')
         # add map name to the revelant list
@@ -404,10 +428,10 @@ class SuperficialFlowSimulation(object):
         """
         for mkey, lst in self.output_maplist.iteritems():
             strds_name = self.out_map_names[mkey]
-            if strds_name == None:
+            if strds_name is None:
                 continue
             self.gis.register_maps_in_strds(mkey, strds_name, lst,
-                                                    self.temporal_type)
+                                            self.temporal_type)
         return self
 
 
@@ -425,8 +449,8 @@ class TimedArray(object):
         self.f_arr_def = f_arr_def
         # default values for start and end
         # intended to trigger update when is_valid() is first called
-        self.a_start = datetime(1,1,2)
-        self.a_end = datetime(1,1,1)
+        self.a_start = datetime(1, 1, 2)
+        self.a_end = datetime(1, 1, 1)
 
     def get_array(self, sim_time):
         """Return a numpy array valid for the given time
@@ -476,23 +500,25 @@ class MassBal(object):
     at each time-step, using add_value():
     individual simulation operations send relevant values to the MassBal object
     at each record time, using write_values():
-    averaged or cumulated values for the considered time difference are written to a CSV file
+    averaged or cumulated values for the considered time difference are
+    written to a CSV file
     """
     def __init__(self, file_name='', dom_size=0):
         self.dom_size = dom_size
         # values to be written on each record time
         self.fields = ['sim_time',  # either seconds or datetime
-            'avg_timestep', '#timesteps',
-            'boundary_vol', 'rain_vol', 'inf_vol', 'inflow_vol', 'hfix_vol',
-            'domain_vol', 'vol_error', '%error',
-            'comp_duration', 'avg_cell_per_sec']
+                       'avg_timestep', '#timesteps',
+                       'boundary_vol', 'rain_vol', 'inf_vol',
+                       'inflow_vol', 'hfix_vol',
+                       'domain_vol', 'vol_error', '%error',
+                       'comp_duration', 'avg_cell_per_sec']
         # data written to file as one line
         self.line = dict.fromkeys(self.fields)
         # data collected during simulation
         self.sim_data = {'tstep': [], 'boundary_vol': [],
-            'rain_vol': [], 'inf_vol': [], 'inflow_vol': [],
-            'old_dom_vol': [], 'new_dom_vol': [], 'step_duration': [],
-            'hfix_vol': []}
+                         'rain_vol': [], 'inf_vol': [], 'inflow_vol': [],
+                         'old_dom_vol': [], 'new_dom_vol': [],
+                         'step_duration': [], 'hfix_vol': []}
         # set file name and create file
         self.file_name = self.set_file_name(file_name)
         self.create_file()
@@ -553,7 +579,8 @@ class MassBal(object):
 
         # mass error is the diff. between the theor. vol and the actual vol
         first_vol = self.sim_data['old_dom_vol'][0]
-        sum_ext_vol = sum([boundary_vol, rain_vol, inf_vol, inflow_vol, hfix_vol])
+        sum_ext_vol = sum([boundary_vol, rain_vol, inf_vol,
+                           inflow_vol, hfix_vol])
         dom_vol_theor = first_vol + sum_ext_vol
         vol_error = last_vol - dom_vol_theor
         self.line['vol_error'] = '{:.3f}'.format(vol_error)
@@ -575,6 +602,6 @@ class MassBal(object):
             writer.writerow(self.line)
 
         # empty dictionaries
-        self.sim_data = {k:[] for k in self.sim_data.keys()}
+        self.sim_data = {k: [] for k in self.sim_data.keys()}
         self.line = dict.fromkeys(self.line.keys())
         return self

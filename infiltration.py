@@ -17,6 +17,7 @@ from __future__ import division
 import numpy as np
 import flow
 
+
 class Infiltration(object):
     """Base class for Infiltration
     infiltration is calculated in mm/h
@@ -63,16 +64,22 @@ class InfGreenAmpt(Infiltration):
         self.hyd_conduct = None
         self.infrate = np.zeros(shape=(yr, xr), dtype=np.float32)
         # Initial water soil content set to zero
-        self.init_wat_soil_content = np.zeros(shape=(yr, xr), dtype=np.float32)
-        # Initial cumulative infiltration set to one mm (prevent division by zero)
+        self.init_wat_soil_content = np.zeros(shape=(yr, xr),
+                                              dtype=np.float32)
+        # Initial cumulative infiltration set to one mm
+        # (prevent division by zero)
         self.infiltration_amount = np.ones(shape=(yr, xr), dtype=np.float32)
-        assert self.infrate.shape == self.init_wat_soil_content.shape == self.infiltration_amount.shape
+        assert (self.infrate.shape ==
+                self.init_wat_soil_content.shape ==
+                self.infiltration_amount.shape)
 
     def update_input(self, eff_por, cap_pressure, hyd_conduct):
         assert isinstance(eff_por, np.ndarray), "not a np array!"
         assert isinstance(cap_pressure, np.ndarray), "not a np array!"
         assert isinstance(hyd_conduct, np.ndarray), "not a np array!"
-        assert eff_por.shape == cap_pressure.shape == hyd_conduct.shape, "inconsistant shape!"
+        assert (eff_por.shape ==
+                cap_pressure.shape ==
+                hyd_conduct.shape), "inconsistant shape!"
         self.eff_porosity = eff_por
         self.capilary_pressure = cap_pressure
         self.hyd_conduct = hyd_conduct
@@ -85,10 +92,14 @@ class InfGreenAmpt(Infiltration):
         assert self.eff_porosity.shape == self.init_wat_soil_content.shape
 
         flow.inf_ga(arr_h, self.eff_porosity, self.capilary_pressure,
-        self.hyd_conduct, self.infiltration_amount, self.init_wat_soil_content,
-        self.infrate, self.dt)
+                    self.hyd_conduct, self.infiltration_amount,
+                    self.init_wat_soil_content, self.infrate, self.dt)
         return self.infrate
 
+class InfNull(Infiltration):
+    """Dummy class for cases where no inflitration is calculated
+    """
+    pass
 
 #~ class InfHoltan(Infiltration):
     #~ """

@@ -253,6 +253,7 @@ COPYRIGHT: (C) 2015-2016 by Laurent Courty
 import sys
 import os
 from datetime import datetime, timedelta
+import time
 import numpy as np
 import cProfile
 import pstats
@@ -280,37 +281,47 @@ def main():
     if grass.locn_is_latlong():
         msgr.fatal(_(u"latlong location is not supported"))
 
+    # stop program if neither option or flag is given
+    if not (bool([a for a in options.values() if a]) or
+            bool([a for a in flags.values() if a])):
+        msgr.fatal(_(u"No parameter given. Please use '--h' to check usage"))
+
     # values to be passed to simulation
     sim_param = {'hmin': 0.005, 'cfl': 0.7, 'theta': 0.9,
-            'vrouting': 0.1, 'dtmax': 5., 'slmax': .5, 'dtinf': 60.}
-    input_times = {'start':None,'end':None,'duration':None,'rec_step':None}
+                 'vrouting': 0.1, 'dtmax': 5., 'slmax': .5, 'dtinf': 60.}
+    input_times = {'start': None, 'end': None,
+                   'duration': None, 'rec_step': None}
     raw_input_times = input_times.copy()
-    output_map_names = {'out_h':None, 'out_wse':None,
-        'out_vx':None, 'out_vy':None, 'out_qx':None, 'out_qy':None}
+    output_map_names = {'out_h': None, 'out_wse': None,
+                        'out_vx': None, 'out_vy': None,
+                        'out_qx': None, 'out_qy': None}
     input_map_names = {}  # to become conjunction of following dicts:
     dict_input = {'in_z': None, 'in_n': None, 'in_h': None, 'in_y': None}
-    dict_inf= {'in_inf':None,
-        'in_eff_por': None, 'in_cap_pressure': None, 'in_hyd_conduct': None}
+    dict_inf = {'in_inf': None,
+                'in_eff_por': None, 'in_cap_pressure': None,
+                'in_hyd_conduct': None}
     dict_bc = {'in_rain': None,
-        'in_q':None, 'in_bcval': None, 'in_bctype': None}
+               'in_q': None, 'in_bcval': None, 'in_bctype': None}
 
     msgr.verbose(_(u"Reading entry data..."))
     # read configuration file
     if options['param_file']:
         read_param_file(options['param_file'], sim_param, raw_input_times,
-            output_map_names, dict_input, dict_inf, dict_bc)
+                        output_map_names, dict_input, dict_inf, dict_bc)
     # check and load input values
     # values already read from configuration file are overwritten
     read_input_time(options, raw_input_times)
     check_input_time(msgr, raw_input_times, input_times)
-    read_maps_names(msgr, options, output_map_names, dict_input, dict_inf, dict_bc)
+    read_maps_names(msgr, options, output_map_names,
+                    dict_input, dict_inf, dict_bc)
     check_inf_maps(dict_inf)
     check_output_files(msgr, output_map_names)
     read_sim_param(msgr, options, sim_param)
 
     # check if mandatory files are present
-    if not dict_input['in_z'] or not dict_input['in_n'] or not input_times['rec_step']:
-        msgr.fatal(_(u"options <in_z>, <in_n> and <rec_step> are mandatory"))
+    if (dict_input['in_z'] is None or dict_input['in_n'] is None or
+            input_times['rec_step'] is None):
+        msgr.fatal(_(u"options <in_z>, <in_n> and <record_step> are mandatory"))
 
     # Join all dictionaries containing input map names
     for d in [dict_input, dict_inf, dict_bc]:
@@ -336,12 +347,13 @@ def main():
         msgr.verbose(txt_template.format(k, v))
     # Run simulation
     msgr.verbose(_(u"Starting simulation..."))
+    sim_start = time.time()
     sim = simulation.SuperficialFlowSimulation(
                         start_time=input_times['start'],
                         end_time=input_times['end'],
                         sim_duration=input_times['duration'],
                         record_step=input_times['rec_step'],
-                        stats_file = options['stats_file'],
+                        stats_file=options['stats_file'],
                         dtype=np.float32,
                         input_maps=input_map_names,
                         output_maps=output_map_names,
@@ -357,6 +369,12 @@ def main():
         ps.print_stats(10)
         print stat_stream.getvalue()
 
+    # display total computation duration
+    elapsed_time = timedelta(seconds=int(time.time() - sim_start))
+    grass.message(_("Simulation complete. "
+                    "Elapsed time: {}").format(elapsed_time))
+
+
 def file_exist(name):
     """Return True if name is an existing map or stds, False otherwise
     """
@@ -365,6 +383,7 @@ def file_exist(name):
     else:
         return (gis.Igis.name_is_map(gis.Igis.format_id(name)) or
                 gis.Igis.name_is_stds(gis.Igis.format_id(name)))
+
 
 def str_to_timedelta(inp_str):
     """Takes a string in the form HH:MM:SS
@@ -379,12 +398,13 @@ def str_to_timedelta(inp_str):
     if not 0 <= minutes <= 59 or not 0 <= seconds <= 59:
         raise ValueError
     obj_dt = timedelta(hours=hours,
-                    minutes=minutes,
-                    seconds=seconds)
+                       minutes=minutes,
+                       seconds=seconds)
     return obj_dt
 
+
 def read_param_file(param_file, sim_param, raw_input_times,
-            output_map_names, dict_input, dict_inf, dict_bc):
+                    output_map_names, dict_input, dict_inf, dict_bc):
     """Read the parameter file and populate the relevant dictionaries
     """
     # read the file
@@ -392,13 +412,13 @@ def read_param_file(param_file, sim_param, raw_input_times,
     params.read(param_file)
     # populate dictionaries using loops instead of using update() method
     # in order to not add invalid key
-    if params.has_option('time','record_step'):
+    if params.has_option('time', 'record_step'):
         raw_input_times['rec_step'] = params.get('time', 'record_step')
-    if params.has_option('time','sim_duration'):
+    if params.has_option('time', 'sim_duration'):
         raw_input_times['duration'] = params.get('time', 'sim_duration')
-    if params.has_option('time','start_time'):
+    if params.has_option('time', 'start_time'):
         raw_input_times['start'] = params.get('time', 'start_time')
-    if params.has_option('time','end_time'):
+    if params.has_option('time', 'end_time'):
         raw_input_times['end'] = params.get('time', 'end_time')
 
     for k in sim_param:
@@ -417,6 +437,7 @@ def read_param_file(param_file, sim_param, raw_input_times,
         if params.has_option('boundaries', k):
             dict_bc[k] = params.get('boundaries', k)
 
+
 def read_input_time(opts, raw_input_times):
     if opts['record_step']:
         raw_input_times['rec_step'] = opts['record_step']
@@ -427,6 +448,7 @@ def read_input_time(opts, raw_input_times):
     if opts['end_time']:
         raw_input_times['end'] = opts['end_time']
 
+
 def check_input_time(msgr, raw_input_times, input_times):
     """Check the sanity of input time information
     write the value to relevant dict
@@ -435,33 +457,38 @@ def check_input_time(msgr, raw_input_times, input_times):
     rel_err_msg = u"{}: format should be HH:MM:SS"
     abs_err_msg = u"{}: format should be yyyy-mm-dd HH:MM"
     comb_err_msg = (u"accepted combinations:{d} alone, {s} and {d}, {s} and {e}"
-                ).format(d='sim_duration', s='start_time', e='end_time')
+                    ).format(d='sim_duration', s='start_time', e='end_time')
     # record step
-    try:
-        input_times['rec_step'] = str_to_timedelta(raw_input_times['rec_step'])
-    except:
-        msgr.fatal(_(rel_err_msg.format('record_step')))
+    if raw_input_times['rec_step']:
+        try:
+            input_times['rec_step'] = str_to_timedelta(raw_input_times['rec_step'])
+        except:
+            msgr.fatal(_(rel_err_msg.format('record_step')))
 
     # check valid time options combinations
-    b_dur = (raw_input_times['duration']
-                and not raw_input_times['start'] and not raw_input_times['end'])
-    b_start_dur = (raw_input_times['start'] and raw_input_times['duration']
-                and not raw_input_times['end'])
-    b_start_end = (raw_input_times['start'] and raw_input_times['end']
-                and not raw_input_times['duration'])
+    b_dur = (raw_input_times['duration'] and
+             not raw_input_times['start'] and
+             not raw_input_times['end'])
+    b_start_dur = (raw_input_times['start'] and
+                   raw_input_times['duration'] and
+                   not raw_input_times['end'])
+    b_start_end = (raw_input_times['start'] and raw_input_times['end'] and
+                   not raw_input_times['duration'])
     if not (b_dur or b_start_dur or b_start_end):
         msgr.fatal(_(comb_err_msg))
 
     # change strings to datetime objects and store them in input_times dict
     if raw_input_times['end']:
         try:
-            input_times['end'] = datetime.strptime(raw_input_times['end'], date_format)
+            input_times['end'] = datetime.strptime(raw_input_times['end'],
+                                                   date_format)
         except ValueError:
             msgr.fatal(_(abs_err_msg.format('end_time')))
 
     if raw_input_times['start']:
         try:
-            input_times['start'] = datetime.strptime(raw_input_times['start'], date_format)
+            input_times['start'] = datetime.strptime(raw_input_times['start'],
+                                                     date_format)
         except ValueError:
             msgr.fatal(_(abs_err_msg.format('start_time')))
     else:
@@ -476,6 +503,7 @@ def check_input_time(msgr, raw_input_times, input_times):
     else:
         input_times['duration'] = input_times['end'] - input_times['start']
 
+
 def read_maps_names(msgr, opt, output_map_names, dict_input, dict_inf, dict_bc):
     """Read options and populate input and output name dictionaries
     """
@@ -489,12 +517,14 @@ def read_maps_names(msgr, opt, output_map_names, dict_input, dict_inf, dict_bc):
         elif k in output_map_names.keys() and v:
             output_map_names[k] = v
 
+
 def check_output_files(msgr, output_map_names):
     """Check if the output files do not exist
     """
     for v in output_map_names.itervalues():
         if file_exist(v) and not grass.overwrite():
             msgr.fatal(_(u"File {} exists and will not be overwritten".format(v)))
+
 
 def check_inf_maps(dict_inf):
     """check coherence of input infiltration maps
@@ -510,6 +540,7 @@ def check_inf_maps(dict_inf):
     # check if all maps for Green-Ampt are presents
     if ga_bool and not all(i in dict_inf.values() for i in ga_list):
         msgr.fatal(_(u"{} are mutualy inclusive".format(ga_list)))
+
 
 def read_sim_param(msgr, opt, sim_param):
     """Read simulation parameters and populate the corresponding dictionary
