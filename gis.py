@@ -59,7 +59,7 @@ class Igis(object):
         self.start_time = start_time
         self.end_time = end_time
         self.dtype = dtype
-        self.msgr = Messenger(raise_on_error=True)
+        self.msgr = Messenger()
         region = Region()
         self.xr = region.cols
         self.yr = region.rows
