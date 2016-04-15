@@ -8,12 +8,13 @@ from __future__ import division
 import ctypes as c
 from structs import NodeData, NodeType
 import math
+from collections import namedtuple
 from swmm_error import SwmmError, NotOpenError
 
 class Swmm5(object):
     '''A class implementing high-level swmm5 functions.
     '''
-    def __init__(self, swmm_so='./swmm5.so'):
+    def __init__(self, swmm_so='./source/swmm5.so'):
         self.c_swmm5 = c.CDLL(swmm_so)
         self.foot = 0.3048  # foot to metre
         self.is_open = False
@@ -178,6 +179,28 @@ class Swmm5(object):
         nnodes['STORAGE'] = c_nnodes[2]
         nnodes['DIVIDER'] = c_nnodes[3]
         return nnodes
+
+    def read_nodes_coordinates(self):
+        """return a list of
+        """
+        is_coor = False
+        self.coor = {}
+        Point = namedtuple('Point', ['x','y'])
+        with open(self.input_file, 'r') as inp:
+            for line in inp:
+                if line.startswith(';'):
+                    continue
+                if line.startswith('[COOR'):
+                    is_coor = True
+                    continue
+                if is_coor and line.startswith('['):
+                    is_coor = False
+                    break
+                if is_coor:
+                    line = line.split()
+                    self.coor[line[0]] = Point(x=float(line[1]),
+                                               y=float(line[2]))
+        return self
 
     def node_getResults(self,
                         node_index = 0,
@@ -381,6 +404,7 @@ class SwmmNode(object):
         self.weir_length = 0.1
         # set / update node data from SWMM
         self.update()
+        self.set_coordinates()
 
     def update(self):
         '''Update node data in SI units.
@@ -436,8 +460,10 @@ class SwmmNode(object):
             raise RuntimeError('Unknown linkage type')
 
     def set_coordinates(self):
-        '''Get the node coordinate from the swmm input file
+        '''Get the node coordinate
         '''
+        self.coor = self.swmm_sim.coor[self.node_id]
+        return self
 
     def set_crest_elev(self, z):
         '''Set the crest elevation according to the 2D dem
