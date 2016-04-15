@@ -244,6 +244,22 @@ COPYRIGHT: (C) 2015-2016 by Laurent Courty
 #% required: no
 #%end
 
+#%option G_OPT_F_INPUT
+#% key: swmm_input
+#% required: no
+#% label: SWMM input file for drainage simulation
+#%end
+#%option G_OPT_F_INPUT
+#% key: swmm_report
+#% required: no
+#% label: SWMM report file for drainage simulation
+#%end
+#%option G_OPT_F_INPUT
+#% key: swmm_output
+#% required: no
+#% label: SWMM output file for drainage simulation
+#%end
+
 #%option
 #% key: stats_file
 #% required: no
@@ -303,6 +319,12 @@ def main():
     dict_bc = {'in_rain': None,
                'in_q': None, 'in_bcval': None, 'in_bctype': None}
 
+    # swmm files
+    swmm_param = {'input': options['swmm_input'],
+                  'report': options['swmm_report'],
+                  'output': options['swmm_output']}
+    check_swmm_input(swmm_param)
+
     msgr.verbose(_(u"Reading entry data..."))
     # read configuration file
     if options['param_file']:
@@ -357,7 +379,8 @@ def main():
                         dtype=np.float32,
                         input_maps=input_map_names,
                         output_maps=output_map_names,
-                        sim_param=sim_param)
+                        sim_param=sim_param,
+                        swmm_params=swmm_param)
     sim.run()
 
     # end profiling
@@ -548,6 +571,13 @@ def read_sim_param(msgr, opt, sim_param):
     for k, v in opt.iteritems():
         if k in sim_param.keys() and v:
             sim_param[k] = float(v)
+
+def check_swmm_input(swmm_param):
+    """Verify if entry is coherent
+    """
+    if any(swmm_param.itervalues()) and not all(swmm_param.itervalues()):
+        msgr.fatal(_(u"{} are mutualy inclusive"
+                     ).format(swmm_param.iterkeys()))
 
 
 if __name__ == "__main__":

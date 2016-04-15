@@ -26,6 +26,7 @@ import domain
 import gis
 import flow
 import infiltration
+from swmm.swmm import Swmm5, SwmmNode
 from itzi_error import NullError
 
 
@@ -42,7 +43,8 @@ class SuperficialFlowSimulation(object):
                  start_time=datetime(1, 1, 1),
                  end_time=datetime(1, 1, 1),
                  sim_duration=timedelta(0),
-                 sim_param=None):
+                 sim_param=None,
+                 swmm_params=None):
         assert isinstance(start_time, datetime), \
             "start_time not a datetime object!"
         assert isinstance(sim_duration, timedelta), \
@@ -64,6 +66,7 @@ class SuperficialFlowSimulation(object):
         self.set_temporal_type()
         self.in_map_names = input_maps
         self.out_map_names = output_maps
+        self.swmm_params=swmm_params
 
         self.dtype = dtype
         # instantiate a Igis object
@@ -105,6 +108,12 @@ class SuperficialFlowSimulation(object):
 
         # simulation parameters
         self.sim_param = sim_param
+
+        # SWMM5 integration
+        self.as_drainage = False
+        if all(self.swmm_params.itervalues()):
+            self.as_drainage = True
+            self.set_drainage_model()
 
     def set_duration(self, end_time, sim_duration):
         """If sim_duration is given, end_time is ignored
@@ -157,6 +166,17 @@ class SuperficialFlowSimulation(object):
         self.tarrays['in_bctype'] = TimedArray('in_bctype',
                                                self.gis, self.ones_array)
         return self
+
+    def set_drainage_model(self):
+        """create python swmm object
+        open the project files
+        get list of nodes
+        create a list of linkable nodes
+        """
+        self.swmm = Swmm5(swmm_so='./source/swmm5.so')
+        self.swmm.open(input_file = self.swmm_params['input'],
+                       report_file = self.swmm_params['report'],
+                       output_file = self.swmm_params['output'])
 
     def run(self):
         """Perform a full superficial flow simulation
