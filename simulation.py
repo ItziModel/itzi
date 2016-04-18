@@ -14,6 +14,7 @@ GNU General Public License for more details.
 """
 from __future__ import division
 import csv
+import os
 import warnings
 from datetime import datetime, timedelta
 import numpy as np
@@ -26,7 +27,7 @@ import domain
 import gis
 import flow
 import infiltration
-from swmm.swmm import Swmm5, SwmmNode
+from swmm import swmm
 from itzi_error import NullError
 
 
@@ -167,16 +168,40 @@ class SuperficialFlowSimulation(object):
                                                self.gis, self.ones_array)
         return self
 
+    def point_is_in_region(self, x, y):
+        """For a given coordinate pair(x, y),
+        return True is inside region, False otherwise
+        """
+        bool_x = (self.gis.reg_bbox['w'] < x < self.gis.reg_bbox['e'])
+        bool_y = (self.gis.reg_bbox['s'] < y < self.gis.reg_bbox['n'])
+        if bool_x and bool_y:
+            return True
+        else:
+            return False
+
     def set_drainage_model(self):
         """create python swmm object
         open the project files
         get list of nodes
         create a list of linkable nodes
         """
-        self.swmm = Swmm5(swmm_so='./source/swmm5.so')
-        self.swmm.open(input_file = self.swmm_params['input'],
-                       report_file = self.swmm_params['report'],
-                       output_file = self.swmm_params['output'])
+        # create swmm object and open files
+        prog_dir = os.path.dirname(__file__)
+        so_subdir = 'swmm/source/swmm5.so'
+        self.swmm = swmm.Swmm5(swmm_so=os.path.join(prog_dir, so_subdir))
+        self.swmm.swmm_open(input_file=self.swmm_params['input'],
+                       report_file=self.swmm_params['report'],
+                       output_file=self.swmm_params['output'])
+        # create list of drainage nodes objects
+        swmm_inp = swmm.SwmmInputParser(self.swmm_params['input'])
+        j_dict = swmm_inp.get_juntions_as_dict()
+        self.drain_nodes = []
+        for k, n in j_dict.iteritems():
+            if self.point_is_in_region(n.x, n.y):
+                self.drain_nodes.append(swmm.SwmmNode(
+                                                      swmm_object=self.swmm,
+                                                      node_id=k))
+        return self
 
     def run(self):
         """Perform a full superficial flow simulation
@@ -248,6 +273,9 @@ class SuperficialFlowSimulation(object):
         self.register_results_in_gis()
         if self.out_map_names['out_h']:
             self.write_hmax_to_gis(rast_dom.arr_hmax)
+        # close swmm files
+        if self.has_drainage:
+            self.swmm.swmm_close()
         return self
 
     def write_mass_balance(self, sim_clock):
