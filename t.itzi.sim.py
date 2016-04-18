@@ -323,7 +323,7 @@ def main():
     swmm_param = {'input': options['swmm_input'],
                   'report': options['swmm_report'],
                   'output': options['swmm_output']}
-    check_swmm_input(swmm_param)
+    check_swmm_input(msgr, swmm_param)
 
     msgr.verbose(_(u"Reading entry data..."))
     # read configuration file
@@ -572,12 +572,12 @@ def read_sim_param(msgr, opt, sim_param):
         if k in sim_param.keys() and v:
             sim_param[k] = float(v)
 
-def check_swmm_input(swmm_param):
+def check_swmm_input(msgr, swmm_param):
     """Verify if entry is coherent
     """
     if any(swmm_param.itervalues()) and not all(swmm_param.itervalues()):
         msgr.fatal(_(u"{} are mutualy inclusive"
-                     ).format(swmm_param.iterkeys()))
+                     ).format([i for i in swmm_param.iterkeys()]))
 
 
 if __name__ == "__main__":
