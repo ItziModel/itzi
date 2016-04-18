@@ -110,9 +110,9 @@ class SuperficialFlowSimulation(object):
         self.sim_param = sim_param
 
         # SWMM5 integration
-        self.as_drainage = False
+        self.has_drainage = False
         if all(self.swmm_params.itervalues()):
-            self.as_drainage = True
+            self.has_drainage = True
             self.set_drainage_model()
 
     def set_duration(self, end_time, sim_duration):
