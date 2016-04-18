@@ -153,9 +153,6 @@ class SwmmError(Exception):
 
 
 class NotOpenError(Exception):
-    def __init__():
-        pass
-
     def __str__(self):
         return repr('SWMM file should be open')
 
