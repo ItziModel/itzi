@@ -65,6 +65,8 @@ class Igis(object):
         self.yr = region.rows
         self.dx = region.ewres
         self.dy = region.nsres
+        self.reg_bbox = {'e': region.east, 'w': region.west,
+                         'n': region.north, 's': region.south}
         self.overwrite = grass.overwrite()
         self.mapset = gutils.getenv('MAPSET')
         self.maps = dict.fromkeys(mkeys)
