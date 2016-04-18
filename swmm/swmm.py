@@ -652,11 +652,12 @@ class SwmmInputParser(object):
         d = {}
         for j in self.inp['junction']:
             name = j[0]
+            j_val = [float(v) for v in j[1:]]
             for c in self.inp['coordinate']:
                 if c[0] == name:
-                    j_values = c[1:] + j[1:]
-            # fill list with '0' in case of absent value
-            j_values = j_values + ['0' for i in
-                                   range(len(self.junction_values) - len(j_values))]
-            d[name] = self.Junction._make(j_values)
+                    values = [float(c[1]), float(c[2])] + j_val
+            # fill list with 0 in case of absent value
+            values = values + [0 for i in
+                                   range(len(self.junction_values) - len(values))]
+            d[name] = self.Junction._make(values)
         return d
