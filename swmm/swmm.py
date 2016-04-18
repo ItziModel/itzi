@@ -8,7 +8,7 @@ from __future__ import division
 import ctypes as c
 from structs import NodeData, NodeType
 import math
-from collections import namedtuple
+import collections
 from swmm_error import SwmmError, NotOpenError
 
 class Swmm5(object):
@@ -179,28 +179,6 @@ class Swmm5(object):
         nnodes['STORAGE'] = c_nnodes[2]
         nnodes['DIVIDER'] = c_nnodes[3]
         return nnodes
-
-    def read_nodes_coordinates(self):
-        """return a list of
-        """
-        is_coor = False
-        self.coor = {}
-        Point = namedtuple('Point', ['x','y'])
-        with open(self.input_file, 'r') as inp:
-            for line in inp:
-                if line.startswith(';'):
-                    continue
-                if line.startswith('[COOR'):
-                    is_coor = True
-                    continue
-                if is_coor and line.startswith('['):
-                    is_coor = False
-                    break
-                if is_coor:
-                    line = line.split()
-                    self.coor[line[0]] = Point(x=float(line[1]),
-                                               y=float(line[2]))
-        return self
 
     def node_getResults(self,
                         node_index = 0,
@@ -393,9 +371,14 @@ class SwmmNode(object):
         self.node_id = node_id
         self.linkage_flow = 0
         self.g = 9.80665
+        # node type correspondance
+        node_types = {NodeType.STORAGE: 'storage',
+                      NodeType.JUNCTION: 'junction',
+                      NodeType.OUTFALL: 'outfall',
+                      NodeType.DIVIDER: 'divider'}
         # retrieve the node data in US units
         self.c_node_data = self.swmm_sim.swmm_getNodeData(node_id=self.node_id)
-        self.node_type = self.c_node_data.type
+        self.node_type = node_types[self.c_node_data.type]
         self.foot = self.swmm_sim.foot
         self.overflow_area = self.get_overflow_area()
         # calculate circumference from area (node considered circular)
@@ -404,10 +387,9 @@ class SwmmNode(object):
         self.weir_length = 0.1
         # set / update node data from SWMM
         self.update()
-        self.set_coordinates()
 
     def update(self):
-        '''Update node data in SI units.
+        '''Retrieve node data from SWMM in SI units.
         To be done after each simulation time-step
         '''
         # retrieve the node data in US units
@@ -459,12 +441,6 @@ class SwmmNode(object):
         else:
             raise RuntimeError('Unknown linkage type')
 
-    def set_coordinates(self):
-        '''Get the node coordinate
-        '''
-        self.coor = self.swmm_sim.coor[self.node_id]
-        return self
-
     def set_crest_elev(self, z):
         '''Set the crest elevation according to the 2D dem
         the crest elevation could not be lower than ground
@@ -484,11 +460,11 @@ class SwmmNode(object):
     def get_overflow_area(self):
         '''Retrieve max. surface area of the node
         '''
-        if self.node_type == NodeType.STORAGE:
+        if self.node_type == 'storage':
             c_surf_area = self.swmm_sim.c_swmm5.node_getSurfArea(
                     c.c_int(self.node_id), c.c_double(self.full_depth))
             return c_surf_area.value * self.foot ** 2
-        elif self.node_type == NodeType.OUTFALL:
+        elif self.node_type == 'outfall':
             raise RuntimeError('Outfall cannnot overflow')
         else:
             return self.swmm_sim.get_MinSurfArea()
@@ -570,3 +546,117 @@ class SwmmNode(object):
         '''
         # need to find an actual formula
         return 0.5
+
+
+class SwmmInputParser(object):
+    """A parser for swmm input text file
+    """
+    def __init__(self, input_file):
+        # list of sections keywords
+        self.sections_kwd = ["title",  # project title
+                             "option",  # analysis options
+                             "report",   # output reporting instructions
+                             "files",  # interface file options
+                             "raingage",  # rain gage information
+                             "evaporation",  # evaporation data
+                             "temperature",  # air temperature and snow melt data
+                             "subcatchment",  # basic subcatchment information
+                             "subarea",  # subcatchment impervious/pervious sub-area data
+                             "infiltration",  # subcatchment infiltration parameters
+                             "aquifer",  # groundwater aquifer parameters
+                             "groundwater",  # subcatchment groundwater parameters
+                             "snowpack",  # subcatchment snow pack parameters
+                             "junction",  # junction node information
+                             "outfall",  # outfall node information
+                             "divider",  # flow divider node information
+                             "storage",  # storage node information
+                             "conduit",  # conduit link information
+                             "pump",  # pump link
+                             "orifice",  # orifice link
+                             "weir",  # weir link
+                             "outlet",  # outlet link
+                             "xsection",  # conduit, orifice, and weir cross-section geometry
+                             "losse",  # conduit entrance/exit losses and flap valve
+                             "transect",  # transect geometry for conduits with irregular cross-sections
+                             "control",  # rules that control pump and regulator operation
+                             "pollutant",  # identifies the pollutants being analyzed
+                             "landuse",  # land use categories
+                             "coverage",  # assignment of land uses to subcatchments
+                             "buildup",  # buildup functions for pollutants and land uses
+                             "washoff",  # buildup functions for pollutants and land uses
+                             "treatment",  # pollutant removal functions at conveyance system nodes
+                             "dwf",  # baseline dry weather sanitary inflow at nodes
+                             "pattern",  # periodic variation in dry weather inflow
+                             "inflow",  # external hydrograph/pollutograph inflow at nodes
+                             "loading",  # initial pollutant loads on subcatchments
+                             "rdii",  # rainfall-dependent i/i information at nodes
+                             "hydrograph",  # unit hydrograph data used to construct rdii inflows
+                             "curve",  # x-y tabular data referenced in other sections
+                             "timeserie",  # describes how a quantity varies over time
+                             "lid_control",  # low impact development control information
+                             "lid_usage",  # assignment of lid controls to subcatchments
+                             'tag',  # ?
+                             'map',  # provides dimensions and distance units for the map
+                             'coordinate',  # coordinates of drainage system nodes
+                             'vertice',  # coordinates of interior vertex points of curved drainage system links
+                             'polygon', # coordinates of to vertex points of polygons that define a subcatchment boundary
+                             'label',  # coordinates of user-defined map labels
+                             'backdrop',  # coordinates of the bounding rectangle and file name of the backdrop
+                             'symbol',  # coordinates of rain gage symbols
+                             'profile',  # ?
+                             'gwf',  # ?
+                             'adjustment'] # ?
+        # define junction container
+        self.junction_values = ['x', 'y', 'elev', 'ymax', 'y0', 'ysur', 'apond']
+        self.Junction = collections.namedtuple('Junction', self.junction_values)
+        # read and parse the input file
+        self.inp = dict.fromkeys(self.sections_kwd)
+        self.read_inp(input_file)
+
+    def section_kwd(self, sect_name):
+        """verify if the given section name is a valid one.
+        Return the corresponding section keyword, None if unknown
+        """
+        # check done in lowercase, without final 's'
+        section_valid = sect_name.lower().rstrip('s')
+        result = None
+        for kwd in self.sections_kwd:
+            if kwd.startswith(section_valid):
+                result = kwd
+        return result
+
+    def read_inp(self, input_file):
+        """Read the inp file and generate a dictionary of lists
+        """
+        with open(input_file, 'r') as inp:
+            for line in inp:
+                # got directly to next line if comment or empty
+                if line.startswith(';') or not line.strip():
+                    continue
+                # retrive current standard section name
+                elif line.startswith('['):
+                    current_section = self.section_kwd(line.strip().strip('[] '))
+                else:
+                    if self.inp[current_section] is None:
+                        self.inp[current_section] = []
+                    self.inp[current_section].append(line.strip().split())
+
+    def get_juntions_ids(self):
+        """return a list of junctions ids (~name)
+        """
+        return [j[0] for j in self.inp['junction']]
+
+    def get_juntions_as_dict(self):
+        """return a dict of namedtuples
+        """
+        d = {}
+        for j in self.inp['junction']:
+            name = j[0]
+            for c in self.inp['coordinate']:
+                if c[0] == name:
+                    j_values = c[1:] + j[1:]
+            # fill list with '0' in case of absent value
+            j_values = j_values + ['0' for i in
+                                   range(len(self.junction_values) - len(j_values))]
+            d[name] = self.Junction._make(j_values)
+        return d
