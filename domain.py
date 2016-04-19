@@ -25,7 +25,7 @@ import time
 from itzi_error import NullError
 
 
-class SurfaceDomain(object):
+class SuperficialSimulation(object):
     """Represents a staggered grid where flow is simulated
     Accessed through step() and get_output_arrays() methods
     By convention the flow is:

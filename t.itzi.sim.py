@@ -370,7 +370,7 @@ def main():
     # Run simulation
     msgr.verbose(_(u"Starting simulation..."))
     sim_start = time.time()
-    sim = simulation.SuperficialFlowSimulation(
+    sim = simulation.SimulationManager(
                         start_time=input_times['start'],
                         end_time=input_times['end'],
                         sim_duration=input_times['duration'],

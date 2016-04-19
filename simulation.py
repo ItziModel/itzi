@@ -31,7 +31,7 @@ from swmm import swmm
 from itzi_error import NullError
 
 
-class SuperficialFlowSimulation(object):
+class SimulationManager(object):
     """Manage the general simulation:
     - update input values for each time-step
     - trigger the writing of results and statistics
@@ -211,7 +211,7 @@ class SuperficialFlowSimulation(object):
         start_h_masked = self.mask_array(
             self.tarrays['in_h'].get_array(self.start_time), 0)
         assert not np.any(np.isnan(start_h_masked))
-        rast_dom = domain.SurfaceDomain(
+        surf_sim = domain.SuperficialSimulation(
                 dx=self.gis.dx,
                 dy=self.gis.dy,
                 arr_h=start_h_masked,
@@ -229,50 +229,50 @@ class SuperficialFlowSimulation(object):
         self.gis.msgr.verbose(_(u"Starting time-stepping..."))
         while self.sim_time < self.end_time:
             # display advance of simulation
-            self.gis.msgr.percent(rast_dom.sim_clock, duration_s, 1)
+            self.gis.msgr.percent(surf_sim.sim_clock, duration_s, 1)
 
             # Calculate when will happen the next records writing
             next_record = record_counter * self.record_step.total_seconds()
 
             # calculate infiltration
             self.set_inf_forced_timestep(next_record)
-            self.infiltration.set_dt(self.dtinf, rast_dom.sim_clock,
+            self.infiltration.set_dt(self.dtinf, surf_sim.sim_clock,
                                      self.inf_forced_ts)
-            if last_inf + self.infiltration.dt >= rast_dom.sim_clock:
-                self.calculate_infiltration(rast_dom.arr_h)
-                last_inf = float(rast_dom.sim_clock)
+            if last_inf + self.infiltration.dt >= surf_sim.sim_clock:
+                self.calculate_infiltration(surf_sim.arr_h)
+                last_inf = float(surf_sim.sim_clock)
 
             # update arrays
-            self.update_domain_arrays(rast_dom)
+            self.update_domain_arrays(surf_sim)
             # next forced flow time-step
             next_ts = self.next_forced_timestep()
             # step() raise NullError in case of NaN/NULL cell
             # if this happen, stop simulation and
             # output a map showing the errors
             try:
-                rast_dom.step(next_ts, self.massbal)
+                surf_sim.step(next_ts, self.massbal)
             except NullError:
-                self.write_error_to_gis(rast_dom.arr_h, rast_dom.arr_err)
+                self.write_error_to_gis(surf_sim.arr_h, surf_sim.arr_err)
                 self.gis.msgr.fatal(_(u"Null value detected in simulation at time {}, terminating").format(self.sim_time))
             # update simulation time and dt
             self.sim_time = (self.start_time +
-                             timedelta(seconds=rast_dom.sim_clock))
-            self.dt = rast_dom.dt
+                             timedelta(seconds=surf_sim.sim_clock))
+            self.dt = surf_sim.dt
             if self.massbal:
                 self.massbal.add_value('tstep', self.dt)
             # write simulation results
-            rec_time = rast_dom.sim_clock / self.record_step.total_seconds()
+            rec_time = surf_sim.sim_clock / self.record_step.total_seconds()
             if rec_time >= record_counter:
                 self.gis.msgr.verbose(_(u"Writting output map..."))
-                self.output_arrays = rast_dom.get_output_arrays(self.out_map_names)
+                self.output_arrays = surf_sim.get_output_arrays(self.out_map_names)
                 self.write_results_to_gis(record_counter)
                 record_counter += 1
                 if self.massbal:
-                    self.write_mass_balance(rast_dom.sim_clock)
+                    self.write_mass_balance(surf_sim.sim_clock)
         # register generated maps in GIS
         self.register_results_in_gis()
         if self.out_map_names['out_h']:
-            self.write_hmax_to_gis(rast_dom.arr_hmax)
+            self.write_hmax_to_gis(surf_sim.arr_hmax)
         # close swmm files
         if self.has_drainage:
             self.swmm.swmm_close()
@@ -357,42 +357,42 @@ class SuperficialFlowSimulation(object):
             assert False, "unknown infiltration type"
 
 
-    def update_domain_arrays(self, rast_dom):
+    def update_domain_arrays(self, surf_sim):
         """Takes a SurfaceDomain object as input
         get new array of the given object using TimedArray
         Replace the NULL values
         set new domain arrays
         """
-        assert isinstance(rast_dom, domain.SurfaceDomain), \
-            "rast_dom not the expected object!"
+        assert isinstance(surf_sim, domain.SuperficialSimulation), \
+            "surf_sim not the expected object!"
 
-        sim_time = self.start_time + timedelta(seconds=rast_dom.sim_clock)
+        sim_time = self.start_time + timedelta(seconds=surf_sim.sim_clock)
         # DEM
         if not self.tarrays['in_z'].is_valid(sim_time):
             arr_z = self.tarrays['in_z'].get_array(sim_time)
             self.update_mask(arr_z)
             arr_z[:] = self.mask_array(arr_z, np.finfo(self.dtype).max)
             assert not np.any(np.isnan(arr_z))
-            rast_dom.arr_z = arr_z
-            rast_dom.update_flow_dir()
+            surf_sim.arr_z = arr_z
+            surf_sim.update_flow_dir()
         # Friction
         if not self.tarrays['in_n'].is_valid(sim_time):
             arr_n = self.tarrays['in_n'].get_array(sim_time)
             arr_n[:] = self.mask_array(arr_n, 1)
             assert not np.any(np.isnan(arr_n))
-            rast_dom.arr_n = arr_n
+            surf_sim.arr_n = arr_n
         # Boundary conditions values
         if not self.tarrays['in_bcval'].is_valid(sim_time):
             arr_bcval = self.tarrays['in_bcval'].get_array(sim_time)
             arr_bcval[:] = self.mask_array(arr_bcval, 0)
             assert not np.any(np.isnan(arr_bcval))
-            rast_dom.arr_bcval = arr_bcval
+            surf_sim.arr_bcval = arr_bcval
         # Boundary conditions types. Replace NULL by 1 (closed boundary)
         if not self.tarrays['in_bctype'].is_valid(sim_time):
             arr_bctype = self.tarrays['in_bctype'].get_array(sim_time)
             arr_bctype[:] = self.mask_array(arr_bctype, 1)
             assert not np.any(np.isnan(arr_bctype))
-            rast_dom.arr_bctype = arr_bctype
+            surf_sim.arr_bctype = arr_bctype
         # External values array
         arr_ext = self.set_ext_array(
             in_q=self.tarrays['in_q'].get_array(sim_time),
@@ -400,7 +400,7 @@ class SuperficialFlowSimulation(object):
             in_inf=self.arr_inf)
         arr_ext[:] = self.mask_array(arr_ext, 0)
         assert not np.any(np.isnan(arr_ext))
-        rast_dom.arr_ext = arr_ext
+        surf_sim.arr_ext = arr_ext
         return self
 
     def set_ext_array(self, in_q, in_rain, in_inf):
