@@ -27,14 +27,14 @@ ctypedef np.float32_t DTYPE_t
 @cython.wraparound(False)  # Disable negative index check
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
 def flow_dir(DTYPE_t [:, :] arr_max_dz, DTYPE_t [:, :] arr_dz0,
-        DTYPE_t [:, :] arr_dz1, np.int8_t [:, :] arr_dir):
+        DTYPE_t [:, :] arr_dz1, DTYPE_t [:, :] arr_dir):
     '''Populate arr_dir with a rain-routing direction:
     0: the flow is going dowstream, index-wise
     1: the flow is going upstream, index-wise
     -1: no routing happening on that face
     '''
-    cdef int rmax, cmax, r, c, qdir
-    cdef float max_dz, dz0, dz1
+    cdef int rmax, cmax, r, c
+    cdef float max_dz, dz0, dz1, qdir
     rmax = arr_max_dz.shape[0]
     cmax = arr_max_dz.shape[1]
     for r in prange(rmax, nogil=True):
@@ -58,7 +58,7 @@ def flow_dir(DTYPE_t [:, :] arr_max_dz, DTYPE_t [:, :] arr_dz0,
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
+def solve_q(DTYPE_t [:, :] arr_dir,
         DTYPE_t [:, :] arr_z0, DTYPE_t [:, :] arr_z1,
         DTYPE_t [:, :] arr_n0, DTYPE_t [:, :] arr_n1,
         DTYPE_t [:, :] arr_h0, DTYPE_t [:, :] arr_h1,
@@ -70,8 +70,8 @@ def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
     '''Calculate flow in m2/s in the domain, including hflow and qnorm
     '''
 
-    cdef int rmax, cmax, r, c, qdir
-    cdef float z1, z0, h1, h0, wse1, wse0, hf
+    cdef int rmax, cmax, r, c
+    cdef float z1, z0, h1, h0, wse1, wse0, hf, qdir
     cdef float q0, qup, qdown, qn1, qn2, qn3, qn4, q_st, q_vect, n
     cdef float term_1, term_2, term_3, q0_new, slope, num, den
 
@@ -214,13 +214,13 @@ def solve_h(DTYPE_t [:, :] arr_ext,
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-def set_ext_array(DTYPE_t [:, :] arr_qext,
-        DTYPE_t [:, :] arr_rain, DTYPE_t [:, :] arr_inf,
-        DTYPE_t [:, :] arr_ext, float multiplicator):
+def set_ext_array(DTYPE_t [:, :] arr_qext, DTYPE_t [:, :] arr_rain,
+                  DTYPE_t [:, :] arr_inf, DTYPE_t [:, :] arr_drain,
+                  DTYPE_t [:, :] arr_ext, float multiplicator):
     '''Update the water depth and max depth
     '''
     cdef int rmax, cmax, r, c
-    cdef float qext, rain, inf
+    cdef float qext, rain, inf, qdrain
 
     rmax = arr_qext.shape[0]
     cmax = arr_qext.shape[1]
@@ -229,8 +229,9 @@ def set_ext_array(DTYPE_t [:, :] arr_qext,
             qext = arr_qext[r, c]
             rain = arr_rain[r, c]
             inf = arr_inf[r, c]
+            qdrain = arr_drain[r, c]
             # Solve
-            arr_ext[r, c] = qext + (rain - inf) / multiplicator
+            arr_ext[r, c] = qext + qdrain + (rain - inf) / multiplicator
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero

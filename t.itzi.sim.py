@@ -310,7 +310,8 @@ def main():
     raw_input_times = input_times.copy()
     output_map_names = {'out_h': None, 'out_wse': None,
                         'out_vx': None, 'out_vy': None,
-                        'out_qx': None, 'out_qy': None}
+                        'out_qx': None, 'out_qy': None,
+                        'out_drainvol': None, 'out_bvol': None}
     input_map_names = {}  # to become conjunction of following dicts:
     dict_input = {'in_z': None, 'in_n': None, 'in_h': None, 'in_y': None}
     dict_inf = {'in_inf': None,
