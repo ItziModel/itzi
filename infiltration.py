@@ -22,11 +22,11 @@ class Infiltration(object):
     """Base class for Infiltration
     infiltration is calculated in mm/h
     """
-    def __init__(self):
-        pass
+    def __init__(self, raster_domain):
+        self.dom = raster_domain
 
     def set_dt(self, dt_inf, sim_clock, next_inf_ts):
-        """adjust infiltration time-step to not overstep a forced time-step
+        """adjust infiltration time-step to not overstep a forced time-step.
         dt_inf, sim_clock and next_ts in seconds
         """
         self.dt = dt_inf
@@ -39,67 +39,48 @@ class InfConstantRate(Infiltration):
     """Calculate infiltration using a constant user-defined infiltration
     rate given by a raster map or serie of maps.
     """
-    def __init__(self):
-        pass
-
-    def update_input(self, arr_inf):
-        assert isinstance(arr_inf, np.ndarray), "not a np array!"
-        self.inf_in = arr_inf
-        self.inf_out = np.copy(arr_inf)
-
-    def get_inf_rate(self, arr_h):
-        """Used to get the infiltration rate at each time step
+    def step(self):
+        """Update infiltration rate map in mm/h
         """
-        assert isinstance(arr_h, np.ndarray), "not a np array!"
-        flow.inf_user(arr_h, self.inf_in, self.inf_out, self.dt)
-        return self.inf_out
+        flow.inf_user(arr_h=self.dom.get('h'),
+                      arr_inf_in=self.dom.get('in_inf'),
+                      arr_inf_out=self.dom.get('inf'),
+                      dt=self.dt)
+        return self
 
 
 class InfGreenAmpt(Infiltration):
     """Calculate infiltration using Green-Ampt formula
     """
-    def __init__(self, xr, yr):
-        self.eff_porosity = None
-        self.capilary_pressure = None
-        self.hyd_conduct = None
-        self.infrate = np.zeros(shape=(yr, xr), dtype=np.float32)
+    def __init__(self, raster_domain):
+        Infiltration.__init__(self, raster_domain)
         # Initial water soil content set to zero
-        self.init_wat_soil_content = np.zeros(shape=(yr, xr),
-                                              dtype=np.float32)
+        self.init_wat_soil_content = np.zeros(shape=self.dom.shape,
+                                              dtype=self.dom.dtype)
         # Initial cumulative infiltration set to one mm
         # (prevent division by zero)
-        self.infiltration_amount = np.ones(shape=(yr, xr), dtype=np.float32)
-        assert (self.infrate.shape ==
-                self.init_wat_soil_content.shape ==
-                self.infiltration_amount.shape)
+        self.infiltration_amount = np.ones(shape=self.dom.shape,
+                                           dtype=self.dom.dtype)
 
-    def update_input(self, eff_por, cap_pressure, hyd_conduct):
-        assert isinstance(eff_por, np.ndarray), "not a np array!"
-        assert isinstance(cap_pressure, np.ndarray), "not a np array!"
-        assert isinstance(hyd_conduct, np.ndarray), "not a np array!"
-        assert (eff_por.shape ==
-                cap_pressure.shape ==
-                hyd_conduct.shape), "inconsistant shape!"
-        self.eff_porosity = eff_por
-        self.capilary_pressure = cap_pressure
-        self.hyd_conduct = hyd_conduct
-
-    def get_inf_rate(self, arr_h):
-        """Used to get the infiltration rate at each time step
+    def step(self):
+        """update infiltration rate map in mm/h.
         """
-        assert self.eff_porosity.shape == arr_h.shape
-        assert self.eff_porosity.shape == self.infiltration_amount.shape
-        assert self.eff_porosity.shape == self.init_wat_soil_content.shape
+        flow.inf_ga(arr_h=self.dom.get('h'),
+                    arr_eff_por=self.dom.get('por'),
+                    arr_pressure=self.dom.get('pres'),
+                    arr_conduct=self.dom.get('con'),
+                    arr_inf_amount=self.infiltration_amount,
+                    arr_water_soil_content=self.init_wat_soil_content,
+                    arr_inf_out=self.dom.get('inf'), dt=self.dt)
+        return self
 
-        flow.inf_ga(arr_h, self.eff_porosity, self.capilary_pressure,
-                    self.hyd_conduct, self.infiltration_amount,
-                    self.init_wat_soil_content, self.infrate, self.dt)
-        return self.infrate
 
 class InfNull(Infiltration):
     """Dummy class for cases where no inflitration is calculated
     """
-    pass
+    def step(self):
+        pass
+        return self
 
 #~ class InfHoltan(Infiltration):
     #~ """

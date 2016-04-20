@@ -70,6 +70,8 @@ class SimulationManager(object):
         self.swmm_params=swmm_params
         # data type of arrays
         self.dtype = dtype
+        # simulation parameters
+        self.sim_param = sim_param
 
         # instantiate a Igis object
         self.gis = gis.Igis(start_time=self.start_time,
@@ -79,39 +81,19 @@ class SimulationManager(object):
         self.gis.msgr.verbose(_(u"Reading maps information from GIS..."))
         self.gis.read(self.in_map_names)
 
-        # instantiate RasterDomain
-        self.rast_domain = RasterDomain(self.dtype, self.gis,
-                                        self.in_map_names, self.out_map_names)
+        # instantiate simulation objects
+        self.set_models()
 
-        # Determine infiltration type
-        # Coherence of given input maps is checked upstream
-        if self.in_map_names['in_inf']:
-            self.inftype = 'fix'
-            self.infiltration = infiltration.InfConstantRate()
-        elif self.in_map_names['in_cap_pressure']:
-            self.inftype = 'ga'
-            self.infiltration = infiltration.InfGreenAmpt(self.gis.xr,
-                                                          self.gis.yr)
-        else:
-            self.inftype = None
-            self.infiltration = infiltration.InfNull()
 
         # a dict containing lists of maps written to gis to be registered
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
+
         # Instantiate Massbal object
         self.massbal = None
         if stats_file:
             dom_size = self.gis.yr * self.gis.xr
             self.massbal = MassBal(dom_size=dom_size, file_name=stats_file)
 
-        # simulation parameters
-        self.sim_param = sim_param
-
-        # SWMM5 integration
-        self.has_drainage = False
-        if all(self.swmm_params.itervalues()):
-            self.has_drainage = True
-            self.set_drainage_model()
 
     def set_duration(self, end_time, sim_duration):
         """If sim_duration is given, end_time is ignored
@@ -136,6 +118,33 @@ class SimulationManager(object):
         self.temporal_type = 'absolute'
         if self.start_time == datetime.min:
             self.temporal_type = 'relative'
+        return self
+
+    def set_models(self):
+        """Instantiate models objects
+        """
+        # RasterDomain
+        self.rast_domain = RasterDomain(self.dtype, self.gis,
+                                        self.in_map_names, self.out_map_names)
+
+        # Infiltration. Coherence of input maps is checked upstream
+        if self.in_map_names['in_inf']:
+            self.infiltration = infiltration.InfConstantRate(self.rast_domain)
+        elif self.in_map_names['in_cap_pressure']:
+            self.infiltration = infiltration.InfGreenAmpt(self.rast_domain)
+        else:
+            self.infiltration = infiltration.InfNull(self.rast_domain)
+
+        # SuperficialSimulation
+        self.surf_sim = domain.SuperficialSimulation(self.rast_domain,
+                                                     self.sim_param)
+
+        # SWMM5 integration
+        self.has_drainage = False
+        if all(self.swmm_params.itervalues()):
+            self.has_drainage = True
+            self.set_drainage_model()
+
         return self
 
     def point_is_in_region(self, x, y):
@@ -178,9 +187,6 @@ class SimulationManager(object):
         including infiltration, superficial flow and drainage,
         recording of data and mass_balance calculation
         """
-        # Instantiate SuperficialSimulation object
-        surf_sim = domain.SuperficialSimulation(domain=self.rast_domain,
-                                                param=self.sim_param)
         record_counter = 1
         last_inf = 0.
         duration_s = self.duration.total_seconds()
@@ -188,51 +194,58 @@ class SimulationManager(object):
         self.gis.msgr.verbose(_(u"Starting time-stepping..."))
         while self.sim_time < self.end_time:
             # display advance of simulation
-            self.gis.msgr.percent(surf_sim.sim_clock, duration_s, 1)
+            self.gis.msgr.percent(self.surf_sim.sim_clock, duration_s, 1)
 
             # Calculate when will happen the next records writing
             next_record = record_counter * self.record_step.total_seconds()
-
-            # calculate infiltration
-            self.set_inf_forced_timestep(next_record)
-            self.infiltration.set_dt(self.dtinf, surf_sim.sim_clock,
-                                     self.inf_forced_ts)
-            if last_inf + self.infiltration.dt >= surf_sim.sim_clock:
-                self.calculate_infiltration(self.rast_domain.get('h'))
-                last_inf = float(surf_sim.sim_clock)
 
             # update arrays
             self.rast_domain.update_input_arrays(self.sim_time)
             # recalculate the flow direction if DEM changed
             if self.rast_domain.isnew['z']:
-                surf_sim.update_flow_dir()
+                self.surf_sim.update_flow_dir()
+
+            # calculate infiltration
+            self.set_inf_forced_timestep(next_record)
+            self.infiltration.set_dt(self.dtinf, self.surf_sim.sim_clock,
+                                     self.inf_forced_ts)
+            if last_inf + self.infiltration.dt >= self.surf_sim.sim_clock:
+                self.infiltration.step()
+                last_inf = float(self.surf_sim.sim_clock)
+                self.rast_domain.isnew['inf'] = True
+            else:
+                self.rast_domain.isnew['inf'] = False
+
+            # Update external arrays
+            self.rast_domain.update_ext_array()
+
             # next forced flow time-step
             next_ts = self.next_forced_timestep()
             # step() raise NullError in case of NaN/NULL cell
             # if this happen, stop simulation and
             # output a map showing the errors
             try:
-                surf_sim.step(next_ts, self.massbal)
+                self.surf_sim.step(next_ts, self.massbal)
             except NullError:
-                self.write_error_to_gis(surf_sim.arr_err)
+                self.write_error_to_gis(self.surf_sim.arr_err)
                 self.gis.msgr.fatal(_(u"Null value detected "
                                       u"in simulation at time {}, "
                                       u"terminating").format(self.sim_time))
             # update simulation time and dt
             self.sim_time = (self.start_time +
-                             timedelta(seconds=surf_sim.sim_clock))
-            self.dt = surf_sim.dt
+                             timedelta(seconds=self.surf_sim.sim_clock))
+            self.dt = self.surf_sim.dt
             if self.massbal:
                 self.massbal.add_value('tstep', self.dt)
             # write simulation results
-            rec_time = surf_sim.sim_clock / self.record_step.total_seconds()
+            rec_time = self.surf_sim.sim_clock / self.record_step.total_seconds()
             if rec_time >= record_counter:
                 self.gis.msgr.verbose(_(u"Writting output map..."))
-                self.output_arrays = surf_sim.get_output_arrays(self.out_map_names)
+                self.output_arrays = self.surf_sim.get_output_arrays(self.out_map_names)
                 self.write_results_to_gis(record_counter)
                 record_counter += 1
                 if self.massbal:
-                    self.write_mass_balance(surf_sim.sim_clock)
+                    self.write_mass_balance(self.surf_sim.sim_clock)
         # register generated maps in GIS
         self.register_results_in_gis()
         if self.out_map_names['out_h']:
@@ -267,24 +280,6 @@ class SimulationManager(object):
         """
         self.inf_forced_ts = min(next_record, self.duration.total_seconds())
         return self
-
-    def calculate_infiltration(self, arr_h):
-        """Calculate an array of infiltration rates in mm/h
-        """
-        if self.inftype == 'fix':
-            self.infiltration.update_input(
-                self.tarrays['in_inf'].get_array(self.sim_time))
-            self.arr_inf[:] = self.infiltration.get_inf_rate(arr_h)
-        elif self.inftype == 'ga':
-            self.infiltration.update_input(
-                self.tarrays['in_eff_por'].get_array(self.sim_time),
-                self.tarrays['in_cap_pressure'].get_array(self.sim_time),
-                self.tarrays['in_hyd_conduct'].get_array(self.sim_time))
-            self.arr_inf[:] = self.infiltration.get_inf_rate(arr_h)
-        elif self.inftype is None:
-            pass  # arr_inf is set to zero at init
-        else:
-            assert False, "unknown infiltration type"
 
     def write_results_to_gis(self, record_counter):
         """Format the name of each maps using the record number as suffix
