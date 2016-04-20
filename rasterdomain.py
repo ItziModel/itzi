@@ -272,6 +272,6 @@ class RasterDomain(object):
         return self.unmask_array(self.arr[k])
 
     def amax(self, k):
-        """return maximum value of an array
+        """return maximum value of an unpadded array
         """
         return np.amax(self.arr[k])
