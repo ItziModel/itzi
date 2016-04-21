@@ -215,8 +215,6 @@ class RasterDomain(object):
                 self.arr[k][:] = self.mask_array(self.arr[k], default_value)
             else:
                 self.isnew[k] = False
-        # update ext array
-        self.update_ext_array()
         return self
 
     def update_ext_array(self):
