@@ -5,6 +5,7 @@
 '''
 
 from __future__ import division
+import os
 import ctypes as c
 from structs import NodeData, NodeType
 import math
@@ -14,8 +15,13 @@ from swmm_error import SwmmError, NotOpenError
 class Swmm5(object):
     '''A class implementing high-level swmm5 functions.
     '''
-    def __init__(self, swmm_so='./source/swmm5.so'):
+    def __init__(self):
+        # locate and open SWMM shared library
+        so_subdir = 'source/swmm5.so'
+        prog_dir = os.path.dirname(__file__)
+        swmm_so = os.path.join(prog_dir, so_subdir)
         self.c_swmm5 = c.CDLL(swmm_so)
+
         self.foot = 0.3048  # foot to metre
         self.is_open = False
         self.routing_model = None
@@ -481,7 +487,7 @@ class SwmmNode(object):
         self.update()
         return self
 
-    def set_linkage_flow(self, wse=None):
+    def set_linkage_flow(self, wse):
         '''Calculate the flow between superficial and drainage models
         Cf. Chen et al.(2007)
         flow sign is :
@@ -496,7 +502,7 @@ class SwmmNode(object):
         orif_coeff = self.get_orifice_coeff()
         # calculate the flow
         if self.get_linkage_type(wse=wse) == 'no_linkage':
-            q_linkage = 0
+            unsigned_q = 0
 
         elif self.get_linkage_type(wse=wse) == 'free_weir':
             unsigned_q = (weir_coeff * self.weir_width *
