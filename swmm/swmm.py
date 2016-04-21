@@ -10,7 +10,7 @@ import ctypes as c
 from structs import NodeData, NodeType
 import math
 import collections
-from swmm_error import SwmmError, NotOpenError
+from swmm_error import SwmmError, NotOpenError, LinkTypeError
 
 class Swmm5(object):
     '''A class implementing high-level swmm5 functions.
@@ -427,14 +427,14 @@ class SwmmNode(object):
         self.swmm_sim.add_node_inflow(node_id=self.node_id, inflow=inflow)
         return self
 
-    def get_linkage_type(self, wse=None):
+    def get_linkage_type(self, wse):
         '''select the linkage type (Chen et al.,2007)
         wse = Water Surface Elevation (from 2D superficial model)
         '''
         if wse <= self.crest_elev and self.head < self.crest_elev:
             return 'no_linkage'
         elif (wse > self.crest_elev > self.head or
-              wse < self.crest_elev <= self.head):
+              wse <= self.crest_elev < self.head):
             return 'free_weir'
         elif (self.head >= self.crest_elev and
               wse > self.crest_elev and
@@ -445,7 +445,10 @@ class SwmmNode(object):
               (self.overflow_area / self.weir_width)):
             return 'orifice'
         else:
-            raise RuntimeError('Unknown linkage type')
+            raise LinkTypeError(u"node '{id}':, Unknown linkage type "
+                                u"(wse: {wse}, crest: {crest}, head: {head})"
+                                u"".format(id=self.node_id, wse=wse,
+                                           crest=self.crest_elev, head=self.head))
 
     def set_crest_elev(self, z):
         '''Set the crest elevation according to the 2D dem

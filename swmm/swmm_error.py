@@ -156,3 +156,10 @@ class NotOpenError(Exception):
     def __str__(self):
         return repr('SWMM file should be open')
 
+class LinkTypeError(Exception):
+    """Error related to linkage type
+    """
+    def __init__(self, msg):
+        self.msg = msg
+    def __str__(self):
+        return repr(self.msg)
