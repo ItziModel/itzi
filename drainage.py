@@ -100,9 +100,13 @@ class DrainageSimulation(object):
         arr_z = self.dom.get('z')
         arr_qd = self.dom.get('q_drain')
         for node, row, col in self.drain_nodes:
+            node.update()
             wse = arr_h[row, col] + arr_z[row, col]
             node.set_linkage_flow(wse)
             node.add_inflow(-node.linkage_flow)
             # flow in m/s
             arr_qd[row, col] = node.linkage_flow / self.cell_surf
+            if node.node_id == 'J1':
+                print 'node: ', node.node_id, node.get_linkage_type(wse), node.linkage_flow
+                print 'raster:', self.dom.get('q_drain')[row, col]
         return self
