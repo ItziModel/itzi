@@ -147,7 +147,8 @@ class SuperficialSimulation(object):
         """return an error if new dt is higher than current one
         """
         newdt_s = newdt.total_seconds()
-        if newdt_s > self._dt:
+        fudge = timedelta.resolution.total_seconds()
+        if newdt_s > self._dt + fudge:
             raise DtError("new dt cannot be longer than current one")
         else:
             self._dt = newdt_s
