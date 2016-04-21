@@ -14,7 +14,6 @@ GNU General Public License for more details.
 """
 from __future__ import division
 import csv
-import os
 import warnings
 from datetime import datetime, timedelta
 import numpy as np
@@ -24,8 +23,8 @@ from rasterdomain import RasterDomain
 import gis
 import flow
 import infiltration
-from swmm import swmm
-from itzi_error import NullError
+import drainage
+from itzi_error import NullError, DtError
 
 
 class SimulationManager(object):
@@ -55,14 +54,13 @@ class SimulationManager(object):
 
         self.record_step = record_step
         self.start_time = start_time
-        self.set_duration(end_time, sim_duration)
+        self.__set_duration(end_time, sim_duration)
         # set simulation time to start_time a the beginning
         self.sim_time = self.start_time
         # dt
-        self.dt = sim_param['dtmax']
         self.dtinf = sim_param['dtinf']
         # set temporal type of results
-        self.set_temporal_type()
+        self.__set_temporal_type()
 
         # dictionaries of map names
         self.in_map_names = input_maps
@@ -73,6 +71,8 @@ class SimulationManager(object):
         # simulation parameters
         self.sim_param = sim_param
 
+        self.stats_file = stats_file
+
         # instantiate a Igis object
         self.gis = gis.Igis(start_time=self.start_time,
                             end_time=self.end_time,
@@ -82,20 +82,13 @@ class SimulationManager(object):
         self.gis.read(self.in_map_names)
 
         # instantiate simulation objects
-        self.set_models()
-
+        self.__set_models()
 
         # a dict containing lists of maps written to gis to be registered
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
 
-        # Instantiate Massbal object
-        self.massbal = None
-        if stats_file:
-            dom_size = self.gis.yr * self.gis.xr
-            self.massbal = MassBal(dom_size=dom_size, file_name=stats_file)
 
-
-    def set_duration(self, end_time, sim_duration):
+    def __set_duration(self, end_time, sim_duration):
         """If sim_duration is given, end_time is ignored
         This is normally checked upstream
         """
@@ -107,7 +100,7 @@ class SimulationManager(object):
             self.end_time = self.start_time + sim_duration
         return self
 
-    def set_temporal_type(self):
+    def __set_temporal_type(self):
         """A start_time equal to datetime.min means user did not
         provide a start_time. Therefore a relative temporal type
         is set for results writing.
@@ -120,66 +113,42 @@ class SimulationManager(object):
             self.temporal_type = 'relative'
         return self
 
-    def set_models(self):
+    def __set_models(self):
         """Instantiate models objects
         """
+        # mass balance
+        self.massbal = None
+        if self.stats_file:
+            dom_size = self.gis.yr * self.gis.xr
+            self.massbal = MassBal(dom_size=dom_size, file_name=stats_file)
+
         # RasterDomain
         self.rast_domain = RasterDomain(self.dtype, self.gis,
                                         self.in_map_names, self.out_map_names)
 
         # Infiltration. Coherence of input maps is checked upstream
         if self.in_map_names['in_inf']:
-            self.infiltration = infiltration.InfConstantRate(self.rast_domain)
+            self.infiltration = infiltration.InfConstantRate(self.rast_domain,
+                                                             self.dtinf)
         elif self.in_map_names['in_cap_pressure']:
-            self.infiltration = infiltration.InfGreenAmpt(self.rast_domain)
+            self.infiltration = infiltration.InfGreenAmpt(self.rast_domain,
+                                                          self.dtinf)
         else:
-            self.infiltration = infiltration.InfNull(self.rast_domain)
+            self.infiltration = infiltration.InfNull(self.rast_domain,
+                                                     self.dtinf)
 
         # SuperficialSimulation
         self.surf_sim = domain.SuperficialSimulation(self.rast_domain,
-                                                     self.sim_param)
+                                                     self.sim_param,
+                                                     self.massbal)
 
-        # SWMM5 integration
+        # SWMM5
         self.has_drainage = False
         if all(self.swmm_params.itervalues()):
             self.has_drainage = True
-            self.set_drainage_model()
-
-        return self
-
-    def point_is_in_region(self, x, y):
-        """For a given coordinate pair(x, y),
-        return True is inside region, False otherwise
-        """
-        bool_x = (self.gis.reg_bbox['w'] < x < self.gis.reg_bbox['e'])
-        bool_y = (self.gis.reg_bbox['s'] < y < self.gis.reg_bbox['n'])
-        if bool_x and bool_y:
-            return True
-        else:
-            return False
-
-    def set_drainage_model(self):
-        """create python swmm object
-        open the project files
-        get list of nodes
-        create a list of linkable nodes
-        """
-        # create swmm object and open files
-        prog_dir = os.path.dirname(__file__)
-        so_subdir = 'swmm/source/swmm5.so'
-        self.swmm = swmm.Swmm5(swmm_so=os.path.join(prog_dir, so_subdir))
-        self.swmm.swmm_open(input_file=self.swmm_params['input'],
-                       report_file=self.swmm_params['report'],
-                       output_file=self.swmm_params['output'])
-        # create list of drainage nodes objects
-        swmm_inp = swmm.SwmmInputParser(self.swmm_params['input'])
-        j_dict = swmm_inp.get_juntions_as_dict()
-        self.drain_nodes = []
-        for k, n in j_dict.iteritems():
-            if self.point_is_in_region(n.x, n.y):
-                self.drain_nodes.append(swmm.SwmmNode(
-                                                      swmm_object=self.swmm,
-                                                      node_id=k))
+            self.drainage = drainage.DrainageSimulation(self.rast_domain,
+                                                        self.swmm_params,
+                                                        self.gis)
         return self
 
     def run(self):
@@ -188,71 +157,104 @@ class SimulationManager(object):
         recording of data and mass_balance calculation
         """
         record_counter = 1
-        last_inf = 0.
+        #~ last_inf = 0.
         duration_s = self.duration.total_seconds()
-
+        
+        # dict of models
+        models = {'inf': self.infiltration, 'surf': self.surf_sim,
+                  'drain': self.drainage}
+        # dict for time-step duration
+        dts = {'inf': None, 'surf': None, 'drain': None}
+        # dict of next time-step datetime
+        self.next_ts = {'inf': None, 'surf': None, 'drain': None, 'rec': None}
+        
         self.gis.msgr.verbose(_(u"Starting time-stepping..."))
         while self.sim_time < self.end_time:
             # display advance of simulation
-            self.gis.msgr.percent(self.surf_sim.sim_clock, duration_s, 1)
+            sim_time_s = (self.sim_time - self.start_time).total_seconds()
+            self.gis.msgr.percent(sim_time_s, duration_s, 1)
 
-            # Calculate when will happen the next records writing
-            next_record = record_counter * self.record_step.total_seconds()
-
-            # update arrays
+            # update input arrays
             self.rast_domain.update_input_arrays(self.sim_time)
             # recalculate the flow direction if DEM changed
             if self.rast_domain.isnew['z']:
                 self.surf_sim.update_flow_dir()
 
-            # calculate infiltration
-            self.set_inf_forced_timestep(next_record)
-            self.infiltration.set_dt(self.dtinf, self.surf_sim.sim_clock,
-                                     self.inf_forced_ts)
-            if last_inf + self.infiltration.dt >= self.surf_sim.sim_clock:
-                self.infiltration.step()
-                last_inf = float(self.surf_sim.sim_clock)
-                self.rast_domain.isnew['inf'] = True
-            else:
-                self.rast_domain.isnew['inf'] = False
+            # Calculate dt for all models
+            for k, m in models.iteritems():
+                m.solve_dt()
+                dts[k] = m.dt
+            
+            # Calculate when will happen the next step of each models
+            self.next_ts['rec'] = self.start_time + (record_counter *
+                                                self.record_step)
+            for k in ['inf', 'surf', 'drain']:
+                self.next_ts[k] = self.sim_time + dts[k]
 
-            # Update external arrays
-            self.rast_domain.update_ext_array()
+            # find smallest time-step
+            smallest_dt = min(self.next_ts.values()) - self.sim_time
 
-            # next forced flow time-step
-            next_ts = self.next_forced_timestep()
-            # step() raise NullError in case of NaN/NULL cell
-            # if this happen, stop simulation and
-            # output a map showing the errors
-            try:
-                self.surf_sim.step(next_ts, self.massbal)
-            except NullError:
-                self.write_error_to_gis(self.surf_sim.arr_err)
-                self.gis.msgr.fatal(_(u"Null value detected "
-                                      u"in simulation at time {}, "
-                                      u"terminating").format(self.sim_time))
-            # update simulation time and dt
-            self.sim_time = (self.start_time +
-                             timedelta(seconds=self.surf_sim.sim_clock))
-            self.dt = self.surf_sim.dt
+            # step models and update sim_time
+            self.step(smallest_dt)
+
             if self.massbal:
-                self.massbal.add_value('tstep', self.dt)
+                self.massbal.add_value('tstep', smallest_dt.total_seconds())
             # write simulation results
-            rec_time = self.surf_sim.sim_clock / self.record_step.total_seconds()
-            if rec_time >= record_counter:
+            if self.sim_time == self.next_ts['rec']:
                 self.gis.msgr.verbose(_(u"Writting output map..."))
                 self.output_arrays = self.surf_sim.get_output_arrays(self.out_map_names)
                 self.write_results_to_gis(record_counter)
                 record_counter += 1
                 if self.massbal:
-                    self.write_mass_balance(self.surf_sim.sim_clock)
+                    self.write_mass_balance(self.sim_time)
+
         # register generated maps in GIS
         self.register_results_in_gis()
         if self.out_map_names['out_h']:
             self.write_hmax_to_gis()
-        # close swmm files
-        if self.has_drainage:
-            self.swmm.swmm_close()
+        return self
+
+    def step(self, smallest_dt):
+        """Step each of the model if needed
+        """
+        # nearest next time-step
+        global_next_ts = self.sim_time + smallest_dt
+
+        # calculate infiltration
+        if global_next_ts == self.next_ts['inf']:
+            self.gis.msgr.verbose(_(u"Stepping infiltration model..."))
+            self.infiltration.step()
+            self.rast_domain.isnew['inf'] = True
+        else:
+            self.rast_domain.isnew['inf'] = False
+
+        # calculate drainage
+        if global_next_ts == self.next_ts['drain']:
+            # drainage and superficial flow should happen at the same time
+            assert self.sim_time + smallest_dt == self.next_ts['drain']
+            self.gis.msgr.verbose(_(u"Stepping drainage model..."))
+            self.drainage.step()
+            self.drainage.apply_linkage()
+            self.rast_domain.isnew['q_drain'] = True
+        else:
+            self.rast_domain.isnew['q_drain'] = False
+
+        # calculate superficial flow
+        self.rast_domain.update_ext_array()
+        self.surf_sim.dt = smallest_dt
+        # step() raise NullError in case of NaN/NULL cell
+        # if this happen, stop simulation and
+        # output a map showing the errors
+        try:
+            self.surf_sim.step()
+        except NullError:
+            self.write_error_to_gis(self.surf_sim.arr_err)
+            self.gis.msgr.fatal(_(u"{}: "
+                                  u"Null value detected in simulation, "
+                                  u"terminating").format(self.sim_time))
+
+        # update simulation time and dt
+        self.sim_time += smallest_dt
         return self
 
     def write_mass_balance(self, sim_clock):
@@ -266,20 +268,20 @@ class SimulationManager(object):
             assert False, "unknown temporal type!"
         return self
 
-    def next_forced_timestep(self):
-        """return the future time in seconds at which the superficial flow
-        model will be forced to step.
-        default to next forced time-step of infiltration model
-        """
-        return self.inf_forced_ts
+    #~ def next_forced_timestep(self):
+        #~ """return the future time in seconds at which the superficial flow
+        #~ model will be forced to step.
+        #~ default to next forced time-step of infiltration model
+        #~ """
+        #~ return self.inf_forced_ts
 
-    def set_inf_forced_timestep(self, next_record):
-        """Given a next superficial flow time-step in seconds as entry,
-        return the future time in seconds at which the infiltration
-        model will be forced to step.
-        """
-        self.inf_forced_ts = min(next_record, self.duration.total_seconds())
-        return self
+    #~ def set_inf_forced_timestep(self, next_record):
+        #~ """Given a next superficial flow time-step in seconds as entry,
+        #~ return the future time in seconds at which the infiltration
+        #~ model will be forced to step.
+        #~ """
+        #~ self.inf_forced_ts = min(next_record, self.duration.total_seconds())
+        #~ return self
 
     def write_results_to_gis(self, record_counter):
         """Format the name of each maps using the record number as suffix

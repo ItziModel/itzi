@@ -60,13 +60,13 @@ class Igis(object):
         self.end_time = end_time
         self.dtype = dtype
         self.msgr = Messenger()
-        region = Region()
-        self.xr = region.cols
-        self.yr = region.rows
-        self.dx = region.ewres
-        self.dy = region.nsres
-        self.reg_bbox = {'e': region.east, 'w': region.west,
-                         'n': region.north, 's': region.south}
+        self.region = Region()
+        self.xr = self.region.cols
+        self.yr = self.region.rows
+        self.dx = self.region.ewres
+        self.dy = self.region.nsres
+        self.reg_bbox = {'e': self.region.east, 'w': self.region.west,
+                         'n': self.region.north, 's': self.region.south}
         self.overwrite = grass.overwrite()
         self.mapset = gutils.getenv('MAPSET')
         self.maps = dict.fromkeys(mkeys)
@@ -113,6 +113,11 @@ class Igis(object):
         to maps from relative stds
         """
         return self.start_time + timedelta(seconds=self.to_s(unit, time))
+
+    def coor2pixel(self, coor):
+        """convert coordinates easting and northing to pixel row and column
+        """
+        return gutils.coor2pixel(coor, self.region)
 
     @staticmethod
     def format_id(name):

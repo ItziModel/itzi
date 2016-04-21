@@ -15,24 +15,38 @@ GNU General Public License for more details.
 
 from __future__ import division
 import numpy as np
-import flow
+from datetime import timedelta
 
+import flow
+from itzi_error import DtError
 
 class Infiltration(object):
     """Base class for Infiltration
     infiltration is calculated in mm/h
     """
-    def __init__(self, raster_domain):
+    def __init__(self, raster_domain, dt_inf):
         self.dom = raster_domain
+        self.def_dt = dt_inf
 
-    def set_dt(self, dt_inf, sim_clock, next_inf_ts):
-        """adjust infiltration time-step to not overstep a forced time-step.
-        dt_inf, sim_clock and next_ts in seconds
+    def solve_dt(self):
+        """time-step is by default equal to the default time-step
         """
-        self.dt = dt_inf
-        if sim_clock + self.dt > next_inf_ts:
-            self.dt = next_inf_ts - sim_clock
+        self._dt = self.def_dt
         return self
+
+    @property
+    def dt(self):
+        return timedelta(seconds=self._dt)
+
+    @dt.setter
+    def dt(self, newdt):
+        """return an error if new dt is higher than current one
+        """
+        newdt_s = newdt.total_seconds()
+        if newdt_s > self._dt:
+            raise DtError("new dt cannot be longer than current one")
+        else:
+            self._dt = newdt_s
 
 
 class InfConstantRate(Infiltration):
@@ -45,15 +59,15 @@ class InfConstantRate(Infiltration):
         flow.inf_user(arr_h=self.dom.get('h'),
                       arr_inf_in=self.dom.get('in_inf'),
                       arr_inf_out=self.dom.get('inf'),
-                      dt=self.dt)
+                      dt=self._dt)
         return self
 
 
 class InfGreenAmpt(Infiltration):
     """Calculate infiltration using Green-Ampt formula
     """
-    def __init__(self, raster_domain):
-        Infiltration.__init__(self, raster_domain)
+    def __init__(self, raster_domain, dt_inf):
+        Infiltration.__init__(self, raster_domain, dt_inf)
         # Initial water soil content set to zero
         self.init_wat_soil_content = np.zeros(shape=self.dom.shape,
                                               dtype=self.dom.dtype)
@@ -71,7 +85,7 @@ class InfGreenAmpt(Infiltration):
                     arr_conduct=self.dom.get('con'),
                     arr_inf_amount=self.infiltration_amount,
                     arr_water_soil_content=self.init_wat_soil_content,
-                    arr_inf_out=self.dom.get('inf'), dt=self.dt)
+                    arr_inf_out=self.dom.get('inf'), dt=self._dt)
         return self
 
 
