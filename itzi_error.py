@@ -20,7 +20,7 @@ class NullError(Exception):
 
 
 class DtError(Exception):
-    """Raised when the forced timestep is higher than the calculated one
+    """Error related to time-step calculation
     """
     def __init__(self, msg):
         self.msg = msg
