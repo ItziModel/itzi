@@ -184,7 +184,7 @@ class SimulationManager(object):
             for k, m in models.iteritems():
                 m.solve_dt()
                 dts[k] = m.dt
-            
+
             # Calculate when will happen the next step of each models
             self.next_ts['rec'] = self.start_time + (record_counter *
                                                 self.record_step)
@@ -201,7 +201,7 @@ class SimulationManager(object):
                 self.massbal.add_value('tstep', smallest_dt.total_seconds())
             # write simulation results
             if self.sim_time == self.next_ts['rec']:
-                self.gis.msgr.verbose(_(u"Writting output map..."))
+                self.gis.msgr.verbose(_(u"{}: Writting output map...".format(self.sim_time)))
                 self.output_arrays = self.surf_sim.get_output_arrays(self.out_map_names)
                 self.write_results_to_gis(record_counter)
                 record_counter += 1
@@ -222,7 +222,7 @@ class SimulationManager(object):
 
         # calculate infiltration
         if global_next_ts == self.next_ts['inf']:
-            self.gis.msgr.verbose(_(u"Stepping infiltration model..."))
+            self.gis.msgr.verbose(_(u"{}: Stepping infiltration model...".format(self.sim_time)))
             self.infiltration.step()
             self.rast_domain.isnew['inf'] = True
         else:
@@ -232,7 +232,7 @@ class SimulationManager(object):
         if global_next_ts == self.next_ts['drain']:
             # drainage and superficial flow should happen at the same time
             assert self.sim_time + smallest_dt == self.next_ts['drain']
-            self.gis.msgr.verbose(_(u"Stepping drainage model..."))
+            self.gis.msgr.verbose(_(u"{}: Stepping drainage model...".format(self.sim_time)))
             self.drainage.step()
             self.drainage.apply_linkage()
             self.rast_domain.isnew['q_drain'] = True
