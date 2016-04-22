@@ -512,12 +512,13 @@ class SwmmNode(object):
         self.update()
         return self
 
-    def set_linkage_flow(self, wse):
+    def set_linkage_flow(self, wse, maxflow):
         '''Calculate the flow between superficial and drainage models
         Cf. Chen et al.(2007)
         flow sign is :
          - negative when entering the drainage (leaving the 2D model)
          - positive when leaving the drainage (entering the 2D model)
+         maxflow is a positive float
         '''
         water_surf_up = max(wse, self.head)
         water_surf_down = min(wse, self.head)
@@ -546,10 +547,12 @@ class SwmmNode(object):
         else:
             assert False, "unknow linkage type"
 
-        # set a max flow
-        #~ unsigned_q = min(unsigned_q, 4)
-
         new_linkage_flow = math.copysign(unsigned_q, self.head - wse)
+
+        # cap the flow to prevent negative depth in surface model
+        if new_linkage_flow < 0:
+            new_linkage_flow = max(new_linkage_flow, -maxflow)
+
         #~ # force a step at zero whan changing sign
         #~ if (
             #~ (new_linkage_flow > 0 and self.linkage_flow < 0)
