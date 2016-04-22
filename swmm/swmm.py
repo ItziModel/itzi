@@ -333,26 +333,26 @@ class Swmm5(object):
                               c.c_double(route_step))
         return routing_step
 
-    def run(self, input_file = None, report_file = None, output_file = None):
-        '''Runs a SWMM simulation by calling Python functions
-        '''
-        # open a SWMM project
-        self.swmm_open(input_file = input_file,
-                       report_file = report_file,
-                       output_file = output_file)
-        # initialize all processing systems
-        self.swmm_start()
-        # Computes the first step
-        err, elapsed_time = self.swmm_step()
-        # step through the simulation
-        while elapsed_time > 0.0 and err == 0:
-            # extend the simulation by one routing time step
-            err, elapsed_time = self.swmm_step(elapsed_time = elapsed_time)
-        # close all processing systems
-        self.swmm_end()
-        # close the project
-        self.swmm_close()
-        return err
+    #~ def run(self, input_file = None, report_file = None, output_file = None):
+        #~ '''Runs a SWMM simulation by calling Python functions
+        #~ '''
+        #~ # open a SWMM project
+        #~ self.swmm_open(input_file = input_file,
+                       #~ report_file = report_file,
+                       #~ output_file = output_file)
+        #~ # initialize all processing systems
+        #~ self.swmm_start()
+        #~ # Computes the first step
+        #~ err, elapsed_time = self.swmm_step()
+        #~ # step through the simulation
+        #~ while elapsed_time > 0.0 and err == 0:
+            #~ # extend the simulation by one routing time step
+            #~ err, elapsed_time = self.swmm_step(elapsed_time = elapsed_time)
+        #~ # close all processing systems
+        #~ self.swmm_end()
+        #~ # close the project
+        #~ self.swmm_close()
+        #~ return err
 
     def c_run(self, input_file = None, report_file = None, output_file = None):
         '''Runs a swmm simulation by calling the C funtion
