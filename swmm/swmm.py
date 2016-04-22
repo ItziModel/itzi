@@ -10,7 +10,7 @@ import ctypes as c
 from structs import NodeData, NodeType
 import math
 import collections
-from swmm_error import SwmmError, NotOpenError, LinkTypeError
+import swmm_error
 
 class Swmm5(object):
     '''A class implementing high-level swmm5 functions.
@@ -24,6 +24,7 @@ class Swmm5(object):
 
         self.foot = 0.3048  # foot to metre
         self.is_open = False
+        self.is_started = False
         self.routing_model = None
         self.elapsed_time = 0
 
@@ -39,7 +40,7 @@ class Swmm5(object):
                                      c.c_char_p(report_file),
                                      c.c_char_p(output_file))
         if err != 0:
-            raise SwmmError(err)
+            raise swmm_error.SwmmError(err)
         else:
             self.input_file = input_file
             self.report_file = report_file
@@ -58,17 +59,23 @@ class Swmm5(object):
     def swmm_start(self, save_results = 1):
         '''Starts a swmm simulation
         '''
+        if not self.is_open:
+            raise swmm_error.NotOpenError
         err = self.c_swmm5.swmm_start(c.c_int(save_results))
         if err != 0:
-            raise SwmmError(err)
+            raise swmm_error.SwmmError(err)
+        self.is_started = True
         return self
 
     def swmm_end(self):
         '''Ends a swmm simulation
         '''
+        if not self.is_started:
+            raise swmm_error.NotStartedError
         err = self.c_swmm5.swmm_end()
         if err != 0:
-            raise SwmmError(err)
+            raise swmm_error.SwmmError(err)
+        self.is_started = False
         return self
 
     def swmm_step(self):
@@ -78,16 +85,15 @@ class Swmm5(object):
         err = self.c_swmm5.swmm_step(c.byref(c_elapsed_time))
         self.elapsed_time = c_elapsed_time.value
         if err != 0:
-            raise SwmmError(err)
+            raise swmm_error.SwmmError(err)
         return self
 
     def get_RouteModel(self):
         '''Get the node minimal surface area
         (storage node could be larger)
         '''
-        if self.is_open == False:
-            raise NotOpenError
-
+        if not self.is_open:
+            raise swmm_error.NotOpenError
         route_code = c.c_uint.in_dll(self.c_swmm5, 'RouteModel').value
         # Cf. enum RouteModelType in enums.h
         if route_code == 0:
@@ -108,8 +114,8 @@ class Swmm5(object):
         '''Get the node minimal surface area in sqm
         (storage node could be larger)
         '''
-        if self.is_open == False:
-            raise NotOpenError
+        if not self.is_open:
+            raise swmm_error.NotOpenError
         if self.routing_model == 'DW':
             area = c.c_double.in_dll(self.c_swmm5, 'MinSurfArea').value
             return area * self.foot ** 2  # return SI value
@@ -119,8 +125,8 @@ class Swmm5(object):
     def force_ponding(self):
         '''Force model to allow ponding
         '''
-        if self.is_open == False:
-            raise NotOpenError
+        if not self.is_open:
+            raise swmm_error.NotOpenError
 
         AllowPonding = c.c_int.in_dll(self.c_swmm5, 'AllowPonding').value
         if AllowPonding != 1:
@@ -201,7 +207,7 @@ class Swmm5(object):
                 OVERFLOW, overflow rate
                 QUAL, concentration of each pollutant
         '''
-        if weighting_factor == None:
+        if weighting_factor is None:
             weighting_factor = self.set_weighting_factor()
         # generate a list of 7 items (max number of results enums.h)
         arr_var = [i for i in xrange(7)]
@@ -235,10 +241,10 @@ class Swmm5(object):
             err = self.c_swmm5.swmm_getNodeData(c.c_char_p(node_id),
                                                 c.byref(c_node_data))
             if err != 0:
-                raise SwmmError(err)
+                raise swmm_error.SwmmError(err)
             return c_node_data
 
-    def swmm_addNodeInflow(self, node_id=None, inflow=None):
+    def swmm_addNodeInflow(self, node_id, inflow=0):
         '''Add an inflow to a given node
         node_id: a node ID (string)
         inflow: an inflow in CFS (float)
@@ -246,7 +252,7 @@ class Swmm5(object):
         err = self.c_swmm5.swmm_addNodeInflow(c.c_char_p(node_id),
                                               c.c_double(inflow))
         if err != 0:
-            raise SwmmError(err)
+            raise swmm_error.SwmmError(err)
         return self
 
     def swmm_getNodeInflows(self):
@@ -261,7 +267,7 @@ class Swmm5(object):
         c_arr_flows = (c.c_double * len(node_inflows))(*node_inflows)
         err = self.c_swmm5.swmm_getNodeInflows(c_arr_flows)
         if err != 0:
-            raise SwmmError(err)
+            raise swmm_error.SwmmError(err)
         # Put back the result in Python style list
         node_inflows = [i for i in c_arr_flows]
         return node_inflows
@@ -278,7 +284,7 @@ class Swmm5(object):
         c_arr_flows = (c.c_double * len(node_outflows))(*node_outflows)
         err = self.c_swmm5.swmm_getNodeOutflows(c_arr_flows)
         if err != 0:
-            raise SwmmError(err)
+            raise swmm_error.SwmmError(err)
         # Put back the result in Python style list
         node_outflows = [i for i in c_arr_flows]
         return node_outflows
@@ -295,7 +301,7 @@ class Swmm5(object):
         c_arr_flows = (c.c_double * len(node_heads))(*node_heads)
         err = self.c_swmm5.swmm_getNodeHeads(c_arr_flows)
         if err != 0:
-            raise SwmmError(err)
+            raise swmm_error.SwmmError(err)
         # Put back the result in Python style list
         node_heads = [i for i in c_arr_flows]
         return node_heads
@@ -314,11 +320,9 @@ class Swmm5(object):
         node_data_si['crestElev'] = c_node_data.crestElev * self.foot
         return node_data_si
 
-    def add_node_inflow(self, node_id=None, inflow=0):
+    def add_node_inflow(self, node_id, inflow=0):
         '''add an inflow in CMS to a given node'''
         # need to add a name validity check
-        if node_id == None:
-            raise ValueError('need a node_id')
         inflow_cfs = inflow / self.foot ** 3
         self.swmm_addNodeInflow(node_id=node_id, inflow=inflow_cfs)
         return self
@@ -361,7 +365,7 @@ class Swmm5(object):
                                     c.c_char_p(report_file),
                                     c.c_char_p(output_file))
         if err != 0:
-            raise SwmmError(err)
+            raise swmm_error.SwmmError(err)
         return self
 
 
@@ -371,8 +375,8 @@ class SwmmNode(object):
     '''
     def __init__(self, swmm_object=None, node_id=None):
         self.swmm_sim = swmm_object
-        if not self.swmm_sim.is_open:
-            raise NotOpenError
+        if not self.swmm_sim.is_started:
+            raise swmm_error.NotStartedError
         # need to add a node validity check
         self.node_id = node_id
         self.linkage_flow = 0
@@ -445,10 +449,10 @@ class SwmmNode(object):
               (self.overflow_area / self.weir_width)):
             return 'orifice'
         else:
-            raise LinkTypeError(u"node '{id}':, Unknown linkage type "
-                                u"(wse: {wse}, crest: {crest}, head: {head})"
-                                u"".format(id=self.node_id, wse=wse,
-                                           crest=self.crest_elev, head=self.head))
+            raise swmm_error.LinkTypeError(u"node '{id}':, Unknown linkage type "
+                                           u"(wse: {wse}, crest: {crest}, head: {head})"
+                                           u"".format(id=self.node_id, wse=wse,
+                                                      crest=self.crest_elev, head=self.head))
 
     def set_crest_elev(self, z):
         '''Set the crest elevation according to the 2D dem
