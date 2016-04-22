@@ -527,23 +527,24 @@ class SwmmNode(object):
         weir_coeff = self.get_weir_coeff(upstream_depth=upstream_depth)
         orif_coeff = self.get_orifice_coeff()
         # calculate the flow
-        if self.get_linkage_type(wse=wse) == 'no_linkage':
+        linkage_type = self.get_linkage_type(wse)
+        if linkage_type == 'no_linkage':
             unsigned_q = 0
 
-        elif self.get_linkage_type(wse=wse) == 'free_weir':
+        elif linkage_type == 'free_weir':
             unsigned_q = (weir_coeff * self.weir_width *
                           pow(upstream_depth, 3/2.) *
                           math.sqrt(2 * self.g))
 
-        elif self.get_linkage_type(wse=wse) == 'submerged_weir':
+        elif linkage_type == 'submerged_weir':
             unsigned_q = (weir_coeff * self.weir_width * upstream_depth *
                           math.sqrt(2 * self.g *
-                                    abs(water_surf_up - water_surf_down)))
+                                    (water_surf_up - water_surf_down)))
 
-        elif self.get_linkage_type(wse=wse) == 'orifice':
+        elif linkage_type == 'orifice':
             unsigned_q = (orif_coeff * self.overflow_area *
                           math.sqrt(2 * self.g *
-                                    abs(water_surf_up - water_surf_down)))
+                                    (water_surf_up - water_surf_down)))
         else:
             assert False, "unknow linkage type"
 
