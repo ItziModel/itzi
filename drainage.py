@@ -50,7 +50,11 @@ class DrainageSimulation(object):
     def solve_dt(self):
         """Get the time-step from swmm object
         """
-        self._dt = self.swmm5.routing_getRoutingStep()
+        old = self.swmm5.get_NewRoutingTime()
+        new = self.swmm5.get_OldRoutingTime()
+        self._dt = new - old
+        if self._dt <= 0:
+            self._dt = self.swmm5.routing_getRoutingStep()
         return self
 
     @property
@@ -89,6 +93,7 @@ class DrainageSimulation(object):
         calculate the exchanges with raster domain
         """
         self.swmm5.swmm_step()
+        self.apply_linkage()
         return self
 
     def apply_linkage(self):
@@ -106,7 +111,7 @@ class DrainageSimulation(object):
             node.add_inflow(-node.linkage_flow)
             # flow in m/s
             arr_qd[row, col] = node.linkage_flow / self.cell_surf
-            if node.node_id == 'J1':
-                print 'node: ', node.node_id, node.get_linkage_type(wse), node.linkage_flow
-                print 'raster:', self.dom.get('q_drain')[row, col]
+            #~ if node.node_id == 'J1':
+                #~ print 'node: ', node.node_id, node.get_linkage_type(wse), node.linkage_flow
+                #~ print 'raster:', self.dom.get('q_drain')[row, col]
         return self
