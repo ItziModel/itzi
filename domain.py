@@ -51,6 +51,8 @@ class SuperficialSimulation(object):
 
         self.massbal = massbal
 
+        self._dt = None
+
         # Slices for upstream and downstream cells on a padded array
         self.su = slice(None, -2)
         self.sd = slice(2, None)
@@ -148,8 +150,13 @@ class SuperficialSimulation(object):
         """
         newdt_s = newdt.total_seconds()
         fudge = timedelta.resolution.total_seconds()
-        if newdt_s > self._dt + fudge:
-            raise DtError("new dt cannot be longer than current one")
+        if self._dt is None:
+            self._dt = newdt_s
+        elif newdt_s <= 0:
+            raise DtError(u"dt must be positive ({})".format(newdt_s))
+        elif newdt_s > self._dt + fudge:
+            raise DtError(u"new dt cannot be longer than current one "
+                          u"(old: {}, new: {})".format(self._dt, newdt_s))
         else:
             self._dt = newdt_s
 
