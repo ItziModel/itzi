@@ -110,6 +110,24 @@ class Swmm5(object):
             raise ValueError('Unknown routing model')
         return route_model
 
+    def get_NewRoutingTime(self):
+        """retrieve new routing time in msec from shared object
+        return the value in seconds
+        """
+        if not self.is_started:
+            raise swmm_error.NotStartedError
+        new_routing = c.c_double.in_dll(self.c_swmm5, 'NewRoutingTime').value
+        return new_routing / 1000.
+
+    def get_OldRoutingTime(self):
+        """retrieve old routing time in msec from shared object
+        return the value in seconds
+        """
+        if not self.is_started:
+            raise swmm_error.NotStartedError
+        old_routing = c.c_double.in_dll(self.c_swmm5, 'OldRoutingTime').value
+        return old_routing / 1000.
+
     def get_MinSurfArea(self):
         '''Get the node minimal surface area in sqm
         (storage node could be larger)
