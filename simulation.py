@@ -213,6 +213,7 @@ class SimulationManager(object):
             # calculate when will happen the next time-step
             self.next_ts['drain'] += self.drainage.dt
             self.drainage.step()
+            self.drainage.apply_linkage(self.dt.total_seconds())
             self.rast_domain.isnew['q_drain'] = True
         else:
             self.rast_domain.isnew['q_drain'] = False
