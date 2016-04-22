@@ -14,6 +14,7 @@ GNU General Public License for more details.
 """
 from __future__ import division
 import csv
+import copy
 import warnings
 from datetime import datetime, timedelta
 import numpy as np
@@ -36,6 +37,7 @@ class SimulationManager(object):
 
     def __init__(self, record_step, input_maps, output_maps,
                  dtype=np.float32,
+                 dtmin=timedelta(seconds=0.01),
                  stats_file=None,
                  start_time=datetime(1, 1, 1),
                  end_time=datetime(1, 1, 1),
@@ -58,6 +60,7 @@ class SimulationManager(object):
         # set simulation time to start_time a the beginning
         self.sim_time = self.start_time
         # dt
+        self.dt = dtmin  # Global time-step
         self.dtinf = sim_param['dtinf']
         # set temporal type of results
         self.__set_temporal_type()
@@ -156,18 +159,16 @@ class SimulationManager(object):
         including infiltration, superficial flow and drainage,
         recording of data and mass_balance calculation
         """
-        record_counter = 1
-        #~ last_inf = 0.
+        self.record_counter = 0
         duration_s = self.duration.total_seconds()
-        
-        # dict of models
-        models = {'inf': self.infiltration, 'surf': self.surf_sim,
-                  'drain': self.drainage}
-        # dict for time-step duration
-        dts = {'inf': None, 'surf': None, 'drain': None}
-        # dict of next time-step datetime
-        self.next_ts = {'inf': None, 'surf': None, 'drain': None, 'rec': None}
-        
+
+        # dict of next time-step (datetime object). Starts at start_time
+        self.next_ts = {'end': self.end_time}
+        self.next_ts['rec'] = self.start_time
+        for k in ['inf', 'surf', 'drain']:
+            self.next_ts[k] = self.start_time
+        self.nextstep = self.sim_time + self.dt
+
         self.gis.msgr.verbose(_(u"Starting time-stepping..."))
         while self.sim_time < self.end_time:
             # display advance of simulation
@@ -180,33 +181,11 @@ class SimulationManager(object):
             if self.rast_domain.isnew['z']:
                 self.surf_sim.update_flow_dir()
 
-            # Calculate dt for all models
-            for k, m in models.iteritems():
-                m.solve_dt()
-                dts[k] = m.dt
+            # step models
+            self.step()
 
-            # Calculate when will happen the next step of each models
-            self.next_ts['rec'] = self.start_time + (record_counter *
-                                                self.record_step)
-            for k in ['inf', 'surf', 'drain']:
-                self.next_ts[k] = self.sim_time + dts[k]
-
-            # find smallest time-step
-            smallest_dt = min(self.next_ts.values()) - self.sim_time
-
-            # step models and update sim_time
-            self.step(smallest_dt)
-
-            if self.massbal:
-                self.massbal.add_value('tstep', smallest_dt.total_seconds())
-            # write simulation results
-            if self.sim_time == self.next_ts['rec']:
-                self.gis.msgr.verbose(_(u"{}: Writting output map...".format(self.sim_time)))
-                self.output_arrays = self.surf_sim.get_output_arrays(self.out_map_names)
-                self.write_results_to_gis(record_counter)
-                record_counter += 1
-                if self.massbal:
-                    self.write_mass_balance(self.sim_time)
+            # update simulation time
+            self.sim_time += self.dt
 
         # register generated maps in GIS
         self.register_results_in_gis()
@@ -214,34 +193,33 @@ class SimulationManager(object):
             self.write_hmax_to_gis()
         return self
 
-    def step(self, smallest_dt):
+    def step(self):
         """Step each of the model if needed
         """
-        # nearest next time-step
-        global_next_ts = self.sim_time + smallest_dt
 
         # calculate infiltration
-        if global_next_ts == self.next_ts['inf']:
-            self.gis.msgr.verbose(_(u"{}: Stepping infiltration model...".format(self.sim_time)))
+        if self.sim_time == self.next_ts['inf']:
+            self.infiltration.solve_dt()
+            # calculate when will happen the next time-step
+            self.next_ts['inf'] += self.infiltration.dt
             self.infiltration.step()
             self.rast_domain.isnew['inf'] = True
         else:
             self.rast_domain.isnew['inf'] = False
 
         # calculate drainage
-        if global_next_ts == self.next_ts['drain']:
-            # drainage and superficial flow should happen at the same time
-            assert self.sim_time + smallest_dt == self.next_ts['drain']
-            self.gis.msgr.verbose(_(u"{}: Stepping drainage model...".format(self.sim_time)))
+        if self.sim_time == self.next_ts['drain']:
+            self.drainage.solve_dt()
+            # calculate when will happen the next time-step
+            self.next_ts['drain'] += self.drainage.dt
             self.drainage.step()
-            self.drainage.apply_linkage()
             self.rast_domain.isnew['q_drain'] = True
         else:
             self.rast_domain.isnew['q_drain'] = False
 
         # calculate superficial flow
         self.rast_domain.update_ext_array()
-        self.surf_sim.dt = smallest_dt
+        self.surf_sim.dt = self.dt
         # step() raise NullError in case of NaN/NULL cell
         # if this happen, stop simulation and
         # output a map showing the errors
@@ -252,9 +230,26 @@ class SimulationManager(object):
             self.gis.msgr.fatal(_(u"{}: "
                                   u"Null value detected in simulation, "
                                   u"terminating").format(self.sim_time))
+        # calculate when should happen the next surface time-step
+        self.surf_sim.solve_dt()
+        self.next_ts['surf'] += self.surf_sim.dt
 
-        # update simulation time and dt
-        self.sim_time += smallest_dt
+        if self.massbal:
+            self.massbal.add_value('tstep', self.dt.total_seconds())
+        # write simulation results
+        if self.sim_time >= self.next_ts['rec']:
+            self.gis.msgr.verbose(_(u"{}: Writting output maps...".format(self.sim_time)))
+            self.output_arrays = self.surf_sim.get_output_arrays(self.out_map_names)
+            self.write_results_to_gis(self.record_counter)
+            self.record_counter += 1
+            self.next_ts['rec'] += self.record_step
+            if self.massbal:
+                self.write_mass_balance(self.sim_time)
+
+        # find next step
+        self.nextstep = min(self.next_ts.values())
+        self.next_ts['surf'] = self.nextstep
+        self.dt = self.nextstep - self.sim_time
         return self
 
     def write_mass_balance(self, sim_clock):
