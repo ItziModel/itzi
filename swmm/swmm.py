@@ -685,14 +685,12 @@ class SwmmInputParser(object):
         """return a dict of namedtuples
         """
         d = {}
-        for j in self.inp['junction']:
-            name = j[0]
-            j_val = [float(v) for v in j[1:]]
-            for c in self.inp['coordinate']:
+        values = []
+        for c in self.inp['coordinate']:
+            for j in self.inp['junction']:
+                name = j[0]
                 if c[0] == name:
+                    j_val = [float(v) for v in j[1:]]
                     values = [float(c[1]), float(c[2])] + j_val
-            # fill list with 0 in case of absent value
-            values = values + [0 for i in
-                                   range(len(self.junction_values) - len(values))]
-            d[name] = self.Junction._make(values)
+                    d[name] = self.Junction._make(values)
         return d
