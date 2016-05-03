@@ -453,7 +453,7 @@ class SwmmNode(object):
         '''select the linkage type (Chen et al.,2007)
         wse = Water Surface Elevation (from 2D superficial model)
         '''
-        if wse <= self.crest_elev and self.head < self.crest_elev:
+        if wse <= self.crest_elev and self.head <= self.crest_elev:
             return 'no_linkage'
         elif (wse > self.crest_elev > self.head or
               wse <= self.crest_elev < self.head):
