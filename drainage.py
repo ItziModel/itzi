@@ -95,7 +95,7 @@ class DrainageSimulation(object):
         self.swmm5.swmm_step()
         return self
 
-    def apply_linkage(self, dt):
+    def apply_linkage(self, dt2d):
         """For each linked node,
         calculate the flow entering or leaving the drainage network
         Apply the flow to the node and to the relevant raster cell
@@ -107,15 +107,11 @@ class DrainageSimulation(object):
             node.update()
             h = arr_h[row, col]
             z = arr_z[row, col]
-            maxflow = h * self.cell_surf / dt
             wse = h + z
             node.set_crest_elev(z)
             node.set_pondedArea()
-            node.set_linkage_flow(wse, maxflow)
+            node.set_linkage_flow(wse, self.cell_surf, dt2d, self._dt)
             node.add_inflow(-node.linkage_flow)
-            # flow in m/s
+            # apply flow in m/s to array
             arr_qd[row, col] = node.linkage_flow / self.cell_surf
-            if node.node_id == 'J2':
-                print 'node: ', node.node_id, node.get_linkage_type(wse), node.linkage_flow
-                #~ print 'raster:', self.dom.get('q_drain')[row, col]
         return self
