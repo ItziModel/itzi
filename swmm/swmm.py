@@ -522,13 +522,15 @@ class SwmmNode(object):
         self.update()
         return self
 
-    def set_linkage_flow(self, wse, maxflow):
+    def set_linkage_flow(self, wse, cell_surf, dt2d, dt1d):
         '''Calculate the flow between superficial and drainage models
         Cf. Chen et al.(2007)
         flow sign is :
          - negative when entering the drainage (leaving the 2D model)
          - positive when leaving the drainage (entering the 2D model)
-         maxflow is a positive float
+        cell_surf: area in m² of the cell above the node
+        dt2d: time-step of the 2d model in seconds
+        dt1d: time-step of the drainage model in seconds
         '''
         water_surf_up = max(wse, self.head)
         water_surf_down = min(wse, self.head)
@@ -560,16 +562,18 @@ class SwmmNode(object):
 
         new_linkage_flow = math.copysign(unsigned_q, self.head - wse)
 
-        # cap the flow to prevent negative depth in surface model
+        # flow entering the drainage can't drain the corresponding cell
         if new_linkage_flow < 0:
+            dh = wse - max(self.crest_elev, self.head)
+            assert dh > 0
+            maxflow = dh * cell_surf * dt2d
             new_linkage_flow = max(new_linkage_flow, -maxflow)
-
-        #~ # force a step at zero whan changing sign
-        #~ if (
-            #~ (new_linkage_flow > 0 and self.linkage_flow < 0)
-            #~ or
-            #~ (new_linkage_flow < 0 and self.linkage_flow > 0)):
-                #~ new_linkage_flow = 0
+        # flow leaving the drainage can't be higher than the water column above wse
+        elif new_linkage_flow > 0:
+            dh = self.head - wse
+            assert dh > 0
+            maxflow = dh * self.overflow_area * dt1d
+            new_linkage_flow = min(new_linkage_flow, maxflow)
 
         self.linkage_flow = new_linkage_flow
 
