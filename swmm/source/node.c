@@ -359,6 +359,9 @@ double node_getVolume(int j, double d)
       case STORAGE: return storage_getVolume(j, d);
 
       default:
+        //~ if ( Node[j].fullDepth > 0.0 )
+            //~ return Node[j].fullVolume * (d / Node[j].fullDepth);
+        //~ else return 0.0;
         return d * MinSurfArea;
     }
 }
