@@ -345,8 +345,8 @@ class SuperficialSimulation(object):
     def copy_arrays_values_for_next_timestep(self):
         """Copy values from calculated arrays to input arrays
         """
-        self.dom.get('qe')[:] = self.dom.get('qe_new')
-        self.dom.get('qs')[:] = self.dom.get('qs_new')
+        self.dom.swap_arrays('qe', 'qe_new')
+        self.dom.swap_arrays('qs', 'qs_new')
         return self
 
     def get_output_arrays(self, out_names):
