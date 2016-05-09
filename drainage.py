@@ -34,6 +34,8 @@ class DrainageSimulation(object):
                             report_file=swmm_params['report'],
                             output_file=swmm_params['output'])
         self.swmm5.swmm_start()
+        # allow ponding
+        self.swmm5.set_allow_ponding()
         # Raster computational domain
         self.bbox = igis.reg_bbox
         self.cell_surf = igis.dx * igis.dy
