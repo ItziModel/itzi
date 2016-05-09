@@ -246,8 +246,8 @@ class SuperficialSimulation(object):
     def swap_flow_arrays(self):
         """Swap flow arrays from calculated to input
         """
-        self.dom.get('qe')[:] = self.dom.get('qe_new')
-        self.dom.get('qs')[:] = self.dom.get('qs_new')
+        self.dom.swap_arrays('qe', 'qe_new')
+        self.dom.swap_arrays('qs', 'qs_new')
         return self
 
     def get_output_arrays(self, out_names):

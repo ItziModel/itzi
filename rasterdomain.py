@@ -249,6 +249,13 @@ class RasterDomain(object):
             self.isnew['ext'] = False
         return self
 
+    def swap_arrays(self, k1, k2):
+        """swap values of two arrays
+        """
+        self.arr[k1], self.arr[k2] = self.arr[k2], self.arr[k1]
+        self.arrp[k1], self.arrp[k2] = self.arrp[k2], self.arrp[k1]
+        return self
+
     def get(self, k):
         """return the unpadded, masked array of key 'k'
         """
