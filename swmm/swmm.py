@@ -150,15 +150,13 @@ class Swmm5(object):
         else:
             raise RuntimeError('MinSurfArea only valid for Dynamic Wave routing')
 
-    def force_ponding(self):
+    def set_allow_ponding(self):
         '''Force model to allow ponding
         '''
         if not self.is_open:
             raise swmm_error.NotOpenError
-
         AllowPonding = c.c_int.in_dll(self.c_swmm5, 'AllowPonding').value
         if AllowPonding != 1:
-            print('Forcing ponding at nodes...')
             self.c_swmm5.swmm_setAllowPonding(c.c_int(1))
         return self
 
