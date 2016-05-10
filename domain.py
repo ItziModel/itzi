@@ -34,8 +34,7 @@ class SuperficialSimulation(object):
      - positive from West to East and from North to South
     """
 
-    def __init__(self, domain, param, massbal,
-                 g=9.80665):     # Standard gravity
+    def __init__(self, domain, param, massbal):
         self.dom = domain
         self.dx = domain.dx
         self.dy = domain.dy
@@ -43,7 +42,7 @@ class SuperficialSimulation(object):
 
         self.dtmax = param['dtmax']
         self.cfl = param['cfl']
-        self.g = g
+        self.g = param['g']
         self.theta = param['theta']
         self.hf_min = param['hmin']
         self.sl_thresh = param['slmax']
