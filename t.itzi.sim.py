@@ -249,16 +249,6 @@ COPYRIGHT: (C) 2015-2016 by Laurent Courty
 #% required: no
 #% label: SWMM input file for drainage simulation
 #%end
-#%option G_OPT_F_INPUT
-#% key: swmm_report
-#% required: no
-#% label: SWMM report file for drainage simulation
-#%end
-#%option G_OPT_F_INPUT
-#% key: swmm_output
-#% required: no
-#% label: SWMM output file for drainage simulation
-#%end
 
 #%option
 #% key: stats_file
@@ -322,9 +312,8 @@ def main():
 
     # swmm files
     swmm_param = {'input': options['swmm_input'],
-                  'report': options['swmm_report'],
-                  'output': options['swmm_output']}
-    check_swmm_input(msgr, swmm_param)
+                  'report': os.devnull,
+                  'output': ''}
 
     msgr.verbose(_(u"Reading entry data..."))
     # read configuration file
@@ -572,13 +561,6 @@ def read_sim_param(msgr, opt, sim_param):
     for k, v in opt.iteritems():
         if k in sim_param.keys() and v:
             sim_param[k] = float(v)
-
-def check_swmm_input(msgr, swmm_param):
-    """Verify if entry is coherent
-    """
-    if any(swmm_param.itervalues()) and not all(swmm_param.itervalues()):
-        msgr.fatal(_(u"{} are mutualy inclusive"
-                     ).format([i for i in swmm_param.iterkeys()]))
 
 
 if __name__ == "__main__":

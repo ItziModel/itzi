@@ -143,7 +143,7 @@ class SimulationManager(object):
 
         # SWMM5
         self.has_drainage = False
-        if all(self.swmm_params.itervalues()):
+        if self.swmm_params['input']:
             self.has_drainage = True
             self.drainage = drainage.DrainageSimulation(self.rast_domain,
                                                         self.swmm_params,
