@@ -775,6 +775,39 @@ int DLLEXPORT   swmm_addNodeInflow(char* id, double inflow)
 	return ERR_NOT_OPEN;
 }
 
+int DLLEXPORT   swmm_getLinkData(char* id, linkData* data)
+{
+	int index = -1;
+    //~ char node1 = '0';
+    //~ char node2 = '0';
+
+	if ( IsOpenFlag )
+	{
+		index = project_findObject(LINK, id);
+		if ( index < 0 )
+			return ERR_NAME;
+
+		data->flow = Link[index].newFlow * Link[index].direction;
+		data->depth = Link[index].newDepth;
+		data->volume = Link[index].newVolume;
+		data->velocity = link_getVelocity(index, Link[index].newFlow, Link[index].newDepth)
+							* Link[index].direction;
+        // added/modified by L. Courty
+		//~ data->shearVelocity = link_getShearVelocity(index, Link[index].newDepth);
+        //~ swmm_getNodeID(Link[index].node1, node1);
+        //~ swmm_getNodeID(Link[index].node2, node2);
+		//~ data->node1 = node1;
+		//~ data->node2 = node2;
+		data->offset1 = Link[index].offset1;
+		data->offset2 = Link[index].offset2;
+		data->yFull = Link[index].xsect.yFull;
+		data->froude = Link[index].froude;
+		data->type = Link[index].type;
+		return ERR_NONE;
+	}
+
+	return ERR_NOT_OPEN;
+}
 
 //=============================================================================
 //   Coupling functions (L. Courty)

@@ -34,7 +34,15 @@ class LinkData(c.Structure):
                 ('depth', c.c_double),
                 ('velocity', c.c_double),
                 ('volume', c.c_double),
-                ('shearVelocity', c.c_double)]
+                #~ ('shearVelocity', c.c_double),
+                ('type', c.c_int),        # link type code
+                ('node1', c.c_char),      # start node ID
+                ('node2', c.c_char),      # end node ID
+                ('offset1', c.c_double),  # ht. above start node invert (ft)
+                ('offset2', c.c_double),  # ht. above end node invert (ft)
+                ('yFull', c.c_double),    # depth when full (ft)
+                ('froude', c.c_double)]   # Froude number
+
 
 class ObjectType:
     GAGE = 0         # rain gage

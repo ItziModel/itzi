@@ -45,14 +45,22 @@
 //-----------------
 // Coupling (GESZ)
 //-----------------
-//~ typedef struct
-//~ {
-	//~ double flow;
-	//~ double depth;
-	//~ double velocity;
-	//~ double volume;
+typedef struct
+{
+	double flow;
+	double depth;
+	double velocity;
+	double volume;
+// added by L. Courty
 	//~ double shearVelocity;
-//~ } linkData;
+    int type;              // link type code
+    char* node1;           // start node ID
+    char* node2;           // end node ID
+    double offset1;        // ht. above start node invert (ft)
+    double offset2;        // ht. above end node invert (ft)
+	double yFull;          // depth when full (ft)
+    double froude;         // Froude number
+} linkData;
 
 typedef struct
 {
@@ -60,6 +68,7 @@ typedef struct
 	double outflow;
 	double head;
 	double crestElev;
+// added by L. Courty
    int           type;            // node type code
    int           subIndex;        // index of node's sub-category
    double        invertElev;      // invert elevation (ft)

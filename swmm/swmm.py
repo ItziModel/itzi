@@ -17,7 +17,7 @@ GNU General Public License for more details.
 from __future__ import division
 import os
 import ctypes as c
-from structs import NodeData, NodeType
+from structs import NodeData, NodeType, LinkData
 import math
 import collections
 import swmm_error
@@ -253,6 +253,22 @@ class Swmm5(object):
         node_var['OVERFLOW'] = c_arr_var[5]
         node_var['QUALITY'] = c_arr_var[6]
         return node_var
+
+    def swmm_getLinkData(self, link_id=None):
+        '''Retrieve link data using GESZ function
+        link_id = a string
+        '''
+        # Return None if no node_id is given or if not a string
+        if not isinstance(node_id, str):
+            return None
+        else:
+            # Call the C function
+            c_link_data = LinkData()
+            err = self.c_swmm5.swmm_getLinkData(c.c_char_p(node_id),
+                                                c.byref(c_link_data))
+            if err != 0:
+                raise swmm_error.SwmmError(err)
+            return c_link_data
 
     def swmm_getNodeData(self, node_id=None):
         '''Retrieve node data using GESZ function
@@ -537,21 +553,21 @@ class SwmmNode(object):
         weir_coeff = self.get_weir_coeff(upstream_depth=upstream_depth)
         orif_coeff = self.get_orifice_coeff()
         # calculate the flow
-        linkage_type = self.get_linkage_type(wse)
-        if linkage_type == 'no_linkage':
+        self.linkage_type = self.get_linkage_type(wse)
+        if self.linkage_type == 'no_linkage':
             unsigned_q = 0
 
-        elif linkage_type == 'free_weir':
+        elif self.linkage_type == 'free_weir':
             unsigned_q = (weir_coeff * self.weir_width *
                           pow(upstream_depth, 3/2.) *
                           math.sqrt(2 * self.g))
 
-        elif linkage_type == 'submerged_weir':
+        elif self.linkage_type == 'submerged_weir':
             unsigned_q = (weir_coeff * self.weir_width * upstream_depth *
                           math.sqrt(2 * self.g *
                                     (water_surf_up - water_surf_down)))
 
-        elif linkage_type == 'orifice':
+        elif self.linkage_type == 'orifice':
             unsigned_q = (orif_coeff * self.overflow_area *
                           math.sqrt(2 * self.g *
                                     (water_surf_up - water_surf_down)))
@@ -560,7 +576,7 @@ class SwmmNode(object):
 
         new_linkage_flow = math.copysign(unsigned_q, self.head - wse)
 
-        # flow entering the drainage can't drain the corresponding cell
+        # flow leaving the 2D domain can't drain the corresponding cell
         if new_linkage_flow < 0:
             dh = wse - max(self.crest_elev, self.head)
             assert dh > 0
