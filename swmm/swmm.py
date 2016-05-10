@@ -577,22 +577,19 @@ class SwmmNode(object):
 
         return self
 
-    def get_weir_coeff(self, upstream_depth=None):
+    def get_weir_coeff(self, upstream_depth):
         '''Calculate the weir coefficient for linkage
         according to equation found in Bos (1985)
         upstream_depth: depend on the direction of the flow
            = depth of water in the inflow element above self.crest_elev
         '''
-        if upstream_depth == None:
-            raise RuntimeError('upstream_depth mandatory')
-        #~ return 0.93 + 0.1 * upstream_depth / self.weir_length
-        return 0.5
+        return 0.93 + 0.1 * upstream_depth / self.weir_length
 
     def get_orifice_coeff(self):
-        '''Calculate the orifice discharge coefficient
+        '''Return the orifice discharge coefficient.
+        Using value found in Bos(1985)
         '''
-        # need to find an actual formula
-        return 0.5
+        return 0.62
 
 
 class SwmmInputParser(object):
