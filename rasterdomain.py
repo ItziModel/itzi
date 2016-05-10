@@ -259,7 +259,7 @@ class RasterDomain(object):
         return self.arr[k]
 
     def get_padded(self, k):
-        """return the unpadded, masked array of key 'k'
+        """return the padded, masked array of key 'k'
         """
         return self.arrp[k]
 
@@ -267,3 +267,28 @@ class RasterDomain(object):
         """return unpadded array with NaN
         """
         return self.unmask_array(self.arr[k])
+
+    def get_output_arrays(self):
+        """Takes a dict of map names
+        return a dict of unmasked arrays
+        """
+        out_arrays = {}
+        if self.out_map_names['out_h'] != None:
+            out_arrays['out_h'] = self.get_unmasked('h')
+        if self.out_map_names['out_wse'] != None:
+            out_arrays['out_wse'] = self.get_unmasked('h') + self.get('z')
+        if self.out_map_names['out_vx'] != None:
+            arr_vx = np.empty_like(self.get('h'))
+            flow.solve_v(self.get_unmasked('qe_new'), self.get('hfe'), arr_vx)
+            assert not np.any(np.isnan(arr_vx))
+            out_arrays['out_vx'] = arr_vx
+        if self.out_map_names['out_vy'] != None:
+            arr_vy = np.empty_like(self.get('h'))
+            flow.solve_v(self.get_unmasked('qs_new'), self.get('hfs'), arr_vy)
+            assert not np.any(np.isnan(arr_vy))
+            out_arrays['out_vy'] = arr_vy
+        if self.out_map_names['out_qx'] != None:
+            out_arrays['out_qx'] = self.get_unmasked('qe_new') * self.dy
+        if self.out_map_names['out_qy'] != None:
+            out_arrays['out_qy'] = self.get_unmasked('qs_new') * self.dx
+        return out_arrays

@@ -348,31 +348,6 @@ class SuperficialSimulation(object):
         self.dom.swap_arrays('qs', 'qs_new')
         return self
 
-    def get_output_arrays(self, out_names):
-        """Takes a dict of map names
-        return a dict of unmasked arrays
-        """
-        out_arrays = {}
-        if out_names['out_h'] != None:
-            out_arrays['out_h'] = self.dom.get_unmasked('h')
-        if out_names['out_wse'] != None:
-            out_arrays['out_wse'] = self.dom.get_unmasked('h') + self.dom.get('z')
-        if out_names['out_vx'] != None:
-            arr_vx = np.empty_like(self.dom.get('h'))
-            flow.solve_v(self.dom.get_unmasked('qe_new'), self.dom.get('hfe'), arr_vx)
-            assert not np.any(np.isnan(arr_vx))
-            out_arrays['out_vx'] = arr_vx
-        if out_names['out_vy'] != None:
-            arr_vy = np.empty_like(self.dom.get('h'))
-            flow.solve_v(self.dom.get_unmasked('qs_new'), self.dom.get('hfs'), arr_vy)
-            assert not np.any(np.isnan(arr_vy))
-            out_arrays['out_vy'] = arr_vy
-        if out_names['out_qx'] != None:
-            out_arrays['out_qx'] = self.dom.get_unmasked('qe_new') * self.dy
-        if out_names['out_qy'] != None:
-            out_arrays['out_qy'] = self.dom.get_unmasked('qs_new') * self.dx
-        return out_arrays
-
 
 class Boundary(object):
     """

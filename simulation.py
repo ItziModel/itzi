@@ -87,10 +87,6 @@ class SimulationManager(object):
         # instantiate simulation objects
         self.__set_models()
 
-        # a dict containing lists of maps written to gis to be registered
-        self.output_maplist = {k: [] for k in self.out_map_names.keys()}
-
-
     def __set_duration(self, end_time, sim_duration):
         """If sim_duration is given, end_time is ignored
         This is normally checked upstream
@@ -152,6 +148,10 @@ class SimulationManager(object):
             self.drainage = drainage.DrainageSimulation(self.rast_domain,
                                                         self.swmm_params,
                                                         self.gis)
+
+        # reporting object
+        self.report = Report(self.gis, self.temporal_type, self.sim_param['hmin'],
+                             self.massbal, self.rast_domain, self.drainage)
         return self
 
     def run(self):
@@ -159,7 +159,6 @@ class SimulationManager(object):
         including infiltration, superficial flow and drainage,
         recording of data and mass_balance calculation
         """
-        self.record_counter = 0
         duration_s = self.duration.total_seconds()
 
         # dict of next time-step (datetime object). Starts at start_time
@@ -172,31 +171,25 @@ class SimulationManager(object):
         self.gis.msgr.verbose(_(u"Starting time-stepping..."))
         while self.sim_time < self.end_time:
             # display advance of simulation
-            sim_time_s = (self.sim_time - self.start_time).total_seconds()
-            self.gis.msgr.percent(sim_time_s, duration_s, 1)
-
+            self.sim_time_s = (self.sim_time - self.start_time).total_seconds()
+            self.gis.msgr.percent(self.sim_time_s, duration_s, 1)
             # update input arrays
             self.rast_domain.update_input_arrays(self.sim_time)
             # recalculate the flow direction if DEM changed
             if self.rast_domain.isnew['z']:
                 self.surf_sim.update_flow_dir()
-
             # step models
             self.step()
-
             # update simulation time
             self.sim_time += self.dt
 
-        # register generated maps in GIS
-        self.register_results_in_gis()
-        if self.out_map_names['out_h']:
-            self.write_hmax_to_gis()
+        # write final report
+        self.report.end()
         return self
 
     def step(self):
         """Step each of the model if needed
         """
-
         # calculate infiltration
         if self.sim_time == self.next_ts['inf']:
             self.infiltration.solve_dt()
@@ -208,7 +201,7 @@ class SimulationManager(object):
             self.rast_domain.isnew['inf'] = False
 
         # calculate drainage
-        if self.sim_time == self.next_ts['drain']:
+        if self.sim_time == self.next_ts['drain'] and self.has_drainage:
             self.drainage.solve_dt()
             # calculate when will happen the next time-step
             self.next_ts['drain'] += self.drainage.dt
@@ -227,7 +220,7 @@ class SimulationManager(object):
         try:
             self.surf_sim.step()
         except NullError:
-            self.write_error_to_gis(self.surf_sim.arr_err)
+            self.report.write_error_to_gis(self.surf_sim.arr_err)
             self.gis.msgr.fatal(_(u"{}: "
                                   u"Null value detected in simulation, "
                                   u"terminating").format(self.sim_time))
@@ -240,95 +233,16 @@ class SimulationManager(object):
         # write simulation results
         if self.sim_time >= self.next_ts['rec']:
             self.gis.msgr.verbose(_(u"{}: Writting output maps...".format(self.sim_time)))
-            self.output_arrays = self.surf_sim.get_output_arrays(self.out_map_names)
-            self.write_results_to_gis(self.record_counter)
-            self.record_counter += 1
+            if self.temporal_type == 'absolute':
+                self.report.step(self.sim_time)
+            if self.temporal_type == 'relative':
+                self.report.step(self.sim_time_s)
             self.next_ts['rec'] += self.record_step
-            if self.massbal:
-                self.write_mass_balance(self.sim_time)
 
         # find next step
         self.nextstep = min(self.next_ts.values())
         self.next_ts['surf'] = self.nextstep
         self.dt = self.nextstep - self.sim_time
-        return self
-
-    def write_mass_balance(self, sim_clock):
-        '''
-        '''
-        if self.temporal_type == 'absolute':
-            self.massbal.write_values(self.sim_time)
-        elif self.temporal_type == 'relative':
-            self.massbal.write_values(sim_clock)
-        else:
-            assert False, "unknown temporal type!"
-        return self
-
-    #~ def next_forced_timestep(self):
-        #~ """return the future time in seconds at which the superficial flow
-        #~ model will be forced to step.
-        #~ default to next forced time-step of infiltration model
-        #~ """
-        #~ return self.inf_forced_ts
-
-    #~ def set_inf_forced_timestep(self, next_record):
-        #~ """Given a next superficial flow time-step in seconds as entry,
-        #~ return the future time in seconds at which the infiltration
-        #~ model will be forced to step.
-        #~ """
-        #~ self.inf_forced_ts = min(next_record, self.duration.total_seconds())
-        #~ return self
-
-    def write_results_to_gis(self, record_counter):
-        """Format the name of each maps using the record number as suffix
-        Send a couple array, name to the GIS writing function.
-        """
-        for k, arr in self.output_arrays.iteritems():
-            if isinstance(arr, np.ndarray):
-                suffix = str(record_counter).zfill(4)
-                map_name = "{}_{}".format(self.out_map_names[k], suffix)
-                # Export depth if above hfmin. If not, export NaN
-                if k == 'out_h':
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore")
-                        arr[arr <= self.sim_param['hmin']] = np.nan
-                # write the raster
-                self.gis.write_raster_map(arr, map_name, k)
-                # add map name and time to the corresponding list
-                self.output_maplist[k].append((map_name, self.sim_time))
-        return self
-
-    def write_error_to_gis(self, arr_error):
-        '''Write a given depth array and boolean error array to the GIS
-        '''
-        map_h_name = "{}_error".format(self.out_map_names['out_h'])
-        self.gis.write_raster_map(self.rast_domain.get_unmasked('h'),
-                                  map_h_name, 'out_h')
-        # add map name to the revelant list
-        self.output_maplist['out_h'].append(map_h_name)
-        return self
-
-    def write_hmax_to_gis(self):
-        '''Write a given depth array to the GIS
-        '''
-        arr_hmax_unmasked = self.rast_domain.get_unmasked('h')
-        map_hmax_name = "{}_max".format(self.out_map_names['out_h'])
-        self.gis.write_raster_map(arr_hmax_unmasked, map_hmax_name, 'out_h')
-        return self
-
-    def register_results_in_gis(self):
-        """Register the generated maps in the temporal database
-        Loop through output names
-        if no output name is provided, don't do anything
-        if name is populated, create a strds of the right temporal type
-        and register the corresponding listed maps
-        """
-        for mkey, lst in self.output_maplist.iteritems():
-            strds_name = self.out_map_names[mkey]
-            if strds_name is None:
-                continue
-            self.gis.register_maps_in_strds(mkey, strds_name, lst,
-                                            self.temporal_type)
         return self
 
 
@@ -444,4 +358,101 @@ class MassBal(object):
         # empty dictionaries
         self.sim_data = {k: [] for k in self.sim_data.keys()}
         self.line = dict.fromkeys(self.line.keys())
+        return self
+
+
+class Report(object):
+    """In charge of results reporting and writing
+    """
+    def __init__(self, igis, temporal_type, hmin,
+                 massbal, rast_dom, drainage_sim):
+        self.record_counter = 0
+        self.gis = igis
+        self.temporal_type = temporal_type
+        self.out_map_names = rast_dom.out_map_names
+        self.hmin = hmin
+        self.rast_dom = rast_dom
+        self.massbal = massbal
+        self.drainage_sim = drainage_sim
+        # a dict containing lists of maps written to gis to be registered
+        self.output_maplist = {k: [] for k in self.out_map_names.keys()}
+
+
+    def step(self, sim_time):
+        """write results at given time-step
+        """
+        if self.temporal_type == 'absolute':
+            assert isinstance(sim_time, datetime)
+        elif self.temporal_type == 'relative':
+            assert isinstance(sim_time, float)
+        self.output_arrays = self.rast_dom.get_output_arrays()
+        self.write_results_to_gis(sim_time)
+        if self.massbal:
+            self.write_mass_balance(sim_time)
+        self.record_counter += 1
+        return self
+
+    def end(self):
+        """register maps in gis and write max level maps
+        """
+        self.register_results_in_gis()
+        if self.out_map_names['out_h']:
+            self.write_hmax_to_gis()
+
+    def write_mass_balance(self, sim_time):
+        """
+        """
+        self.massbal.write_values(sim_time)
+        return self
+
+    def write_results_to_gis(self, sim_time):
+        """Format the name of each maps using the record number as suffix
+        Send a couple array, name to the GIS writing function.
+        """
+        for k, arr in self.output_arrays.iteritems():
+            if isinstance(arr, np.ndarray):
+                suffix = str(self.record_counter).zfill(4)
+                map_name = "{}_{}".format(self.out_map_names[k], suffix)
+                # Export depth if above hmin. If not, export NaN
+                if k == 'out_h':
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        arr[arr <= self.hmin] = np.nan
+                # write the raster
+                self.gis.write_raster_map(arr, map_name, k)
+                # add map name and time to the corresponding list
+                self.output_maplist[k].append((map_name, sim_time))
+        return self
+
+    def write_error_to_gis(self, arr_error):
+        """Write a given depth array and boolean error array to the GIS
+        """
+        map_h_name = "{}_error".format(self.out_map_names['out_h'])
+        self.gis.write_raster_map(self.rast_dom.get_unmasked('h'),
+                                  map_h_name, 'out_h')
+        # add map name to the revelant list
+        self.output_maplist['out_h'].append(map_h_name)
+        return self
+
+    def write_hmax_to_gis(self):
+        """Write a given depth array to the GIS
+        """
+        arr_hmax_unmasked = self.rast_dom.get_unmasked('h')
+        map_hmax_name = "{}_max".format(self.out_map_names['out_h'])
+        self.gis.write_raster_map(arr_hmax_unmasked, map_hmax_name, 'out_h')
+        return self
+
+    def register_results_in_gis(self):
+        """Register the generated maps in the temporal database
+        Loop through output names
+        if no output name is provided, don't do anything
+        if name is populated, create a strds of the right temporal type
+        and register the corresponding listed maps
+        """
+        for mkey, lst in self.output_maplist.iteritems():
+            strds_name = self.out_map_names[mkey]
+            if strds_name is None:
+                continue
+            self.gis.register_maps_in_strds(mkey, strds_name, lst,
+                                            self.temporal_type)
         return self

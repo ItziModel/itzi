@@ -298,8 +298,9 @@ class Igis(object):
                                             k=mkey, t=sim_time)
 
     def register_maps_in_strds(self, mkey, strds_name, map_list, t_type):
-        '''Register given maps and apply color table
-        '''
+        """Create a STRDS, create one rasterdataset for each map and
+        register them in the temporal database
+        """
         assert isinstance(mkey, basestring), "not a string!"
         assert isinstance(strds_name, basestring), "not a string!"
         assert isinstance(t_type, basestring), "not a string!"
@@ -321,10 +322,7 @@ class Igis(object):
             raster_dts.load()
             # set time
             if t_type == 'relative':
-                # create timedelta
-                rel_time = map_time - self.start_time
-                rast_time = rel_time.total_seconds()
-                raster_dts.set_relative_time(rast_time, None, 'seconds')
+                raster_dts.set_relative_time(map_time, None, 'seconds')
             elif t_type == 'absolute':
                 raster_dts.set_absolute_time(start_time=map_time)
             else:
