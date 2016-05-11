@@ -546,6 +546,7 @@ class SwmmNode(object):
         dt2d: time-step of the 2d model in seconds
         dt1d: time-step of the drainage model in seconds
         '''
+        self.wse = wse
         water_surf_up = max(wse, self.head)
         water_surf_down = min(wse, self.head)
         upstream_depth = water_surf_up - self.crest_elev
@@ -619,7 +620,8 @@ class SwmmNode(object):
                 'linkage_flow': self.linkage_flow, 'losses': self.losses,
                 'volume': self.volume, 'full_volume': self.full_volume,
                 'overflow': self.overflow, 'ponded_area': self.ponded_area,
-                'head': self.head, 'crest_elev': self.crest_elev}
+                'head': self.head, 'crest_elev': self.crest_elev,
+                'superficial_head': self.wse}
 
 
 class SwmmInputParser(object):
