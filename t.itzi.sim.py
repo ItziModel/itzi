@@ -360,12 +360,14 @@ def main():
     # Run simulation
     msgr.verbose(_(u"Starting simulation..."))
     sim_start = time.time()
+    drainage_out = os.path.splitext(options['swmm_input'])[0] + '.json'
     sim = simulation.SimulationManager(
                         start_time=input_times['start'],
                         end_time=input_times['end'],
                         sim_duration=input_times['duration'],
                         record_step=input_times['rec_step'],
                         stats_file=options['stats_file'],
+                        drainage_out=drainage_out,
                         dtype=np.float32,
                         input_maps=input_map_names,
                         output_maps=output_map_names,
