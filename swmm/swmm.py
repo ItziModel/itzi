@@ -607,6 +607,20 @@ class SwmmNode(object):
         '''
         return 0.62
 
+    def get_values_as_dict(self):
+        """return a dict of node values
+        """
+        return {'type': self.node_type, 'overflow_area': self.overflow_area,
+                'init_depth': self.init_depth, 'full_depth': self.full_depth,
+                'surcharge_depth': self.sur_depth, 'depth': self.depth,
+                'degree': self.degree, 'invert_elev': self.invert_elev,
+                'crown_elev': self.crown_elev, 'inflow': self.inflow,
+                'outflow': self.outflow, 'lateral_inflow': self.lat_flow,
+                'linkage_flow': self.linkage_flow, 'losses': self.losses,
+                'volume': self.volume, 'full_volume': self.full_volume,
+                'overflow': self.overflow, 'ponded_area': self.ponded_area,
+                'head': self.head, 'crest_elev': self.crest_elev}
+
 
 class SwmmInputParser(object):
     """A parser for swmm input text file
