@@ -546,7 +546,7 @@ class SwmmNode(object):
         dt2d: time-step of the 2d model in seconds
         dt1d: time-step of the drainage model in seconds
         '''
-        self.wse = wse
+        self.wse = float(wse)  # Force float to prevent serialization problems
         water_surf_up = max(wse, self.head)
         water_surf_down = min(wse, self.head)
         upstream_depth = water_surf_up - self.crest_elev
@@ -611,17 +611,18 @@ class SwmmNode(object):
     def get_values_as_dict(self):
         """return a dict of node values
         """
-        return {'type': self.node_type, 'overflow_area': self.overflow_area,
-                'init_depth': self.init_depth, 'full_depth': self.full_depth,
-                'surcharge_depth': self.sur_depth, 'depth': self.depth,
-                'degree': self.degree, 'invert_elev': self.invert_elev,
-                'crown_elev': self.crown_elev, 'inflow': self.inflow,
-                'outflow': self.outflow, 'lateral_inflow': self.lat_flow,
-                'linkage_flow': self.linkage_flow, 'losses': self.losses,
-                'volume': self.volume, 'full_volume': self.full_volume,
-                'overflow': self.overflow, 'ponded_area': self.ponded_area,
-                'head': self.head, 'crest_elev': self.crest_elev,
-                'superficial_head': self.wse}
+        return {'type': self.node_type, 'overflow area': self.overflow_area,
+                'initial depth': self.init_depth, 'full depth': self.full_depth,
+                'surcharge depth': self.sur_depth, 'depth': self.depth,
+                'degree': self.degree, 'invert elevation': self.invert_elev,
+                'crown elevation': self.crown_elev, 'inflow': self.inflow,
+                'outflow': self.outflow, 'lateral inflow': self.lat_flow,
+                'linkage flow': self.linkage_flow,
+                'linkage type': self.linkage_type, 'losses': self.losses,
+                'volume': self.volume, 'full volume': self.full_volume,
+                'overflow': self.overflow, 'ponded area': self.ponded_area,
+                'head': self.head, 'crest elevation': self.crest_elev,
+                'superficial head': self.wse}
 
 
 class SwmmInputParser(object):
