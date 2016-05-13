@@ -18,7 +18,7 @@ import copy
 import warnings
 from datetime import datetime, timedelta
 import numpy as np
-import json
+import msgpack
 
 import domain
 from rasterdomain import RasterDomain
@@ -469,7 +469,7 @@ class Report(object):
         """Populate a dict with values from drainage network
         """
         if isinstance(sim_time, datetime):
-            date = sim_time.isoformat()
+            date = sim_time.strftime('%Y-%m-%d %H:%M:%S')
         else:
             date = int(sim_time)
         proj = self.drainage_sim.get_serialized_project_values()
@@ -483,5 +483,5 @@ class Report(object):
         """Dump drainage values to a json file
         """
         with open(self.drainage_out, 'w') as outfile:
-            json.dump(self.drainage_values, outfile, indent=1, sort_keys=True)
+            msgpack.dump(self.drainage_values, outfile)
         return self

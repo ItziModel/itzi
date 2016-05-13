@@ -250,7 +250,7 @@ COPYRIGHT: (C) 2015-2016 by Laurent Courty
 #% label: SWMM input file for drainage simulation
 #%end
 
-#%option
+#%option G_OPT_F_OUTPUT
 #% key: stats_file
 #% required: no
 #% label: Output statistic file
@@ -360,7 +360,7 @@ def main():
     # Run simulation
     msgr.verbose(_(u"Starting simulation..."))
     sim_start = time.time()
-    drainage_out = os.path.splitext(options['swmm_input'])[0] + '.json'
+    drainage_out = os.path.splitext(options['swmm_input'])[0] + '.mp'
     sim = simulation.SimulationManager(
                         start_time=input_times['start'],
                         end_time=input_times['end'],
