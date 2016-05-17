@@ -387,7 +387,7 @@ class SuperficialFlowSimulation(object):
         """
         for k, arr in self.output_arrays.iteritems():
             if isinstance(arr, np.ndarray):
-                suffix = str(record_counter).zfill(6)
+                suffix = str(record_counter).zfill(4)
                 map_name = "{}_{}".format(self.out_map_names[k], suffix)
                 arr_unmasked = self.unmask_array(arr)
                 # Export depth if above hfmin. If not, export NaN
