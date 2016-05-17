@@ -341,8 +341,10 @@ class Igis(object):
         '''
         if mkey == 'out_h':
             colors_rules = self.rules_h
-        elif mkey.startswith('out_v'):
+        elif mkey == 'out_v':
             colors_rules = self.rules_v
+        elif mkey == 'out_vdir':
+            colors_rules = 'aspectcolr'
         else:
             colors_rules = self.rules_def
         grass.run_command('r.colors', quiet=True,

@@ -128,14 +128,14 @@ COPYRIGHT: (C) 2015-2016 by Laurent Courty
 #%end
 
 #%option G_OPT_R_OUTPUT
-#% key: out_vx
-#% description: Output velocity in m/s for x direction (strds)
+#% key: out_v
+#% description: Output velocity in m/s (strds)
 #% required: no
 #%end
 
 #%option G_OPT_R_OUTPUT
-#% key: out_vy
-#% description: Output velocity in m/s for y direction (strds)
+#% key: out_vdir
+#% description: Output velocity direction in degree (strds)
 #% required: no
 #%end
 
@@ -293,7 +293,7 @@ def main():
                    'duration': None, 'rec_step': None}
     raw_input_times = input_times.copy()
     output_map_names = {'out_h': None, 'out_wse': None,
-                        'out_vx': None, 'out_vy': None,
+                        'out_v': None, 'out_vdir': None,
                         'out_qx': None, 'out_qy': None}
     input_map_names = {}  # to become conjunction of following dicts:
     dict_input = {'in_z': None, 'in_n': None, 'in_h': None, 'in_y': None}

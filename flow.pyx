@@ -20,9 +20,11 @@ import numpy as np
 from libc.math cimport pow as c_pow
 from libc.math cimport sqrt as c_sqrt
 from libc.math cimport fabs as c_abs
+from libc.math cimport atan2 as c_atan
 
 DTYPE = np.float32
 ctypedef np.float32_t DTYPE_t
+cdef float PI = 3.1415926535898
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
@@ -55,80 +57,170 @@ def flow_dir(DTYPE_t [:, :] arr_max_dz, DTYPE_t [:, :] arr_dz0,
             # update results array
             arr_dir[r, c] = qdir
 
+
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-def solve_q(np.ndarray[np.int8_t, ndim=2] arr_dir,
-        DTYPE_t [:, :] arr_z0, DTYPE_t [:, :] arr_z1,
-        DTYPE_t [:, :] arr_n0, DTYPE_t [:, :] arr_n1,
-        DTYPE_t [:, :] arr_h0, DTYPE_t [:, :] arr_h1,
-        DTYPE_t [:, :] arr_q0, DTYPE_t [:, :] arr_q1, DTYPE_t [:, :] arr_qm1,
-        DTYPE_t [:, :] arr_qn1, DTYPE_t [:, :] arr_qn2,
-        DTYPE_t [:, :] arr_qn3, DTYPE_t [:, :] arr_qn4,
-        DTYPE_t [:, :] arr_q0_new, DTYPE_t [:, :] arr_hf,
-        float dt, float cell_len, float g, float theta, float hf_min, float v_rout, float sl_thres):
-    '''Calculate flow in m2/s in the domain, including hflow and qnorm
+def solve_q(np.int8_t [:, :] arr_dire, np.int8_t [:, :] arr_dirs,
+        DTYPE_t [:, :] arr_z, DTYPE_t [:, :] arr_n, DTYPE_t [:, :] arr_h,
+        DTYPE_t [:, :] arrp_qe, DTYPE_t [:, :] arrp_qs,
+        DTYPE_t [:, :] arr_hfe, DTYPE_t [:, :] arr_hfs,
+        DTYPE_t [:, :] arr_qe_new, DTYPE_t [:, :] arr_qs_new,
+        DTYPE_t [:, :] arr_v, DTYPE_t [:, :] arr_vdir, DTYPE_t [:, :] arr_vmax,
+        float dt, float dx, float dy, float g,
+        float theta, float hf_min, float v_rout, float sl_thres):
+    '''Calculate hflow in m, flow in m2/s,
+    velocity magnitude in m/s and direction in degree
     '''
 
-    cdef int rmax, cmax, r, c, qdir
-    cdef float z1, z0, h1, h0, wse1, wse0, hf
-    cdef float q0, qup, qdown, qn1, qn2, qn3, qn4, q_st, q_vect, n
-    cdef float term_1, term_2, term_3, q0_new, slope, num, den
+    cdef int rmax, cmax, r, c, rp, cp, qdire, qdirs
+    cdef float wse_e, wse_s, wse0, z0, ze, zs, n0, n, ne, ns
+    cdef float qe_st, qs_st, qe_vect, qs_vect,
+    cdef float qe_new, qs_new, hf_e, hf_s, h0, h_e, h_s
+    cdef float ve, vs, v, vdir
 
-    rmax = arr_z0.shape[0]
-    cmax = arr_z0.shape[1]
+    rmax = arr_z.shape[0]
+    cmax = arr_z.shape[1]
     for r in prange(rmax, nogil=True):
         for c in xrange(cmax):
-            # calculate wse
-            z1 = arr_z1[r, c]
-            z0 = arr_z0[r, c]
-            h1 = arr_h1[r, c]
-            h0 = arr_h0[r, c]
-            wse1 = z1 + h1
+            rp = r + 1
+            cp = c + 1
+            # values at the current cell
+            z0 = arr_z[r, c]
+            h0 = arr_h[r, c]
             wse0 = z0 + h0
-            # flow depth (hf)
-            hf = max(wse1, wse0) - max(z1, z0)
-            # update hflow array
-            arr_hf[r, c] = hf
+            n0 = arr_n[r,c]
 
-            # q
-            q0 = arr_q0[r, c]
-            qup = arr_qm1[r, c]
-            qdown = arr_q1[r, c]
+            # x dimension, flow at E cell boundary
+            # prevent calculation of domain boundary
+            # range(10) is from 0 to 9, so last cell is max - 1
+            if c < (cmax - 1):
+                # flow routing direction
+                qdire = arr_dire[r, c]
+                # water surface elevation
+                ze = arr_z[r, c+1]
+                h_e = arr_h[r, c+1]
+                wse_e = ze + h_e
+                # acerage friction
+                ne = 0.5 * (n0 + arr_n[r,c+1])
+                # qnorm
+                # calculate average flow from stencil
+                qe_st = .25 * (arrp_qs[rp,cp] + arrp_qs[rp,cp+1] +
+                               arrp_qs[rp-1,cp+1] + arrp_qs[rp-1,cp+1])
+                # calculate qnorm
+                qe_vect = c_sqrt(arrp_qe[rp,cp] * arrp_qe[rp,cp] + qe_st * qe_st)
+                # hflow
+                hf_e = hflow(z0=z0, z1=ze, wse0=wse0, wse1=wse_e)
+                arr_hfe[r, c] = hf_e
+                # flow and velocity
+                if hf_e <= 0:
+                    qe_new = 0
+                    ve = 0
+                elif hf_e > hf_min:
+                    qe_new = almeida2013(hf=hf_e, wse0=wse0, wse1=wse_e, n=ne,
+                                         qm1=arrp_qe[rp,cp-1], q0=arrp_qe[rp,cp],
+                                         qp1=arrp_qe[rp,cp+1], q_norm=qe_vect,
+                                         theta=theta, g=g, dt=dt, cell_len=dx)
+                    ve = qe_new / hf_e
+                # flow going W, i.e negative
+                elif hf_e <= hf_min and qdire == 0 and wse_e > wse0:
+                    qe_new = - rain_routing(h_e, wse_e, wse0,
+                                            dt, dx, v_rout)
+                    ve = - v_rout
+                # flow going E, i.e positive
+                elif hf_e <= hf_min and  qdire == 1 and wse0 > wse_e:
+                    qe_new = rain_routing(h0, wse0, wse_e,
+                                          dt, dx, v_rout)
+                    ve = v_rout
+                else:
+                    qe_new = 0
+                    ve = 0
+                # udpate array
+                arr_qe_new[r, c] = qe_new
 
-            # qnorm
-            qn1 = arr_qn1[r, c]
-            qn2 = arr_qn2[r, c]
-            qn3 = arr_qn3[r, c]
-            qn4 = arr_qn4[r, c]
-            # calculate average flow from stencil
-            q_st = (qn1 + qn2 + qn3 + qn4) * .25
-            # calculate qnorm
-            q_vect = c_sqrt(q0*q0 + q_st*q_st)
+            # y dimension, flow at S cell boundary
+            if r < (rmax - 1):  # prevent calculation of domain boundary
+                # flow routing direction
+                qdirs = arr_dirs[r, c]
+                # water surface elevation
+                zs = arr_z[r+1, c]
+                h_s = arr_h[r+1, c]
+                wse_s = zs + h_s
+                # acerage friction
+                ns = 0.5 * (n0 + arr_n[r+1,c])
+                # qnorm
+                # calculate average flow from stencil
+                qs_st = .25 * (arrp_qe[rp,cp] + arrp_qe[r,cp-1] +
+                               arrp_qe[rp+1,cp] + arrp_qe[rp+1,cp-1])
+                # calculate qnorm
+                qs_vect = c_sqrt(arrp_qs[rp,cp] * arrp_qs[rp,cp] +
+                                 qs_st * qs_st)
+                # hflow
+                hf_s = hflow(z0=z0, z1=zs, wse0=wse0, wse1=wse_s)
+                arr_hfs[r, c] = hf_s
+                if hf_s <= 0:
+                    qs_new = 0
+                    vs = 0
+                elif hf_s > hf_min:
+                    qs_new = almeida2013(hf=hf_s, wse0=wse0, wse1=wse_s, n=ns,
+                                         qm1=arrp_qs[rp-1,cp], q0=arrp_qs[rp,cp],
+                                         qp1=arrp_qs[rp+1,cp], q_norm=qs_vect,
+                                         theta=theta, g=g, dt=dt, cell_len=dy)
+                    vs = qs_new / hf_s
+                # flow going N, i.e negative
+                elif hf_s <= hf_min and qdirs == 0 and wse_s > wse0:
+                    qs_new = - rain_routing(h_s, wse_s, wse0,
+                                            dt, dy, v_rout)
+                    vs = - v_rout
+                # flow going S, i.e positive
+                elif hf_s <= hf_min and  qdirs == 1 and wse0 > wse_s:
+                    qs_new = rain_routing(h0, wse0, wse_s,
+                                          dt, dy, v_rout)
+                    vs = v_rout
+                else:
+                    qs_new = 0
+                    vs = 0
+                # udpate array
+                arr_qs_new[r, c] = qs_new
 
-            # flow dir
-            qdir = arr_dir[r, c]
+            # velocity magnitude and direction
+            v = c_sqrt(ve*ve + vs*vs)
+            arr_v[r, c] = v
+            arr_vmax[r, c] = max(v, arr_vmax[r, c])
+            vdir = c_atan(-vs, ve) * 180. / PI
+            if vdir < 0:
+                vdir = 360 + vdir
+            arr_vdir[r, c] = vdir
 
-            n = 0.5 * (arr_n0[r, c] + arr_n1[r, c])
-            slope = (wse0 - wse1) / cell_len
-            if hf <= 0:
-                q0_new = 0
-            # Almeida 2013
-            elif hf > hf_min:
-                q0_new = almeida2013(theta, q0, qup, qdown, n,
-                                    g, hf, dt, slope, q_vect)
-            # flow going W or N, i.e negative
-            elif hf <= hf_min and qdir == 0 and wse1 > wse0:
-                q0_new = - rain_routing(h1, wse1, wse0,
-                                        dt, cell_len, v_rout)
-            # flow going E or S, i.e positive
-            elif hf <= hf_min and  qdir == 1 and wse0 > wse1:
-                q0_new = rain_routing(h0, wse0, wse1,
-                                        dt, cell_len, v_rout)
-            else:
-                q0_new = 0
-            # populate the array
-            arr_q0_new[r,c] = q0_new
+
+cdef float hflow(float z0, float z1, float wse0, float wse1) nogil:
+    """calculate flow depth
+    """
+    return max(wse1, wse0) - max(z1, z0)
+
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+cdef float almeida2013(float hf, float wse0, float wse1, float n,
+                       float qm1, float q0, float qp1,
+                       float q_norm, float theta,
+                       float g, float dt, float cell_len) nogil:
+    '''Solve flow using q-centered scheme from Almeida et Al. (2013)
+    '''
+    cdef float term_1, term_2, term_3, slope
+
+    slope = (wse0 - wse1) / cell_len
+
+    term_1 = theta * q0 + (1 - theta) * (qm1 + qp1) * 0.5
+    term_2 = g * hf * dt * slope
+    term_3 = 1 + g * dt * (n*n) * q_norm / c_pow(hf, 7./3.)
+    # If flow direction is not coherent with surface slope,
+    # use only previous flow, i.e. ~switch to Bates 2010
+    if term_1 * term_2 < 0:
+        term_1 = q0
+    return (term_1 + term_2) / term_3
+
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
@@ -149,22 +241,6 @@ cdef float rain_routing(float h0, float wse0, float wse1, float dt,
     q_routing = min(dh * v_routing, maxflow)
     return q_routing
 
-@cython.wraparound(False)  # Disable negative index check
-@cython.cdivision(True)  # Don't check division by zero
-@cython.boundscheck(False)  # turn off bounds-checking for entire function
-cdef float almeida2013(float theta, float q0, float qup, float qdown, float n,
-        float g, float hf, float dt, float slope, float q_vect) nogil:
-    '''Solve flow using q-centered scheme from Almeida and Bates (2010)
-    '''
-    cdef float term_1, term_2, term_3
-    term_1 = theta * q0 + (1 - theta) * (qup + qdown) * 0.5
-    term_2 = g * hf * dt * slope
-    term_3 = 1 + g * dt * (n*n) * q_vect / c_pow(hf, 7./3.)
-    # If flow direction is not coherent with surface slope,
-    # use only previous flow, i.e. ~switch to Bates 2010
-    if term_1 * term_2 < 0:
-        term_1 = q0
-    return (term_1 + term_2) / term_3
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
@@ -211,6 +287,7 @@ def solve_h(DTYPE_t [:, :] arr_ext,
     # calculate volume entering or leaving the domain by boundary condition
     return hfix_h * dx * dy
 
+
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
@@ -232,25 +309,6 @@ def set_ext_array(DTYPE_t [:, :] arr_qext,
             # Solve
             arr_ext[r, c] = qext + (rain - inf) / multiplicator
 
-@cython.wraparound(False)  # Disable negative index check
-@cython.cdivision(True)  # Don't check division by zero
-@cython.boundscheck(False)  # turn off bounds-checking for entire function
-def solve_v(DTYPE_t [:, :] arr_q, DTYPE_t [:, :] arr_hf, DTYPE_t [:, :] arr_v):
-    '''Calculate a velocity map
-    arr_q: flow map in m2/s
-    arr_hf: flow depth map in m
-    arr_v is the calculated average velocity map in m/s
-    '''
-    cdef int rmax, cmax, r, c
-
-    rmax = arr_v.shape[0]
-    cmax = arr_v.shape[1]
-    for r in prange(rmax, nogil=True):
-        for c in range(cmax):
-            if arr_hf[r, c] <= 0:
-                arr_v[r, c] = 0
-            else:
-                arr_v[r, c] = arr_q[r, c] / arr_hf[r, c]
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
@@ -271,6 +329,7 @@ def inf_user(DTYPE_t [:, :] arr_h,
             infrate = arr_inf_in[r, c]
             # cap the rate
             arr_inf_out[r, c] = cap_inf_rate(dt_h, arr_h[r, c], infrate)
+
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero

@@ -85,6 +85,10 @@ class SurfaceDomain(object):
         # flow depth
         self.arr_hfe = np.copy(arr_def)
         self.arr_hfs = np.copy(arr_def)
+        # velocities
+        self.arr_v = np.copy(arr_def)
+        self.arr_vdir = np.copy(arr_def)
+        self.arr_vmax = np.copy(arr_def)
         # flows in m2/s
         self.arr_qe, self.arrp_qe = self.pad_array(np.copy(arr_def))
         self.arr_qs, self.arrp_qs = self.pad_array(np.copy(arr_def))
@@ -214,100 +218,15 @@ class SurfaceDomain(object):
 
     def solve_q(self):
         '''Solve flow inside the domain using C/Cython function
-        prepare the arrays slices and pass them to the Cython function
         '''
-        # Those are for padded flow arrays only.
-        # Used to get the flow of the first boundary
-        s_i_m1 = (self.ss, slice(0, -3))
-        s_j_m1 = (slice(0, -3), self.ss)
-
-        z_i0 = self.arr_z[self.s_i_0]
-        z_i1 = self.arr_z[self.s_i_1]
-        z_j0 = self.arr_z[self.s_j_0]
-        z_j1 = self.arr_z[self.s_j_1]
-        assert z_i0.shape == z_i1.shape
-        assert z_j0.shape == z_j1.shape
-
-        h_i0 = self.arr_h[self.s_i_0]
-        h_i1 = self.arr_h[self.s_i_1]
-        h_j0 = self.arr_h[self.s_j_0]
-        h_j1 = self.arr_h[self.s_j_1]
-        assert h_i0.shape == h_i1.shape
-        assert h_j0.shape == h_j1.shape
-
-        n_i0 = self.arr_n[self.s_i_0]
-        n_i1 = self.arr_n[self.s_i_1]
-        n_j0 = self.arr_n[self.s_j_0]
-        n_j1 = self.arr_n[self.s_j_1]
-        assert n_i0.shape == n_i1.shape
-        assert n_j0.shape == n_j1.shape
-
-        # flow depths
-        hf_i = self.arr_hfe[self.s_i_0]
-        hf_j = self.arr_hfs[self.s_j_0]
-
-        # values in the Y dim, used to calculate qnorm in X dimension
-        arr_qs_i_j = self.arr_qs
-        arr_qs_i_ju = self.arrp_qs[self.su, self.ss]
-        arr_qs_id_j = self.arrp_qs[self.ss, self.sd]
-        arr_qs_id_ju = self.arrp_qs[self.su, self.sd]
-        assert arr_qs_i_j.shape == arr_qs_i_ju.shape == arr_qs_id_j.shape
-        assert arr_qs_i_j.shape == arr_qs_id_ju.shape
-
-        # values in the X dim, used to calculate qnorm in Y dimension
-        arr_qe_i_j = self.arr_qe
-        arr_qe_iu_j = self.arrp_qe[self.ss, self.su]
-        arr_qe_i_jd = self.arrp_qe[self.sd, self.ss]
-        arr_qe_iu_jd = self.arrp_qe[self.sd, self.su]
-        assert arr_qe_i_j.shape == arr_qe_iu_j.shape == arr_qe_i_jd.shape
-        assert arr_qe_i_j.shape == arr_qe_iu_jd.shape
-
-        # flows
-        q_vect_i = self.arr_qe_norm[self.s_i_0]
-        q_vect_j = self.arr_qs_norm[self.s_j_0]
-        q_i0 = self.arr_qe[self.s_i_0]
-        q_i1 = self.arr_qe[self.s_i_1]
-        q_j0 = self.arr_qs[self.s_j_0]
-        q_j1 = self.arr_qs[self.s_j_1]
-        # Uses padded array to get boundary flow
-        q_im1 = self.arrp_qe[s_i_m1]
-        q_jm1 = self.arrp_qs[s_j_m1]
-        assert q_vect_i.shape == q_i0.shape == q_i1.shape == q_im1.shape
-        assert q_vect_j.shape == q_j0.shape == q_j1.shape == q_jm1.shape
-
-        q_i0_new = self.arr_qe_new[self.s_i_0]
-        q_j0_new = self.arr_qs_new[self.s_j_0]
-
-        # flow in x direction
-        assert z_i0.shape == z_i1.shape == n_i0.shape == n_i1.shape
-        assert n_i0.shape == h_i0.shape == h_i1.shape == q_i0.shape
-        assert q_i0.shape == q_i1.shape == q_im1.shape == q_vect_i.shape
-        assert q_vect_i.shape == q_i0_new.shape
-        flow.solve_q(arr_dir=self.arr_dire,
-                     arr_z0=z_i0, arr_z1=z_i1,
-                     arr_n0=n_i0, arr_n1=n_i1,
-                     arr_h0=h_i0, arr_h1=h_i1,
-                     arr_q0=q_i0, arr_q1=q_i1, arr_qm1=q_im1,
-                     arr_qn1=arr_qs_i_j, arr_qn2=arr_qs_i_ju,
-                     arr_qn3=arr_qs_id_j, arr_qn4=arr_qs_id_ju,
-                     arr_q0_new=q_i0_new, arr_hf=hf_i,
-                     dt=self.dt, cell_len=self.dx, g=self.g,
-                     theta=self.theta, hf_min=self.hf_min,
-                     v_rout=self.v_routing, sl_thres=self.sl_thresh)
-        # flow in y direction
-        assert z_j0.shape == z_j1.shape == n_j0.shape == n_j1.shape
-        assert n_j0.shape == h_j0.shape == h_j1.shape == q_j0.shape
-        assert q_j0.shape == q_j1.shape == q_jm1.shape == q_vect_j.shape
-        assert q_vect_j.shape == q_j0_new.shape
-        flow.solve_q(arr_dir=self.arr_dirs,
-                     arr_z0=z_j0, arr_z1=z_j1,
-                     arr_n0=n_j0, arr_n1=n_j1,
-                     arr_h0=h_j0, arr_h1=h_j1,
-                     arr_q0=q_j0, arr_q1=q_j1, arr_qm1=q_jm1,
-                     arr_qn1=arr_qe_iu_j, arr_qn2=arr_qe_i_jd,
-                     arr_qn3=arr_qe_i_jd, arr_qn4=arr_qe_iu_jd,
-                     arr_q0_new=q_j0_new, arr_hf=hf_j,
-                     dt=self.dt, cell_len=self.dy, g=self.g,
+        flow.solve_q(arr_dire=self.arr_dire, arr_dirs=self.arr_dirs,
+                     arr_z=self.arr_z, arr_n=self.arr_n, arr_h=self.arr_h,
+                     arrp_qe=self.arrp_qe, arrp_qs=self.arrp_qs,
+                     arr_qe_new=self.arr_qe_new, arr_qs_new=self.arr_qs_new,
+                     arr_hfe=self.arr_hfe, arr_hfs=self.arr_hfs,
+                     arr_v=self.arr_v, arr_vdir=self.arr_vdir,
+                     arr_vmax=self.arr_vmax,
+                     dt=self.dt, dx=self.dx, dy=self.dy, g=self.g,
                      theta=self.theta, hf_min=self.hf_min,
                      v_rout=self.v_routing, sl_thres=self.sl_thresh)
         return self
@@ -382,23 +301,17 @@ class SurfaceDomain(object):
         return a dict of arrays
         """
         out_arrays = {}
-        if out_names['out_h'] != None:
+        if out_names['out_h'] is not None:
             out_arrays['out_h'] = self.arr_h
-        if out_names['out_wse'] != None:
+        if out_names['out_wse']  is not None:
             out_arrays['out_wse'] = self.arr_h + self.arr_z
-        if out_names['out_vx'] != None:
-            arr_vx = np.empty_like(self.arr_h)
-            flow.solve_v(self.arr_qe_new, self.arr_hfe, arr_vx)
-            assert not np.any(np.isnan(arr_vx))
-            out_arrays['out_vx'] = arr_vx
-        if out_names['out_vy'] != None:
-            arr_vy = np.empty_like(self.arr_h)
-            flow.solve_v(self.arr_qs_new, self.arr_hfs, arr_vy)
-            assert not np.any(np.isnan(arr_vy))
-            out_arrays['out_vy'] = arr_vy
-        if out_names['out_qx'] != None:
+        if out_names['out_v']  is not None:
+            out_arrays['out_v'] = self.arr_v
+        if out_names['out_vdir']  is not None:
+            out_arrays['out_vdir'] = self.arr_vdir
+        if out_names['out_qx']  is not None:
             out_arrays['out_qx'] = self.arr_qe_new * self.dy
-        if out_names['out_qy'] != None:
+        if out_names['out_qy']  is not None:
             out_arrays['out_qy'] = self.arr_qs_new * self.dx
         return out_arrays
 
