@@ -228,6 +228,8 @@ class SuperficialFlowSimulation(object):
         self.register_results_in_gis()
         if self.out_map_names['out_h']:
             self.write_hmax_to_gis(rast_dom.arr_hmax)
+        if self.out_map_names['out_v']:
+            self.write_vmax_to_gis(rast_dom.arr_vmax)
         return self
 
     def write_mass_balance(self, sim_clock):
@@ -417,6 +419,14 @@ class SuperficialFlowSimulation(object):
         arr_hmax_unmasked = self.unmask_array(arr_hmax)
         map_hmax_name = "{}_max".format(self.out_map_names['out_h'])
         self.gis.write_raster_map(arr_hmax_unmasked, map_hmax_name, 'out_h')
+        return self
+
+    def write_vmax_to_gis(self, arr_vmax):
+        '''Write a given flow speed array to the GIS
+        '''
+        arr_vmax_unmasked = self.unmask_array(arr_vmax)
+        map_vmax_name = "{}_max".format(self.out_map_names['out_v'])
+        self.gis.write_raster_map(arr_vmax_unmasked, map_vmax_name, 'out_v')
         return self
 
     def register_results_in_gis(self):
