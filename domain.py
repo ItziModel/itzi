@@ -163,7 +163,7 @@ class SurfaceDomain(object):
         if np.any(self.arr_err):
             raise NullError
 
-        self.copy_arrays_values_for_next_timestep()
+        self.swap_flow_arrays()
         end_clock = time.time()
         if massbal:
             massbal.add_value('step_duration', end_clock - start_clock)
@@ -289,11 +289,13 @@ class SurfaceDomain(object):
         boundary_vol = (x_boundary_flow + y_boundary_flow)
         return boundary_vol
 
-    def copy_arrays_values_for_next_timestep(self):
-        """Copy values from calculated arrays to input arrays
+    def swap_flow_arrays(self):
+        """Swap flow arrays from calculated to input
         """
-        self.arr_qe[:] = self.arr_qe_new
-        self.arr_qs[:] = self.arr_qs_new
+        self.arr_qe, self.arr_qe_new = self.arr_qe_new, self.arr_qe
+        self.arr_qs, self.arr_qs_new = self.arr_qs_new, self.arr_qs
+        self.arrp_qe, self.arrp_qe_new = self.arrp_qe_new, self.arrp_qe
+        self.arrp_qs, self.arrp_qs_new = self.arrp_qs_new, self.arrp_qs
         return self
 
     def get_output_arrays(self, out_names):
