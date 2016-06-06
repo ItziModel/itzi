@@ -26,7 +26,7 @@ import infiltration
 from itzi_error import NullError
 
 
-class SuperficialFlowSimulation(object):
+class SimulationManager(object):
     """Manage the general simulation:
     - update input values for each time-step
     - trigger the writing of results and statistics

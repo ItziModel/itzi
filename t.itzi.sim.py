@@ -349,16 +349,15 @@ def main():
     # Run simulation
     msgr.verbose(_(u"Starting simulation..."))
     sim_start = time.time()
-    sim = simulation.SuperficialFlowSimulation(
-                        start_time=input_times['start'],
-                        end_time=input_times['end'],
-                        sim_duration=input_times['duration'],
-                        record_step=input_times['rec_step'],
-                        stats_file=options['stats_file'],
-                        dtype=np.float32,
-                        input_maps=input_map_names,
-                        output_maps=output_map_names,
-                        sim_param=sim_param)
+    sim = simulation.SimulationManager(start_time=input_times['start'],
+                                       end_time=input_times['end'],
+                                       sim_duration=input_times['duration'],
+                                       record_step=input_times['rec_step'],
+                                       stats_file=options['stats_file'],
+                                       dtype=np.float32,
+                                       input_maps=input_map_names,
+                                       output_maps=output_map_names,
+                                       sim_param=sim_param)
     sim.run()
 
     # end profiling
