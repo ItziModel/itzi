@@ -250,7 +250,7 @@ def solve_h(DTYPE_t [:, :] arr_ext,
         DTYPE_t [:, :] arr_qn, DTYPE_t [:, :] arr_qs,
         DTYPE_t [:, :] arr_bct, DTYPE_t [:, :] arr_bcv,
         DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_hmax,
-        float dx, float dy, float dt):
+        float dx, float dy, float dt, float hfix_vol):
     '''Update the water depth and max depth
     Adjust water depth according to in-domain 'boundary' condition
     '''
@@ -284,8 +284,8 @@ def solve_h(DTYPE_t [:, :] arr_ext,
             arr_hmax[r, c] = max(h_new, hmax)
             # Update depth array
             arr_h[r, c] = h_new
-    # calculate volume entering or leaving the domain by boundary condition
-    return hfix_h * dx * dy
+    # calculate volume entering or leaving the domain by hfix condition
+    hfix_vol = hfix_h * dx * dy
 
 
 @cython.wraparound(False)  # Disable negative index check

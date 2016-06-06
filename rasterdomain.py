@@ -270,3 +270,8 @@ class RasterDomain(object):
         """return unpadded array with NaN
         """
         return self.unmask_array(self.arr[k])
+
+    def amax(self, k):
+        """return maximum value of an array
+        """
+        return np.amax(self.arr[k])

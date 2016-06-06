@@ -128,11 +128,12 @@ class SuperficialSimulation(object):
         accomodate non-square cells
         The time-step is limited by the maximum time-step dtmax.
         """
-        hmax = np.amax(self.dom.get('h'))  # max depth in domain
+        maxh = self.dom.amax('h')  # max depth in domain
         min_dim = min(self.dx, self.dy)
-        if hmax > 0:
+        if maxh > 0:
             self.dt = min(self.dtmax,
-                          self.cfl * (min_dim / (math.sqrt(self.g * hmax))))
+                          self.cfl * (min_dim /
+                                      (math.sqrt(self.g * maxh))))
         else:
             self.dt = self.dtmax
 
@@ -159,13 +160,14 @@ class SuperficialSimulation(object):
         assert (flow_west.shape == flow_east.shape ==
                 flow_north.shape == flow_south.shape)
 
-        self.hfix_vol = flow.solve_h(arr_ext=self.dom.get('ext'),
-                                     arr_qe=flow_east, arr_qw=flow_west,
-                                     arr_qn=flow_north, arr_qs=flow_south,
-                                     arr_bct=self.dom.get('bct'),
-                                     arr_bcv=self.dom.get('bcv'),
-                                     arr_h=self.dom.get('h'), arr_hmax=self.dom.get('hmax'),
-                                     dx=self.dx, dy=self.dy, dt=self.dt)
+        self.hfix_vol = 0.
+        flow.solve_h(arr_ext=self.dom.get('ext'),
+                     arr_qe=flow_east, arr_qw=flow_west,
+                     arr_qn=flow_north, arr_qs=flow_south,
+                     arr_bct=self.dom.get('bct'), arr_bcv=self.dom.get('bcv'),
+                     arr_h=self.dom.get('h'), arr_hmax=self.dom.get('hmax'),
+                     dx=self.dx, dy=self.dy, dt=self.dt,
+                     hfix_vol=self.hfix_vol)
         assert not np.any(self.dom.get('h') < 0)
         return self
 
