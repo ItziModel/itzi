@@ -255,9 +255,6 @@ import os
 from datetime import datetime, timedelta
 import time
 import numpy as np
-import cProfile
-import pstats
-import StringIO
 import ConfigParser
 
 import grass.script as grass
@@ -271,9 +268,12 @@ import gis
 def main():
     # start profiler
     if flags['p']:
-        pr = cProfile.Profile()
-        pr.enable()
-
+        try:
+            from pyinstrument import Profiler
+        except ImportError:
+            msgr.fatal(_(u"profiling requires 'pyinstrument' module"))
+        prof = Profiler() # or Profiler(use_signal=False), see below
+        prof.start()
     # start messenger
     msgr = Messenger()
 
@@ -363,12 +363,8 @@ def main():
 
     # end profiling
     if flags['p']:
-        pr.disable()
-        stat_stream = StringIO.StringIO()
-        sortby = 'time'
-        ps = pstats.Stats(pr, stream=stat_stream).sort_stats(sortby)
-        ps.print_stats(10)
-        print stat_stream.getvalue()
+        prof.stop()
+        print(prof.output_text(unicode=True, color=True))
 
     # display total computation duration
     elapsed_time = timedelta(seconds=int(time.time() - sim_start))
