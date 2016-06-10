@@ -34,13 +34,12 @@ class SuperficialSimulation(object):
     """
 
     def __init__(self, domain, param,
-                 sim_clock=0,
-                 g=9.80665):     # Standard gravity
+                 sim_clock=0):
         self.dom = domain
         self.sim_clock = sim_clock
         self.dtmax = param['dtmax']
         self.cfl = param['cfl']
-        self.g = g
+        self.g = param['g']
         self.theta = param['theta']
         self.hf_min = param['hmin']
         self.sl_thresh = param['slmax']

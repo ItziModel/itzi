@@ -287,7 +287,7 @@ def main():
         msgr.fatal(_(u"No parameter given. Please use '--h' to check usage"))
 
     # values to be passed to simulation
-    sim_param = {'hmin': 0.005, 'cfl': 0.7, 'theta': 0.9,
+    sim_param = {'hmin': 0.005, 'cfl': 0.7, 'theta': 0.9, 'g': 9.80665,
                  'vrouting': 0.1, 'dtmax': 5., 'slmax': .5, 'dtinf': 60.}
     input_times = {'start': None, 'end': None,
                    'duration': None, 'rec_step': None}
