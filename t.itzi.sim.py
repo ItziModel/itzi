@@ -367,8 +367,8 @@ def main():
 
     # display total computation duration
     elapsed_time = timedelta(seconds=int(time.time() - sim_start))
-    grass.message(_("Simulation complete. "
-                    "Elapsed time: {}").format(elapsed_time))
+    grass.message(_(u"Simulation complete. "
+                    u"Elapsed time: {}").format(elapsed_time))
 
 
 def file_exist(name):
