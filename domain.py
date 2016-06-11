@@ -99,18 +99,18 @@ class SuperficialSimulation(object):
     def step(self, next_ts):
         """Run a full simulation time-step
         """
-        start_clock = time.time()
+        start_time = time.time()
         self.set_dt(next_ts)
         self.solve_q()
         self.apply_boundary_conditions()
         self.update_h()
-        # in case of NaN/NULL cells, raise a NullError to be catched by run()
+        # in case of NaN/NULL cells, raise a NullError
         self.arr_err = np.isnan(self.dom.get('h'))
         if np.any(self.arr_err):
             raise NullError
         self.swap_flow_arrays()
-        end_clock = time.time()
-        step_duration = end_clock - start_clock
+        end_time = time.time()
+        step_duration = end_time - start_time
         return self
 
     def set_dt(self, next_ts):
