@@ -69,6 +69,9 @@ class SimulationManager(object):
         # simulation parameters
         self.sim_param = sim_param
 
+        # statistic file name
+        self.stats_file = stats_file
+
         # instantiate a Igis object
         self.gis = gis.Igis(start_time=self.start_time,
                             end_time=self.end_time,
@@ -80,15 +83,8 @@ class SimulationManager(object):
         # instantiate simulation objects
         self.set_models()
 
-
         # a dict containing lists of maps written to gis to be registered
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
-
-        # Instantiate Massbal object
-        self.massbal = None
-        if stats_file:
-            dom_size = self.gis.yr * self.gis.xr
-            self.massbal = MassBal(dom_size=dom_size, file_name=stats_file)
 
     def set_duration(self, end_time, sim_duration):
         """If sim_duration is given, end_time is ignored
@@ -133,6 +129,12 @@ class SimulationManager(object):
         # SuperficialSimulation
         self.surf_sim = domain.SuperficialSimulation(self.rast_domain,
                                                      self.sim_param)
+
+        # Instantiate Massbal object
+        if self.stats_file:
+            self.massbal = MassBal(self.stats_file, self.rast_domain)
+        else:
+            self.massbal = None
         return self
 
     def run(self):
@@ -178,7 +180,7 @@ class SimulationManager(object):
             # if this happen, stop simulation and
             # output a map showing the errors
             try:
-                self.surf_sim.step(next_ts, self.massbal)
+                self.surf_sim.step(next_ts)
             except NullError:
                 self.write_error_to_gis(self.surf_sim.arr_err)
                 self.gis.msgr.fatal(_(u"Null value detected "
@@ -306,8 +308,8 @@ class MassBal(object):
     averaged or cumulated values for the considered time difference are
     written to a CSV file
     """
-    def __init__(self, file_name='', dom_size=0):
-        self.dom_size = dom_size
+    def __init__(self, file_name, rast_dom):
+        self.dom = rast_dom
         # values to be written on each record time
         self.fields = ['sim_time',  # either seconds or datetime
                        'avg_timestep', '#timesteps',
@@ -321,7 +323,8 @@ class MassBal(object):
         self.sim_data = {'tstep': [], 'boundary_vol': [],
                          'rain_vol': [], 'inf_vol': [], 'inflow_vol': [],
                          'old_dom_vol': [], 'new_dom_vol': [],
-                         'step_duration': [], 'hfix_vol': []}
+                         #~ 'step_duration': [],
+                         'hfix_vol': []}
         # set file name and create file
         self.file_name = self.set_file_name(file_name)
         self.create_file()
@@ -340,6 +343,20 @@ class MassBal(object):
         with open(self.file_name, 'w') as f:
             writer = csv.DictWriter(f, fieldnames=self.fields)
             writer.writeheader()
+        return self
+
+    def read_values(self, dt):
+        """Read values from RasterDomain
+        """
+        self.sim_data['tstep'].append(dt)
+        self.sim_data['boundary_vol'].append(self.dom.boundary_vol)
+        self.sim_data['rain_vol'].append(self.dom.rain_q * dt)
+        self.sim_data['inf_vol'].append(self.dom.inf_q * dt)
+        self.sim_data['inflow_vol'].append(self.dom.inflow_q * dt)
+        self.sim_data['old_dom_vol'].append(dt)
+        self.sim_data['new_dom_vol'].append(dt)
+        #~ self.sim_data['step_duration'].append(dt)
+        self.sim_data['hfix_vol'].append(dt)
         return self
 
     def add_value(self, key, value):
@@ -380,7 +397,7 @@ class MassBal(object):
         last_vol = self.sim_data['new_dom_vol'][-1]
         self.line['domain_vol'] = '{:.3f}'.format(last_vol)
 
-        # mass error is the diff. between the theor. vol and the actual vol
+        # mass error is difference between theoretical volume and actual volume
         first_vol = self.sim_data['old_dom_vol'][0]
         sum_ext_vol = sum([boundary_vol, rain_vol, inf_vol,
                            inflow_vol, hfix_vol])
@@ -393,11 +410,11 @@ class MassBal(object):
             self.line['%error'] = '{:.2%}'.format(vol_error / last_vol)
 
         # Performance
-        comp_duration = sum(self.sim_data['step_duration'])
-        self.line['comp_duration'] = '{:.3f}'.format(comp_duration)
-        # Average step computation time
-        avg_comp_time = comp_duration / rec_len[0]
-        self.line['avg_cell_per_sec'] = int(self.dom_size / avg_comp_time)
+        #~ comp_duration = sum(self.sim_data['step_duration'])
+        #~ self.line['comp_duration'] = '{:.3f}'.format(comp_duration)
+        #~ # Average step computation time
+        #~ avg_comp_time = comp_duration / rec_len[0]
+        #~ self.line['avg_cell_per_sec'] = int(self.dom_size / avg_comp_time)
 
         # Add line to file
         with open(self.file_name, 'a') as f:

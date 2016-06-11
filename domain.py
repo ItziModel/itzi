@@ -96,29 +96,21 @@ class SuperficialSimulation(object):
         flow.flow_dir(arr_max_dz[self.s_i_0], dW, dE, self.dom.get('dire'))
         return self
 
-    def step(self, next_ts, massbal):
+    def step(self, next_ts):
         """Run a full simulation time-step
         """
         start_clock = time.time()
         self.set_dt(next_ts)
         self.solve_q()
-        boundary_vol = self.apply_boundary_conditions()
-        if massbal:
-            massbal.add_value('boundary_vol', boundary_vol)
-            massbal.add_value('old_dom_vol', self.domain_volume())
+        self.apply_boundary_conditions()
         self.update_h()
-        if massbal:
-            massbal.add_value('hfix_vol', self.hfix_vol)
-            massbal.add_value('new_dom_vol', self.domain_volume())
         # in case of NaN/NULL cells, raise a NullError to be catched by run()
         self.arr_err = np.isnan(self.dom.get('h'))
         if np.any(self.arr_err):
             raise NullError
-
         self.swap_flow_arrays()
         end_clock = time.time()
-        if massbal:
-            massbal.add_value('step_duration', end_clock - start_clock)
+        step_duration = end_clock - start_clock
         return self
 
     def set_dt(self, next_ts):
@@ -159,14 +151,13 @@ class SuperficialSimulation(object):
         assert (flow_west.shape == flow_east.shape ==
                 flow_north.shape == flow_south.shape)
 
-        self.hfix_vol = 0.
         flow.solve_h(arr_ext=self.dom.get('ext'),
                      arr_qe=flow_east, arr_qw=flow_west,
                      arr_qn=flow_north, arr_qs=flow_south,
                      arr_bct=self.dom.get('bct'), arr_bcv=self.dom.get('bcv'),
                      arr_h=self.dom.get('h'), arr_hmax=self.dom.get('hmax'),
                      dx=self.dx, dy=self.dy, dt=self.dt,
-                     hfix_vol=self.hfix_vol)
+                     hfix_vol=self.dom.hfix_vol)
         assert not np.any(self.dom.get('h') < 0)
         return self
 
@@ -241,8 +232,8 @@ class SuperficialSimulation(object):
                            bn.nansum(e_boundary_flow)) * x_boundary_len
         y_boundary_flow = (bn.nansum(n_boundary_flow) -
                            bn.nansum(s_boundary_flow)) * y_boundary_len
-        boundary_vol = (x_boundary_flow + y_boundary_flow)
-        return boundary_vol
+        self.dom.boundary_vol = (x_boundary_flow + y_boundary_flow)
+        return self
 
     def swap_flow_arrays(self):
         """Swap flow arrays from calculated to input

@@ -89,12 +89,24 @@ class RasterDomain(object):
     including management of the masking and unmasking of arrays.
     """
     def __init__(self, dtype, igis, input_maps, output_maps):
+        # data type
         self.dtype = dtype
         # geographical data
         self.gis = igis
         self.shape = (self.gis.yr, self.gis.xr)
         self.dx = self.gis.dx
         self.dy = self.gis.dy
+        self.cell_surf = self.dx * self.dy
+
+        # conversion factor between mm/h and m/s
+        self.mmh_to_ms = 1000. * 3600.
+
+        # volume passing through domain boundaries
+        self.boundary_vol = 0.
+        # volume passing through in-domain fixed depth boundaries
+        self.hfix_vol = 0.
+        # volume of water in the domain
+        self.water_volume = 0.
 
         # slice for a simple padding (allow stencil calculation on boundary)
         self.simple_pad = (slice(1,-1), slice(1,-1))
@@ -210,6 +222,14 @@ class RasterDomain(object):
                     # must run update_flow_dir() in SuperficialSimulation
                 elif k == 'n':
                     default_value = 1
+                elif k == 'h':
+                    self.water_volume = self.cell_surf * self.masked_sum('h')
+                elif k == 'rain':
+                    self.rain_q = self.masked_sum('rain') / self.mmh_to_ms * self.cell_surf
+                elif k == 'inf':
+                    self.inf_q = self.masked_sum('inf') / self.mmh_to_ms * self.cell_surf
+                elif k == 'in_q':
+                    self.inflow_q = self.masked_sum('in_q') * self.cell_surf
                 else:
                     default_value = 0
                 # mask arrays
@@ -225,25 +245,11 @@ class RasterDomain(object):
         Combine rain, infiltration etc. into a unique array 'ext' in m/s
         rainfall and infiltration are considered in mm/h,
         in_q and q_drain in m/s
-        send relevant values to MassBal
         """
-        mmh_to_ms = 1000. * 3600.
-        #~ # mass balance in m3
-        #~ if self.massbal:
-            #~ surf_dt = self.dx * self.dy * self.dt
-            #~ rain_vol = (bn.nansum(in_rain[np.logical_not(self.mask)]) /
-                        #~ mmh_to_ms * surf_dt)
-            #~ inf_vol = (bn.nansum(in_inf[np.logical_not(self.mask)]) /
-                       #~ mmh_to_ms * surf_dt)
-            #~ inflow_vol = bn.nansum(in_q[np.logical_not(self.mask)]) * surf_dt
-            #~ self.massbal.add_value('rain_vol', rain_vol)
-            #~ self.massbal.add_value('inf_vol', inf_vol)
-            #~ self.massbal.add_value('inflow_vol', inflow_vol)
-        
         if any([self.isnew[k] for k in self.k_ext]):
             flow.set_ext_array(self.arr['in_q'], self.arr['rain'],
                                self.arr['inf'], self.arr['q_drain'],
-                               self.arr['ext'], mmh_to_ms)
+                               self.arr['ext'], self.mmh_to_ms)
             self.isnew['ext'] = True
         else:
             self.isnew['ext'] = False
@@ -275,3 +281,8 @@ class RasterDomain(object):
         """return maximum value of an unpadded array
         """
         return np.amax(self.arr[k])
+
+    def masked_sum(self, k):
+        """return the sum of an unpadded array, only for the area of the mask
+        """
+        return bn.nansum(self.arr[k][np.logical_not(self.mask)])
