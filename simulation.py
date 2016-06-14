@@ -17,6 +17,7 @@ import csv
 import warnings
 from datetime import datetime, timedelta
 import numpy as np
+import copy
 
 import domain
 from rasterdomain import RasterDomain
@@ -192,7 +193,7 @@ class SimulationManager(object):
                              timedelta(seconds=self.surf_sim.sim_clock))
             self.dt = self.surf_sim.dt
             if self.massbal:
-                self.massbal.add_value('tstep', self.dt)
+                self.massbal.read_values(self.dt)
             # write simulation results
             rec_time = self.surf_sim.sim_clock / self.record_step.total_seconds()
             if rec_time >= record_counter:
@@ -256,7 +257,7 @@ class SimulationManager(object):
         return self
 
     def write_error_to_gis(self, arr_error):
-        '''Write a given depth array and boolean error array to the GIS
+        '''Write a given depth array to the GIS
         '''
         map_h_name = "{}_error".format(self.out_map_names['out_h'])
         self.gis.write_raster_map(self.rast_domain.get_unmasked('h'),
@@ -316,7 +317,8 @@ class MassBal(object):
                        'boundary_vol', 'rain_vol', 'inf_vol',
                        'inflow_vol', 'hfix_vol',
                        'domain_vol', 'vol_error', '%error',
-                       'comp_duration', 'avg_cell_per_sec']
+                       #~ 'comp_duration', 'avg_cell_per_sec'
+                       ]
         # data written to file as one line
         self.line = dict.fromkeys(self.fields)
         # data collected during simulation
@@ -328,6 +330,9 @@ class MassBal(object):
         # set file name and create file
         self.file_name = self.set_file_name(file_name)
         self.create_file()
+        # water volume in the domain
+        self.old_dom_vol = 0.
+        self.new_dom_vol = 0.
 
     def set_file_name(self, file_name):
         '''Generate output file name
@@ -348,15 +353,24 @@ class MassBal(object):
     def read_values(self, dt):
         """Read values from RasterDomain
         """
+        self.read_dom_vol()
         self.sim_data['tstep'].append(dt)
         self.sim_data['boundary_vol'].append(self.dom.boundary_vol)
         self.sim_data['rain_vol'].append(self.dom.rain_q * dt)
         self.sim_data['inf_vol'].append(self.dom.inf_q * dt)
         self.sim_data['inflow_vol'].append(self.dom.inflow_q * dt)
-        self.sim_data['old_dom_vol'].append(dt)
-        self.sim_data['new_dom_vol'].append(dt)
+        self.sim_data['old_dom_vol'].append(self.old_dom_vol)
+        self.sim_data['new_dom_vol'].append(self.new_dom_vol)
         #~ self.sim_data['step_duration'].append(dt)
-        self.sim_data['hfix_vol'].append(dt)
+        self.sim_data['hfix_vol'].append(self.dom.hfix_vol)
+        return self
+
+    def read_dom_vol(self):
+        """read new domain volume
+        store the current volume as old domain volume
+        """
+        self.old_dom_vol = copy.copy(self.new_dom_vol)
+        self.new_dom_vol = self.dom.water_volume
         return self
 
     def add_value(self, key, value):

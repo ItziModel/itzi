@@ -28,7 +28,7 @@ import flow
 class TimedArray(object):
     """A container for np.ndarray with time informations.
     Update the array value according to the simulation time.
-    array is accessed via get_array()
+    array is accessed via get()
     """
     def __init__(self, mkey, igis, f_arr_def):
         assert isinstance(mkey, basestring), "not a string!"
@@ -107,6 +107,10 @@ class RasterDomain(object):
         self.hfix_vol = 0.
         # volume of water in the domain
         self.water_volume = 0.
+        # flows sum
+        self.rain_q = 0.
+        self.inf_q = 0.
+        self.inflow_q = 0.
 
         # slice for a simple padding (allow stencil calculation on boundary)
         self.simple_pad = (slice(1,-1), slice(1,-1))
@@ -222,18 +226,23 @@ class RasterDomain(object):
                     # must run update_flow_dir() in SuperficialSimulation
                 elif k == 'n':
                     default_value = 1
-                elif k == 'h':
-                    self.water_volume = self.cell_surf * self.masked_sum('h')
-                elif k == 'rain':
-                    self.rain_q = self.masked_sum('rain') / self.mmh_to_ms * self.cell_surf
-                elif k == 'inf':
-                    self.inf_q = self.masked_sum('inf') / self.mmh_to_ms * self.cell_surf
-                elif k == 'in_q':
-                    self.inflow_q = self.masked_sum('in_q') * self.cell_surf
                 else:
                     default_value = 0
                 # mask arrays
                 self.arr[k][:] = self.mask_array(self.arr[k], default_value)
+                # calculate statistics
+                if k == 'h':
+                    self.water_volume = self.cell_surf * self.masked_sum('h')
+                elif k == 'rain':
+                    self.rain_q = self.masked_sum('rain') / self.mmh_to_ms * self.cell_surf
+                    print self.get('rain')
+                    print self.rain_q
+                elif k == 'in_inf':
+                    self.inf_q = self.masked_sum('in_inf') / self.mmh_to_ms * self.cell_surf
+                elif k == 'in_q':
+                    self.inflow_q = self.masked_sum('in_q') * self.cell_surf
+                else:
+                    pass
             else:
                 self.isnew[k] = False
         # update ext array
@@ -268,7 +277,7 @@ class RasterDomain(object):
         return self.arr[k]
 
     def get_padded(self, k):
-        """return the unpadded, masked array of key 'k'
+        """return the padded, masked array of key 'k'
         """
         return self.arrp[k]
 
@@ -285,4 +294,5 @@ class RasterDomain(object):
     def masked_sum(self, k):
         """return the sum of an unpadded array, only for the area of the mask
         """
-        return bn.nansum(self.arr[k][np.logical_not(self.mask)])
+        #~ return bn.nansum(self.arr[k][np.logical_not(self.mask)])
+        return bn.nansum(self.unmask_array(self.arr[k]))
