@@ -17,3 +17,12 @@ GNU General Public License for more details.
 class NullError(Exception):
     """Raised when null values is detected in simulation"""
     pass
+
+
+class DtError(Exception):
+    """Error related to time-step calculation
+    """
+    def __init__(self, msg):
+        self.msg = msg
+    def __str__(self):
+        return repr(self.msg)

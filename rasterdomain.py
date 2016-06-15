@@ -105,12 +105,10 @@ class RasterDomain(object):
         self.boundary_vol = 0.
         # volume passing through in-domain fixed depth boundaries
         self.hfix_vol = 0.
-        # volume of water in the domain
-        self.water_volume = 0.
         # flows sum
-        self.rain_q = 0.
-        self.inf_q = 0.
-        self.inflow_q = 0.
+        self._rain_q = 0.
+        self._inf_q = 0.
+        self._inflow_q = 0.
 
         # slice for a simple padding (allow stencil calculation on boundary)
         self.simple_pad = (slice(1,-1), slice(1,-1))
@@ -152,6 +150,29 @@ class RasterDomain(object):
 
         # Instantiate TimedArrays
         self.create_timed_arrays()
+
+    @property
+    def water_volume(self):
+        """get current water volume in the domain"""
+        return self.asum('h') * self.cell_surf
+
+    @property
+    def inf_q(self):
+        if self.isnew['inf']:
+            self._inf_q = self.asum('inf') / self.mmh_to_ms * self.cell_surf
+        return self._inf_q
+
+    @property
+    def rain_q(self):
+        if self.isnew['rain']:
+            self._rain_q = self.asum('rain') / self.mmh_to_ms * self.cell_surf
+        return self._rain_q
+
+    @property
+    def inflow_q(self):
+        if self.isnew['in_q']:
+            self._inflow_q = self.asum('in_q') * self.cell_surf
+        return self._inflow_q
 
     def zeros_array(self):
         """return a np array of the domain dimension, filled with zeros
@@ -203,7 +224,7 @@ class RasterDomain(object):
         mask = np.logical_or(np.isnan(arr), self.mask)
         arr[mask] = default_value
         assert not np.any(np.isnan(arr))
-        return arr
+        return self
 
     def unmask_array(self, arr):
         '''Replace values in the input array by NULL values from mask
@@ -213,40 +234,33 @@ class RasterDomain(object):
         return unmasked_array
 
     def update_input_arrays(self, sim_time):
-        """get new array using TimedArray
+        """Get new array using TimedArray
+        First update the DEM and mask if needed
         Replace the NULL values (mask)
         """
+        # make sure DEM is treated first
+        if not self.tarr['z'].is_valid(sim_time):
+            self.arr['z'][:] = self.tarr['z'].get(sim_time)
+            self.isnew['z'] = True
+            # note: must run update_flow_dir() in SuperficialSimulation
+            self.update_mask(self.arr['z'])
+            self.mask_array(self.arr['z'], np.finfo(self.dtype).max)
+
+        # loop through the other arrays
         for k, ta in self.tarr.iteritems():
             if not ta.is_valid(sim_time):
+                if k == 'z':
+                    continue  # z is done before
                 self.arr[k][:] = ta.get(sim_time)
                 self.isnew[k] = True
-                if k == 'z':
-                    self.update_mask(self.arr[k])
-                    default_value = np.finfo(self.dtype).max
-                    # must run update_flow_dir() in SuperficialSimulation
-                elif k == 'n':
+                if k == 'n':
                     default_value = 1
                 else:
                     default_value = 0
                 # mask arrays
-                self.arr[k][:] = self.mask_array(self.arr[k], default_value)
-                # calculate statistics
-                if k == 'h':
-                    self.water_volume = self.cell_surf * self.masked_sum('h')
-                elif k == 'rain':
-                    self.rain_q = self.masked_sum('rain') / self.mmh_to_ms * self.cell_surf
-                    print self.get('rain')
-                    print self.rain_q
-                elif k == 'in_inf':
-                    self.inf_q = self.masked_sum('in_inf') / self.mmh_to_ms * self.cell_surf
-                elif k == 'in_q':
-                    self.inflow_q = self.masked_sum('in_q') * self.cell_surf
-                else:
-                    pass
+                self.mask_array(self.arr[k], default_value)
             else:
                 self.isnew[k] = False
-        # update ext array
-        self.update_ext_array()
         return self
 
     def update_ext_array(self):
@@ -263,6 +277,24 @@ class RasterDomain(object):
         else:
             self.isnew['ext'] = False
         return self
+
+    def get_output_arrays(self):
+        """Returns a dict of unmasked arrays
+        """
+        out_arrays = {}
+        if self.out_map_names['out_h'] is not None:
+            out_arrays['out_h'] = self.get_unmasked('h')
+        if self.out_map_names['out_wse']  is not None:
+            out_arrays['out_wse'] = self.get_unmasked('h') + self.get('z')
+        if self.out_map_names['out_v']  is not None:
+            out_arrays['out_v'] = self.get_unmasked('v')
+        if self.out_map_names['out_vdir']  is not None:
+            out_arrays['out_vdir'] = self.get_unmasked('vdir')
+        if self.out_map_names['out_qx']  is not None:
+            out_arrays['out_qx'] = self.get_unmasked('qe_new') * self.dy
+        if self.out_map_names['out_qy']  is not None:
+            out_arrays['out_qy'] = self.get_unmasked('qs_new') * self.dx
+        return out_arrays
 
     def swap_arrays(self, k1, k2):
         """swap values of two arrays
@@ -291,8 +323,8 @@ class RasterDomain(object):
         """
         return np.amax(self.arr[k])
 
-    def masked_sum(self, k):
-        """return the sum of an unpadded array, only for the area of the mask
+    def asum(self, k):
+        """return the sum of an unpadded array
+        values outside the proper domain are the defaults values
         """
-        #~ return bn.nansum(self.arr[k][np.logical_not(self.mask)])
-        return bn.nansum(self.unmask_array(self.arr[k]))
+        return np.sum(self.arr[k])

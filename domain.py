@@ -14,6 +14,7 @@ GNU General Public License for more details.
 """
 from __future__ import division
 import math
+from datetime import timedelta
 import numpy as np
 try:
     import bottleneck as bn
@@ -22,7 +23,7 @@ except ImportError:
 
 import flow
 import time
-from itzi_error import NullError
+from itzi_error import NullError, DtError
 
 
 class SuperficialSimulation(object):
@@ -33,10 +34,8 @@ class SuperficialSimulation(object):
      - positive from West to East and from North to South
     """
 
-    def __init__(self, domain, param,
-                 sim_clock=0):
+    def __init__(self, domain, param):
         self.dom = domain
-        self.sim_clock = sim_clock
         self.dtmax = param['dtmax']
         self.cfl = param['cfl']
         self.g = param['g']
@@ -47,6 +46,8 @@ class SuperficialSimulation(object):
         self.dx = domain.dx
         self.dy = domain.dy
         self.cell_surf = self.dx * self.dy
+
+        self._dt = None
 
         # Slices for upstream and downstream cells on a padded array
         self.su = slice(None, -2)
@@ -96,11 +97,10 @@ class SuperficialSimulation(object):
         flow.flow_dir(arr_max_dz[self.s_i_0], dW, dE, self.dom.get('dire'))
         return self
 
-    def step(self, next_ts):
+    def step(self):
         """Run a full simulation time-step
         """
         start_time = time.time()
-        self.set_dt(next_ts)
         self.solve_q()
         self.apply_boundary_conditions()
         self.update_h()
@@ -113,7 +113,7 @@ class SuperficialSimulation(object):
         step_duration = end_time - start_time
         return self
 
-    def set_dt(self, next_ts):
+    def solve_dt(self):
         """Calculate the adaptative time-step
         The formula #15 in almeida et al (2012) has been modified to
         accomodate non-square cells
@@ -122,19 +122,31 @@ class SuperficialSimulation(object):
         maxh = self.dom.amax('h')  # max depth in domain
         min_dim = min(self.dx, self.dy)
         if maxh > 0:
-            self.dt = min(self.dtmax,
-                          self.cfl * (min_dim /
-                                      (math.sqrt(self.g * maxh))))
+            dt = self.cfl * (min_dim / (math.sqrt(self.g * maxh)))
+            self._dt = min(self.dtmax, dt)
         else:
-            self.dt = self.dtmax
-
-        # set sim_clock and check if timestep is within forced_timestep
-        if self.sim_clock + self.dt > next_ts:
-            self.dt = next_ts - self.sim_clock
-            self.sim_clock += self.dt
-        else:
-            self.sim_clock += self.dt
+            self._dt = self.dtmax
         return self
+
+    @property
+    def dt(self):
+        return timedelta(seconds=self._dt)
+
+    @dt.setter
+    def dt(self, newdt):
+        """return an error if new dt is higher than current one or negative
+        """
+        newdt_s = newdt.total_seconds()
+        fudge = timedelta.resolution.total_seconds()
+        if self._dt is None:
+            self._dt = newdt_s
+        elif newdt_s <= 0:
+            raise DtError(u"dt must be positive ({})".format(newdt_s))
+        elif newdt_s > self._dt + fudge:
+            raise DtError(u"new dt cannot be longer than current one "
+                          u"(old: {}, new: {})".format(self._dt, newdt_s))
+        else:
+            self._dt = newdt_s
 
     def domain_volume(self):
         '''return domain volume
@@ -156,7 +168,7 @@ class SuperficialSimulation(object):
                      arr_qn=flow_north, arr_qs=flow_south,
                      arr_bct=self.dom.get('bct'), arr_bcv=self.dom.get('bcv'),
                      arr_h=self.dom.get('h'), arr_hmax=self.dom.get('hmax'),
-                     dx=self.dx, dy=self.dy, dt=self.dt,
+                     dx=self.dx, dy=self.dy, dt=self._dt,
                      hfix_vol=self.dom.hfix_vol)
         assert not np.any(self.dom.get('h') < 0)
         return self
@@ -172,7 +184,7 @@ class SuperficialSimulation(object):
                      arr_hfe=self.dom.get('hfe'), arr_hfs=self.dom.get('hfs'),
                      arr_v=self.dom.get('v'), arr_vdir=self.dom.get('vdir'),
                      arr_vmax=self.dom.get('vmax'),
-                     dt=self.dt, dx=self.dx, dy=self.dy, g=self.g,
+                     dt=self._dt, dx=self.dx, dy=self.dy, g=self.g,
                      theta=self.theta, hf_min=self.hf_min,
                      v_rout=self.v_routing, sl_thres=self.sl_thresh)
         return self
@@ -241,25 +253,6 @@ class SuperficialSimulation(object):
         self.dom.swap_arrays('qe', 'qe_new')
         self.dom.swap_arrays('qs', 'qs_new')
         return self
-
-    def get_output_arrays(self, out_names):
-        """Takes a dict of map names
-        return a dict of unmasked arrays
-        """
-        out_arrays = {}
-        if out_names['out_h'] is not None:
-            out_arrays['out_h'] = self.dom.get_unmasked('h')
-        if out_names['out_wse']  is not None:
-            out_arrays['out_wse'] = self.dom.get_unmasked('h') + self.dom.get('z')
-        if out_names['out_v']  is not None:
-            out_arrays['out_v'] = self.dom.get_unmasked('v')
-        if out_names['out_vdir']  is not None:
-            out_arrays['out_vdir'] = self.dom.get_unmasked('vdir')
-        if out_names['out_qx']  is not None:
-            out_arrays['out_qx'] = self.dom.get_unmasked('qe_new') * self.dy
-        if out_names['out_qy']  is not None:
-            out_arrays['out_qy'] = self.dom.get_unmasked('qs_new') * self.dx
-        return out_arrays
 
 
 class Boundary(object):
