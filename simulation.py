@@ -415,7 +415,7 @@ class Report(object):
 
     def write_results_to_gis(self, sim_time):
         """Format the name of each maps using the record number as suffix
-        Send a couple array, name to the GIS writing function.
+        Send a tuple (array, name, key) to the GIS writing function.
         """
         for k, arr in self.output_arrays.iteritems():
             if isinstance(arr, np.ndarray):
