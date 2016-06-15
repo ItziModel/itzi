@@ -26,6 +26,21 @@ DTYPE = np.float32
 ctypedef np.float32_t DTYPE_t
 cdef float PI = 3.1415926535898
 
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+def arr_sum(DTYPE_t [:, :] arr):
+    '''Return the sum of an array using parallel reduction'''
+    cdef int rmax, cmax, r, c
+    cdef float asum = 0.
+    rmax = arr.shape[0]
+    cmax = arr.shape[1]
+    for r in prange(rmax, nogil=True):
+        for c in range(cmax):
+            asum += arr[r, c]
+    return asum
+
+
 @cython.wraparound(False)  # Disable negative index check
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
 def flow_dir(DTYPE_t [:, :] arr_max_dz, DTYPE_t [:, :] arr_dz0,

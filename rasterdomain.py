@@ -127,7 +127,7 @@ class RasterDomain(object):
         self.k_input = self.in_k_corresp.keys()
         self.k_internal = ['inf', 'hmax', 'ext', 'y', 'hfe', 'hfs',
                            'qe', 'qs', 'qe_new', 'qs_new',
-                           'ue', 'us', 'ue_max', 'us_max', 'v', 'vdir', 'vmax',
+                           'ue', 'us', 'v', 'vdir', 'vmax',
                            'bvol', 'q_drain', 'dire', 'dirs']
         self.k_all = self.k_input + self.k_internal
         # maps used to calculate external value
@@ -327,4 +327,4 @@ class RasterDomain(object):
         """return the sum of an unpadded array
         values outside the proper domain are the defaults values
         """
-        return np.sum(self.arr[k])
+        return flow.arr_sum(self.arr[k])
