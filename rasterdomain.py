@@ -20,6 +20,8 @@ try:
     import bottleneck as bn
 except ImportError:
     bn = np
+import csv
+import copy
 
 import gis
 import flow
@@ -101,14 +103,10 @@ class RasterDomain(object):
         # conversion factor between mm/h and m/s
         self.mmh_to_ms = 1000. * 3600.
 
-        # volume passing through domain boundaries
-        self.boundary_vol = 0.
-        # volume passing through in-domain fixed depth boundaries
-        self.hfix_vol = 0.
-        # flows sum
-        self._rain_q = 0.
-        self._inf_q = 0.
-        self._inflow_q = 0.
+        # number of cells in a row must be a multiple of that number
+        byte_num = 256 / 8  # AVX2
+        itemsize = np.dtype(self.dtype).itemsize
+        self.row_mul = int(byte_num / itemsize)
 
         # slice for a simple padding (allow stencil calculation on boundary)
         self.simple_pad = (slice(1,-1), slice(1,-1))
@@ -128,16 +126,24 @@ class RasterDomain(object):
         self.k_internal = ['inf', 'hmax', 'ext', 'y', 'hfe', 'hfs',
                            'qe', 'qs', 'qe_new', 'qs_new',
                            'ue', 'us', 'v', 'vdir', 'vmax',
-                           'bvol', 'q_drain', 'dire', 'dirs']
-        self.k_all = self.k_input + self.k_internal
+                           'q_drain', 'dire', 'dirs']
+        # arrays gathering the cumulated water depth from corresponding array
+        self.k_stats = ['st_bound', 'st_inf', 'st_rain', 'st_inflow',
+                        'st_drain', 'st_hfix']
+        self.stats_corresp = {'inf': 'st_inf', 'rain': 'st_rain',
+                              'in_q': 'st_inflow', 'q_drain': 'st_drain'}
+        self.k_all = self.k_input + self.k_internal + self.k_stats
         # maps used to calculate external value
         self.k_ext = ['rain', 'inf', 'q_drain', 'in_q']
+        # last update of statistical map entry
+        self.stats_update_time = dict.fromkeys(self.k_stats)
 
         # dictionnary of unmasked input tarrays
         self.tarr = dict.fromkeys(self.k_input)
 
         # boolean dict that indicate if an array has been updated
         self.isnew = dict.fromkeys(self.k_all, True)
+        self.isnew['q_drain'] = False
 
         # create an array mask
         self.mask = np.full(shape=self.shape,
@@ -157,27 +163,33 @@ class RasterDomain(object):
         return self.asum('h') * self.cell_surf
 
     @property
-    def inf_q(self):
-        if self.isnew['inf']:
-            self._inf_q = self.asum('inf') / self.mmh_to_ms * self.cell_surf
-        return self._inf_q
+    def inf_vol(self):
+        return self.asum('st_inf') * self.cell_surf
 
     @property
-    def rain_q(self):
-        if self.isnew['rain']:
-            self._rain_q = self.asum('rain') / self.mmh_to_ms * self.cell_surf
-        return self._rain_q
+    def rain_vol(self):
+        return self.asum('st_rain') * self.cell_surf
 
     @property
-    def inflow_q(self):
-        if self.isnew['in_q']:
-            self._inflow_q = self.asum('in_q') * self.cell_surf
-        return self._inflow_q
+    def inflow_vol(self):
+        return self.asum('st_inflow') * self.cell_surf
+
+    @property
+    def hfix_vol(self):
+        return self.asum('st_hfix') * self.cell_surf
+
+    @property
+    def drain_vol(self):
+        return self.asum('st_drain') * self.cell_surf
+
+    @property
+    def boundary_vol(self):
+        return self.asum('st_bound') * self.cell_surf
 
     def zeros_array(self):
-        """return a np array of the domain dimension, filled with zeros
+        """return a np array of the domain dimension, filled with zeros.
         dtype is set to object's dtype.
-        Intended to be used as default for most of the input model maps
+        Intended to be used as default for the input model maps.
         """
         return np.zeros(shape=self.shape, dtype=self.dtype)
 
@@ -188,13 +200,6 @@ class RasterDomain(object):
         arr_p = np.pad(arr, 1, 'edge')
         arr = arr_p[self.simple_pad]
         return arr, arr_p
-
-    #~ def ones_array(self):
-        #~ """return a np array of the domain dimension, filled with ones
-        #~ dtype is set to unsigned integer.
-        #~ Intended to be used as default for bctype map
-        #~ """
-        #~ return np.ones(shape=self.shape, dtype=self.dtype)
 
     def create_timed_arrays(self):
         """Create TimedArray objects and store them in the input dict
@@ -246,27 +251,61 @@ class RasterDomain(object):
             self.update_mask(self.arr['z'])
             self.mask_array(self.arr['z'], np.finfo(self.dtype).max)
 
-        # loop through the other arrays
+        # loop through the arrays
         for k, ta in self.tarr.iteritems():
             if not ta.is_valid(sim_time):
+                # z is done before
                 if k == 'z':
-                    continue  # z is done before
+                    continue
+                # calculate statistics before updating array
+                if k in self.k_ext:
+                    self.__populate_stat_array(k, sim_time)
+                # update array
+                self.gis.msgr.verbose(u"{}: update input array <{}>".format(sim_time, k))
                 self.arr[k][:] = ta.get(sim_time)
                 self.isnew[k] = True
                 if k == 'n':
-                    default_value = 1
+                    fill_value = 1
                 else:
-                    default_value = 0
+                    fill_value = 0
                 # mask arrays
-                self.mask_array(self.arr[k], default_value)
+                self.mask_array(self.arr[k], fill_value)
             else:
                 self.isnew[k] = False
+        # calculate water volume at the beginning of the simulation
+        if self.isnew['h']:
+            self.start_volume = self.asum('h')
         return self
 
+    def __populate_stat_array(self, k, sim_time):
+        """given an external input array key,
+        populate the corresponding statistic array.
+        If it's the first update, only check in the time.
+        """
+        sk = self.stats_corresp[k]
+        update_time = self.stats_update_time[sk]
+
+        # make sure everything is in m/s
+        if k in ['rain', 'inf']:
+            conv_factor = 1 / self.mmh_to_ms
+        else:
+            conv_factor = 1.
+
+        if self.stats_update_time[sk] is None:
+                self.stats_update_time[sk] = sim_time
+        else:
+            self.gis.msgr.verbose(u"{}: Populating array <{}>".format(sim_time, sk))
+            time_diff = (sim_time - update_time).total_seconds()
+            self.arr[sk] += self.arr[k] * conv_factor * time_diff
+            print('k: ', self.arr[k][750, 1000])
+            print('sk: ', self.arr[sk][750, 1000])
+            self.stats_update_time[k] = sim_time
+        return None
+
     def update_ext_array(self):
-        """If one of the 
-        Combine rain, infiltration etc. into a unique array 'ext' in m/s
-        rainfall and infiltration are considered in mm/h,
+        """If one of the input array has been updated,
+        combine rain, infiltration etc. into a unique array 'ext' in m/s.
+        Rainfall and infiltration are considered in mm/h,
         in_q and q_drain in m/s
         """
         if any([self.isnew[k] for k in self.k_ext]):
@@ -279,7 +318,7 @@ class RasterDomain(object):
         return self
 
     def get_output_arrays(self):
-        """Returns a dict of unmasked arrays
+        """Returns a dict of unmasked arrays to be written to the disk
         """
         out_arrays = {}
         if self.out_map_names['out_h'] is not None:
@@ -328,3 +367,12 @@ class RasterDomain(object):
         values outside the proper domain are the defaults values
         """
         return flow.arr_sum(self.arr[k])
+
+    def reset_stats(self, sim_time):
+        """Set stats arrays to zeros and the update time to current time
+        """
+        for k in ['st_bound', 'st_inf', 'st_rain',
+                  'st_inflow', 'st_drain', 'st_hfix']:
+            self.arr[k][:] = 0.
+            self.stats_update_time[k] = sim_time
+        return self

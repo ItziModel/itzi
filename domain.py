@@ -168,8 +168,8 @@ class SuperficialSimulation(object):
                      arr_qn=flow_north, arr_qs=flow_south,
                      arr_bct=self.dom.get('bct'), arr_bcv=self.dom.get('bcv'),
                      arr_h=self.dom.get('h'), arr_hmax=self.dom.get('hmax'),
-                     dx=self.dx, dy=self.dy, dt=self._dt,
-                     hfix_vol=self.dom.hfix_vol)
+                     arr_hfix=self.dom.get('st_hfix'),
+                     dx=self.dx, dy=self.dy, dt=self._dt)
         assert not np.any(self.dom.get('h') < 0)
         return self
 
@@ -235,16 +235,11 @@ class SuperficialSimulation(object):
                                           bctype=self.dom.get('bct')[-1],
                                           bcvalue=self.dom.get('bcv')[-1],
                                           qboundary=s_boundary_flow)
-        # calculate volume entering through boundaries
-        x_boundary_len = (w_boundary_flow.shape[0] +
-                          e_boundary_flow.shape[0]) * self.dy
-        y_boundary_len = (n_boundary_flow.shape[0] +
-                          s_boundary_flow.shape[0]) * self.dx
-        x_boundary_flow = (bn.nansum(w_boundary_flow) -
-                           bn.nansum(e_boundary_flow)) * x_boundary_len
-        y_boundary_flow = (bn.nansum(n_boundary_flow) -
-                           bn.nansum(s_boundary_flow)) * y_boundary_len
-        self.dom.boundary_vol = (x_boundary_flow + y_boundary_flow)
+        # add equivalent water depth passing through the boundaries to the statistic array
+        self.dom.get('st_bound')[1:-1, 0] += w_boundary_flow[self.ss] / self._dt / self.dx
+        self.dom.get('st_bound')[:, -1] += e_boundary_flow / self._dt / self.dx
+        self.dom.get('st_bound')[0, 1:-1] += n_boundary_flow[self.ss] / self._dt / self.dy
+        self.dom.get('st_bound')[-1] += s_boundary_flow / self._dt / self.dy
         return self
 
     def swap_flow_arrays(self):

@@ -44,7 +44,7 @@ def arr_sum(DTYPE_t [:, :] arr):
 @cython.wraparound(False)  # Disable negative index check
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
 def flow_dir(DTYPE_t [:, :] arr_max_dz, DTYPE_t [:, :] arr_dz0,
-        DTYPE_t [:, :] arr_dz1, DTYPE_t [:, :] arr_dir):
+             DTYPE_t [:, :] arr_dz1, DTYPE_t [:, :] arr_dir):
     '''Populate arr_dir with a rain-routing direction:
     0: the flow is going dowstream, index-wise
     1: the flow is going upstream, index-wise
@@ -77,13 +77,14 @@ def flow_dir(DTYPE_t [:, :] arr_max_dz, DTYPE_t [:, :] arr_dz0,
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
 def solve_q(DTYPE_t [:, :] arr_dire, DTYPE_t [:, :] arr_dirs,
-        DTYPE_t [:, :] arr_z, DTYPE_t [:, :] arr_n, DTYPE_t [:, :] arr_h,
-        DTYPE_t [:, :] arrp_qe, DTYPE_t [:, :] arrp_qs,
-        DTYPE_t [:, :] arr_hfe, DTYPE_t [:, :] arr_hfs,
-        DTYPE_t [:, :] arr_qe_new, DTYPE_t [:, :] arr_qs_new,
-        DTYPE_t [:, :] arr_v, DTYPE_t [:, :] arr_vdir, DTYPE_t [:, :] arr_vmax,
-        float dt, float dx, float dy, float g,
-        float theta, float hf_min, float v_rout, float sl_thres):
+            DTYPE_t [:, :] arr_z, DTYPE_t [:, :] arr_n, DTYPE_t [:, :] arr_h,
+            DTYPE_t [:, :] arrp_qe, DTYPE_t [:, :] arrp_qs,
+            DTYPE_t [:, :] arr_hfe, DTYPE_t [:, :] arr_hfs,
+            DTYPE_t [:, :] arr_qe_new, DTYPE_t [:, :] arr_qs_new,
+            DTYPE_t [:, :] arr_v, DTYPE_t [:, :] arr_vdir,
+            DTYPE_t [:, :] arr_vmax,
+            float dt, float dx, float dy, float g,
+            float theta, float hf_min, float v_rout, float sl_thres):
     '''Calculate hflow in m, flow in m2/s,
     velocity magnitude in m/s and direction in degree
     '''
@@ -116,7 +117,7 @@ def solve_q(DTYPE_t [:, :] arr_dire, DTYPE_t [:, :] arr_dirs,
                 ze = arr_z[r, c+1]
                 h_e = arr_h[r, c+1]
                 wse_e = ze + h_e
-                # acerage friction
+                # average friction
                 ne = 0.5 * (n0 + arr_n[r,c+1])
                 # qnorm
                 # calculate average flow from stencil
@@ -161,7 +162,7 @@ def solve_q(DTYPE_t [:, :] arr_dire, DTYPE_t [:, :] arr_dirs,
                 zs = arr_z[r+1, c]
                 h_s = arr_h[r+1, c]
                 wse_s = zs + h_s
-                # acerage friction
+                # average friction
                 ns = 0.5 * (n0 + arr_n[r+1,c])
                 # qnorm
                 # calculate average flow from stencil
@@ -261,17 +262,17 @@ cdef float rain_routing(float h0, float wse0, float wse1, float dt,
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
 def solve_h(DTYPE_t [:, :] arr_ext,
-        DTYPE_t [:, :] arr_qe, DTYPE_t [:, :] arr_qw,
-        DTYPE_t [:, :] arr_qn, DTYPE_t [:, :] arr_qs,
-        DTYPE_t [:, :] arr_bct, DTYPE_t [:, :] arr_bcv,
-        DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_hmax,
-        float dx, float dy, float dt, float hfix_vol):
+            DTYPE_t [:, :] arr_qe, DTYPE_t [:, :] arr_qw,
+            DTYPE_t [:, :] arr_qn, DTYPE_t [:, :] arr_qs,
+            DTYPE_t [:, :] arr_bct, DTYPE_t [:, :] arr_bcv,
+            DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_hmax,
+            DTYPE_t [:, :] arr_hfix,
+            float dx, float dy, float dt):
     '''Update the water depth and max depth
     Adjust water depth according to in-domain 'boundary' condition
     '''
     cdef int rmax, cmax, r, c
     cdef float qext, qe, qw, qn, qs, h, q_sum, h_new, hmax, bct, bcv
-    cdef float hfix_h = 0.
 
     rmax = arr_qe.shape[0]
     cmax = arr_qe.shape[1]
@@ -293,14 +294,12 @@ def solve_h(DTYPE_t [:, :] arr_ext,
             # Apply fixed water level
             if bct == 4:
                 # Positive if water enters the domain
-                hfix_h += (bcv - h_new)
+                arr_hfix[r, c] += bcv - h_new
                 h_new = bcv
             # Update max depth array
             arr_hmax[r, c] = max(h_new, hmax)
             # Update depth array
             arr_h[r, c] = h_new
-    # calculate volume entering or leaving the domain by hfix condition
-    hfix_vol = hfix_h * dx * dy
 
 
 @cython.wraparound(False)  # Disable negative index check

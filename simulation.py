@@ -13,14 +13,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 from __future__ import division
-import csv
+from __future__ import print_function
 import warnings
 from datetime import datetime, timedelta
 import numpy as np
-import copy
 
 import domain
 from rasterdomain import RasterDomain
+from massbalance import MassBal
 import gis
 import flow
 import infiltration
@@ -209,158 +209,19 @@ class SimulationManager(object):
         self.next_ts['surf'] += self.surf_sim.dt
 
         if self.massbal:
-            self.massbal.read_values(self.dt.total_seconds())
+            self.massbal.add_value('tstep', self.dt.total_seconds())
         # write simulation results
         if self.sim_time >= self.next_ts['rec']:
             self.gis.msgr.verbose(_(u"{}: Writting output maps...".format(self.sim_time)))
             self.report.step(self.sim_time)
             self.next_ts['rec'] += self.record_step
+            # reset statistic maps
+            self.rast_domain.reset_stats(self.sim_time)
 
         # find next step
         self.nextstep = min(self.next_ts.values())
         self.next_ts['surf'] = self.nextstep
         self.dt = self.nextstep - self.sim_time
-        return self
-
-
-class MassBal(object):
-    """Follow-up the mass balance during the simulation run
-    Mass balance error is the difference between the actual volume and
-    the theoretical volume. The later is the old volume + input - output.
-    Intended use:
-    at each record time, using write_values():
-    averaged or cumulated values for the considered time difference are
-    written to a CSV file
-    """
-    def __init__(self, file_name, rast_dom):
-        self.dom = rast_dom
-        # values to be written on each record time
-        self.fields = ['sim_time',  # either seconds or datetime
-                       'avg_timestep', '#timesteps',
-                       'boundary_vol', 'rain_vol', 'inf_vol',
-                       'inflow_vol', 'hfix_vol',
-                       'domain_vol', 'vol_error', '%error',
-                       #~ 'comp_duration', 'avg_cell_per_sec'
-                       ]
-        # data written to file as one line
-        self.line = dict.fromkeys(self.fields)
-        # data collected during simulation
-        self.sim_data = {'tstep': [], 'boundary_vol': [],
-                         'rain_vol': [], 'inf_vol': [], 'inflow_vol': [],
-                         'old_dom_vol': [], 'new_dom_vol': [],
-                         #~ 'step_duration': [],
-                         'hfix_vol': []}
-        # set file name and create file
-        self.file_name = self.set_file_name(file_name)
-        self.create_file()
-        # water volume in the domain
-        self.old_dom_vol = 0.
-        self.new_dom_vol = 0.
-
-    def set_file_name(self, file_name):
-        '''Generate output file name
-        '''
-        if not file_name:
-            file_name = "{}_stats.csv".format(
-                str(datetime.now().strftime('%Y-%m-%dT%H:%M:%S')))
-        return file_name
-
-    def create_file(self):
-        '''Create a csv file and write headers
-        '''
-        with open(self.file_name, 'w') as f:
-            writer = csv.DictWriter(f, fieldnames=self.fields)
-            writer.writeheader()
-        return self
-
-    def read_values(self, dt):
-        """Read values from RasterDomain
-        """
-        self.read_dom_vol()
-        self.sim_data['tstep'].append(dt)
-        self.sim_data['boundary_vol'].append(self.dom.boundary_vol)
-        self.sim_data['rain_vol'].append(self.dom.rain_q * dt)
-        self.sim_data['inf_vol'].append(self.dom.inf_q * dt)
-        self.sim_data['inflow_vol'].append(self.dom.inflow_q * dt)
-        self.sim_data['old_dom_vol'].append(self.old_dom_vol)
-        self.sim_data['new_dom_vol'].append(self.new_dom_vol)
-        #~ self.sim_data['step_duration'].append(dt)
-        self.sim_data['hfix_vol'].append(self.dom.hfix_vol)
-        return self
-
-    def read_dom_vol(self):
-        """read new domain volume
-        store the current volume as old domain volume
-        """
-        self.old_dom_vol = copy.copy(self.new_dom_vol)
-        self.new_dom_vol = self.dom.water_volume
-        return self
-
-    def add_value(self, key, value):
-        '''add a value to sim_data
-        '''
-        assert key in self.sim_data, "unknown key!"
-        self.sim_data[key].append(value)
-        return self
-
-    def write_values(self, sim_time):
-        '''Calculate statistics and write them to the file
-        '''
-        # check if all elements have the same number of records
-        rec_len = [len(l) for l in self.sim_data.values()]
-        assert rec_len[1:] == rec_len[:-1], "inconsistent number of records!"
-
-        self.line['sim_time'] = sim_time
-        # number of time-step during the interval is the number of records
-        self.line['#timesteps'] = len(self.sim_data['tstep'])
-        # average time-step calculation
-        elapsed_time = sum(self.sim_data['tstep'])
-        avg_timestep = elapsed_time / self.line['#timesteps']
-        self.line['avg_timestep'] = '{:.3f}'.format(avg_timestep)
-
-        # sum of inflow (positive) / outflow (negative) volumes
-        boundary_vol = sum(self.sim_data['boundary_vol'])
-        self.line['boundary_vol'] = '{:.3f}'.format(boundary_vol)
-        rain_vol = sum(self.sim_data['rain_vol'])
-        self.line['rain_vol'] = '{:.3f}'.format(rain_vol)
-        inf_vol = - sum(self.sim_data['inf_vol'])
-        self.line['inf_vol'] = '{:.3f}'.format(inf_vol)
-        inflow_vol = sum(self.sim_data['inflow_vol'])
-        self.line['inflow_vol'] = '{:.3f}'.format(inflow_vol)
-        hfix_vol = sum(self.sim_data['hfix_vol'])
-        self.line['hfix_vol'] = '{:.3f}'.format(hfix_vol)
-
-        # For domain volume, take last value(i.e. current)
-        last_vol = self.sim_data['new_dom_vol'][-1]
-        self.line['domain_vol'] = '{:.3f}'.format(last_vol)
-
-        # mass error is difference between theoretical volume and actual volume
-        first_vol = self.sim_data['old_dom_vol'][0]
-        sum_ext_vol = sum([boundary_vol, rain_vol, inf_vol,
-                           inflow_vol, hfix_vol])
-        dom_vol_theor = first_vol + sum_ext_vol
-        vol_error = last_vol - dom_vol_theor
-        self.line['vol_error'] = '{:.3f}'.format(vol_error)
-        if last_vol <= 0:
-            self.line['%error'] = '-'
-        else:
-            self.line['%error'] = '{:.2%}'.format(vol_error / last_vol)
-
-        # Performance
-        #~ comp_duration = sum(self.sim_data['step_duration'])
-        #~ self.line['comp_duration'] = '{:.3f}'.format(comp_duration)
-        #~ # Average step computation time
-        #~ avg_comp_time = comp_duration / rec_len[0]
-        #~ self.line['avg_cell_per_sec'] = int(self.dom_size / avg_comp_time)
-
-        # Add line to file
-        with open(self.file_name, 'a') as f:
-            writer = csv.DictWriter(f, fieldnames=self.fields)
-            writer.writerow(self.line)
-
-        # empty dictionaries
-        self.sim_data = {k: [] for k in self.sim_data.keys()}
-        self.line = dict.fromkeys(self.line.keys())
         return self
 
 
