@@ -135,7 +135,8 @@ class SimulationManager(object):
 
         # Instantiate Massbal object
         if self.stats_file:
-            self.massbal = MassBal(self.stats_file, self.rast_domain)
+            self.massbal = MassBal(self.stats_file, self.rast_domain,
+                                   self.start_time, self.temporal_type)
         else:
             self.massbal = None
         # reporting object
@@ -246,8 +247,6 @@ class Report(object):
         self.output_arrays = self.rast_dom.get_output_arrays()
         self.write_results_to_gis(sim_time)
         if self.massbal:
-            if self.temporal_type == 'relative':
-                sim_time = sim_time - datetime.min
             self.write_mass_balance(sim_time)
         self.record_counter += 1
         return self
@@ -257,9 +256,8 @@ class Report(object):
         register maps in gis
         write max level maps
         """
+        assert isinstance(sim_time, datetime)
         if self.massbal:
-            if self.temporal_type == 'relative':
-                sim_time = sim_time - datetime.min
             self.write_mass_balance(sim_time)
         self.register_results_in_gis()
         if self.out_map_names['out_h']:

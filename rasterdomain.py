@@ -157,32 +157,29 @@ class RasterDomain(object):
         # Instantiate TimedArrays
         self.create_timed_arrays()
 
-    @property
     def water_volume(self):
         """get current water volume in the domain"""
         return self.asum('h') * self.cell_surf
 
-    @property
-    def inf_vol(self):
+    def inf_vol(self, sim_time):
+        self.__populate_stat_array('inf', sim_time)
         return self.asum('st_inf') * self.cell_surf
 
-    @property
-    def rain_vol(self):
+    def rain_vol(self, sim_time):
+        self.__populate_stat_array('rain', sim_time)
         return self.asum('st_rain') * self.cell_surf
 
-    @property
-    def inflow_vol(self):
+    def inflow_vol(self, sim_time):
+        self.__populate_stat_array('in_q', sim_time)
         return self.asum('st_inflow') * self.cell_surf
 
-    @property
+    def drain_vol(self, sim_time):
+        self.__populate_stat_array('drain', sim_time)
+        return self.asum('st_drain') * self.cell_surf
+
     def hfix_vol(self):
         return self.asum('st_hfix') * self.cell_surf
 
-    @property
-    def drain_vol(self):
-        return self.asum('st_drain') * self.cell_surf
-
-    @property
     def boundary_vol(self):
         return self.asum('st_bound') * self.cell_surf
 
