@@ -162,19 +162,19 @@ class RasterDomain(object):
         return self.asum('h') * self.cell_surf
 
     def inf_vol(self, sim_time):
-        self.__populate_stat_array('inf', sim_time)
+        self.populate_stat_array('inf', sim_time)
         return self.asum('st_inf') * self.cell_surf
 
     def rain_vol(self, sim_time):
-        self.__populate_stat_array('rain', sim_time)
+        self.populate_stat_array('rain', sim_time)
         return self.asum('st_rain') * self.cell_surf
 
     def inflow_vol(self, sim_time):
-        self.__populate_stat_array('in_q', sim_time)
+        self.populate_stat_array('in_q', sim_time)
         return self.asum('st_inflow') * self.cell_surf
 
     def drain_vol(self, sim_time):
-        self.__populate_stat_array('drain', sim_time)
+        self.populate_stat_array('drain', sim_time)
         return self.asum('st_drain') * self.cell_surf
 
     def hfix_vol(self):
@@ -255,8 +255,8 @@ class RasterDomain(object):
                 if k == 'z':
                     continue
                 # calculate statistics before updating array
-                if k in self.k_ext:
-                    self.__populate_stat_array(k, sim_time)
+                if k in ['in_q', 'rain']:
+                    self.populate_stat_array(k, sim_time)
                 # update array
                 self.gis.msgr.verbose(u"{}: update input array <{}>".format(sim_time, k))
                 self.arr[k][:] = ta.get(sim_time)
@@ -274,14 +274,14 @@ class RasterDomain(object):
             self.start_volume = self.asum('h')
         return self
 
-    def __populate_stat_array(self, k, sim_time):
+    def populate_stat_array(self, k, sim_time):
         """given an external input array key,
         populate the corresponding statistic array.
         If it's the first update, only check in the time.
+        Should be called before updating the array
         """
         sk = self.stats_corresp[k]
         update_time = self.stats_update_time[sk]
-
         # make sure everything is in m/s
         if k in ['rain', 'inf']:
             conv_factor = 1 / self.mmh_to_ms
@@ -294,9 +294,7 @@ class RasterDomain(object):
             self.gis.msgr.verbose(u"{}: Populating array <{}>".format(sim_time, sk))
             time_diff = (sim_time - update_time).total_seconds()
             self.arr[sk] += self.arr[k] * conv_factor * time_diff
-            print('k: ', self.arr[k][750, 1000])
-            print('sk: ', self.arr[sk][750, 1000])
-            self.stats_update_time[k] = sim_time
+            self.stats_update_time[sk] = sim_time
         return None
 
     def update_ext_array(self):

@@ -185,6 +185,7 @@ class SimulationManager(object):
             self.infiltration.solve_dt()
             # calculate when will happen the next time-step
             self.next_ts['inf'] += self.infiltration.dt
+            self.rast_domain.populate_stat_array('inf', self.sim_time)
             self.infiltration.step()
             self.rast_domain.isnew['inf'] = True
         else:
