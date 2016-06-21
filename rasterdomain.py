@@ -293,7 +293,8 @@ class RasterDomain(object):
         else:
             self.gis.msgr.verbose(u"{}: Populating array <{}>".format(sim_time, sk))
             time_diff = (sim_time - update_time).total_seconds()
-            self.arr[sk] += self.arr[k] * conv_factor * time_diff
+            flow.populate_stat_array(self.arr[k], self.arr[sk],
+                                     conv_factor, time_diff)
             self.stats_update_time[sk] = sim_time
         return None
 

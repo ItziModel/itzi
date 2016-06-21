@@ -385,3 +385,18 @@ cdef float cap_inf_rate(float dt_h, float h, float infrate) nogil:
     h_mm = h * 1000.
     max_rate = h_mm / dt_h
     return min(max_rate, infrate)
+
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+def populate_stat_array(DTYPE_t [:, :] arr, DTYPE_t [:, :] arr_stat,
+                        float conv_factor, float time_diff):
+    '''Populate an array of statistics
+    '''
+    cdef int rmax, cmax, r, c
+    rmax = arr.shape[0]
+    cmax = arr.shape[1]
+    for r in prange(rmax, nogil=True):
+        for c in range(cmax):
+            arr_stat[r, c] += arr[r, c] * conv_factor * time_diff
