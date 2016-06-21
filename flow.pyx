@@ -334,16 +334,15 @@ def inf_user(DTYPE_t [:, :] arr_h,
     '''Calculate infiltration using a user-defined fixed rate
     '''
     cdef int rmax, cmax, r, c
-    cdef float dt_h, infrate
+    cdef float dt_h
 
     rmax = arr_h.shape[0]
     cmax = arr_h.shape[1]
     for r in prange(rmax, nogil=True):
         for c in range(cmax):
             dt_h = dt / 3600.  # dt from sec to hours
-            infrate = arr_inf_in[r, c]
             # cap the rate
-            arr_inf_out[r, c] = cap_inf_rate(dt_h, arr_h[r, c], infrate)
+            arr_inf_out[r, c] = cap_inf_rate(dt_h, arr_h[r, c], arr_inf_in[r, c])
 
 
 @cython.wraparound(False)  # Disable negative index check
