@@ -100,6 +100,9 @@ class ConfigReader(object):
         for k in self.dict_bc:
             if params.has_option('boundaries', k):
                 self.dict_bc[k] = params.get('boundaries', k)
+        # statistic file
+        if params.has_option('statistics', 'stats_file'):
+            self.stats_file = params.get('statistics', 'stats_file')
         return self
 
     def file_exist(self, name):
@@ -143,7 +146,7 @@ class ConfigReader(object):
             msgr.fatal(_(u"options <in_z>, <in_n> and <record_step> are mandatory"))
 
     def display_sim_param(self):
-        """Display simulation parameters in case of verbosity
+        """Display simulation parameters if verbose
         """
         self.msgr.verbose(u"Using the following parameters:")
         txt_template = u"{}: {}"

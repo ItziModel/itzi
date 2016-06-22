@@ -83,7 +83,7 @@ def itzi_run(args):
     msgr.verbose(_(u"Starting simulation..."))
     sim_start = time.time()
     sim = simulation.SimulationManager(sim_times=conf.sim_times,
-                                       stats_file=None,
+                                       stats_file=conf.stats_file,
                                        dtype=np.float32,
                                        input_maps=conf.input_map_names,
                                        output_maps=conf.output_map_names,
