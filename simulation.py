@@ -18,7 +18,7 @@ import warnings
 from datetime import datetime, timedelta
 import numpy as np
 
-import domain
+from superficialflow import SuperficialSimulation
 from rasterdomain import RasterDomain
 from massbalance import MassBal
 import gis
@@ -130,7 +130,7 @@ class SimulationManager(object):
                                                      self.dtinf)
 
         # SuperficialSimulation
-        self.surf_sim = domain.SuperficialSimulation(self.rast_domain,
+        self.surf_sim = SuperficialSimulation(self.rast_domain,
                                                      self.sim_param)
 
         # Instantiate Massbal object
