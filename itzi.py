@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-MODULE:    t.itzi.sim
+NAME:      Itzï
 
 AUTHOR(S): Laurent Courty
 
-PURPOSE:   Simulate dynamic superficial water flows using a
+PURPOSE:   Simulate dynamic superficial water flows using a simplified
            quasi-2D implementation of the Shallow Water Equations.
            See:
            De Almeida, G. & Bates, P., 2013. Applicability of the local
@@ -27,15 +27,6 @@ COPYRIGHT: (C) 2015-2016 by Laurent Courty
             MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
             GNU General Public License for more details.
 """
-
-#%module
-#% description: Simulate superficial flows using simplified shallow water equations
-#% keywords: raster
-#% keywords: Shallow Water Equations
-#% keywords: flow
-#% keywords: flood
-#% keywords: inundation
-#%end
 
 #%flag
 #% key: p
@@ -288,7 +279,7 @@ def main():
 
     # values to be passed to simulation
     sim_param = {'hmin': 0.005, 'cfl': 0.7, 'theta': 0.9, 'g': 9.80665,
-                 'vrouting': 0.1, 'dtmax': 5., 'slmax': .5, 'dtinf': 60.}
+                 'vrouting': 0.1, 'dtmax': 5., 'slmax': .1, 'dtinf': 60.}
     input_times = {'start': None, 'end': None,
                    'duration': None, 'rec_step': None}
     raw_input_times = input_times.copy()
