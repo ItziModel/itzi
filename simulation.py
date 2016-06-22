@@ -34,34 +34,23 @@ class SimulationManager(object):
     Accessed via the run() method
     """
 
-    def __init__(self, record_step, input_maps, output_maps,
+    def __init__(self, sim_times, input_maps, output_maps, sim_param,
                  dtype=np.float32,
                  dtmin=timedelta(seconds=0.01),
-                 stats_file=None,
-                 start_time=datetime(1, 1, 1),
-                 end_time=datetime(1, 1, 1),
-                 sim_duration=timedelta(0),
-                 sim_param=None):
-        assert isinstance(start_time, datetime), \
-            "start_time not a datetime object!"
-        assert isinstance(sim_duration, timedelta), \
-            "sim_duration not a timedelta object!"
-        assert sim_duration >= timedelta(0), "sim_duration is negative!"
-        assert isinstance(record_step, timedelta), \
-            "record_step not a timedelta object!"
-        assert record_step > timedelta(0), "record_step must be > 0"
-        assert sim_param is not None
+                 stats_file=None):
 
-        self.record_step = record_step
-        self.start_time = start_time
-        self.__set_duration(end_time, sim_duration)
-        # set simulation time to start_time a the beginning
+        # read time parameters
+        self.start_time = sim_times.start
+        self.end_time = sim_times.end
+        self.duration = sim_times.duration
+        self.record_step = sim_times.record_step
+        self.temporal_type = sim_times.temporal_type
+
+        # set simulation time to start_time
         self.sim_time = self.start_time
         # First time-step is forced
         self.dt = dtmin  # Global time-step
         self.dtinf = sim_param['dtinf']
-        # set temporal type of results
-        self.__set_temporal_type()
 
         # dictionaries of map names
         self.in_map_names = input_maps
@@ -85,31 +74,6 @@ class SimulationManager(object):
 
         # instantiate simulation objects
         self.__set_models()
-
-    def __set_duration(self, end_time, sim_duration):
-        """If sim_duration is given, end_time is ignored
-        This is normally checked upstream
-        """
-        if not sim_duration:
-            self.duration = end_time - self.start_time
-            self.end_time = end_time
-        else:
-            self.duration = sim_duration
-            self.end_time = self.start_time + sim_duration
-        return self
-
-    def __set_temporal_type(self):
-        """A start_time equal to datetime.min means user did not
-        provide a start_time. Therefore a relative temporal type
-        is set for results writing.
-        It's a potential problem in case a simulation is set to actually
-        starts on 0001-01-01 00:00, as the results will be written
-        in relative STDS.
-        """
-        self.temporal_type = 'absolute'
-        if self.start_time == datetime.min:
-            self.temporal_type = 'relative'
-        return self
 
     def __set_models(self):
         """Instantiate models objects
