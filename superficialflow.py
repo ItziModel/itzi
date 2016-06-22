@@ -16,10 +16,6 @@ from __future__ import division
 import math
 from datetime import timedelta
 import numpy as np
-try:
-    import bottleneck as bn
-except ImportError:
-    bn = np
 
 import flow
 import time
@@ -147,11 +143,6 @@ class SuperficialSimulation(object):
                           u"(old: {}, new: {})".format(self._dt, newdt_s))
         else:
             self._dt = newdt_s
-
-    def domain_volume(self):
-        '''return domain volume
-        '''
-        return bn.nansum(self.dom.get('h')) * self.cell_surf
 
     def update_h(self):
         """Calculate new water depth

@@ -16,10 +16,6 @@ GNU General Public License for more details.
 from __future__ import division
 from datetime import datetime, timedelta
 import numpy as np
-try:
-    import bottleneck as bn
-except ImportError:
-    bn = np
 import csv
 import copy
 
