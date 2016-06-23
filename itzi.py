@@ -74,7 +74,6 @@ def itzi_run(args):
                      u"Please use a projected location"))
 
     # parsing configuration file
-    print(args.config_file)
     conf = ConfigReader(args.config_file, msgr)
     # display parameters (if verbose)
     conf.display_sim_param()
@@ -100,17 +99,31 @@ def itzi_run(args):
                     u"Elapsed time: {}").format(elapsed_time))
 
 
+def itzi_version(args):
+    """Display the software version number from a file
+    """
+    with open('VERSION', 'r') as f:
+        print f.readline().strip()
+
+
 # parsing command line
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(description=u"A dynamic, fully distributed "
+                                             u"hydraulic and hydrologic model")
 subparsers = parser.add_subparsers()
 
-# keyword for running a simple simulation
-run_parser = subparsers.add_parser('run')
-parser.add_argument('config_file', help='an Itzï configuration file')
-run_parser.add_argument('-o', action='store_true', help='overwrite files if exist')
-run_parser.add_argument('-p', action='store_true', help='activate profiler')
-run_parser.add_argument('-v', action='store_true', help='verbose output')
+# running a simple simulation
+run_parser = subparsers.add_parser("run", help=u"run a simulation",
+                                   description="run a simulation")
+run_parser.add_argument("config_file", help=u"an Itzï configuration file")
+run_parser.add_argument("-o", action='store_true', help=u"overwrite files if exist")
+run_parser.add_argument("-p", action='store_true', help=u"activate profiler")
+run_parser.add_argument("-v", action='store_true', help=u"verbose output")
 run_parser.set_defaults(func=itzi_run)
+
+# display version
+version_parser = subparsers.add_parser("version",
+                                       help=u"display software version number")
+version_parser.set_defaults(func=itzi_version)
 
 
 if __name__ == "__main__":
