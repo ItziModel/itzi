@@ -29,6 +29,7 @@ COPYRIGHT: (C) 2015-2016 by Laurent Courty
 """
 
 
+from __future__ import print_function, division
 import sys
 import os
 import time
@@ -37,8 +38,11 @@ import numpy as np
 from pyinstrument import Profiler
 from datetime import datetime, timedelta
 
-import grass.script as grass
-from grass.pygrass.messages import Messenger
+try:
+    import grass.script as grass
+    from grass.pygrass.messages import Messenger
+except ImportError:
+    sys.exit("Please run from a GRASS GIS environment")
 
 import simulation
 from configreader import ConfigReader
@@ -103,7 +107,7 @@ def itzi_version(args):
     """Display the software version number from a file
     """
     with open('VERSION', 'r') as f:
-        print f.readline().strip()
+        print(f.readline().strip())
 
 
 # parsing command line
