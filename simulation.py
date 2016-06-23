@@ -249,7 +249,7 @@ class Report(object):
                 suffix = str(self.record_counter).zfill(4)
                 map_name = "{}_{}".format(self.out_map_names[k], suffix)
                 # Export depth if above hmin. If not, export NaN
-                if k == 'out_h':
+                if k == 'h':
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
                         arr[arr <= self.hmin] = np.nan
