@@ -38,7 +38,7 @@ class MassBal(object):
         self.fields = ['sim_time',  # either timedelta or datetime
                        'avg_timestep', '#timesteps',
                        'boundary_vol', 'rain_vol', 'inf_vol',
-                       'inflow_vol', 'hfix_vol',
+                       'inflow_vol',
                        'domain_vol', 'vol_error', '%error']
         # data written to file as one line
         self.line = dict.fromkeys(self.fields)
@@ -110,13 +110,11 @@ class MassBal(object):
         self.line['inf_vol'] = '{:.3f}'.format(inf_vol)
         inflow_vol = self.dom.inflow_vol(sim_time)
         self.line['inflow_vol'] = '{:.3f}'.format(inflow_vol)
-        hfix_vol = self.dom.hfix_vol()
-        self.line['hfix_vol'] = '{:.3f}'.format(hfix_vol)
 
         # mass error calculation
         self.line['domain_vol'] = '{:.3f}'.format(self.new_dom_vol)
         sum_ext_vol = sum([boundary_vol, rain_vol, inf_vol,
-                           inflow_vol, hfix_vol])
+                           inflow_vol])
         dom_vol_theor = self.old_dom_vol + sum_ext_vol
         vol_error = self.new_dom_vol - dom_vol_theor
         self.line['vol_error'] = '{:.3f}'.format(vol_error)

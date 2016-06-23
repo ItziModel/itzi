@@ -159,7 +159,7 @@ class SuperficialSimulation(object):
                      arr_qn=flow_north, arr_qs=flow_south,
                      arr_bct=self.dom.get('bct'), arr_bcv=self.dom.get('bcv'),
                      arr_h=self.dom.get('h'), arr_hmax=self.dom.get('hmax'),
-                     arr_hfix=self.dom.get('st_hfix'),
+                     arr_hfix=self.dom.get('st_bound'),
                      dx=self.dx, dy=self.dy, dt=self._dt)
         assert not np.any(self.dom.get('h') < 0)
         return self

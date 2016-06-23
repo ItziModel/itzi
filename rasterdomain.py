@@ -127,7 +127,7 @@ class RasterDomain(object):
                            'q_drain', 'dire', 'dirs']
         # arrays gathering the cumulated water depth from corresponding array
         self.k_stats = ['st_bound', 'st_inf', 'st_rain', 'st_inflow',
-                        'st_drain', 'st_hfix']
+                        'st_drain']
         self.stats_corresp = {'inf': 'st_inf', 'rain': 'st_rain',
                               'in_q': 'st_inflow', 'q_drain': 'st_drain'}
         self.k_all = self.k_input + self.k_internal + self.k_stats
@@ -174,9 +174,6 @@ class RasterDomain(object):
     def drain_vol(self, sim_time):
         self.populate_stat_array('drain', sim_time)
         return self.asum('st_drain') * self.cell_surf
-
-    def hfix_vol(self):
-        return self.asum('st_hfix') * self.cell_surf
 
     def boundary_vol(self):
         return self.asum('st_bound') * self.cell_surf
@@ -327,6 +324,10 @@ class RasterDomain(object):
             out_arrays['qx'] = self.get_unmasked('qe_new') * self.dy
         if self.out_map_names['qy'] is not None:
             out_arrays['qy'] = self.get_unmasked('qs_new') * self.dx
+        if self.out_map_names['boundaries'] is not None:
+            out_arrays['boundaries'] = self.get_unmasked('st_bound')
+        if self.out_map_names['infiltration'] is not None:
+            out_arrays['infiltration'] = self.get_unmasked('st_inf') * 1000
         return out_arrays
 
     def swap_arrays(self, k1, k2):
@@ -366,7 +367,7 @@ class RasterDomain(object):
         """Set stats arrays to zeros and the update time to current time
         """
         for k in ['st_bound', 'st_inf', 'st_rain',
-                  'st_inflow', 'st_drain', 'st_hfix']:
+                  'st_inflow', 'st_drain']:
             self.arr[k][:] = 0.
             self.stats_update_time[k] = sim_time
         return self
