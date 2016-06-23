@@ -291,7 +291,7 @@ class Igis(object):
                                             k=mkey, t=sim_time)
 
     def register_maps_in_strds(self, mkey, strds_name, map_list, t_type):
-        '''Register given maps and apply color table
+        '''Register given maps
         '''
         assert isinstance(mkey, basestring), "not a string!"
         assert isinstance(strds_name, basestring), "not a string!"
