@@ -44,16 +44,16 @@ class ConfigReader(object):
         k_input_map_names = ['dem', 'friction', 'start_h', 'start_y',
                              'rain', 'inflow', 'bcval', 'bctype',
                              'infiltration'] + self.ga_list
-
-        k_output_map_names = ['out_h', 'out_wse',
-                              'out_v', 'out_vdir', 'out_qx', 'out_qy',
-                              'out_drainvol', 'out_bvol']
+        k_output_map_names = ['h', 'wse', 'v', 'vdir', 'qx', 'qy',
+                              'boundaries', 'infiltration', 'rainfall',
+                              'inflow', 'drainage']
         self.sim_param = {'hmin': 0.005, 'cfl': 0.7, 'theta': 0.9,
                           'g': 9.80665, 'vrouting': 0.1, 'dtmax': 5.,
                           'slmax': .1, 'dtinf': 60., 'inf_model': None}
         self.raw_input_times = dict.fromkeys(k_raw_input_times)
         self.output_map_names = dict.fromkeys(k_output_map_names)
         self.input_map_names = dict.fromkeys(k_input_map_names)
+        self.out_prefix = 'itzi_results_{}'.format(datetime.now().strftime('%Y%m%dT%H%M%S'))
         return self
 
     def set_entry_values(self):
@@ -85,15 +85,27 @@ class ConfigReader(object):
         for k in self.sim_param:
             if params.has_option('options', k):
                 self.sim_param[k] = params.getfloat('options', k)
-        for k in self.output_map_names:
-            if params.has_option('output', k):
-                self.output_map_names[k] = params.get('output', k)
         for k in self.input_map_names:
             if params.has_option('input', k):
                 self.input_map_names[k] = params.get('input', k)
         # statistic file
         if params.has_option('statistics', 'stats_file'):
             self.stats_file = params.get('statistics', 'stats_file')
+        # output maps
+        if params.has_option('output', 'prefix'):
+            self.out_prefix = params.get('output', 'prefix')
+        if params.has_option('output', 'values'):
+            self.out_values = params.get('output', 'values').split(',')
+            self.out_values = [e.strip() for e in self.out_values]
+        self.generate_output_name()
+        return self
+
+    def generate_output_name(self):
+        """Generate the name of the strds
+        """
+        for v in self.out_values:
+            if v in self.output_map_names:
+                self.output_map_names[v] = '{}_{}'.format(self.out_prefix, v)
         return self
 
     def file_exist(self, name):

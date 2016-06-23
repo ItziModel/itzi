@@ -339,11 +339,11 @@ class Igis(object):
     def apply_color_table(self, map_name, mkey):
         '''apply a color table determined by mkey to the given map
         '''
-        if mkey == 'out_h':
+        if mkey == 'h':
             colors_rules = self.rules_h
-        elif mkey == 'out_v':
+        elif mkey == 'v':
             colors_rules = self.rules_v
-        elif mkey == 'out_vdir':
+        elif mkey == 'vdir':
             colors_rules = 'aspectcolr'
         else:
             colors_rules = self.rules_def

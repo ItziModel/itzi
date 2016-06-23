@@ -315,18 +315,18 @@ class RasterDomain(object):
         """Returns a dict of unmasked arrays to be written to the disk
         """
         out_arrays = {}
-        if self.out_map_names['out_h'] is not None:
-            out_arrays['out_h'] = self.get_unmasked('h')
-        if self.out_map_names['out_wse']  is not None:
-            out_arrays['out_wse'] = self.get_unmasked('h') + self.get('z')
-        if self.out_map_names['out_v']  is not None:
-            out_arrays['out_v'] = self.get_unmasked('v')
-        if self.out_map_names['out_vdir']  is not None:
-            out_arrays['out_vdir'] = self.get_unmasked('vdir')
-        if self.out_map_names['out_qx']  is not None:
-            out_arrays['out_qx'] = self.get_unmasked('qe_new') * self.dy
-        if self.out_map_names['out_qy']  is not None:
-            out_arrays['out_qy'] = self.get_unmasked('qs_new') * self.dx
+        if self.out_map_names['h'] is not None:
+            out_arrays['h'] = self.get_unmasked('h')
+        if self.out_map_names['wse'] is not None:
+            out_arrays['wse'] = self.get_unmasked('h') + self.get('z')
+        if self.out_map_names['v'] is not None:
+            out_arrays['v'] = self.get_unmasked('v')
+        if self.out_map_names['vdir'] is not None:
+            out_arrays['vdir'] = self.get_unmasked('vdir')
+        if self.out_map_names['qx'] is not None:
+            out_arrays['qx'] = self.get_unmasked('qe_new') * self.dy
+        if self.out_map_names['qy'] is not None:
+            out_arrays['qy'] = self.get_unmasked('qs_new') * self.dx
         return out_arrays
 
     def swap_arrays(self, k1, k2):

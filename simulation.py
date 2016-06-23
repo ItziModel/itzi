@@ -228,9 +228,9 @@ class Report(object):
         if self.massbal:
             self.write_mass_balance(sim_time)
         self.register_results_in_gis()
-        if self.out_map_names['out_h']:
+        if self.out_map_names['h']:
             self.write_hmax_to_gis()
-        if self.out_map_names['out_v']:
+        if self.out_map_names['v']:
             self.write_vmax_to_gis()
         return self
 
@@ -262,27 +262,27 @@ class Report(object):
     def write_error_to_gis(self, arr_error):
         '''Write a given depth array to the GIS
         '''
-        map_h_name = "{}_error".format(self.out_map_names['out_h'])
+        map_h_name = "{}_error".format(self.out_map_names['h'])
         self.gis.write_raster_map(self.rast_dom.get_unmasked('h'),
-                                  map_h_name, 'out_h')
+                                  map_h_name, 'h')
         # add map name to the revelant list
-        self.output_maplist['out_h'].append(map_h_name)
+        self.output_maplist['h'].append(map_h_name)
         return self
 
     def write_hmax_to_gis(self):
         '''Write a max depth array to the GIS
         '''
         arr_hmax_unmasked = self.rast_dom.get_unmasked('hmax')
-        map_hmax_name = "{}_max".format(self.out_map_names['out_h'])
-        self.gis.write_raster_map(arr_hmax_unmasked, map_hmax_name, 'out_h')
+        map_hmax_name = "{}_max".format(self.out_map_names['h'])
+        self.gis.write_raster_map(arr_hmax_unmasked, map_hmax_name, 'h')
         return self
 
     def write_vmax_to_gis(self):
         '''Write a max flow speed array to the GIS
         '''
         arr_vmax_unmasked = self.rast_dom.get_unmasked('vmax')
-        map_vmax_name = "{}_max".format(self.out_map_names['out_v'])
-        self.gis.write_raster_map(arr_vmax_unmasked, map_vmax_name, 'out_v')
+        map_vmax_name = "{}_max".format(self.out_map_names['v'])
+        self.gis.write_raster_map(arr_vmax_unmasked, map_vmax_name, 'v')
         return self
 
     def register_results_in_gis(self):
