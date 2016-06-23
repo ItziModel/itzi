@@ -130,24 +130,20 @@ class ConfigReader(object):
         """
         inf_k = 'infiltration'
         # if at least one Green-Ampt parameters is present
-        ga_bool = False
-        for i in self.ga_list:
-            if i in self.input_map_names.values():
-                ga_bool = True
-                break
+        ga_any = any(self.input_map_names[i] for i in self.ga_list)
         # if all Green-Ampt parameters are present
-        ga_all = all(i in self.input_map_names.values() for i in self.ga_list)
+        ga_all = all(self.input_map_names[i] for i in self.ga_list)
         # verify parameters
-        if inf_k not in self.input_map_names.values() and not ga_bool:
+        if not self.input_map_names[inf_k] and not ga_any:
             self.sim_param['inf_model'] = None
-        elif inf_k in self.input_map_names.values() and not ga_bool:
+        elif self.input_map_names[inf_k] and not ga_any:
             self.sim_param['inf_model'] = 'constant'
-        elif inf_k in self.input_map_names.values() and ga_bool:
+        elif self.input_map_names[inf_k] and ga_any:
             self.msgr.fatal(_(u"Infiltration model incompatible with user-defined rate"))
         # check if all maps for Green-Ampt are presents
-        elif ga_bool and not ga_all:
+        elif ga_any and not ga_all:
             self.msgr.fatal(_(u"{} are mutualy inclusive".format(self.ga_list)))
-        elif ga_all and not inf_k in self.input_map_names.values():
+        elif ga_all and not self.input_map_names[inf_k]:
             self.sim_param['inf_model'] = 'green-ampt'
         return self
 
