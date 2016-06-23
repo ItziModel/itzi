@@ -60,6 +60,7 @@ class SimulationManager(object):
         self.dtype = dtype
         # simulation parameters
         self.sim_param = sim_param
+        self.inf_model = self.sim_param['inf_model']
 
         # statistic file name
         self.stats_file = stats_file
@@ -82,16 +83,18 @@ class SimulationManager(object):
         self.rast_domain = RasterDomain(self.dtype, self.gis,
                                         self.in_map_names, self.out_map_names)
 
-        # Infiltration. Coherence of input maps is checked upstream
-        if self.in_map_names['in_inf']:
+        # Infiltration
+        if self.inf_model == 'constant':
             self.infiltration = infiltration.InfConstantRate(self.rast_domain,
                                                              self.dtinf)
-        elif self.in_map_names['in_cap_pressure']:
+        elif self.inf_model == 'green-ampt':
             self.infiltration = infiltration.InfGreenAmpt(self.rast_domain,
                                                           self.dtinf)
-        else:
+        elif self.inf_model is None:
             self.infiltration = infiltration.InfNull(self.rast_domain,
                                                      self.dtinf)
+        else:
+            assert False, u"Unknow infiltration model: {}".format(self.inf_model)
 
         # SuperficialSimulation
         self.surf_sim = SuperficialSimulation(self.rast_domain,

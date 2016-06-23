@@ -111,12 +111,14 @@ class RasterDomain(object):
         self.in_map_names = input_maps
         self.out_map_names = output_maps
         # correspondance between input map names and the arrays
-        self.in_k_corresp = {'z': 'in_z', 'n': 'in_n', 'h': 'in_h',
-                             'y': 'in_y',
-                             'por': 'in_eff_por', 'pres': 'in_cap_pressure',
-                             'con': 'in_hyd_conduct', 'in_inf': 'in_inf',
-                             'rain': 'in_rain', 'in_q': 'in_q',
-                             'bcv': 'in_bcval', 'bct': 'in_bctype'}
+        self.in_k_corresp = {'z': 'dem', 'n': 'friction', 'h': 'start_h',
+                             'y': 'start_y',
+                             'por': 'effective_pororosity',
+                             'pres': 'capillary_pressure',
+                             'con': 'hydraulic_conductivity',
+                             'in_inf': 'infiltration',
+                             'rain': 'rain', 'in_q': 'inflow',
+                             'bcv': 'bcval', 'bct': 'bctype'}
         # all keys that will be used for the arrays
         self.k_input = self.in_k_corresp.keys()
         self.k_internal = ['inf', 'hmax', 'ext', 'y', 'hfe', 'hfs',

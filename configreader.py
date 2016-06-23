@@ -38,22 +38,22 @@ class ConfigReader(object):
     def __set_defaults(self):
         """Set dictionaries of default values to be passed to simulation"""
         k_raw_input_times = ['start_time', 'end_time',
-                             'sim_duration', 'record_step']
-        self.raw_input_times = dict.fromkeys(k_raw_input_times)
-        self.sim_param = {'hmin': 0.005, 'cfl': 0.7, 'theta': 0.9,
-                          'g': 9.80665, 'vrouting': 0.1, 'dtmax': 5.,
-                          'slmax': .1, 'dtinf': 60.}
+                             'duration', 'record_step']
+        self.ga_list = ['effective_pororosity', 'capillary_pressure',
+                        'hydraulic_conductivity']
+        k_input_map_names = ['dem', 'friction', 'start_h', 'start_y',
+                             'rain', 'inflow', 'bcval', 'bctype',
+                             'infiltration'] + self.ga_list
+
         k_output_map_names = ['out_h', 'out_wse',
                               'out_v', 'out_vdir', 'out_qx', 'out_qy',
                               'out_drainvol', 'out_bvol']
+        self.sim_param = {'hmin': 0.005, 'cfl': 0.7, 'theta': 0.9,
+                          'g': 9.80665, 'vrouting': 0.1, 'dtmax': 5.,
+                          'slmax': .1, 'dtinf': 60., 'inf_model': None}
+        self.raw_input_times = dict.fromkeys(k_raw_input_times)
         self.output_map_names = dict.fromkeys(k_output_map_names)
-        self.input_map_names = {}  # to become conjunction of following dicts:
-        self.dict_input = {'in_z': None, 'in_n': None, 'in_h': None, 'in_y': None}
-        self.dict_inf = {'in_inf': None,
-                         'in_eff_por': None, 'in_cap_pressure': None,
-                         'in_hyd_conduct': None}
-        self.dict_bc = {'in_rain': None,
-                        'in_q': None, 'in_bcval': None, 'in_bctype': None}
+        self.input_map_names = dict.fromkeys(k_input_map_names)
         return self
 
     def set_entry_values(self):
@@ -69,9 +69,6 @@ class ConfigReader(object):
         self.check_inf_maps()
         # check if the output files do not exist
         self.check_output_files()
-        # join all dictionaries containing input map names
-        for d in [self.dict_input, self.dict_inf, self.dict_bc]:
-            self.input_map_names.update(d)
         return self
 
     def read_param_file(self):
@@ -91,15 +88,9 @@ class ConfigReader(object):
         for k in self.output_map_names:
             if params.has_option('output', k):
                 self.output_map_names[k] = params.get('output', k)
-        for k in self.dict_input:
+        for k in self.input_map_names:
             if params.has_option('input', k):
-                self.dict_input[k] = params.get('input', k)
-        for k in self.dict_inf:
-            if params.has_option('infiltration', k):
-                self.dict_inf[k] = params.get('infiltration', k)
-        for k in self.dict_bc:
-            if params.has_option('boundaries', k):
-                self.dict_bc[k] = params.get('boundaries', k)
+                self.input_map_names[k] = params.get('input', k)
         # statistic file
         if params.has_option('statistics', 'stats_file'):
             self.stats_file = params.get('statistics', 'stats_file')
@@ -123,27 +114,38 @@ class ConfigReader(object):
 
     def check_inf_maps(self):
         """check coherence of input infiltration maps
+        set infiltration model type
         """
-        ga_list = ['in_eff_por', 'in_cap_pressure', 'in_hyd_conduct']
+        inf_k = 'infiltration'
+        # if at least one Green-Ampt parameters is present
         ga_bool = False
-        for i in ga_list:
-            if i in self.dict_inf.values():
+        for i in self.ga_list:
+            if i in self.input_map_names.values():
                 ga_bool = True
                 break
-
-        if 'in_f' in self.dict_inf.values() and ga_bool:
+        # if all Green-Ampt parameters are present
+        ga_all = all(i in self.input_map_names.values() for i in self.ga_list)
+        # verify parameters
+        if inf_k not in self.input_map_names.values() and not ga_bool:
+            self.sim_param['inf_model'] = None
+        elif inf_k in self.input_map_names.values() and not ga_bool:
+            self.sim_param['inf_model'] = 'constant'
+        elif inf_k in self.input_map_names.values() and ga_bool:
             self.msgr.fatal(_(u"Infiltration model incompatible with user-defined rate"))
         # check if all maps for Green-Ampt are presents
-        if ga_bool and not all(i in dict_inf.values() for i in ga_list):
-            self.msgr.fatal(_(u"{} are mutualy inclusive".format(ga_list)))
+        elif ga_bool and not ga_all:
+            self.msgr.fatal(_(u"{} are mutualy inclusive".format(self.ga_list)))
+        elif ga_all and not inf_k in self.input_map_names.values():
+            self.sim_param['inf_model'] = 'green-ampt'
+        return self
 
     def check_mandatory(self):
         """check if mandatory parameters are present
         """
-        if not all([self.dict_input['in_z'],
-                   self.dict_input['in_n'],
+        if not all([self.input_map_names['dem'],
+                   self.input_map_names['friction'],
                    self.sim_times.record_step]):
-            msgr.fatal(_(u"options <in_z>, <in_n> and <record_step> are mandatory"))
+            msgr.fatal(_(u"inputs <dem>, <friction> and <record_step> are mandatory"))
 
     def display_sim_param(self):
         """Display simulation parameters if verbose
@@ -174,7 +176,7 @@ class SimulationTimes(object):
         """Read a given dictionary of input times.
         Check the coherence of the input and store it in the object
         """
-        self.raw_duration = raw_input_times['sim_duration']
+        self.raw_duration = raw_input_times['duration']
         self.raw_start = raw_input_times['start_time']
         self.raw_end = raw_input_times['end_time']
         self.raw_record_step = raw_input_times['record_step']
@@ -230,7 +232,7 @@ class SimulationTimes(object):
         """
         comb_err_msg = (u"accepted combinations: "
                         u"{d} alone, {s} and {d}, "
-                        u"{s} and {e}").format(d='sim_duration',
+                        u"{s} and {e}").format(d='duration',
                                                s='start_time',
                                                e='end_time')
         b_dur = (self.raw_duration and
@@ -242,7 +244,7 @@ class SimulationTimes(object):
         b_start_end = (self.raw_start and self.raw_end and
                        not self.raw_duration)
         if not (b_dur or b_start_dur or b_start_end):
-            self.msgr.fatal(_(self.comb_err_msg))
+            self.msgr.fatal(_(comb_err_msg))
         # if only duration is given, temporal type is relative
         if b_dur:
             self.temporal_type = 'relative'
