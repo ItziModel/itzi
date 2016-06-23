@@ -17,6 +17,7 @@ from __future__ import print_function
 import warnings
 from datetime import datetime, timedelta
 import numpy as np
+import copy
 
 from superficialflow import SuperficialSimulation
 from rasterdomain import RasterDomain
@@ -108,7 +109,7 @@ class SimulationManager(object):
             self.massbal = None
         # reporting object
         self.report = Report(self.gis, self.temporal_type, self.sim_param['hmin'],
-                             self.massbal, self.rast_domain)
+                             self.massbal, self.rast_domain, self.start_time)
         return self
 
     def run(self):
@@ -197,7 +198,7 @@ class SimulationManager(object):
 class Report(object):
     """In charge of results reporting and writing
     """
-    def __init__(self, igis, temporal_type, hmin, massbal, rast_dom):
+    def __init__(self, igis, temporal_type, hmin, massbal, rast_dom, start_time):
         self.record_counter = 0
         self.gis = igis
         self.temporal_type = temporal_type
@@ -207,16 +208,19 @@ class Report(object):
         self.massbal = massbal
         # a dict containing lists of maps written to gis to be registered
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
+        self.last_step = start_time
 
     def step(self, sim_time):
         """write results at given time-step
         """
         assert isinstance(sim_time, datetime)
-        self.output_arrays = self.rast_dom.get_output_arrays()
+        interval_s = (sim_time-self.last_step).total_seconds()
+        self.output_arrays = self.rast_dom.get_output_arrays(interval_s)
         self.write_results_to_gis(sim_time)
         if self.massbal:
             self.write_mass_balance(sim_time)
         self.record_counter += 1
+        self.last_step = copy.copy(sim_time)
         return self
 
     def end(self, sim_time):
