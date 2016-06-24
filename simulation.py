@@ -215,7 +215,7 @@ class Report(object):
         """
         assert isinstance(sim_time, datetime)
         interval_s = (sim_time-self.last_step).total_seconds()
-        self.output_arrays = self.rast_dom.get_output_arrays(interval_s)
+        self.output_arrays = self.rast_dom.get_output_arrays(interval_s, sim_time)
         self.write_results_to_gis(sim_time)
         if self.massbal:
             self.write_mass_balance(sim_time)

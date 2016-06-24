@@ -308,7 +308,7 @@ class RasterDomain(object):
             self.isnew['ext'] = False
         return self
 
-    def get_output_arrays(self, interval_s):
+    def get_output_arrays(self, interval_s, sim_time):
         """Returns a dict of unmasked arrays to be written to the disk
         """
         out_arrays = {}
@@ -324,11 +324,20 @@ class RasterDomain(object):
             out_arrays['qx'] = self.get_unmasked('qe_new') * self.dy
         if self.out_map_names['qy'] is not None:
             out_arrays['qy'] = self.get_unmasked('qs_new') * self.dx
+        # statistics (average of last interval)
         if self.out_map_names['boundaries'] is not None:
             out_arrays['boundaries'] = self.get_unmasked('st_bound') / interval_s
+        if self.out_map_names['inflow'] is not None:
+            self.populate_stat_array('in_q', sim_time)
+            out_arrays['inflow'] = self.get_unmasked('st_inflow') / interval_s
         if self.out_map_names['infiltration'] is not None:
+            self.populate_stat_array('inf', sim_time)
             out_arrays['infiltration'] = (self.get_unmasked('st_inf')
                                           / interval_s) * self.mmh_to_ms
+        if self.out_map_names['rainfall'] is not None:
+            self.populate_stat_array('rain', sim_time)
+            out_arrays['rainfall'] = (self.get_unmasked('st_rain')
+                                      / interval_s) * self.mmh_to_ms
         return out_arrays
 
     def swap_arrays(self, k1, k2):
