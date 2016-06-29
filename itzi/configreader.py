@@ -74,9 +74,12 @@ class ConfigReader(object):
     def read_param_file(self):
         """Read the parameter file and populate the relevant dictionaries
         """
+        self.out_values = []
         # read the file
         params = ConfigParser.SafeConfigParser(allow_no_value=True)
-        params.read(self.config_file)
+        f = params.read(self.config_file)
+        if not f:
+            self.msgr.fatal(_(u"File <{}> not found".format(self.config_file)))
         # populate dictionaries using loops instead of using update() method
         # in order to not add invalid key
         for k in self.raw_input_times:
