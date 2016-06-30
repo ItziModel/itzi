@@ -65,12 +65,12 @@ Simulation time
 Simulation duration could be given by a combination of start time, end time and duration.
 If only the duration is given, the results will be written as relative time STRDS.
 In case start time is given, the simulation will use a absolute temporal type.
-*record_step* is the time-step at which results are written to the disk
+*record_step* is the time-step at which results are written to the disk.
 
 Input data
 ----------
 
-Itzï does not support Lat-Long coordinates. A projected location should be used
+Itzï does not support Lat-Long coordinates. A projected location should be used.
 The inputs maps could be given either as STRDS or single maps.
 First, the module try to load a STRDS of the given name.
 If unsuccessful, it will load the given map, and stop with an error if the name does not correspond to either a map or a STRDS.
