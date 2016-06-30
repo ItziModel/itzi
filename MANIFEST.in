@@ -1,0 +1,5 @@
+include LICENSE
+include VERSION
+include example.ini
+recursive-include itzi *.py
+recursive-include itzi *.txt *.pyx *.c

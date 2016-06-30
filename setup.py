@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import sys, io
+import sys
+import io
 from setuptools import setup, find_packages
 from setuptools.extension import Extension
 from setuptools.dist import Distribution
@@ -24,10 +25,11 @@ def prepare_modules():
     # import numpy at the last moment
     # this enables pip to install numpy before itzi
     import numpy as np
-    return [Extension('flow', sources=['itzi/flow.c'],
-                        extra_compile_args=['-fopenmp', '-O3'],
-                        extra_link_args=['-lgomp'],
-                        include_dirs=[np.get_include()])]
+    return [Extension('itzi/flow', sources=['itzi/flow.c'],
+                      extra_compile_args=['-fopenmp', '-O3'],
+                      extra_link_args=['-lgomp'],
+                      include_dirs=[np.get_include()]),
+            ]
 
 
 entry_points = {'console_scripts': ['itzi=itzi.itzi:main',],}
@@ -45,10 +47,6 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
                "Topic :: Scientific/Engineering"]
 
 
-DATA_FILES = [('itzi', ['itzi/*.txt', 'itzi/*.pyx', 'LICENSE', 'README.rst',
-                        'RELEASE.rst', 'VERSION', 'example.ini'])]
-
-
 metadata = dict(name='itzi',
                 version=get_version(),
                 description="A 2D superficial flow simulation model using GRASS GIS as a back-end",
@@ -61,9 +59,9 @@ metadata = dict(name='itzi',
                 keywords='science engineering hydrology',
                 packages=find_packages(),
                 requires=['numpy', 'pyinstrument'],
-                install_requires=['numpy>=1.9', 'pyinstrument'],
+                install_requires=['numpy', 'pyinstrument'],
+                include_package_data = True,
                 entry_points=entry_points,
-                data_files=DATA_FILES,
                 )
 
 
