@@ -80,6 +80,9 @@ class Igis(object):
         self.rules_h = os.path.join(file_dir, 'colortable_depth.txt')
         self.rules_v = os.path.join(file_dir, 'colortable_velocity.txt')
         self.rules_def = os.path.join(file_dir, 'colortable_default.txt')
+        assert os.path.isfile(self.rules_h)
+        assert os.path.isfile(self.rules_v)
+        assert os.path.isfile(self.rules_def)
 
     def grass_dtype(self, dtype):
         if dtype in self.dtype_conv['DCELL']:
