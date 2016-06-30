@@ -1,4 +1,0 @@
-include LICENSE README.rst RELEASE.rst VERSION example.ini
-recursive-include itzi/ *.pyx
-recursive-include itzi/ *.c
-recursive-include itzi/ *.txt

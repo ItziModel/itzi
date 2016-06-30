@@ -45,6 +45,10 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
                "Topic :: Scientific/Engineering"]
 
 
+DATA_FILES = [('itzi', ['itzi/*.txt', 'itzi/*.pyx', 'LICENSE', 'README.rst',
+                        'RELEASE.rst', 'VERSION', 'example.ini'])]
+
+
 metadata = dict(name='itzi',
                 version=get_version(),
                 description="A 2D superficial flow simulation model using GRASS GIS as a back-end",
@@ -59,6 +63,7 @@ metadata = dict(name='itzi',
                 requires=['numpy', 'pyinstrument'],
                 install_requires=['numpy>=1.9', 'pyinstrument'],
                 entry_points=entry_points,
+                data_files=DATA_FILES,
                 )
 
 
