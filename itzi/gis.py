@@ -243,6 +243,12 @@ class Igis(object):
         maplist = strds.get_registered_maps(columns=','.join(self.cols),
                                             where=where,
                                             order='start_time')
+        # check if every map exist
+        maps_not_found = [m[0] for m in maplist if not self.name_is_map(m[0])]
+        if any(maps_not_found):
+            err_msg = u"STRDS <{}>: Can't find following maps: {}"
+            str_lst = ','.join(maps_not_found)
+            self.msgr.fatal(err_msg.format(strds_name, str_lst))
         # change time data to datetime format
         if strds.get_temporal_type() == 'relative':
             rel_unit = strds.get_relative_time_unit().encode('ascii', 'ignore')
