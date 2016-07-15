@@ -2,7 +2,6 @@
 *.c
 *.so
 .~*
-doc
-doc/
-doc/*
-test_keyvalue_result.txt
+build/
+dist/
+itzi.egg-info/

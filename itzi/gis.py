@@ -59,7 +59,7 @@ class Igis(object):
         self.start_time = start_time
         self.end_time = end_time
         self.dtype = dtype
-        self.msgr = Messenger(raise_on_error=True)
+        self.msgr = Messenger()
         region = Region()
         self.xr = region.cols
         self.yr = region.rows
@@ -72,14 +72,20 @@ class Igis(object):
         tgis.init(raise_fatal_error=True)
         # define MapData namedtuple and cols to retrieve from STRDS
         self.cols = ['id', 'start_time', 'end_time']
-                #~ 'name','west','east','south','north']
         self.MapData = namedtuple('MapData', self.cols)
 
         # color tables files
-        file_dir = os.path.dirname(__file__)
-        self.rules_h = os.path.join(file_dir, 'colortable_depth.txt')
-        self.rules_v = os.path.join(file_dir, 'colortable_velocity.txt')
-        self.rules_def = os.path.join(file_dir, 'colortable_default.txt')
+        _ROOT = os.path.dirname(__file__)
+        _DIR = os.path.join(_ROOT, 'data', 'colortable')
+        _H = 'depth.txt'
+        _V = 'velocity.txt'
+        _DEF = 'default.txt'
+        self.rules_h = os.path.join(_DIR, _H)
+        self.rules_v = os.path.join(_DIR, _V)
+        self.rules_def = os.path.join(_DIR, _DEF)
+        assert os.path.isfile(self.rules_h)
+        assert os.path.isfile(self.rules_v)
+        assert os.path.isfile(self.rules_def)
 
     def grass_dtype(self, dtype):
         if dtype in self.dtype_conv['DCELL']:
@@ -240,6 +246,12 @@ class Igis(object):
         maplist = strds.get_registered_maps(columns=','.join(self.cols),
                                             where=where,
                                             order='start_time')
+        # check if every map exist
+        maps_not_found = [m[0] for m in maplist if not self.name_is_map(m[0])]
+        if any(maps_not_found):
+            err_msg = u"STRDS <{}>: Can't find following maps: {}"
+            str_lst = ','.join(maps_not_found)
+            self.msgr.fatal(err_msg.format(strds_name, str_lst))
         # change time data to datetime format
         if strds.get_temporal_type() == 'relative':
             rel_unit = strds.get_relative_time_unit().encode('ascii', 'ignore')
@@ -279,7 +291,7 @@ class Igis(object):
         assert isinstance(mkey, basestring), "not a string!"
         assert isinstance(sim_time, datetime), "not a datetime object!"
         assert mkey in self.maps.keys(), "unknown map key!"
-        if self.maps[mkey] == None:
+        if self.maps[mkey] is None:
             return None, self.start_time, self.end_time
         else:
             for m in self.maps[mkey]:
@@ -291,7 +303,7 @@ class Igis(object):
                                             k=mkey, t=sim_time)
 
     def register_maps_in_strds(self, mkey, strds_name, map_list, t_type):
-        '''Register given maps and apply color table
+        '''Register given maps
         '''
         assert isinstance(mkey, basestring), "not a string!"
         assert isinstance(strds_name, basestring), "not a string!"
@@ -339,10 +351,12 @@ class Igis(object):
     def apply_color_table(self, map_name, mkey):
         '''apply a color table determined by mkey to the given map
         '''
-        if mkey == 'out_h':
+        if mkey == 'h':
             colors_rules = self.rules_h
-        elif mkey.startswith('out_v'):
+        elif mkey == 'v':
             colors_rules = self.rules_v
+        elif mkey == 'vdir':
+            colors_rules = 'aspectcolr'
         else:
             colors_rules = self.rules_def
         grass.run_command('r.colors', quiet=True,

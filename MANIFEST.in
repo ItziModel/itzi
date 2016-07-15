@@ -1,0 +1,6 @@
+include LICENSE
+include example.ini
+recursive-include itzi *.py
+recursive-include itzi *.pyx *.c
+recursive-include itzi/data *
+recursive-include itzi/data/colortable *.txt
