@@ -6,10 +6,10 @@ Release Notes
 These are the major changes made in each release.
 For details of the changes please see the commit log of the git repository.
 
-Itzï 16.6
+Itzï 16.7
 ---------
 
-*Release date: in development, not yet released*
+*Release date: 2016-07-15*
 
 This is the first release of Itzï on Pypi
 
@@ -32,7 +32,6 @@ This is the first release of Itzï on Pypi
 **New features**
 
 - Export statistical maps for boundary flows, user inflow, infiltration and rainfall rates
-- 
 
 **Faster**
 

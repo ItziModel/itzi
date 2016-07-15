@@ -106,7 +106,9 @@ def itzi_run(args):
 def itzi_version(args):
     """Display the software version number from a file
     """
-    with open('VERSION', 'r') as f:
+    ROOT = os.path.dirname(__file__)
+    F_VERSION = os.path.join(ROOT, 'data', 'VERSION')
+    with open(F_VERSION, 'r') as f:
         print(f.readline().strip())
 
 

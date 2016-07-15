@@ -75,10 +75,14 @@ class Igis(object):
         self.MapData = namedtuple('MapData', self.cols)
 
         # color tables files
-        file_dir = os.path.dirname(__file__)
-        self.rules_h = os.path.join(file_dir, 'colortable_depth.txt')
-        self.rules_v = os.path.join(file_dir, 'colortable_velocity.txt')
-        self.rules_def = os.path.join(file_dir, 'colortable_default.txt')
+        _ROOT = os.path.dirname(__file__)
+        _DIR = os.path.join(_ROOT, 'data', 'colortable')
+        _H = 'depth.txt'
+        _V = 'velocity.txt'
+        _DEF = 'default.txt'
+        self.rules_h = os.path.join(_DIR, _H)
+        self.rules_v = os.path.join(_DIR, _V)
+        self.rules_def = os.path.join(_DIR, _DEF)
         assert os.path.isfile(self.rules_h)
         assert os.path.isfile(self.rules_v)
         assert os.path.isfile(self.rules_def)

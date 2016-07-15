@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
+import os
 import io
 from setuptools import setup, find_packages
 from setuptools.extension import Extension
@@ -10,7 +11,9 @@ from setuptools.dist import Distribution
 
 def get_version():
     """read version number from file"""
-    with io.open('VERSION', 'r') as f:
+    ROOT = os.path.dirname(__file__)
+    F_VERSION = os.path.join(ROOT, 'itzi', 'data', 'VERSION')
+    with io.open(F_VERSION, 'r') as f:
         return f.readline().strip()
 
 
