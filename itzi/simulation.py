@@ -99,7 +99,7 @@ class SimulationManager(object):
 
         # SuperficialSimulation
         self.surf_sim = SuperficialSimulation(self.rast_domain,
-                                                     self.sim_param)
+                                              self.sim_param)
 
         # Instantiate Massbal object
         if self.stats_file:

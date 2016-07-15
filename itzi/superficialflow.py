@@ -167,11 +167,14 @@ class SuperficialSimulation(object):
     def solve_q(self):
         '''Solve flow inside the domain using C/Cython function
         '''
-        flow.solve_q(arr_dire=self.dom.get('dire'), arr_dirs=self.dom.get('dirs'),
+        flow.solve_q(arr_dire=self.dom.get('dire'),
+                     arr_dirs=self.dom.get('dirs'),
                      arr_z=self.dom.get('z'), arr_n=self.dom.get('n'),
                      arr_h=self.dom.get('h'),
-                     arrp_qe=self.dom.get_padded('qe'), arrp_qs=self.dom.get_padded('qs'),
-                     arr_qe_new=self.dom.get('qe_new'), arr_qs_new=self.dom.get('qs_new'),
+                     arrp_qe=self.dom.get_padded('qe'),
+                     arrp_qs=self.dom.get_padded('qs'),
+                     arr_qe_new=self.dom.get('qe_new'),
+                     arr_qs_new=self.dom.get('qs_new'),
                      arr_hfe=self.dom.get('hfe'), arr_hfs=self.dom.get('hfs'),
                      arr_v=self.dom.get('v'), arr_vdir=self.dom.get('vdir'),
                      arr_vmax=self.dom.get('vmax'),

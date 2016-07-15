@@ -105,7 +105,7 @@ class RasterDomain(object):
         self.row_mul = int(byte_num / itemsize)
 
         # slice for a simple padding (allow stencil calculation on boundary)
-        self.simple_pad = (slice(1,-1), slice(1,-1))
+        self.simple_pad = (slice(1, -1), slice(1, -1))
 
         # input and output map names (GIS names)
         self.in_map_names = input_maps
@@ -332,12 +332,12 @@ class RasterDomain(object):
             out_arrays['inflow'] = self.get_unmasked('st_inflow') / interval_s
         if self.out_map_names['infiltration'] is not None:
             self.populate_stat_array('inf', sim_time)
-            out_arrays['infiltration'] = (self.get_unmasked('st_inf')
-                                          / interval_s) * self.mmh_to_ms
+            out_arrays['infiltration'] = (self.get_unmasked('st_inf') /
+                                          interval_s) * self.mmh_to_ms
         if self.out_map_names['rainfall'] is not None:
             self.populate_stat_array('rain', sim_time)
-            out_arrays['rainfall'] = (self.get_unmasked('st_rain')
-                                      / interval_s) * self.mmh_to_ms
+            out_arrays['rainfall'] = (self.get_unmasked('st_rain') /
+                                      interval_s) * self.mmh_to_ms
         return out_arrays
 
     def swap_arrays(self, k1, k2):

@@ -16,7 +16,7 @@ GNU General Public License for more details.
 from __future__ import division
 import numpy as np
 from datetime import timedelta
- 
+
 import flow
 from itzi_error import DtError
 
@@ -97,11 +97,3 @@ class InfNull(Infiltration):
     def step(self):
         pass
         return self
-
-
-#~ class InfHoltan(Infiltration):
-    #~ """
-    #~ """
-
-    #~ def get_infiltration(self):
-        #~ f = fc + a * pow(So - F, n)

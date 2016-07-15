@@ -132,4 +132,3 @@ class MassBal(object):
         self.sim_data = {k: [] for k in self.sim_data.keys()}
         self.line = dict.fromkeys(self.line.keys())
         return self
-

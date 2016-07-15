@@ -72,7 +72,6 @@ class Igis(object):
         tgis.init(raise_fatal_error=True)
         # define MapData namedtuple and cols to retrieve from STRDS
         self.cols = ['id', 'start_time', 'end_time']
-                #~ 'name','west','east','south','north']
         self.MapData = namedtuple('MapData', self.cols)
 
         # color tables files
@@ -288,7 +287,7 @@ class Igis(object):
         assert isinstance(mkey, basestring), "not a string!"
         assert isinstance(sim_time, datetime), "not a datetime object!"
         assert mkey in self.maps.keys(), "unknown map key!"
-        if self.maps[mkey] == None:
+        if self.maps[mkey] is None:
             return None, self.start_time, self.end_time
         else:
             for m in self.maps[mkey]:

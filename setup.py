@@ -32,7 +32,7 @@ def prepare_modules():
             ]
 
 
-entry_points = {'console_scripts': ['itzi=itzi.itzi:main',],}
+ENTRY_POINTS = {'console_scripts': ['itzi=itzi.itzi:main', ], }
 
 
 CLASSIFIERS = ["Development Status :: 4 - Beta",
@@ -47,9 +47,12 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
                "Topic :: Scientific/Engineering"]
 
 
+DESCR = "A 2D superficial flow simulation model using GRASS GIS as a back-end"
+
+
 metadata = dict(name='itzi',
                 version=get_version(),
-                description="A 2D superficial flow simulation model using GRASS GIS as a back-end",
+                description=DESCR,
                 long_description=get_long_description(),
                 url='http://itzi.org',
                 author='Laurent Courty',
@@ -60,8 +63,8 @@ metadata = dict(name='itzi',
                 packages=find_packages(),
                 requires=['numpy', 'pyinstrument'],
                 install_requires=['numpy', 'pyinstrument'],
-                include_package_data = True,
-                entry_points=entry_points,
+                include_package_data=True,
+                entry_points=ENTRY_POINTS,
                 )
 
 
