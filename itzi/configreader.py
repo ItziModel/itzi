@@ -260,7 +260,7 @@ class SimulationTimes(object):
         if b_dur:
             self.temporal_type = 'relative'
         else:
-            self.temporal_type = 'absdolute'
+            self.temporal_type = 'absolute'
         return self
 
     def read_timedelta(self, string):
@@ -283,8 +283,7 @@ class SimulationTimes(object):
         """
         if string:
             try:
-                return datetime.strptime(raw_input_times['end'],
-                                         self.date_format)
+                return datetime.strptime(string, self.date_format)
             except ValueError:
                 self.msgr.fatal(_(self.abs_err_msg.format(string)))
         else:

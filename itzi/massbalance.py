@@ -32,7 +32,7 @@ class MassBal(object):
         self.dom = rast_dom
         self.start_time = start_time
         if temporal_type not in ['absolute', 'relative']:
-            assert False, u"unknown temporal type <{}>".format(self.temporal_type)
+            assert False, u"unknown temporal type <{}>".format(temporal_type)
         self.temporal_type = temporal_type
         # values to be written on each record time
         self.fields = ['sim_time',  # either timedelta or datetime
