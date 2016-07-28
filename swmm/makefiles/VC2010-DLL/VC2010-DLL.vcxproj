@@ -1,0 +1,149 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{354E81BC-6611-454D-863E-F985991AA107}</ProjectGuid>
+    <RootNamespace>VC2005-DLL</RootNamespace>
+    <ProjectName>VC2010-DLL</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.40219.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(SolutionDir)$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(Configuration)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(SolutionDir)$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(Configuration)\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">swmm5</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
+      <ExceptionHandling>
+      </ExceptionHandling>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <StructMemberAlignment>Default</StructMemberAlignment>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <FloatingPointExceptions>false</FloatingPointExceptions>
+      <DisableLanguageExtensions>false</DisableLanguageExtensions>
+      <WarningLevel>Level4</WarningLevel>
+      <CompileAs>CompileAsC</CompileAs>
+      <OpenMPSupport>true</OpenMPSupport>
+      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+    </ClCompile>
+    <ProjectReference>
+      <LinkLibraryDependencies>true</LinkLibraryDependencies>
+    </ProjectReference>
+    <Link>
+      <OutputFile>$(OutDir)swmm5.dll</OutputFile>
+      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
+      <ModuleDefinitionFile>swmm5.def</ModuleDefinitionFile>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\climate.c" />
+    <ClCompile Include="..\controls.c" />
+    <ClCompile Include="..\culvert.c" />
+    <ClCompile Include="..\datetime.c" />
+    <ClCompile Include="..\dwflow.c" />
+    <ClCompile Include="..\dynwave.c" />
+    <ClCompile Include="..\error.c" />
+    <ClCompile Include="..\exfil.c" />
+    <ClCompile Include="..\findroot.c" />
+    <ClCompile Include="..\flowrout.c" />
+    <ClCompile Include="..\forcmain.c" />
+    <ClCompile Include="..\gage.c" />
+    <ClCompile Include="..\gwater.c" />
+    <ClCompile Include="..\hash.c" />
+    <ClCompile Include="..\hotstart.c" />
+    <ClCompile Include="..\iface.c" />
+    <ClCompile Include="..\infil.c" />
+    <ClCompile Include="..\inflow.c" />
+    <ClCompile Include="..\input.c" />
+    <ClCompile Include="..\inputrpt.c" />
+    <ClCompile Include="..\keywords.c" />
+    <ClCompile Include="..\kinwave.c" />
+    <ClCompile Include="..\landuse.c" />
+    <ClCompile Include="..\lid.c" />
+    <ClCompile Include="..\lidproc.c" />
+    <ClCompile Include="..\link.c" />
+    <ClCompile Include="..\massbal.c" />
+    <ClCompile Include="..\mathexpr.c" />
+    <ClCompile Include="..\mempool.c" />
+    <ClCompile Include="..\node.c" />
+    <ClCompile Include="..\odesolve.c" />
+    <ClCompile Include="..\output.c" />
+    <ClCompile Include="..\project.c" />
+    <ClCompile Include="..\qualrout.c" />
+    <ClCompile Include="..\rain.c" />
+    <ClCompile Include="..\rdii.c" />
+    <ClCompile Include="..\report.c" />
+    <ClCompile Include="..\routing.c" />
+    <ClCompile Include="..\runoff.c" />
+    <ClCompile Include="..\shape.c" />
+    <ClCompile Include="..\snow.c" />
+    <ClCompile Include="..\stats.c" />
+    <ClCompile Include="..\statsrpt.c" />
+    <ClCompile Include="..\subcatch.c" />
+    <ClCompile Include="..\surfqual.c" />
+    <ClCompile Include="..\swmm5.c" />
+    <ClCompile Include="..\table.c" />
+    <ClCompile Include="..\toposort.c" />
+    <ClCompile Include="..\transect.c" />
+    <ClCompile Include="..\treatmnt.c" />
+    <ClCompile Include="..\xsect.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\consts.h" />
+    <ClInclude Include="..\datetime.h" />
+    <ClInclude Include="..\enums.h" />
+    <ClInclude Include="..\error.h" />
+    <ClInclude Include="..\exfil.h" />
+    <ClInclude Include="..\findroot.h" />
+    <ClInclude Include="..\funcs.h" />
+    <ClInclude Include="..\globals.h" />
+    <ClInclude Include="..\hash.h" />
+    <ClInclude Include="..\headers.h" />
+    <ClInclude Include="..\infil.h" />
+    <ClInclude Include="..\keywords.h" />
+    <ClInclude Include="..\lid.h" />
+    <ClInclude Include="..\macros.h" />
+    <ClInclude Include="..\mathexpr.h" />
+    <ClInclude Include="..\mempool.h" />
+    <ClInclude Include="..\objects.h" />
+    <ClInclude Include="..\odesolve.h" />
+    <ClInclude Include="..\swmm5.h" />
+    <ClInclude Include="..\text.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
