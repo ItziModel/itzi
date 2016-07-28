@@ -9,6 +9,9 @@ from setuptools.extension import Extension
 from setuptools.dist import Distribution
 
 
+SWMM_SOURCE = 'itzi/swmm/source/'
+
+
 def get_version():
     """read version number from file"""
     ROOT = os.path.dirname(__file__)
@@ -24,6 +27,16 @@ def get_long_description():
     return long_description[idx:]
 
 
+def swmm_get_source():
+    """locate and return a list of source files
+    """
+    file_list = []
+    for f in os.listdir(SWMM_SOURCE):
+        if f.endswith('.c'):
+            file_list.append(os.path.join(SWMM_SOURCE,f))
+    return file_list
+
+
 def prepare_modules():
     # import numpy at the last moment
     # this enables pip to install numpy before itzi
@@ -32,6 +45,10 @@ def prepare_modules():
                       extra_compile_args=['-fopenmp', '-O3'],
                       extra_link_args=['-lgomp'],
                       include_dirs=[np.get_include()]),
+            Extension('itzi/swmm/source/swmm', sources=swmm_get_source(),
+                      extra_compile_args=['-fopenmp', '-w'],
+                      extra_link_args=['-lgomp'],
+                      )
             ]
 
 
