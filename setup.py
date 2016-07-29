@@ -70,6 +70,9 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
 DESCR = "A 2D superficial flow simulation model using GRASS GIS as a back-end"
 
 
+REQUIRES = ['numpy', 'pyinstrument', 'msgpack', 'pandas']
+
+
 metadata = dict(name='itzi',
                 version=get_version(),
                 description=DESCR,
@@ -81,8 +84,8 @@ metadata = dict(name='itzi',
                 classifiers=CLASSIFIERS,
                 keywords='science engineering hydrology',
                 packages=find_packages(),
-                requires=['numpy', 'pyinstrument'],
-                install_requires=['numpy', 'pyinstrument'],
+                requires=REQUIRES,
+                install_requires=REQUIRES,
                 include_package_data=True,
                 entry_points=ENTRY_POINTS,
                 )
