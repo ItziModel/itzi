@@ -45,7 +45,7 @@ def prepare_modules():
                       extra_compile_args=['-fopenmp', '-O3'],
                       extra_link_args=['-lgomp'],
                       include_dirs=[np.get_include()]),
-            Extension('itzi/swmm/source/swmm', sources=swmm_get_source(),
+            Extension('itzi/swmm/source/swmm5', sources=swmm_get_source(),
                       extra_compile_args=['-fopenmp', '-w'],
                       extra_link_args=['-lgomp'],
                       )
@@ -70,7 +70,7 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
 DESCR = "A 2D superficial flow simulation model using GRASS GIS as a back-end"
 
 
-REQUIRES = ['numpy', 'pyinstrument', 'msgpack', 'pandas']
+REQUIRES = ['numpy', 'pyinstrument', 'msgpack-python', 'pandas']
 
 
 metadata = dict(name='itzi',
@@ -84,7 +84,6 @@ metadata = dict(name='itzi',
                 classifiers=CLASSIFIERS,
                 keywords='science engineering hydrology',
                 packages=find_packages(),
-                requires=REQUIRES,
                 install_requires=REQUIRES,
                 include_package_data=True,
                 entry_points=ENTRY_POINTS,
