@@ -47,12 +47,14 @@ class ConfigReader(object):
         k_output_map_names = ['h', 'wse', 'v', 'vdir', 'qx', 'qy',
                               'boundaries', 'infiltration', 'rainfall',
                               'inflow', 'drainage']
+        k_drainage_params = ['swmm_inp', 'output']
         self.sim_param = {'hmin': 0.005, 'cfl': 0.7, 'theta': 0.9,
                           'g': 9.80665, 'vrouting': 0.1, 'dtmax': 5.,
                           'slmax': .1, 'dtinf': 60., 'inf_model': None}
         self.raw_input_times = dict.fromkeys(k_raw_input_times)
         self.output_map_names = dict.fromkeys(k_output_map_names)
         self.input_map_names = dict.fromkeys(k_input_map_names)
+        self.drainage_params = dict.fromkeys(k_drainage_params)
         self.out_prefix = 'itzi_results_{}'.format(datetime.now().strftime('%Y%m%dT%H%M%S'))
         return self
 
@@ -91,9 +93,15 @@ class ConfigReader(object):
         for k in self.input_map_names:
             if params.has_option('input', k):
                 self.input_map_names[k] = params.get('input', k)
+        # drainage parameters
+        for k in self.drainage_params:
+            if params.has_option('drainage', k):
+                self.drainage_params[k] = params.get('drainage', k)
         # statistic file
         if params.has_option('statistics', 'stats_file'):
             self.stats_file = params.get('statistics', 'stats_file')
+        else:
+            self.stats_file = None
         # output maps
         if params.has_option('output', 'prefix'):
             self.out_prefix = params.get('output', 'prefix')

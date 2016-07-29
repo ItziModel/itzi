@@ -90,7 +90,8 @@ def itzi_run(args):
                                        dtype=np.float32,
                                        input_maps=conf.input_map_names,
                                        output_maps=conf.output_map_names,
-                                       sim_param=conf.sim_param)
+                                       sim_param=conf.sim_param,
+                                       drainage_params=conf.drainage_params)
     sim.run()
 
     # end profiling and print results
