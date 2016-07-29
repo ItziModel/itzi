@@ -18,10 +18,12 @@ import warnings
 from datetime import datetime, timedelta
 import numpy as np
 import copy
+import msgpack
 
 from superficialflow import SuperficialSimulation
 from rasterdomain import RasterDomain
 from massbalance import MassBal
+from drainage import DrainageSimulation
 import gis
 import flow
 import infiltration
@@ -36,6 +38,7 @@ class SimulationManager(object):
     """
 
     def __init__(self, sim_times, input_maps, output_maps, sim_param,
+                 drainage_params,
                  dtype=np.float32,
                  dtmin=timedelta(seconds=0.01),
                  stats_file=None):
@@ -62,6 +65,9 @@ class SimulationManager(object):
         # simulation parameters
         self.sim_param = sim_param
         self.inf_model = self.sim_param['inf_model']
+
+        # drainage parameters
+        self.drainage_params = drainage_params
 
         # statistic file name
         self.stats_file = stats_file
@@ -107,9 +113,20 @@ class SimulationManager(object):
                                    self.start_time, self.temporal_type)
         else:
             self.massbal = None
+
+        # Drainage
+        if self.drainage_params['swmm_inp']:
+            self.drainage = DrainageSimulation(self.rast_domain,
+                                               self.drainage_params['swmm_inp'],
+                                               self.gis)
+        else:
+            self.drainage = None
+
         # reporting object
-        self.report = Report(self.gis, self.temporal_type, self.sim_param['hmin'],
-                             self.massbal, self.rast_domain, self.start_time)
+        self.report = Report(self.gis, self.temporal_type,
+                             self.sim_param['hmin'], self.massbal,
+                             self.rast_domain,
+                             self.drainage, self.drainage_params['output'])
         return self
 
     def run(self):
@@ -122,7 +139,7 @@ class SimulationManager(object):
         # dict of next time-step (datetime object)
         self.next_ts = {'end': self.end_time,
                         'rec': self.start_time + self.record_step}
-        for k in ['inf', 'surf']:
+        for k in ['inf', 'surf', 'drain']:
             self.next_ts[k] = self.start_time
         # First time-step is forced
         self.nextstep = self.sim_time + self.dt
@@ -159,12 +176,23 @@ class SimulationManager(object):
         else:
             self.rast_domain.isnew['inf'] = False
 
+        # calculate drainage
+        if self.sim_time == self.next_ts['drain'] and self.drainage:
+            self.drainage.solve_dt()
+            # calculate when will happen the next time-step
+            self.next_ts['drain'] += self.drainage.dt
+            self.drainage.step()
+            self.drainage.apply_linkage(self.dt.total_seconds())
+            self.rast_domain.isnew['q_drain'] = True
+        else:
+            self.rast_domain.isnew['q_drain'] = False
+
         # calculate superficial flow #
         # update arrays of infiltration, rainfall etc.
         self.rast_domain.update_ext_array()
         # force time-step to be the general time-step
         self.surf_sim.dt = self.dt
-        # step() raise NullError in case of NaN/NULL cell
+        # surf_sim.step() raise NullError in case of NaN/NULL cell
         # if this happen, stop simulation and
         # output a map showing the errors
         try:
@@ -198,7 +226,8 @@ class SimulationManager(object):
 class Report(object):
     """In charge of results reporting and writing
     """
-    def __init__(self, igis, temporal_type, hmin, massbal, rast_dom, start_time):
+    def __init__(self, igis, temporal_type, hmin, massbal, rast_dom,
+                 drainage_sim, drainage_out):
         self.record_counter = 0
         self.gis = igis
         self.temporal_type = temporal_type
@@ -206,9 +235,12 @@ class Report(object):
         self.hmin = hmin
         self.rast_dom = rast_dom
         self.massbal = massbal
+        self.drainage_sim = drainage_sim
+        self.drainage_out = drainage_out
+        self.drainage_values = {'records': []}
         # a dict containing lists of maps written to gis to be registered
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
-        self.last_step = start_time
+        self.last_step = copy.copy(self.gis.start_time)
 
     def step(self, sim_time):
         """write results at given time-step
@@ -219,6 +251,8 @@ class Report(object):
         self.write_results_to_gis(sim_time)
         if self.massbal:
             self.write_mass_balance(sim_time)
+        if self.drainage_sim:
+            self.save_drainage_values(sim_time)
         self.record_counter += 1
         self.last_step = copy.copy(sim_time)
         return self
@@ -227,6 +261,7 @@ class Report(object):
         """write last mass balance
         register maps in gis
         write max level maps
+        write json drainage data
         """
         assert isinstance(sim_time, datetime)
         if self.massbal:
@@ -236,6 +271,8 @@ class Report(object):
             self.write_hmax_to_gis()
         if self.out_map_names['v']:
             self.write_vmax_to_gis()
+        if self.drainage_sim:
+            self.drainage_values_to_json()
         return self
 
     def write_mass_balance(self, sim_time):
@@ -260,6 +297,8 @@ class Report(object):
                 # write the raster
                 self.gis.write_raster_map(arr, map_name, k)
                 # add map name and time to the corresponding list
+                if self.temporal_type == 'relative':
+                    sim_time = (sim_time - self.gis.start_time).total_seconds()
                 self.output_maplist[k].append((map_name, sim_time))
         return self
 
@@ -302,4 +341,29 @@ class Report(object):
                 continue
             self.gis.register_maps_in_strds(mkey, strds_name, lst,
                                             self.temporal_type)
+        return self
+
+    def save_drainage_values(self, sim_time):
+        """Populate a dict with values from drainage network
+        """
+        if self.temporal_type == 'absolute':
+            date = sim_time.isoformat()
+        elif self.temporal_type == 'relative':
+            date = str(sim_time - self.gis.start_time)
+        else:
+            assert False, u"Unknown temporal type"
+        proj = self.drainage_sim.get_serialized_project_values()
+        nodes = self.drainage_sim.get_serialized_nodes_values()
+        links = self.drainage_sim.get_serialized_links_values()
+        self.drainage_values['records'].append({'date': date,
+                                                'project': proj,
+                                                'nodes': nodes,
+                                                'links': links})
+        return self
+
+    def drainage_values_to_json(self):
+        """Dump drainage values to a json file
+        """
+        with open(self.drainage_out, 'w') as outfile:
+            msgpack.dump(self.drainage_values, outfile)
         return self
