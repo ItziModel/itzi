@@ -13,6 +13,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 from __future__ import division
+import os
 from datetime import datetime, timedelta
 from collections import namedtuple
 import numpy as np
@@ -26,13 +27,13 @@ class DrainageSimulation(object):
     """manage simulation of the pipe network
     write results to RasterDomain object
     """
-    def __init__(self, domain, swmm_params, igis):
+    def __init__(self, domain, inp, igis):
         self.dom = domain
         # create swmm object and open files
         self.swmm5 = swmm.Swmm5()
-        self.swmm5.swmm_open(input_file=swmm_params['input'],
-                            report_file=swmm_params['report'],
-                            output_file=swmm_params['output'])
+        self.swmm5.swmm_open(input_file=inp,
+                             report_file=os.devnull,
+                             output_file='')
         self.swmm5.swmm_start()
         # allow ponding
         self.swmm5.set_allow_ponding()
@@ -42,7 +43,7 @@ class DrainageSimulation(object):
         self.gis = igis
 
         # create a list of linkable nodes
-        swmm_inp = swmm.SwmmInputParser(swmm_params['input'])
+        swmm_inp = swmm.SwmmInputParser(inp)
         self.create_node_list(swmm_inp.get_juntions_as_dict())
 
     def __del__(self):
