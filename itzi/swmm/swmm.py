@@ -42,8 +42,7 @@ class Swmm5(object):
         '''return swmm version as an integer'''
         return self.c_swmm5.swmm_getVersion()
 
-    def swmm_open(self, input_file = None, report_file = None,
-                  output_file = None):
+    def swmm_open(self, input_file, report_file, output_file):
         '''Opens a swmm project
         '''
         err = self.c_swmm5.swmm_open(c.c_char_p(input_file),
