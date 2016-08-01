@@ -15,13 +15,13 @@ This is the first release of Itzï on Pypi
 
 **Easier installation**
 
-- Allow easy installation and compilation with pip
+- Easy compilation and installation with pip
 
 **New user interface**
 
 - Parameters are now given only by configuration file
 - Parameters name in configuration files are more explicit
-- Output maps are now defined by a prefix and a list of output needed
+- Output maps are now defined by a prefix and a list of output
 - Add an example input file with parameter description
 
 **Corrected bugs**
