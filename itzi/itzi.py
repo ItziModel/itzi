@@ -31,21 +31,25 @@ COPYRIGHT: (C) 2015-2016 by Laurent Courty
 
 from __future__ import print_function, division
 import sys
-import os
-import time
-import argparse
-import numpy as np
-from pyinstrument import Profiler
-from datetime import datetime, timedelta
 
+# exit with an error if run outside GRASS shell
 try:
     import grass.script as grass
     from grass.pygrass.messages import Messenger
 except ImportError:
     sys.exit("Please run from a GRASS GIS environment")
 
+import os
+import time
+import argparse
+import msgpack
+import numpy as np
+from pyinstrument import Profiler
+from datetime import datetime, timedelta
+
 import simulation
 from configreader import ConfigReader
+from resultsreader import ResultsReader
 
 
 def main():
@@ -113,6 +117,27 @@ def itzi_version(args):
         print(f.readline().strip())
 
 
+def itzi_read(args):
+    msgr = Messenger()
+    # read input and affect variables
+    with open(args.result_file, 'r') as infile:
+        results = msgpack.load(infile)
+    processor = ResultsReader(results, msgr)
+
+    # perform actions
+    if args.type == 'node':
+        processor.verif_node_id(args.id)
+        if args.action == 'plot':
+            processor.plot_node_values(args.id, args.variables)
+        elif args.action == 'csv':
+            processor.node_values_to_csv(args.id, args.output)
+    elif args.type == 'link':
+        pass
+    else:
+        self.msgr.fatal(_(u"Unknown type: '{}'".format(args.type)))
+    return None
+
+
 # parsing command line
 parser = argparse.ArgumentParser(description=u"A dynamic, fully distributed "
                                              u"hydraulic and hydrologic model")
@@ -131,6 +156,21 @@ run_parser.set_defaults(func=itzi_run)
 version_parser = subparsers.add_parser("version",
                                        help=u"display software version number")
 version_parser.set_defaults(func=itzi_version)
+
+# read results
+read_parser = subparsers.add_parser("read", help=u"read simulation results",
+                                   description=u"read simulation results")
+read_parser.add_argument("result_file", help=u"an Itzï results file")
+read_parser.add_argument("--output",
+                         help=u"CSV file. If not given, print to standard output")
+read_parser.add_argument("action", choices=['plot', 'csv'],
+                         help=u"action to perform")
+read_parser.add_argument("type", choices=['node', 'link'],
+                         help=u"Type of object to read")
+read_parser.add_argument("id", help=u"ID of object")
+read_parser.add_argument("variables", nargs='*',
+                         help=u"list of variables")
+read_parser.set_defaults(func=itzi_read)
 
 
 if __name__ == "__main__":

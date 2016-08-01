@@ -70,7 +70,8 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
 DESCR = "A 2D superficial flow simulation model using GRASS GIS as a back-end"
 
 
-REQUIRES = ['numpy', 'pyinstrument', 'msgpack-python', 'pandas']
+REQUIRES = ['numpy', 'pyinstrument', 'msgpack-python', 'pandas',
+            'python-dateutil', 'matplotlib']
 
 
 metadata = dict(name='itzi',
