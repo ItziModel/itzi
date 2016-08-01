@@ -210,7 +210,8 @@ class SimulationManager(object):
             self.massbal.add_value('tstep', self.dt.total_seconds())
         # write simulation results
         if self.sim_time >= self.next_ts['rec']:
-            self.gis.msgr.verbose(_(u"{}: Writting output maps...".format(self.sim_time)))
+            self.gis.msgr.verbose(u"{}: Writting output "
+                                  u"maps...".format(self.sim_time))
             self.report.step(self.sim_time)
             self.next_ts['rec'] += self.record_step
             # reset statistic maps

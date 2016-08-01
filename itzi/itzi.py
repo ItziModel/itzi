@@ -147,7 +147,8 @@ subparsers = parser.add_subparsers()
 run_parser = subparsers.add_parser("run", help=u"run a simulation",
                                    description="run a simulation")
 run_parser.add_argument("config_file", help=u"an Itzï configuration file")
-run_parser.add_argument("-o", action='store_true', help=u"overwrite files if exist")
+run_parser.add_argument("-o", action='store_true',
+                        help=u"overwrite files if exist")
 run_parser.add_argument("-p", action='store_true', help=u"activate profiler")
 run_parser.add_argument("-v", action='store_true', help=u"verbose output")
 run_parser.set_defaults(func=itzi_run)
@@ -159,10 +160,11 @@ version_parser.set_defaults(func=itzi_version)
 
 # read results
 read_parser = subparsers.add_parser("read", help=u"read simulation results",
-                                   description=u"read simulation results")
+                                    description=u"read simulation results")
 read_parser.add_argument("result_file", help=u"an Itzï results file")
 read_parser.add_argument("--output",
-                         help=u"CSV file. If not given, print to standard output")
+                         help=u"CSV file name. If not given, "
+                              u"print to standard output")
 read_parser.add_argument("action", choices=['plot', 'csv'],
                          help=u"action to perform")
 read_parser.add_argument("type", choices=['node', 'link'],

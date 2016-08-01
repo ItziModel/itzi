@@ -81,7 +81,7 @@ class ConfigReader(object):
         params = ConfigParser.SafeConfigParser(allow_no_value=True)
         f = params.read(self.config_file)
         if not f:
-            self.msgr.fatal(_(u"File <{}> not found".format(self.config_file)))
+            self.msgr.fatal(u"File <{}> not found".format(self.config_file))
         # populate dictionaries using loops instead of using update() method
         # in order to not add invalid key
         for k in self.raw_input_times:
@@ -133,7 +133,8 @@ class ConfigReader(object):
         """
         for v in self.output_map_names.itervalues():
             if self.file_exist(v) and not grass.overwrite():
-                self.msgr.fatal(_(u"File {} exists and will not be overwritten".format(v)))
+                self.msgr.fatal(u"File {} exists and "
+                                u"will not be overwritten".format(v))
 
     def check_inf_maps(self):
         """check coherence of input infiltration maps
@@ -150,10 +151,11 @@ class ConfigReader(object):
         elif self.input_map_names[inf_k] and not ga_any:
             self.sim_param['inf_model'] = 'constant'
         elif self.input_map_names[inf_k] and ga_any:
-            self.msgr.fatal(_(u"Infiltration model incompatible with user-defined rate"))
+            self.msgr.fatal(u"Infiltration model incompatible "
+                            u"with user-defined rate")
         # check if all maps for Green-Ampt are presents
         elif ga_any and not ga_all:
-            self.msgr.fatal(_(u"{} are mutualy inclusive".format(self.ga_list)))
+            self.msgr.fatal(u"{} are mutualy inclusive".format(self.ga_list))
         elif ga_all and not self.input_map_names[inf_k]:
             self.sim_param['inf_model'] = 'green-ampt'
         return self
@@ -164,7 +166,8 @@ class ConfigReader(object):
         if not all([self.input_map_names['dem'],
                    self.input_map_names['friction'],
                    self.sim_times.record_step]):
-            msgr.fatal(_(u"inputs <dem>, <friction> and <record_step> are mandatory"))
+            msgr.fatal(u"inputs <dem>, <friction> and "
+                       u"<record_step> are mandatory")
 
     def display_sim_param(self):
         """Display simulation parameters if verbose
@@ -185,7 +188,7 @@ class ConfigReader(object):
 
 
 class SimulationTimes(object):
-    """Store the information about simulation starting & ending time and duration
+    """Store the information about simulation start & end time and duration
     """
     def __init__(self, raw_input_times, msgr):
         self.msgr = msgr

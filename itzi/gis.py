@@ -196,8 +196,8 @@ class Igis(object):
             elif self.name_is_stds(self.format_id(map_name)):
                 strds_id = self.format_id(map_name)
                 if not self.stds_temporal_sanity(strds_id):
-                    self.msgr.fatal(_
-                        (u"{}: inadequate temporal format".format(map_name)))
+                    self.msgr.fatal(u"{}: inadequate "
+                                    u"temporal format".format(map_name))
                 map_list = self.raster_list_from_strds(strds_id)
             elif self.name_is_map(self.format_id(map_name)):
                 map_list = [self.MapData(id=self.format_id(map_name),
@@ -230,10 +230,10 @@ class Igis(object):
         stds_start, stds_end = stds.get_temporal_extent_as_tuple()
         if stds_start > sim_start:
             out = False
-            self.msgr.warning(_(u"{}: starts after simulation".format(stds_id)))
+            self.msgr.warning(u"{}: starts after simulation".format(stds_id))
         if stds_end < sim_end:
             out = False
-            self.msgr.warning(_(u"{}: ends before simulation".format(stds_id)))
+            self.msgr.warning(u"{}: ends before simulation".format(stds_id))
         return out
 
     def raster_list_from_strds(self, strds_name):

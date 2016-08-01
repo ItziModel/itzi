@@ -23,6 +23,7 @@ import grass.pygrass.utils as gutils
 from swmm import swmm
 from itzi_error import DtError
 
+
 class DrainageSimulation(object):
     """manage simulation of the pipe network
     write results to RasterDomain object
@@ -125,9 +126,10 @@ class DrainageSimulation(object):
         return {}
 
     def get_serialized_nodes_values(self):
-        """Return nodes values in a ID:values dict
+        """Return nodes values in a ID: values dict
         """
-        return {n[0].node_id:n[0].get_values_as_dict() for n in self.drain_nodes}
+        return {n[0].node_id: n[0].get_values_as_dict()
+                for n in self.drain_nodes}
 
     def get_serialized_links_values(self):
         """Return links values in a ID:values dict
