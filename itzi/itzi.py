@@ -32,20 +32,7 @@ COPYRIGHT: (C) 2015-2016 by Laurent Courty
 from __future__ import print_function, division
 import sys
 import os
-import time
 import argparse
-import numpy as np
-from pyinstrument import Profiler
-from datetime import datetime, timedelta
-
-try:
-    import grass.script as grass
-    from grass.pygrass.messages import Messenger
-except ImportError:
-    sys.exit("Please run from a GRASS GIS environment")
-
-import simulation
-from configreader import ConfigReader
 
 
 def main():
@@ -54,6 +41,18 @@ def main():
 
 
 def itzi_run(args):
+    # exit with an error if run outside GRASS shell
+    try:
+        import grass.script as grass
+        from grass.pygrass.messages import Messenger
+    except ImportError:
+        sys.exit("Please run from a GRASS GIS environment")
+    import time
+    import numpy as np
+    from pyinstrument import Profiler
+    from datetime import timedelta
+    import simulation
+
     # start profiler
     if args.p:
         prof = Profiler()
@@ -99,8 +98,8 @@ def itzi_run(args):
         print(prof.output_text(unicode=True, color=True))
     # display total computation duration
     elapsed_time = timedelta(seconds=int(time.time() - sim_start))
-    grass.message(_(u"Simulation complete. "
-                    u"Elapsed time: {}").format(elapsed_time))
+    grass.message(u"Simulation complete. "
+                  u"Elapsed time: {}".format(elapsed_time))
 
 
 def itzi_version(args):
@@ -112,12 +111,17 @@ def itzi_version(args):
         print(f.readline().strip())
 
 
-# parsing command line
-parser = argparse.ArgumentParser(description=u"A dynamic, fully distributed "
-                                             u"hydraulic and hydrologic model")
+########################
+# Parsing command line #
+########################
+
+DESCR = (u"A dynamic, fully distributed hydraulic and hydrologic model. "
+         u"Must be run within a GRASS GIS environment.")
+
+parser = argparse.ArgumentParser(description=DESCR)
 subparsers = parser.add_subparsers()
 
-# running a simple simulation
+# running a simulation
 run_parser = subparsers.add_parser("run", help=u"run a simulation",
                                    description="run a simulation")
 run_parser.add_argument("config_file", help=u"an Itzï configuration file")
