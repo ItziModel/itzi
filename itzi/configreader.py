@@ -54,6 +54,7 @@ class ConfigReader(object):
         self.output_map_names = dict.fromkeys(k_output_map_names)
         self.input_map_names = dict.fromkeys(k_input_map_names)
         self.out_prefix = 'itzi_results_{}'.format(datetime.now().strftime('%Y%m%dT%H%M%S'))
+        self.stats_file = None
         return self
 
     def set_entry_values(self):
