@@ -51,6 +51,7 @@ def itzi_run(args):
     import numpy as np
     from pyinstrument import Profiler
     from datetime import timedelta
+    from configreader import ConfigReader
     import simulation
 
     # start profiler
