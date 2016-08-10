@@ -6,6 +6,24 @@ Release Notes
 These are the major changes made in each release.
 For details of the changes please see the commit log of the git repository.
 
+Itzï 16.8
+---------
+
+*Release date: 2016-08-10*
+
+This is mainly a bugfix release.
+
+**Corrected bugs**
+
+- fix crash when using absolute time
+- fix crash when not providing a statistics file name
+- clearer message in case mandatory parameters are not set
+
+**New feature**
+
+- Allow display of CLI usage outside of GRASS environment
+
+
 Itzï 16.7
 ---------
 
