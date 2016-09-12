@@ -77,9 +77,10 @@ def itzi_run(args):
     # start messenger
     msgr = Messenger()
 
-    # start counter
-    sim_start = time.time()
-    print(args.config_file)
+    # start total time counter
+    total_sim_start = time.time()
+    # dictionary to store computation times
+    times_dict = {}
     for conf_file in args.config_file:
         file_name = os.path.basename(conf_file)
         # parsing configuration file
@@ -87,6 +88,7 @@ def itzi_run(args):
         # display parameters (if verbose)
         conf.display_sim_param()
         # Run simulation
+        sim_start = time.time()
         msgr.message(u"Starting simulation for configuration file {}...".format(file_name))
         sim = simulation.SimulationManager(sim_times=conf.sim_times,
                                            stats_file=conf.stats_file,
@@ -95,15 +97,22 @@ def itzi_run(args):
                                            output_maps=conf.output_map_names,
                                            sim_param=conf.sim_param)
         sim.run()
+        # store computation time
+        times_dict[file_name] = timedelta(seconds=int(time.time() - sim_start))
 
+    # stop total time counter
+    total_elapsed_time = timedelta(seconds=int(time.time() - total_sim_start))
     # end profiling and print results
     if args.p:
         prof.stop()
         print(prof.output_text(unicode=True, color=True))
     # display total computation duration
-    elapsed_time = timedelta(seconds=int(time.time() - sim_start))
-    grass.message(u"Simulation complete. "
-                  u"Elapsed time: {}".format(elapsed_time))
+    msgr.message(u"Simulations complete. Elapsed times:")
+    for f, t in times_dict.iteritems():
+        msgr.message(u"{}: {}".format(f, t))
+    msgr.message(u"Total: {}".format(total_elapsed_time))
+    avg_time = timedelta(seconds=(total_elapsed_time.total_seconds() / len(times_dict)))
+    msgr.message(u"Average: {}".format(avg_time))
 
 
 def itzi_version(args):
@@ -129,7 +138,7 @@ subparsers = parser.add_subparsers()
 run_parser = subparsers.add_parser("run", help=u"run a simulation",
                                    description="run a simulation")
 run_parser.add_argument("config_file", nargs='+',
-                        help=u"a list of Itzï configuration files")
+                        help=u"an Itzï configuration files (if several given, run in batch mode)")
 run_parser.add_argument("-o", action='store_true', help=u"overwrite files if exist")
 run_parser.add_argument("-p", action='store_true', help=u"activate profiler")
 run_parser.add_argument("-v", action='store_true', help=u"verbose output")
