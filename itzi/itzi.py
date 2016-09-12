@@ -54,6 +54,11 @@ def itzi_run(args):
     from configreader import ConfigReader
     import simulation
 
+    # stop program if location is latlong
+    if grass.locn_is_latlong():
+        msgr.fatal(_(u"latlong location is not supported. "
+                     u"Please use a projected location"))
+
     # start profiler
     if args.p:
         prof = Profiler()
@@ -72,26 +77,24 @@ def itzi_run(args):
     # start messenger
     msgr = Messenger()
 
-    # stop program if location is latlong
-    if grass.locn_is_latlong():
-        msgr.fatal(_(u"latlong location is not supported. "
-                     u"Please use a projected location"))
-
-    # parsing configuration file
-    conf = ConfigReader(args.config_file, msgr)
-    # display parameters (if verbose)
-    conf.display_sim_param()
-
-    # Run simulation
-    msgr.verbose(_(u"Starting simulation..."))
+    # start counter
     sim_start = time.time()
-    sim = simulation.SimulationManager(sim_times=conf.sim_times,
-                                       stats_file=conf.stats_file,
-                                       dtype=np.float32,
-                                       input_maps=conf.input_map_names,
-                                       output_maps=conf.output_map_names,
-                                       sim_param=conf.sim_param)
-    sim.run()
+    print(args.config_file)
+    for conf_file in args.config_file:
+        file_name = os.path.basename(conf_file)
+        # parsing configuration file
+        conf = ConfigReader(conf_file, msgr)
+        # display parameters (if verbose)
+        conf.display_sim_param()
+        # Run simulation
+        msgr.message(u"Starting simulation for configuration file {}...".format(file_name))
+        sim = simulation.SimulationManager(sim_times=conf.sim_times,
+                                           stats_file=conf.stats_file,
+                                           dtype=np.float32,
+                                           input_maps=conf.input_map_names,
+                                           output_maps=conf.output_map_names,
+                                           sim_param=conf.sim_param)
+        sim.run()
 
     # end profiling and print results
     if args.p:
@@ -125,7 +128,8 @@ subparsers = parser.add_subparsers()
 # running a simulation
 run_parser = subparsers.add_parser("run", help=u"run a simulation",
                                    description="run a simulation")
-run_parser.add_argument("config_file", help=u"an Itzï configuration file")
+run_parser.add_argument("config_file", nargs='+',
+                        help=u"a list of Itzï configuration files")
 run_parser.add_argument("-o", action='store_true', help=u"overwrite files if exist")
 run_parser.add_argument("-p", action='store_true', help=u"activate profiler")
 run_parser.add_argument("-v", action='store_true', help=u"verbose output")
