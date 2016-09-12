@@ -70,6 +70,8 @@ class ConfigReader(object):
         self.check_inf_maps()
         # check if the output files do not exist
         self.check_output_files()
+        # check the sanity of simulation parameters
+        self.check_sim_params()
         return self
 
     def read_param_file(self):
@@ -127,6 +129,19 @@ class ConfigReader(object):
         for v in self.output_map_names.itervalues():
             if self.file_exist(v) and not grass.overwrite():
                 self.msgr.fatal(_(u"File {} exists and will not be overwritten".format(v)))
+
+    def check_sim_params(self):
+        """Check if the simulations parameters are positives and valid
+        """
+        for k, v in self.sim_param.iteritems():
+            if k == 'theta':
+                if not 0 <= v <= 1:
+                    self.msgr.fatal(u"{} value must be between 0 and 1".format(k))
+            elif k == 'inf_model':
+                continue
+            else:
+                if not v > 0:
+                    self.msgr.fatal(u"{} value must be positive".format(k))
 
     def check_inf_maps(self):
         """check coherence of input infiltration maps
