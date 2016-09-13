@@ -25,6 +25,7 @@ from massbalance import MassBal
 import gis
 import flow
 import infiltration
+import hydrology
 from itzi_error import NullError
 
 
@@ -97,6 +98,10 @@ class SimulationManager(object):
         else:
             assert False, u"Unknow infiltration model: {}".format(self.inf_model)
 
+        # Hydrology
+        self.hydrology = hydrology.Hydrology(self.rast_domain, self.dtinf,
+                                             self.infiltration)
+
         # SuperficialSimulation
         self.surf_sim = SuperficialSimulation(self.rast_domain,
                                               self.sim_param)
@@ -122,7 +127,7 @@ class SimulationManager(object):
         # dict of next time-step (datetime object)
         self.next_ts = {'end': self.end_time,
                         'rec': self.start_time + self.record_step}
-        for k in ['inf', 'surf']:
+        for k in ['hyd', 'surf']:
             self.next_ts[k] = self.start_time
         # First time-step is forced
         self.nextstep = self.sim_time + self.dt
@@ -148,16 +153,14 @@ class SimulationManager(object):
     def step(self):
         """Step each of the model if needed
         """
-        # calculate infiltration
-        if self.sim_time == self.next_ts['inf']:
-            self.infiltration.solve_dt()
+        # hydrology
+        if self.sim_time == self.next_ts['hyd']:
+            self.hydrology.solve_dt()
             # calculate when will happen the next time-step
-            self.next_ts['inf'] += self.infiltration.dt
+            self.next_ts['hyd'] += self.hydrology.dt
+            self.hydrology.step()
+            # update stat array
             self.rast_domain.populate_stat_array('inf', self.sim_time)
-            self.infiltration.step()
-            self.rast_domain.isnew['inf'] = True
-        else:
-            self.rast_domain.isnew['inf'] = False
 
         # calculate superficial flow #
         # update arrays of infiltration, rainfall etc.

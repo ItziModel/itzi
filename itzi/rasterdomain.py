@@ -117,17 +117,18 @@ class RasterDomain(object):
                              'pres': 'capillary_pressure',
                              'con': 'hydraulic_conductivity',
                              'in_inf': 'infiltration',
+                             's_drain': 'drainage_capacity',
                              'rain': 'rain', 'in_q': 'inflow',
                              'bcv': 'bcval', 'bct': 'bctype'}
         # all keys that will be used for the arrays
         self.k_input = self.in_k_corresp.keys()
         self.k_internal = ['inf', 'hmax', 'ext', 'y', 'hfe', 'hfs',
-                           'qe', 'qs', 'qe_new', 'qs_new',
+                           'qe', 'qs', 'qe_new', 'qs_new', 'etp',
                            'ue', 'us', 'v', 'vdir', 'vmax',
                            'q_drain', 'dire', 'dirs']
         # arrays gathering the cumulated water depth from corresponding array
-        self.k_stats = ['st_bound', 'st_inf', 'st_rain', 'st_inflow',
-                        'st_drain']
+        self.k_stats = ['st_bound', 'st_inf', 'st_rain', 'st_etp',
+                        'st_inflow', 'st_drain']
         self.stats_corresp = {'inf': 'st_inf', 'rain': 'st_rain',
                               'in_q': 'st_inflow', 'q_drain': 'st_drain'}
         self.k_all = self.k_input + self.k_internal + self.k_stats
@@ -299,10 +300,9 @@ class RasterDomain(object):
         Rainfall and infiltration are considered in mm/h,
         in_q and q_drain in m/s
         """
-        if any([self.isnew[k] for k in self.k_ext]):
-            flow.set_ext_array(self.arr['in_q'], self.arr['rain'],
-                               self.arr['inf'], self.arr['q_drain'],
-                               self.arr['ext'], self.mmh_to_ms)
+        if any([self.isnew[k] for k in ('in_q', 'q_drain')]):
+            flow.set_ext_array(self.arr['in_q'], self.arr['q_drain'],
+                               self.arr['ext'])
             self.isnew['ext'] = True
         else:
             self.isnew['ext'] = False

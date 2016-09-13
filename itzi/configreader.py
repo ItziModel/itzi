@@ -43,7 +43,7 @@ class ConfigReader(object):
                         'hydraulic_conductivity']
         k_input_map_names = ['dem', 'friction', 'start_h', 'start_y',
                              'rain', 'inflow', 'bcval', 'bctype',
-                             'infiltration'] + self.ga_list
+                             'infiltration', 'drainage_capacity'] + self.ga_list
         k_output_map_names = ['h', 'wse', 'v', 'vdir', 'qx', 'qy',
                               'boundaries', 'infiltration', 'rainfall',
                               'inflow', 'drainage']
