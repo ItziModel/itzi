@@ -145,12 +145,10 @@ class Igis(object):
         """return True if the given name is a map in the grass database
         False if not
         """
-        try:
-            grass.read_command('g.findfile', file=map_id, element='cell')
-        except CalledModuleError:
-            return False
-        else:
+        if grass.find_file(name=map_id, element='cell')['file']:
             return True
+        else:
+            return False
 
     def get_sim_extend_in_stds_unit(self, strds):
         """Take a strds object as input
