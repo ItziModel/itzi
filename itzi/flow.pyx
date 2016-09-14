@@ -43,6 +43,41 @@ def arr_sum(DTYPE_t [:, :] arr):
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
+def arr_add(DTYPE_t [:, :] arr1, DTYPE_t [:, :] arr2):
+    '''Add arr1 to arr2'''
+    cdef int rmax, cmax, r, c
+    rmax = arr1.shape[0]
+    cmax = arr1.shape[1]
+    for r in prange(rmax, nogil=True):
+        for c in range(cmax):
+            arr2[r, c] += arr1[r, c]
+
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+def apply_hydrology(DTYPE_t [:, :] arr_rain, DTYPE_t [:, :] arr_inf,
+                    DTYPE_t [:, :] arr_etp, DTYPE_t [:, :] arr_drain_cap,
+                    DTYPE_t [:, :] arr_h, float dt):
+    '''Apply rain, infiltration etc. for the current time-step
+    rain and inf in mm/h, deph in m, dt in seconds'''
+    cdef int rmax, cmax, r, c
+    cdef float rain, etp, inf, drain_cap, dt_h, h_new
+    rmax = arr_rain.shape[0]
+    cmax = arr_rain.shape[1]
+    for r in prange(rmax, nogil=True):
+        for c in range(cmax):
+            rain = arr_rain[r, c]
+            inf = arr_inf[r, c]
+            etp = arr_etp[r, c]
+            drain_cap = arr_drain_cap[r, c]
+            dt_h = dt / 3600.  # dt from sec to hours
+            h_new = max(arr_h[r, c] + (rain - inf - etp - drain_cap) * dt_h / 1000., 0.)
+            arr_h[r, c] = h_new
+
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
 def flow_dir(DTYPE_t [:, :] arr_max_dz, DTYPE_t [:, :] arr_dz0,
              DTYPE_t [:, :] arr_dz1, DTYPE_t [:, :] arr_dir):
     '''Populate arr_dir with a rain-routing direction:
@@ -305,10 +340,9 @@ def solve_h(DTYPE_t [:, :] arr_ext,
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-def set_ext_array(DTYPE_t [:, :] arr_qext, DTYPE_t [:, :] arr_rain,
-                  DTYPE_t [:, :] arr_inf, DTYPE_t [:, :] arr_drain,
-                  DTYPE_t [:, :] arr_ext, float multiplicator):
-    '''Update the water depth and max depth
+def set_ext_array(DTYPE_t [:, :] arr_qext, DTYPE_t [:, :] arr_drain,
+                  DTYPE_t [:, :] arr_ext):
+    '''Calculate the new ext_array to be used in depth update
     '''
     cdef int rmax, cmax, r, c
     cdef float qext, rain, inf, qdrain
@@ -317,12 +351,7 @@ def set_ext_array(DTYPE_t [:, :] arr_qext, DTYPE_t [:, :] arr_rain,
     cmax = arr_qext.shape[1]
     for r in prange(rmax, nogil=True):
         for c in range(cmax):
-            qext = arr_qext[r, c]
-            rain = arr_rain[r, c]
-            inf = arr_inf[r, c]
-            qdrain = arr_drain[r, c]
-            # Solve
-            arr_ext[r, c] = qext + qdrain + (rain - inf) / multiplicator
+            arr_ext[r, c] = arr_qext[r, c] + arr_drain[r, c]
 
 
 @cython.wraparound(False)  # Disable negative index check
@@ -331,7 +360,7 @@ def set_ext_array(DTYPE_t [:, :] arr_qext, DTYPE_t [:, :] arr_rain,
 def inf_user(DTYPE_t [:, :] arr_h,
         DTYPE_t [:, :] arr_inf_in, DTYPE_t [:, :] arr_inf_out,
         float dt):
-    '''Calculate infiltration using a user-defined fixed rate
+    '''Calculate infiltration rate using a user-defined fixed rate
     '''
     cdef int rmax, cmax, r, c
     cdef float dt_h

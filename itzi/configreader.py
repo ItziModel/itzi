@@ -43,7 +43,7 @@ class ConfigReader(object):
                         'hydraulic_conductivity']
         k_input_map_names = ['dem', 'friction', 'start_h', 'start_y',
                              'rain', 'inflow', 'bcval', 'bctype',
-                             'infiltration'] + self.ga_list
+                             'infiltration', 'drainage_capacity'] + self.ga_list
         k_output_map_names = ['h', 'wse', 'v', 'vdir', 'qx', 'qy',
                               'boundaries', 'infiltration', 'rainfall',
                               'inflow', 'drainage']
@@ -56,6 +56,7 @@ class ConfigReader(object):
         self.input_map_names = dict.fromkeys(k_input_map_names)
         self.drainage_params = dict.fromkeys(k_drainage_params)
         self.out_prefix = 'itzi_results_{}'.format(datetime.now().strftime('%Y%m%dT%H%M%S'))
+        self.stats_file = None
         return self
 
     def set_entry_values(self):
@@ -71,6 +72,8 @@ class ConfigReader(object):
         self.check_inf_maps()
         # check if the output files do not exist
         self.check_output_files()
+        # check the sanity of simulation parameters
+        self.check_sim_params()
         return self
 
     def read_param_file(self):
@@ -136,6 +139,19 @@ class ConfigReader(object):
                 self.msgr.fatal(u"File {} exists and "
                                 u"will not be overwritten".format(v))
 
+    def check_sim_params(self):
+        """Check if the simulations parameters are positives and valid
+        """
+        for k, v in self.sim_param.iteritems():
+            if k == 'theta':
+                if not 0 <= v <= 1:
+                    self.msgr.fatal(u"{} value must be between 0 and 1".format(k))
+            elif k == 'inf_model':
+                continue
+            else:
+                if not v > 0:
+                    self.msgr.fatal(u"{} value must be positive".format(k))
+
     def check_inf_maps(self):
         """check coherence of input infiltration maps
         set infiltration model type
@@ -166,8 +182,8 @@ class ConfigReader(object):
         if not all([self.input_map_names['dem'],
                    self.input_map_names['friction'],
                    self.sim_times.record_step]):
-            msgr.fatal(u"inputs <dem>, <friction> and "
-                       u"<record_step> are mandatory")
+            self.msgr.fatal(u"inputs <dem>, <friction> and "
+                            u"<record_step> are mandatory")
 
     def display_sim_param(self):
         """Display simulation parameters if verbose

@@ -51,7 +51,13 @@ def itzi_run(args):
     import numpy as np
     from pyinstrument import Profiler
     from datetime import timedelta
+    from configreader import ConfigReader
     import simulation
+
+    # stop program if location is latlong
+    if grass.locn_is_latlong():
+        msgr.fatal(_(u"latlong location is not supported. "
+                     u"Please use a projected location"))
 
     # start profiler
     if args.p:
@@ -71,36 +77,43 @@ def itzi_run(args):
     # start messenger
     msgr = Messenger()
 
-    # stop program if location is latlong
-    if grass.locn_is_latlong():
-        msgr.fatal(_(u"latlong location is not supported. "
-                     u"Please use a projected location"))
+    # start total time counter
+    total_sim_start = time.time()
+    # dictionary to store computation times
+    times_dict = {}
+    for conf_file in args.config_file:
+        file_name = os.path.basename(conf_file)
+        # parsing configuration file
+        conf = ConfigReader(conf_file, msgr)
+        # display parameters (if verbose)
+        conf.display_sim_param()
+        # Run simulation
+        sim_start = time.time()
+        msgr.message(u"Starting simulation for configuration file {}...".format(file_name))
+        sim = simulation.SimulationManager(sim_times=conf.sim_times,
+                                           stats_file=conf.stats_file,
+                                           dtype=np.float32,
+                                           input_maps=conf.input_map_names,
+                                           output_maps=conf.output_map_names,
+                                           sim_param=conf.sim_param,
+                                           drainage_params=conf.drainage_params)
+        sim.run()
+        # store computation time
+        times_dict[file_name] = timedelta(seconds=int(time.time() - sim_start))
 
-    # parsing configuration file
-    conf = ConfigReader(args.config_file, msgr)
-    # display parameters (if verbose)
-    conf.display_sim_param()
-
-    # Run simulation
-    msgr.verbose(_(u"Starting simulation..."))
-    sim_start = time.time()
-    sim = simulation.SimulationManager(sim_times=conf.sim_times,
-                                       stats_file=conf.stats_file,
-                                       dtype=np.float32,
-                                       input_maps=conf.input_map_names,
-                                       output_maps=conf.output_map_names,
-                                       sim_param=conf.sim_param,
-                                       drainage_params=conf.drainage_params)
-    sim.run()
-
+    # stop total time counter
+    total_elapsed_time = timedelta(seconds=int(time.time() - total_sim_start))
     # end profiling and print results
     if args.p:
         prof.stop()
         print(prof.output_text(unicode=True, color=True))
-    # display total computation duration
-    elapsed_time = timedelta(seconds=int(time.time() - sim_start))
-    grass.message(u"Simulation complete. "
-                  u"Elapsed time: {}".format(elapsed_time))
+    # display computation duration
+    msgr.message(u"Simulations complete. Elapsed times:")
+    for f, t in times_dict.iteritems():
+        msgr.message(u"{}: {}".format(f, t))
+    msgr.message(u"Total: {}".format(total_elapsed_time))
+    avg_time = timedelta(seconds=(total_elapsed_time.total_seconds() / len(times_dict)))
+    msgr.message(u"Average: {}".format(avg_time))
 
 
 def itzi_version(args):
@@ -110,7 +123,6 @@ def itzi_version(args):
     F_VERSION = os.path.join(ROOT, 'data', 'VERSION')
     with open(F_VERSION, 'r') as f:
         print(f.readline().strip())
-
 
 def itzi_read(args):
     # exit with an error if run outside GRASS shell
@@ -141,7 +153,6 @@ def itzi_read(args):
         self.msgr.fatal(_(u"Unknown type: '{}'".format(args.type)))
     return None
 
-
 ########################
 # Parsing command line #
 ########################
@@ -155,9 +166,9 @@ subparsers = parser.add_subparsers()
 # running a simulation
 run_parser = subparsers.add_parser("run", help=u"run a simulation",
                                    description="run a simulation")
-run_parser.add_argument("config_file", help=u"an Itzï configuration file")
-run_parser.add_argument("-o", action='store_true',
-                        help=u"overwrite files if exist")
+run_parser.add_argument("config_file", nargs='+',
+                        help=u"an Itzï configuration files (if several given, run in batch mode)")
+run_parser.add_argument("-o", action='store_true', help=u"overwrite files if exist")
 run_parser.add_argument("-p", action='store_true', help=u"activate profiler")
 run_parser.add_argument("-v", action='store_true', help=u"verbose output")
 run_parser.set_defaults(func=itzi_run)
