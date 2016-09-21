@@ -32,7 +32,63 @@ COPYRIGHT: (C) 2015-2016 by Laurent Courty
 from __future__ import print_function, division
 import sys
 import os
+import subprocess
 import argparse
+
+
+GRASS_SESSION = False
+
+
+def set_ldpath(gisbase):
+    """Add GRASS libraries to the dynamic library path
+    """
+    # choose right path for each platform
+    if (sys.platform.startswith('linux')
+            or 'bsd' in sys.platform
+            or 'solaris' in sys.platform):
+        ldvar = 'LD_LIBRARY_PATH'
+    elif sys.platform.startswith('win'):
+        ldvar = 'PATH'
+    elif sys.platform == 'darwin':
+        ldvar = 'DYLD_LIBRARY_PATH'
+    else:
+        sys.exit("ERROR: Unknown platform: {}".format(sys.platform))
+
+    ld_base = os.path.join(gisbase, "lib")
+    try:
+        if ld_base not in os.environ[ldvar]:
+            os.environ[ldvar] += os.pathsep + ld_base
+            reexec()
+    except KeyError:
+        if ldvar not in os.environ:
+            os.environ[ldvar] = ld_base
+            reexec()
+
+
+def reexec():
+    """Re-execute the software with the same arguments
+    """
+    try:
+        os.execv(sys.argv[0], sys.argv)
+    except Exception, exc:
+        sys.exit('Failed to re-exec')
+
+
+def get_gisbase(grassbin):
+    """query GRASS 7 itself for its GISBASE
+    """
+    startcmd = [grassbin, '--config', 'path']
+    try:
+        p = subprocess.Popen(startcmd, shell=False,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = p.communicate()
+    except OSError as error:
+        sys.exit("ERROR: Cannot find GRASS GIS start script"
+                 " {cmd}: {error}".format(cmd=startcmd[0], error=error))
+    if p.returncode != 0:
+        sys.exit("ERROR: Issues running GRASS GIS start script"
+                 " {cmd}: {error}".format(cmd=' '.join(startcmd), error=err))
+    return out.strip(os.linesep)
 
 
 def main():
@@ -40,24 +96,50 @@ def main():
     args.func(args)
 
 
+def set_grass_session(grass_params):
+    """Inspire by example on GRASS wiki
+    """
+    grassbin = grass_params['grass_bin']
+    gisdb = grass_params['grassdata']
+    location = grass_params['location']
+    mapset = grass_params['mapset']
+
+    # query GRASS 7 itself for its GISBASE
+    gisbase = get_gisbase(grassbin)
+
+    # set ldpath
+    set_ldpath(gisbase)
+
+    # Set GISBASE environment variable
+    os.environ['GISBASE'] = gisbase
+
+    # define GRASS Python environment
+    sys.path.append(os.path.join(gisbase, "etc", "python"))
+
+    # launch session
+    import grass.script.setup as gsetup
+    import grass.script as gscript
+    rcfile = gsetup.init(gisbase, gisdb, location, mapset)
+    GRASS_SESSION = True
+
+    return rcfile
+
+
 def itzi_run(args):
-    # exit with an error if run outside GRASS shell
+    # Check if being run within GRASS session
     try:
-        import grass.script as grass
-        from grass.pygrass.messages import Messenger
+        import grass.script as gscript
     except ImportError:
-        sys.exit("Please run from a GRASS GIS environment")
+        GRASS_SESSION = False
+    else:
+        GRASS_SESSION = True
+
     import time
     import numpy as np
     from pyinstrument import Profiler
     from datetime import timedelta
     from configreader import ConfigReader
-    import simulation
-
-    # stop program if location is latlong
-    if grass.locn_is_latlong():
-        msgr.fatal(_(u"latlong location is not supported. "
-                     u"Please use a projected location"))
+    import messenger as msgr
 
     # start profiler
     if args.p:
@@ -74,9 +156,6 @@ def itzi_run(args):
     else:
         os.environ['GRASS_VERBOSE'] = '2'
 
-    # start messenger
-    msgr = Messenger()
-
     # start total time counter
     total_sim_start = time.time()
     # dictionary to store computation times
@@ -84,21 +163,36 @@ def itzi_run(args):
     for conf_file in args.config_file:
         file_name = os.path.basename(conf_file)
         # parsing configuration file
-        conf = ConfigReader(conf_file, msgr)
+        conf = ConfigReader(conf_file)
+        # If GRASS not set, do it now
+        if not GRASS_SESSION:
+            rcfile = set_grass_session(conf.grass_params)
+            import grass.script as gscript
+        # return error if output files exist
+        # (should be done with GRASS set up)
+        conf.check_output_files()
+
+        msgr.message(u"Starting simulation for configuration file {}...".format(file_name))
         # display parameters (if verbose)
         conf.display_sim_param()
+        # stop program if location is latlong
+        if gscript.locn_is_latlong():
+            msgr.fatal(u"latlong location is not supported. "
+                        u"Please use a projected location")
         # Run simulation
+        from simulation import SimulationManager
         sim_start = time.time()
-        msgr.message(u"Starting simulation for configuration file {}...".format(file_name))
-        sim = simulation.SimulationManager(sim_times=conf.sim_times,
-                                           stats_file=conf.stats_file,
-                                           dtype=np.float32,
-                                           input_maps=conf.input_map_names,
-                                           output_maps=conf.output_map_names,
-                                           sim_param=conf.sim_param)
+        sim = SimulationManager(sim_times=conf.sim_times,
+                                stats_file=conf.stats_file,
+                                dtype=np.float32,
+                                input_maps=conf.input_map_names,
+                                output_maps=conf.output_map_names,
+                                sim_param=conf.sim_param)
         sim.run()
         # store computation time
         times_dict[file_name] = timedelta(seconds=int(time.time() - sim_start))
+        # delete the rcfile
+        os.remove(rcfile)
 
     # stop total time counter
     total_elapsed_time = timedelta(seconds=int(time.time() - total_sim_start))
@@ -111,8 +205,8 @@ def itzi_run(args):
     for f, t in times_dict.iteritems():
         msgr.message(u"{}: {}".format(f, t))
     msgr.message(u"Total: {}".format(total_elapsed_time))
-    avg_time = timedelta(seconds=(total_elapsed_time.total_seconds() / len(times_dict)))
-    msgr.message(u"Average: {}".format(avg_time))
+    avg_time_s = int(total_elapsed_time.total_seconds() / len(times_dict))
+    msgr.message(u"Average: {}".format(timedelta(seconds=avg_time_s)))
 
 
 def itzi_version(args):
