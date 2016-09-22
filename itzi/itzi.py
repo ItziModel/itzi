@@ -32,63 +32,16 @@ COPYRIGHT: (C) 2015-2016 by Laurent Courty
 from __future__ import print_function, division
 import sys
 import os
-import subprocess
 import argparse
+import time
+import subprocess
+import numpy as np
+from multiprocessing import Process, Pipe
+from pyinstrument import Profiler
+from datetime import timedelta
 
-
-GRASS_SESSION = False
-
-
-def set_ldpath(gisbase):
-    """Add GRASS libraries to the dynamic library path
-    """
-    # choose right path for each platform
-    if (sys.platform.startswith('linux')
-            or 'bsd' in sys.platform
-            or 'solaris' in sys.platform):
-        ldvar = 'LD_LIBRARY_PATH'
-    elif sys.platform.startswith('win'):
-        ldvar = 'PATH'
-    elif sys.platform == 'darwin':
-        ldvar = 'DYLD_LIBRARY_PATH'
-    else:
-        sys.exit("ERROR: Unknown platform: {}".format(sys.platform))
-
-    ld_base = os.path.join(gisbase, "lib")
-    try:
-        if ld_base not in os.environ[ldvar]:
-            os.environ[ldvar] += os.pathsep + ld_base
-            reexec()
-    except KeyError:
-        if ldvar not in os.environ:
-            os.environ[ldvar] = ld_base
-            reexec()
-
-
-def reexec():
-    """Re-execute the software with the same arguments
-    """
-    try:
-        os.execv(sys.argv[0], sys.argv)
-    except Exception, exc:
-        sys.exit('Failed to re-exec')
-
-
-def get_gisbase(grassbin):
-    """query GRASS 7 itself for its GISBASE
-    """
-    startcmd = [grassbin, '--config', 'path']
-    try:
-        p = subprocess.Popen(startcmd, shell=False,
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = p.communicate()
-    except OSError as error:
-        sys.exit("ERROR: Cannot find GRASS GIS start script"
-                 " {cmd}: {error}".format(cmd=startcmd[0], error=error))
-    if p.returncode != 0:
-        sys.exit("ERROR: Issues running GRASS GIS start script"
-                 " {cmd}: {error}".format(cmd=' '.join(startcmd), error=err))
-    return out.strip(os.linesep)
+from configreader import ConfigReader
+import messenger as msgr
 
 
 def main():
@@ -96,33 +49,155 @@ def main():
     args.func(args)
 
 
-def set_grass_session(grass_params):
-    """Inspire by example on GRASS wiki
+class SimulationRunner(object):
+    """provide the necessary tools to run one simulation
+    including reading configuration file, setting-up GRASS
     """
-    grassbin = grass_params['grass_bin']
-    gisdb = grass_params['grassdata']
-    location = grass_params['location']
-    mapset = grass_params['mapset']
+    def __init__(self, conf_file, grass_use_file):
+        self.conf_file = conf_file
+        self.file_name = os.path.basename(conf_file)
+        self.grass_use_file = grass_use_file
+        # default computational time. Updated by run()
+        self.comp_time = timedelta(seconds=0)
 
-    # query GRASS 7 itself for its GISBASE
-    gisbase = get_gisbase(grassbin)
+    def run(self):
+        """
+        """
+        # parsing configuration file
+        conf = ConfigReader(self.conf_file)
+        # If run outside of grass, set it
+        if self.grass_use_file:
+            self.set_grass_session(conf.grass_params)
+            import grass.script as gscript
+        # return error if output files exist
+        # (should be done once GRASS set up)
+        conf.check_output_files()
 
-    # set ldpath
-    set_ldpath(gisbase)
+        # display parameters (if verbose)
+        conf.display_sim_param()
+        # stop program if location is latlong
+        if gscript.locn_is_latlong():
+            msgr.fatal(u"latlong location is not supported. "
+                       u"Please use a projected location")
+        # Run simulation (SimulationManager needs GRASS, so imported now)
+        from simulation import SimulationManager
+        msgr.message(u"Starting simulation "
+                     u"for configuration file {}...".format(self.file_name))
+        sim_start = time.time()
+        sim = SimulationManager(sim_times=conf.sim_times,
+                                stats_file=conf.stats_file,
+                                dtype=np.float32,
+                                input_maps=conf.input_map_names,
+                                output_maps=conf.output_map_names,
+                                sim_param=conf.sim_param)
+        sim.run()
+        self.comp_time = timedelta(seconds=int(time.time() - sim_start))
+        # delete the rcfile
+        if self.grass_use_file:
+            os.remove(self.rcfile)
+        return self
 
-    # Set GISBASE environment variable
-    os.environ['GISBASE'] = gisbase
+    def set_grass_session(self, grass_params):
+        """Inspire by example on GRASS wiki
+        """
+        grassbin = grass_params['grass_bin']
+        gisdb = grass_params['grassdata']
+        location = grass_params['location']
+        mapset = grass_params['mapset']
 
-    # define GRASS Python environment
-    sys.path.append(os.path.join(gisbase, "etc", "python"))
+        # query GRASS 7 itself for its GISBASE
+        gisbase = self.get_gisbase(grassbin)
 
-    # launch session
-    import grass.script.setup as gsetup
-    import grass.script as gscript
-    rcfile = gsetup.init(gisbase, gisdb, location, mapset)
-    GRASS_SESSION = True
+        # set ldpath
+        self.set_ldpath(gisbase)
 
-    return rcfile
+        # Set GISBASE environment variable
+        os.environ['GISBASE'] = gisbase
+
+        # define GRASS Python environment
+        sys.path.append(os.path.join(gisbase, "etc", "python"))
+
+        # launch session
+        import grass.script.setup as gsetup
+        self.rcfile = gsetup.init(gisbase, gisdb, location, mapset)
+
+        #~ import grass.script as gscript
+        #~ import grass.temporal as tgis
+        #~ import grass.temporal.core as tgiscore
+        #~ print("g.mapset -p")
+        #~ gscript.run_command('g.mapset', flags='p')
+        #~ print("g.mapsets -p")
+        #~ gscript.run_command('g.mapsets', flags='p')
+        #~ # set up TGIS
+        #~ conf_tgis = gscript.parse_command('t.connect', flags='cpg')
+        #~ os.environ['TGISDB_DRIVER'] = conf_tgis['driver']
+        #~ os.environ['TGISDB_DATABASE'] = conf_tgis['database']
+        #~ ciface = tgis.CLibrariesInterface()
+        #~ tgiscore._init_tgis_c_library_interface()
+        #~ print("ciface.available_mapsets()")
+        #~ print(ciface.available_mapsets())
+        #~ print("get_available_temporal_mapsets()")
+        #~ print(tgiscore.get_available_temporal_mapsets())
+        #~ tgis.init(raise_fatal_error=True)
+        return self
+
+    def set_ldpath(self, gisbase):
+        """Add GRASS libraries to the dynamic library path
+        And then re-execute the process to take the changes into account
+        """
+        # choose right path for each platform
+        if (sys.platform.startswith('linux')
+                or 'bsd' in sys.platform
+                or 'solaris' in sys.platform):
+            ldvar = 'LD_LIBRARY_PATH'
+        elif sys.platform.startswith('win'):
+            ldvar = 'PATH'
+        elif sys.platform == 'darwin':
+            ldvar = 'DYLD_LIBRARY_PATH'
+        else:
+            msgr.fatal("Platform not configured: {}".format(sys.platform))
+
+        ld_base = os.path.join(gisbase, "lib")
+        try:
+            if ld_base not in os.environ[ldvar]:
+                os.environ[ldvar] += os.pathsep + ld_base
+                self.reexec()
+        except KeyError:
+            if ldvar not in os.environ:
+                os.environ[ldvar] = ld_base
+                self.reexec()
+
+    def reexec(self):
+        """Re-execute the software with the same arguments
+        """
+        try:
+            os.execv(sys.argv[0], sys.argv)
+        except Exception, exc:
+            msgr.fatal('Failed to re-exec')
+
+    def get_gisbase(self, grassbin):
+        """query GRASS 7 itself for its GISBASE
+        """
+        startcmd = [grassbin, '--config', 'path']
+        try:
+            p = subprocess.Popen(startcmd, shell=False,
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            out, err = p.communicate()
+        except OSError as error:
+            msgr.fatal("Cannot find GRASS GIS start script"
+                       " {cmd}: {error}".format(cmd=startcmd[0], error=err))
+        if p.returncode != 0:
+            msgr.fatal("Issues running GRASS GIS start script"
+                       " {cmd}: {error}".format(cmd=' '.join(startcmd), error=err))
+        return out.strip(os.linesep)
+
+
+def sim_runner_worker(conn, conf_file, grass_use_file):
+    #~ time.sleep(0.001)
+    sim_runner = SimulationRunner(conf_file, grass_use_file)
+    sim_runner.run()
+    conn.send((sim_runner.file_name, sim_runner.comp_time))
+    conn.close()
 
 
 def itzi_run(args):
@@ -130,17 +205,9 @@ def itzi_run(args):
     try:
         import grass.script as gscript
     except ImportError:
-        GRASS_SESSION = False
+        grass_use_file = True
     else:
-        GRASS_SESSION = True
-
-    import time
-    import numpy as np
-    from pyinstrument import Profiler
-    from datetime import timedelta
-    from configreader import ConfigReader
-    import messenger as msgr
-
+        grass_use_file = False
     # start profiler
     if args.p:
         prof = Profiler()
@@ -161,39 +228,17 @@ def itzi_run(args):
     # dictionary to store computation times
     times_dict = {}
     for conf_file in args.config_file:
-        file_name = os.path.basename(conf_file)
-        # parsing configuration file
-        conf = ConfigReader(conf_file)
-        # If GRASS not set, do it now
-        if not GRASS_SESSION:
-            rcfile = set_grass_session(conf.grass_params)
-            import grass.script as gscript
-        # return error if output files exist
-        # (should be done with GRASS set up)
-        conf.check_output_files()
-
-        msgr.message(u"Starting simulation for configuration file {}...".format(file_name))
-        # display parameters (if verbose)
-        conf.display_sim_param()
-        # stop program if location is latlong
-        if gscript.locn_is_latlong():
-            msgr.fatal(u"latlong location is not supported. "
-                        u"Please use a projected location")
-        # Run simulation
-        from simulation import SimulationManager
-        sim_start = time.time()
-        sim = SimulationManager(sim_times=conf.sim_times,
-                                stats_file=conf.stats_file,
-                                dtype=np.float32,
-                                input_maps=conf.input_map_names,
-                                output_maps=conf.output_map_names,
-                                sim_param=conf.sim_param)
-        sim.run()
-        # store computation time
-        times_dict[file_name] = timedelta(seconds=int(time.time() - sim_start))
-        # delete the rcfile
-        os.remove(rcfile)
-
+        parent_conn, child_conn = Pipe()
+        # run in a subprocess
+        worker_args = (child_conn, conf_file, grass_use_file)
+        p = Process(target=sim_runner_worker, args=worker_args)
+        p.start()
+        # store computational time
+        file_name, comp_time = parent_conn.recv()
+        parent_conn.close()
+        #~ child_conn.close()
+        p.join()
+        times_dict[file_name] = comp_time
     # stop total time counter
     total_elapsed_time = timedelta(seconds=int(time.time() - total_sim_start))
     # end profiling and print results
