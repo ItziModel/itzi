@@ -69,7 +69,7 @@ class Igis(object):
         self.mapset = gutils.getenv('MAPSET')
         self.maps = dict.fromkeys(mkeys)
         # init temporal module
-        tgis.init(raise_fatal_error=True)
+        tgis.init()
         # define MapData namedtuple and cols to retrieve from STRDS
         self.cols = ['id', 'start_time', 'end_time']
         self.MapData = namedtuple('MapData', self.cols)
@@ -134,7 +134,7 @@ class Igis(object):
         False if not
         """
         # make sure temporal module is initialized
-        tgis.init(raise_fatal_error=True)
+        tgis.init()
         if tgis.SpaceTimeRasterDataset(name).is_in_db():
             return True
         else:
