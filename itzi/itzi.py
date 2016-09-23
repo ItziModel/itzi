@@ -36,7 +36,7 @@ import argparse
 import time
 import subprocess
 import numpy as np
-from multiprocessing import Process, Pipe
+from multiprocessing import Process, Queue
 from pyinstrument import Profiler
 from datetime import timedelta
 
@@ -106,10 +106,7 @@ class SimulationRunner(object):
         mapset = grass_params['mapset']
 
         # query GRASS 7 itself for its GISBASE
-        gisbase = self.get_gisbase(grassbin)
-
-        # set ldpath
-        self.set_ldpath(gisbase)
+        gisbase = get_gisbase(grassbin)
 
         # Set GISBASE environment variable
         os.environ['GISBASE'] = gisbase
@@ -120,84 +117,30 @@ class SimulationRunner(object):
         # launch session
         import grass.script.setup as gsetup
         self.rcfile = gsetup.init(gisbase, gisdb, location, mapset)
-
-        #~ import grass.script as gscript
-        #~ import grass.temporal as tgis
-        #~ import grass.temporal.core as tgiscore
-        #~ print("g.mapset -p")
-        #~ gscript.run_command('g.mapset', flags='p')
-        #~ print("g.mapsets -p")
-        #~ gscript.run_command('g.mapsets', flags='p')
-        #~ # set up TGIS
-        #~ conf_tgis = gscript.parse_command('t.connect', flags='cpg')
-        #~ os.environ['TGISDB_DRIVER'] = conf_tgis['driver']
-        #~ os.environ['TGISDB_DATABASE'] = conf_tgis['database']
-        #~ ciface = tgis.CLibrariesInterface()
-        #~ tgiscore._init_tgis_c_library_interface()
-        #~ print("ciface.available_mapsets()")
-        #~ print(ciface.available_mapsets())
-        #~ print("get_available_temporal_mapsets()")
-        #~ print(tgiscore.get_available_temporal_mapsets())
-        #~ tgis.init(raise_fatal_error=True)
         return self
 
-    def set_ldpath(self, gisbase):
-        """Add GRASS libraries to the dynamic library path
-        And then re-execute the process to take the changes into account
-        """
-        # choose right path for each platform
-        if (sys.platform.startswith('linux')
-                or 'bsd' in sys.platform
-                or 'solaris' in sys.platform):
-            ldvar = 'LD_LIBRARY_PATH'
-        elif sys.platform.startswith('win'):
-            ldvar = 'PATH'
-        elif sys.platform == 'darwin':
-            ldvar = 'DYLD_LIBRARY_PATH'
-        else:
-            msgr.fatal("Platform not configured: {}".format(sys.platform))
-
-        ld_base = os.path.join(gisbase, "lib")
-        try:
-            if ld_base not in os.environ[ldvar]:
-                os.environ[ldvar] += os.pathsep + ld_base
-                self.reexec()
-        except KeyError:
-            if ldvar not in os.environ:
-                os.environ[ldvar] = ld_base
-                self.reexec()
-
-    def reexec(self):
-        """Re-execute the software with the same arguments
-        """
-        try:
-            os.execv(sys.argv[0], sys.argv)
-        except Exception, exc:
-            msgr.fatal('Failed to re-exec')
-
-    def get_gisbase(self, grassbin):
-        """query GRASS 7 itself for its GISBASE
-        """
-        startcmd = [grassbin, '--config', 'path']
-        try:
-            p = subprocess.Popen(startcmd, shell=False,
-                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            out, err = p.communicate()
-        except OSError as error:
-            msgr.fatal("Cannot find GRASS GIS start script"
-                       " {cmd}: {error}".format(cmd=startcmd[0], error=err))
-        if p.returncode != 0:
-            msgr.fatal("Issues running GRASS GIS start script"
-                       " {cmd}: {error}".format(cmd=' '.join(startcmd), error=err))
-        return out.strip(os.linesep)
+def get_gisbase(grassbin):
+    """query GRASS 7 itself for its GISBASE
+    """
+    startcmd = [grassbin, '--config', 'path']
+    try:
+        p = subprocess.Popen(startcmd, shell=False,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+        out, err = p.communicate()
+    except OSError as error:
+        msgr.fatal("Cannot find GRASS GIS start script"
+                   " {cmd}: {error}".format(cmd=startcmd[0], error=err))
+    if p.returncode != 0:
+        msgr.fatal("Issues running GRASS GIS start script"
+                   " {cmd}: {error}".format(cmd=' '.join(startcmd), error=err))
+    return out.strip(os.linesep)
 
 
-def sim_runner_worker(conn, conf_file, grass_use_file):
-    #~ time.sleep(0.001)
+def sim_runner_worker(queue, conf_file, grass_use_file):
     sim_runner = SimulationRunner(conf_file, grass_use_file)
     sim_runner.run()
-    conn.send((sim_runner.file_name, sim_runner.comp_time))
-    conn.close()
+    queue.put((sim_runner.file_name, sim_runner.comp_time))
 
 
 def itzi_run(args):
@@ -227,18 +170,20 @@ def itzi_run(args):
     total_sim_start = time.time()
     # dictionary to store computation times
     times_dict = {}
+    # instantiate queue
+    q = Queue()
     for conf_file in args.config_file:
-        parent_conn, child_conn = Pipe()
         # run in a subprocess
-        worker_args = (child_conn, conf_file, grass_use_file)
+        worker_args = (q, conf_file, grass_use_file)
         p = Process(target=sim_runner_worker, args=worker_args)
         p.start()
         # store computational time
-        file_name, comp_time = parent_conn.recv()
-        parent_conn.close()
-        #~ child_conn.close()
-        p.join()
+        file_name, comp_time = q.get()
         times_dict[file_name] = comp_time
+        # clo
+        p.join()
+        
+    print(times_dict)
     # stop total time counter
     total_elapsed_time = timedelta(seconds=int(time.time() - total_sim_start))
     # end profiling and print results
@@ -261,6 +206,56 @@ def itzi_version(args):
     F_VERSION = os.path.join(ROOT, 'data', 'VERSION')
     with open(F_VERSION, 'r') as f:
         print(f.readline().strip())
+
+
+def itzi_set_env(args):
+    """Add GRASS libraries to the dynamic library path
+    """
+    # choose right variable and command for each platform
+    if (sys.platform.startswith('linux')
+            or 'bsd' in sys.platform
+            or 'solaris' in sys.platform):
+        ldvar = 'LD_LIBRARY_PATH'
+        cmd = 'export'
+        os_type = 'unix'
+    elif sys.platform.startswith('win'):
+        ldvar = 'PATH'
+        cmd = 'set'
+        os_type = 'win'
+    elif sys.platform == 'darwin':
+        ldvar = 'DYLD_LIBRARY_PATH'
+        cmd = 'export'
+        os_type = 'unix'
+    else:
+        msgr.fatal("Platform not configured: {}".format(sys.platform))
+
+    for grassbin in args.grass_bin:
+        gisbase = get_gisbase(grassbin)
+        ld_base = os.path.join(gisbase, "lib")
+        # set command line
+        if not os.environ.get(ldvar):
+            # set variable
+            startcmd = [cmd, '{var}={path}'.format(var=ldvar, path=ld_base)]
+        elif ldvar not in os.environ:
+            # add path to variable
+            if os_type == 'unix':
+                startcmd = [cmd, '{var}=${var}{sep}{path}'.format(var=ldvar, sep=os.pathsep, path=ld_base)]
+            elif os_type == 'win':
+                startcmd = [cmd, '{var}=${var}${sep}{path}'.format(var=ldvar, sep=os.pathsep, path=ld_base)]
+        else:
+            sys.exit("Variable already set")
+        # run command
+        try:
+            p = subprocess.Popen(startcmd, shell=True,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+            out, err = p.communicate()
+        except OSError as error:
+            msgr.fatal("Cannot find set-up command"
+                       " {cmd}: {error}".format(cmd=startcmd[0], error=error))
+        if p.returncode != 0:
+            msgr.fatal("Issues setting-up variable"
+                       " {cmd}: {error}".format(cmd=' '.join(startcmd), error=err))
 
 
 ########################
@@ -288,6 +283,13 @@ version_parser = subparsers.add_parser("version",
                                        help=u"display software version number")
 version_parser.set_defaults(func=itzi_version)
 
+# set PATH for dynamic libraries
+setenv_parser = subparsers.add_parser("set_env",
+                                       help=u"Set environment variables "
+                                       "for running outside of GRASS shell")
+setenv_parser.add_argument("grass_bin", nargs='+',
+                        help=u"path to GRASS executable")
+setenv_parser.set_defaults(func=itzi_set_env)
 
 if __name__ == "__main__":
     sys.exit(main())
