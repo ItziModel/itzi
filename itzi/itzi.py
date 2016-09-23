@@ -36,7 +36,7 @@ import argparse
 import time
 import subprocess
 import numpy as np
-from multiprocessing import Process, Queue
+from multiprocessing import Process
 from pyinstrument import Profiler
 from datetime import timedelta
 
@@ -53,57 +53,55 @@ class SimulationRunner(object):
     """provide the necessary tools to run one simulation
     including reading configuration file, setting-up GRASS
     """
-    def __init__(self, conf_file, grass_use_file):
-        self.conf_file = conf_file
-        self.file_name = os.path.basename(conf_file)
+    def __init__(self, conf, grass_use_file, args):
+        self.conf = conf
         self.grass_use_file = grass_use_file
-        # default computational time. Updated by run()
-        self.comp_time = timedelta(seconds=0)
+        if args.p:
+            self.prof = Profiler()
+        else:
+            self.prof = None
 
     def run(self):
         """
         """
-        # parsing configuration file
-        conf = ConfigReader(self.conf_file)
+        if self.prof:
+            self.prof.start()
         # If run outside of grass, set it
         if self.grass_use_file:
-            self.set_grass_session(conf.grass_params)
+            self.set_grass_session()
             import grass.script as gscript
         # return error if output files exist
         # (should be done once GRASS set up)
-        conf.check_output_files()
-
-        # display parameters (if verbose)
-        conf.display_sim_param()
+        self.conf.check_output_files()
         # stop program if location is latlong
         if gscript.locn_is_latlong():
             msgr.fatal(u"latlong location is not supported. "
                        u"Please use a projected location")
         # Run simulation (SimulationManager needs GRASS, so imported now)
         from simulation import SimulationManager
-        msgr.message(u"Starting simulation "
-                     u"for configuration file {}...".format(self.file_name))
-        sim_start = time.time()
-        sim = SimulationManager(sim_times=conf.sim_times,
-                                stats_file=conf.stats_file,
+        sim = SimulationManager(sim_times=self.conf.sim_times,
+                                stats_file=self.conf.stats_file,
                                 dtype=np.float32,
-                                input_maps=conf.input_map_names,
-                                output_maps=conf.output_map_names,
-                                sim_param=conf.sim_param)
+                                input_maps=self.conf.input_map_names,
+                                output_maps=self.conf.output_map_names,
+                                sim_param=self.conf.sim_param)
         sim.run()
-        self.comp_time = timedelta(seconds=int(time.time() - sim_start))
         # delete the rcfile
         if self.grass_use_file:
             os.remove(self.rcfile)
+        # end profiling and print results
+        if self.prof:
+            self.prof.stop()
+            print(self.prof.output_text(unicode=True, color=True))
         return self
 
-    def set_grass_session(self, grass_params):
+    def set_grass_session(self):
         """Inspire by example on GRASS wiki
         """
-        grassbin = grass_params['grass_bin']
-        gisdb = grass_params['grassdata']
-        location = grass_params['location']
-        mapset = grass_params['mapset']
+        grassbin = self.conf.grass_params['grass_bin']
+        gisdb = self.conf.grass_params['grassdata']
+        location = self.conf.grass_params['location']
+        mapset = self.conf.grass_params['mapset']
 
         # query GRASS 7 itself for its GISBASE
         gisbase = get_gisbase(grassbin)
@@ -130,17 +128,52 @@ def get_gisbase(grassbin):
         out, err = p.communicate()
     except OSError as error:
         msgr.fatal("Cannot find GRASS GIS start script"
-                   " {cmd}: {error}".format(cmd=startcmd[0], error=err))
+                   " {cmd}: {error}".format(cmd=startcmd[0], error=error))
     if p.returncode != 0:
         msgr.fatal("Issues running GRASS GIS start script"
                    " {cmd}: {error}".format(cmd=' '.join(startcmd), error=err))
     return out.strip(os.linesep)
 
 
-def sim_runner_worker(queue, conf_file, grass_use_file):
-    sim_runner = SimulationRunner(conf_file, grass_use_file)
+def set_ldpath(gisbase):
+    """Add GRASS libraries to the dynamic library path
+    And then re-execute the process to take the changes into account
+    """
+    # choose right path for each platform
+    if (sys.platform.startswith('linux')
+            or 'bsd' in sys.platform
+            or 'solaris' in sys.platform):
+        ldvar = 'LD_LIBRARY_PATH'
+    elif sys.platform.startswith('win'):
+        ldvar = 'PATH'
+    elif sys.platform == 'darwin':
+        ldvar = 'DYLD_LIBRARY_PATH'
+    else:
+        msgr.fatal("Platform not configured: {}".format(sys.platform))
+
+    ld_base = os.path.join(gisbase, "lib")
+    if not os.environ.get(ldvar):
+        # if the path variable is not set
+        os.environ[ldvar] = ld_base
+        reexec()
+    elif ld_base not in os.environ[ldvar]:
+        # if the variable exists but does not have the path
+        os.environ[ldvar] += os.pathsep + ld_base
+        reexec()
+
+def reexec():
+    """Re-execute the software with the same arguments
+    """
+    try:
+        os.execv(sys.argv[0], sys.argv)
+    except Exception, exc:
+        msgr.fatal(u"Failed to re-execute. "
+                   u"Variable not set.")
+
+
+def sim_runner_worker(conf_file, grass_use_file, grassbin):
+    sim_runner = SimulationRunner(conf_file, grass_use_file, grassbin)
     sim_runner.run()
-    queue.put((sim_runner.file_name, sim_runner.comp_time))
 
 
 def itzi_run(args):
@@ -151,10 +184,6 @@ def itzi_run(args):
         grass_use_file = True
     else:
         grass_use_file = False
-    # start profiler
-    if args.p:
-        prof = Profiler()
-        prof.start()
 
     # set environment variables
     if args.o:
@@ -170,26 +199,32 @@ def itzi_run(args):
     total_sim_start = time.time()
     # dictionary to store computation times
     times_dict = {}
-    # instantiate queue
-    q = Queue()
     for conf_file in args.config_file:
+        # parsing configuration file
+        conf = ConfigReader(conf_file)
+        grassbin = conf.grass_params['grass_bin']
+        # if outside from GRASS, set path to shared libraries and reboot
+        if grass_use_file and not grassbin:
+            msgr.fatal(u"Please define [grass] section in parameter file")
+        elif grass_use_file:
+            set_ldpath(get_gisbase(grassbin))
+        # display parameters (if verbose)
+        conf.display_sim_param()
+
+        file_name = os.path.basename(conf_file)
+        msgr.message(u"Starting simulation of {}...".format(file_name))
         # run in a subprocess
-        worker_args = (q, conf_file, grass_use_file)
+        sim_start = time.time()
+        worker_args = (conf, grass_use_file, args)
         p = Process(target=sim_runner_worker, args=worker_args)
         p.start()
-        # store computational time
-        file_name, comp_time = q.get()
-        times_dict[file_name] = comp_time
-        # clo
         p.join()
-        
-    print(times_dict)
+        # store computational time
+        comp_time = timedelta(seconds=int(time.time() - sim_start))
+        times_dict[file_name] = comp_time
+
     # stop total time counter
     total_elapsed_time = timedelta(seconds=int(time.time() - total_sim_start))
-    # end profiling and print results
-    if args.p:
-        prof.stop()
-        print(prof.output_text(unicode=True, color=True))
     # display total computation duration
     msgr.message(u"Simulations complete. Elapsed times:")
     for f, t in times_dict.iteritems():
@@ -208,56 +243,6 @@ def itzi_version(args):
         print(f.readline().strip())
 
 
-def itzi_set_env(args):
-    """Add GRASS libraries to the dynamic library path
-    """
-    # choose right variable and command for each platform
-    if (sys.platform.startswith('linux')
-            or 'bsd' in sys.platform
-            or 'solaris' in sys.platform):
-        ldvar = 'LD_LIBRARY_PATH'
-        cmd = 'export'
-        os_type = 'unix'
-    elif sys.platform.startswith('win'):
-        ldvar = 'PATH'
-        cmd = 'set'
-        os_type = 'win'
-    elif sys.platform == 'darwin':
-        ldvar = 'DYLD_LIBRARY_PATH'
-        cmd = 'export'
-        os_type = 'unix'
-    else:
-        msgr.fatal("Platform not configured: {}".format(sys.platform))
-
-    for grassbin in args.grass_bin:
-        gisbase = get_gisbase(grassbin)
-        ld_base = os.path.join(gisbase, "lib")
-        # set command line
-        if not os.environ.get(ldvar):
-            # set variable
-            startcmd = [cmd, '{var}={path}'.format(var=ldvar, path=ld_base)]
-        elif ldvar not in os.environ:
-            # add path to variable
-            if os_type == 'unix':
-                startcmd = [cmd, '{var}=${var}{sep}{path}'.format(var=ldvar, sep=os.pathsep, path=ld_base)]
-            elif os_type == 'win':
-                startcmd = [cmd, '{var}=${var}${sep}{path}'.format(var=ldvar, sep=os.pathsep, path=ld_base)]
-        else:
-            sys.exit("Variable already set")
-        # run command
-        try:
-            p = subprocess.Popen(startcmd, shell=True,
-                             stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
-            out, err = p.communicate()
-        except OSError as error:
-            msgr.fatal("Cannot find set-up command"
-                       " {cmd}: {error}".format(cmd=startcmd[0], error=error))
-        if p.returncode != 0:
-            msgr.fatal("Issues setting-up variable"
-                       " {cmd}: {error}".format(cmd=' '.join(startcmd), error=err))
-
-
 ########################
 # Parsing command line #
 ########################
@@ -272,7 +257,8 @@ subparsers = parser.add_subparsers()
 run_parser = subparsers.add_parser("run", help=u"run a simulation",
                                    description="run a simulation")
 run_parser.add_argument("config_file", nargs='+',
-                        help=u"an Itzï configuration files (if several given, run in batch mode)")
+                        help=(u"an Itzï configuration files "
+                              u"(if several given, run in batch mode)"))
 run_parser.add_argument("-o", action='store_true', help=u"overwrite files if exist")
 run_parser.add_argument("-p", action='store_true', help=u"activate profiler")
 run_parser.add_argument("-v", action='store_true', help=u"verbose output")
@@ -283,13 +269,6 @@ version_parser = subparsers.add_parser("version",
                                        help=u"display software version number")
 version_parser.set_defaults(func=itzi_version)
 
-# set PATH for dynamic libraries
-setenv_parser = subparsers.add_parser("set_env",
-                                       help=u"Set environment variables "
-                                       "for running outside of GRASS shell")
-setenv_parser.add_argument("grass_bin", nargs='+',
-                        help=u"path to GRASS executable")
-setenv_parser.set_defaults(func=itzi_set_env)
 
 if __name__ == "__main__":
     sys.exit(main())
