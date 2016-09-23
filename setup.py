@@ -30,7 +30,7 @@ def prepare_modules():
     import numpy as np
     return [Extension('itzi/flow', sources=['itzi/flow.c'],
                       extra_compile_args=['-fopenmp', '-O3'],
-                      extra_link_args=['-lgomp'],
+                      extra_link_args=['-lgomp', '-lpthread'],
                       include_dirs=[np.get_include()]),
             ]
 
