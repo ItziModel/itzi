@@ -21,6 +21,7 @@ import copy
 
 import gis
 import flow
+import messenger as msgr
 
 
 class TimedArray(object):
@@ -254,7 +255,7 @@ class RasterDomain(object):
                 if k in ['in_q', 'rain']:
                     self.populate_stat_array(k, sim_time)
                 # update array
-                self.gis.msgr.verbose(u"{}: update input array <{}>".format(sim_time, k))
+                msgr.debug(u"{}: update input array <{}>".format(sim_time, k))
                 self.arr[k][:] = ta.get(sim_time)
                 self.isnew[k] = True
                 if k == 'n':
@@ -287,7 +288,7 @@ class RasterDomain(object):
         if self.stats_update_time[sk] is None:
                 self.stats_update_time[sk] = sim_time
         else:
-            self.gis.msgr.verbose(u"{}: Populating array <{}>".format(sim_time, sk))
+            msgr.debug(u"{}: Populating array <{}>".format(sim_time, sk))
             time_diff = (sim_time - update_time).total_seconds()
             flow.populate_stat_array(self.arr[k], self.arr[sk],
                                      conv_factor, time_diff)

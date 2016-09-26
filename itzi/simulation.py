@@ -22,6 +22,7 @@ import copy
 from superficialflow import SuperficialSimulation
 from rasterdomain import RasterDomain
 from massbalance import MassBal
+import messenger as msgr
 import gis
 import flow
 import infiltration
@@ -72,7 +73,7 @@ class SimulationManager(object):
                             end_time=self.end_time,
                             dtype=self.dtype,
                             mkeys=self.in_map_names.keys())
-        self.gis.msgr.verbose(_(u"Reading maps information from GIS..."))
+        msgr.verbose(u"Reading maps information from GIS...")
         self.gis.read(self.in_map_names)
 
         # instantiate simulation objects
@@ -132,11 +133,11 @@ class SimulationManager(object):
         # First time-step is forced
         self.nextstep = self.sim_time + self.dt
 
-        self.gis.msgr.verbose(_(u"Starting time-stepping..."))
+        msgr.verbose(u"Starting time-stepping...")
         while self.sim_time < self.end_time:
             self.sim_time_s = (self.sim_time - self.start_time).total_seconds()
             # display advance of simulation
-            self.gis.msgr.percent(self.sim_time_s, duration_s, 1)
+            msgr.percent(self.sim_time_s, duration_s)
             # update input arrays
             self.rast_domain.update_input_arrays(self.sim_time)
             # recalculate the flow direction if DEM changed
@@ -174,9 +175,8 @@ class SimulationManager(object):
             self.surf_sim.step()
         except NullError:
             self.report.write_error_to_gis(self.surf_sim.arr_err)
-            self.gis.msgr.fatal(_(u"{}: "
-                                  u"Null value detected in simulation, "
-                                  u"terminating").format(self.sim_time))
+            msgr.fatal(u"{}: Null value detected in simulation, "
+                       u"terminating".format(self.sim_time))
         # calculate when should happen the next surface time-step
         self.surf_sim.solve_dt()
         self.next_ts['surf'] += self.surf_sim.dt
@@ -185,7 +185,7 @@ class SimulationManager(object):
             self.massbal.add_value('tstep', self.dt.total_seconds())
         # write simulation results
         if self.sim_time >= self.next_ts['rec']:
-            self.gis.msgr.verbose(_(u"{}: Writting output maps...".format(self.sim_time)))
+            msgr.verbose(u"{}: Writting output maps...".format(self.sim_time))
             self.report.step(self.sim_time)
             self.next_ts['rec'] += self.record_step
             # reset statistic maps

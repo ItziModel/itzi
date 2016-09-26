@@ -27,6 +27,11 @@ def verbosity():
     return int(os.environ['GRASS_VERBOSE'])
 
 
+def percent(elapsed, total):
+    if verbosity() == 1:
+        print(u"{0:.1%}".format(elapsed / total), file=OUTPUT, end='\r')
+
+
 def message(msg):
     if verbosity() >= 2:
         print(msg, file=OUTPUT)
@@ -34,6 +39,11 @@ def message(msg):
 
 def verbose(msg):
     if verbosity() >= 3:
+        print(msg, file=OUTPUT)
+
+
+def debug(msg):
+    if verbosity() >= 4:
         print(msg, file=OUTPUT)
 
 
