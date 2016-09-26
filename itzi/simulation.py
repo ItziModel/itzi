@@ -123,8 +123,6 @@ class SimulationManager(object):
         including infiltration, superficial flow etc.,
         recording of data and mass_balance calculation
         """
-        duration_s = self.duration.total_seconds()
-
         # dict of next time-step (datetime object)
         self.next_ts = {'end': self.end_time,
                         'rec': self.start_time + self.record_step}
@@ -132,12 +130,12 @@ class SimulationManager(object):
             self.next_ts[k] = self.start_time
         # First time-step is forced
         self.nextstep = self.sim_time + self.dt
-
+        sim_start_time = datetime.now()
         msgr.verbose(u"Starting time-stepping...")
         while self.sim_time < self.end_time:
-            self.sim_time_s = (self.sim_time - self.start_time).total_seconds()
             # display advance of simulation
-            msgr.percent(self.sim_time_s, duration_s)
+            msgr.percent(self.start_time, self.end_time,
+                         self.sim_time, sim_start_time)
             # update input arrays
             self.rast_domain.update_input_arrays(self.sim_time)
             # recalculate the flow direction if DEM changed

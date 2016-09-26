@@ -17,6 +17,7 @@ from __future__ import division
 from __future__ import print_function
 import sys
 import os
+from datetime import timedelta, datetime
 
 OUTPUT = sys.stderr
 FATAL = "ERROR: "
@@ -27,10 +28,26 @@ def verbosity():
     return int(os.environ['GRASS_VERBOSE'])
 
 
-def percent(elapsed, total):
+def percent(start_time, end_time, sim_time, sim_start_time):
+    sim_time_s = (sim_time - start_time).total_seconds()
+    duration_s = (end_time-start_time).total_seconds()
     if verbosity() == 1:
-        print(u"{0:.1%}".format(elapsed / total), file=OUTPUT, end='\r')
-
+        print(u"{:.1%}".format(sim_time_s / duration_s), file=OUTPUT, end='\r')
+    elif verbosity() >=2:
+        now = datetime.now()
+        elapsed_s = (now - sim_start_time).total_seconds()
+        advance_perc = sim_time_s / duration_s
+        try:
+            rate = elapsed_s / sim_time_s
+        except ZeroDivisionError:
+            rate = 0
+        remaining = (end_time - sim_time).total_seconds()
+        eta = timedelta(seconds=int(remaining * rate))
+        txt = u"Simulation time: {sim} Advance: {perc:.1%} ETA: {eta}"
+        disp = txt.format(sim=sim_time.isoformat(" ").split(".")[0],
+                          perc=advance_perc,
+                          eta=eta)
+        print(disp, file=OUTPUT, end='\r')
 
 def message(msg):
     if verbosity() >= 2:
