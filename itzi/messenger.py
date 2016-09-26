@@ -29,14 +29,18 @@ def verbosity():
 
 
 def percent(start_time, end_time, sim_time, sim_start_time):
+    """Display progress of the simulation
+    """
     sim_time_s = (sim_time - start_time).total_seconds()
     duration_s = (end_time-start_time).total_seconds()
+    advance_perc = sim_time_s / duration_s
+
     if verbosity() == 1:
-        print(u"{:.1%}".format(sim_time_s / duration_s), file=OUTPUT, end='\r')
+        print(u"{:.1%}".format(advance_perc), file=OUTPUT, end='\r')
+
     elif verbosity() >=2:
         now = datetime.now()
         elapsed_s = (now - sim_start_time).total_seconds()
-        advance_perc = sim_time_s / duration_s
         try:
             rate = elapsed_s / sim_time_s
         except ZeroDivisionError:
@@ -48,6 +52,7 @@ def percent(start_time, end_time, sim_time, sim_start_time):
                           perc=advance_perc,
                           eta=eta)
         print(disp, file=OUTPUT, end='\r')
+
 
 def message(msg):
     if verbosity() >= 2:
