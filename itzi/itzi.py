@@ -69,7 +69,7 @@ class SimulationRunner(object):
         # If run outside of grass, set it
         if self.grass_use_file:
             self.set_grass_session()
-            import grass.script as gscript
+        import grass.script as gscript
         # return error if output files exist
         # (should be done once GRASS set up)
         self.conf.check_output_files()
