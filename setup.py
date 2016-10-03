@@ -7,7 +7,10 @@ import io
 from setuptools import setup, find_packages
 from setuptools.extension import Extension
 from setuptools.dist import Distribution
-
+try:
+    import numpy as np
+except ImportError:
+    sys.exit("Error: NumPy not found")
 
 def get_version():
     """read version number from file"""
@@ -22,17 +25,6 @@ def get_long_description():
         long_description = f.read()
     idx = max(0, long_description.find(u"Itzï is"))
     return long_description[idx:]
-
-
-def prepare_modules():
-    # import numpy at the last moment
-    # this enables pip to install numpy before itzi
-    import numpy as np
-    return [Extension('itzi/flow', sources=['itzi/flow.c'],
-                      extra_compile_args=['-fopenmp', '-O3'],
-                      extra_link_args=['-lgomp', '-lpthread'],
-                      include_dirs=[np.get_include()]),
-            ]
 
 
 ENTRY_POINTS = {'console_scripts': ['itzi=itzi.itzi:main', ], }
@@ -53,6 +45,12 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
 DESCR = "A 2D superficial flow simulation model using GRASS GIS as a back-end"
 
 
+FLOW = Extension('itzi/flow', sources=['itzi/flow.c'],
+                 extra_compile_args=['-fopenmp', '-O3'],
+                 extra_link_args=['-lgomp'],
+                 include_dirs=[np.get_include()])
+
+
 metadata = dict(name='itzi',
                 version=get_version(),
                 description=DESCR,
@@ -65,17 +63,11 @@ metadata = dict(name='itzi',
                 keywords='science engineering hydrology',
                 packages=find_packages(),
                 requires=['numpy', 'pyinstrument'],
-                install_requires=['numpy', 'pyinstrument'],
+                install_requires=['pyinstrument'],
                 include_package_data=True,
                 entry_points=ENTRY_POINTS,
+                ext_modules=[FLOW,],
                 )
-
-
-# build itzi. Recipe taken from bottleneck package
-if not(len(sys.argv) >= 2 and ('--help' in sys.argv[1:] or
-       sys.argv[1] in ('--help-commands', 'egg_info', '--version', 'clean',
-                       'build_sphinx'))):
-    metadata['ext_modules'] = prepare_modules()
 
 
 setup(**metadata)
