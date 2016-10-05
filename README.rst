@@ -124,17 +124,14 @@ Values of statistical maps corresponds to the average value during the last reco
 Installation
 ============
 
-Itzï depends on GRASS GIS 7.
+Itzï depends on GRASS GIS 7 and NumPy.
 GRASS should therefore be installed in order to use Itzï.
+GRASS normally depends on NumPy, so installing manually NumPy might not be necessary.
 All other dependencies are installed by pip.
 
-Install Itzï::
+Download and install Itzï::
 
     $ pip install itzi
-
-Launch GRASS::
-
-    $ grass
 
 Check usage of itzi command line::
 
