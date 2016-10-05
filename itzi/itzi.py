@@ -245,7 +245,9 @@ def itzi_run(args):
         p = Process(target=sim_runner_worker, args=worker_args)
         p.start()
         p.join()
-        #~ print(p.exitcode)
+        if p.exitcode != 0:
+            msgr.warning((u"Execution of {}"
+                          u"ended with an error").format(file_name))
         # store computational time
         comp_time = timedelta(seconds=int(time.time() - sim_start))
         times_dict[file_name] = comp_time
