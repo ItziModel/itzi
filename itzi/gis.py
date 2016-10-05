@@ -306,6 +306,9 @@ class Igis(object):
         assert isinstance(mkey, basestring), "not a string!"
         assert isinstance(strds_name, basestring), "not a string!"
         assert isinstance(t_type, basestring), "not a string!"
+        # Print message in case of decreased GRASS verbosity
+        if msgr.verbosity() <= 2:
+            msgr.message(u"Registering maps in temporal framework...")
         # create strds
         strds_id = self.format_id(strds_name)
         strds_title = mkey
