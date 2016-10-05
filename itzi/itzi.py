@@ -35,6 +35,7 @@ import os
 import argparse
 import time
 import subprocess
+import traceback
 import numpy as np
 from multiprocessing import Process
 from pyinstrument import Profiler
@@ -70,9 +71,11 @@ class SimulationRunner(object):
         if self.grass_use_file:
             self.set_grass_session()
         import grass.script as gscript
+        msgr.debug('gscript done')
         # return error if output files exist
         # (should be done once GRASS set up)
         self.conf.check_output_files()
+        msgr.debug('files check')
         # stop program if location is latlong
         if gscript.locn_is_latlong():
             msgr.fatal(u"latlong location is not supported. "
@@ -154,9 +157,11 @@ def set_ldpath(gisbase):
     ld_base = os.path.join(gisbase, "lib")
     if not os.environ.get(ldvar):
         # if the path variable is not set
+        msgr.debug("{} not set. Setting and restart".format(ldvar))
         os.environ[ldvar] = ld_base
         reexec()
     elif ld_base not in os.environ[ldvar]:
+        msgr.debug("{} not in {}. Setting and restart".format(ld_base, ldvar))
         # if the variable exists but does not have the path
         os.environ[ldvar] += os.pathsep + ld_base
         reexec()
@@ -164,16 +169,20 @@ def set_ldpath(gisbase):
 def reexec():
     """Re-execute the software with the same arguments
     """
+    args = [sys.executable] + sys.argv
     try:
-        os.execv(sys.argv[0], sys.argv)
+        os.execv(sys.executable, args)
     except Exception, exc:
-        msgr.fatal(u"Failed to re-execute. "
-                   u"Variable not set.")
+        msgr.fatal(u"Failed to re-execute: {}".format(exc))
 
 
-def sim_runner_worker(conf_file, grass_use_file, grassbin):
-    sim_runner = SimulationRunner(conf_file, grass_use_file, grassbin)
-    sim_runner.run()
+def sim_runner_worker(conf, grass_use_file, grassbin):
+    msgr.raise_on_error = True
+    try:
+        sim_runner = SimulationRunner(conf, grass_use_file, grassbin)
+        sim_runner.run()
+    except:
+        msgr.warning("Error during execution: {}".format(traceback.format_exc()))
 
 
 def itzi_run(args):
@@ -190,10 +199,27 @@ def itzi_run(args):
         os.environ['GRASS_OVERWRITE'] = '1'
     else:
         os.environ['GRASS_OVERWRITE'] = '0'
-    if args.v:
-        os.environ['GRASS_VERBOSE'] = '3'
+    if args.q == 2:
+        os.environ['ITZI_VERBOSE'] = '0'
+    elif args.q == 1:
+        os.environ['ITZI_VERBOSE'] = '1'
+    elif args.v == 1:
+        os.environ['ITZI_VERBOSE'] = '3'
+    elif args.v >= 2:
+        os.environ['ITZI_VERBOSE'] = '4'
     else:
+        os.environ['ITZI_VERBOSE'] = '2'
+
+    # setting GRASS verbosity (especially for maps registration)
+    if args.q >= 1:
+        # no warnings
+        os.environ['GRASS_VERBOSE'] = '-1'
+    elif args.v >=1:
+        # normal
         os.environ['GRASS_VERBOSE'] = '2'
+    else:
+        # only warnings
+        os.environ['GRASS_VERBOSE'] = '0'
 
     # start total time counter
     total_sim_start = time.time()
@@ -203,22 +229,23 @@ def itzi_run(args):
         # parsing configuration file
         conf = ConfigReader(conf_file)
         grassbin = conf.grass_params['grass_bin']
-        # if outside from GRASS, set path to shared libraries and reboot
+        # if outside from GRASS, set path to shared libraries and restart
         if grass_use_file and not grassbin:
             msgr.fatal(u"Please define [grass] section in parameter file")
         elif grass_use_file:
             set_ldpath(get_gisbase(grassbin))
-        # display parameters (if verbose)
-        conf.display_sim_param()
 
         file_name = os.path.basename(conf_file)
         msgr.message(u"Starting simulation of {}...".format(file_name))
+        # display parameters (if verbose)
+        conf.display_sim_param()
         # run in a subprocess
         sim_start = time.time()
         worker_args = (conf, grass_use_file, args)
         p = Process(target=sim_runner_worker, args=worker_args)
         p.start()
         p.join()
+        #~ print(p.exitcode)
         # store computational time
         comp_time = timedelta(seconds=int(time.time() - sim_start))
         times_dict[file_name] = comp_time
@@ -261,7 +288,9 @@ run_parser.add_argument("config_file", nargs='+',
                               u"(if several given, run in batch mode)"))
 run_parser.add_argument("-o", action='store_true', help=u"overwrite files if exist")
 run_parser.add_argument("-p", action='store_true', help=u"activate profiler")
-run_parser.add_argument("-v", action='store_true', help=u"verbose output")
+verbosity_parser = run_parser.add_mutually_exclusive_group()
+verbosity_parser.add_argument("-v", action='count', help=u"increase verbosity")
+verbosity_parser.add_argument("-q", action='count', help=u"decrease verbosity")
 run_parser.set_defaults(func=itzi_run)
 
 # display version
