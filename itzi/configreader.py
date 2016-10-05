@@ -82,7 +82,7 @@ class ConfigReader(object):
         params = ConfigParser.SafeConfigParser(allow_no_value=True)
         f = params.read(self.config_file)
         if not f:
-            msgr.fatal(_(u"File <{}> not found".format(self.config_file)))
+            msgr.fatal(u"File <{}> not found".format(self.config_file))
         # populate dictionaries using loops instead of using update() method
         # in order to not add invalid key
         for k in self.raw_input_times:
@@ -172,10 +172,10 @@ class ConfigReader(object):
         elif self.input_map_names[inf_k] and not ga_any:
             self.sim_param['inf_model'] = 'constant'
         elif self.input_map_names[inf_k] and ga_any:
-            msgr.fatal(_(u"Infiltration model incompatible with user-defined rate"))
+            msgr.fatal(u"Infiltration model incompatible with user-defined rate")
         # check if all maps for Green-Ampt are presents
         elif ga_any and not ga_all:
-            msgr.fatal(_(u"{} are mutualy inclusive".format(self.ga_list)))
+            msgr.fatal(u"{} are mutualy inclusive".format(self.ga_list))
         elif ga_all and not self.input_map_names[inf_k]:
             self.sim_param['inf_model'] = 'green-ampt'
         return self
@@ -302,7 +302,7 @@ class SimulationTimes(object):
             try:
                 return self.str_to_timedelta(string)
             except ValueError:
-                msgr.fatal(_(self.rel_err_msg.format(string)))
+                msgr.fatal(self.rel_err_msg.format(string))
         else:
             return None
 
@@ -315,7 +315,7 @@ class SimulationTimes(object):
             try:
                 return datetime.strptime(string, self.date_format)
             except ValueError:
-                msgr.fatal(_(self.abs_err_msg.format(string)))
+                msgr.fatal(self.abs_err_msg.format(string))
         else:
             return None
 
@@ -328,6 +328,6 @@ class SimulationTimes(object):
         if self.end is None:
             self.end = self.start + self.duration
         if self.start >= self.end:
-            msgr.fatal(_("Simulation duration must be positive"))
+            msgr.fatal("Simulation duration must be positive")
         if self.duration is None:
             self.duration = self.end - self.start
