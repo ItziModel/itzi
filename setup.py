@@ -45,9 +45,9 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
 DESCR = "A 2D superficial flow simulation model using GRASS GIS as a back-end"
 
 
-FLOW = Extension('itzi/flow', sources=['itzi/flow.c'],
-                 extra_compile_args=['-fopenmp', '-O3'],
-                 extra_link_args=['-lgomp'],
+FLOW = Extension('flow', sources=['itzi/flow.c'],
+                 extra_compile_args=['-O3', '-w', '-fopenmp', '-lgomp', '-lpthread'],
+                 extra_link_args=['-lgomp', '-lpthread'],
                  include_dirs=[np.get_include()])
 
 
