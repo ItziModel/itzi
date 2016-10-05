@@ -6,6 +6,22 @@ Release Notes
 These are the major changes made in each release.
 For details of the changes please see the commit log of the git repository.
 
+Itzï 16.9
+---------
+
+*Release date: 2016-10-03*
+
+**New features**
+
+- If multiple parameters files are given, they are run in a batch.
+- Simulations can be run from outside GRASS.
+- Add the possibility to set a drainage capacity map as entry data on top of infiltration parameters.
+- The progress message is now more informative, giving the ETA and current simulation time.
+
+**Installation**
+- NumPy is no longer installed by default. This prevents pip from installing a new version of NumPy even if another is already installed.
+
+
 Itzï 16.8
 ---------
 
