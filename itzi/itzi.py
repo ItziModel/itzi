@@ -246,7 +246,7 @@ def itzi_run(args):
         p.start()
         p.join()
         if p.exitcode != 0:
-            msgr.warning((u"Execution of {}"
+            msgr.warning((u"Execution of {} "
                           u"ended with an error").format(file_name))
         # store computational time
         comp_time = timedelta(seconds=int(time.time() - sim_start))
