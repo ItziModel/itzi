@@ -192,19 +192,29 @@ class ConfigReader(object):
     def display_sim_param(self):
         """Display simulation parameters if verbose
         """
-        msgr.verbose(u"Using the following parameters:")
-        txt_template = u"{}: {}"
+        inter_txt = '#'*50
+        txt_template = u"{:<24} {:<}"
+        msgr.verbose(u"Input maps:")
         for k, v in self.input_map_names.iteritems():
             msgr.verbose(txt_template.format(k, v))
+        msgr.verbose(u"{}".format(inter_txt))
+        msgr.verbose(u"Output maps:")
         for k, v in self.output_map_names.iteritems():
             msgr.verbose(txt_template.format(k, v))
+        msgr.verbose(u"{}".format(inter_txt))
+        msgr.verbose(u"Simulation parameters:")
         for k, v in self.sim_param.iteritems():
             msgr.verbose(txt_template.format(k, v))
         # simulation times
-        msgr.verbose(txt_template.format('start', self.sim_times.start))
-        msgr.verbose(txt_template.format('end', self.sim_times.end))
+        msgr.verbose(u"{}".format(inter_txt))
+        msgr.verbose(u"Simulation times:")
+        txt_start_time = self.sim_times.start.isoformat(" ").split(".")[0]
+        txt_end_time = self.sim_times.end.isoformat(" ").split(".")[0]
+        msgr.verbose(txt_template.format('start', txt_start_time))
+        msgr.verbose(txt_template.format('end', txt_end_time))
         msgr.verbose(txt_template.format('duration', self.sim_times.duration))
-        msgr.verbose(txt_template.format('duration', self.sim_times.duration))
+        msgr.verbose(txt_template.format('record_step', self.sim_times.record_step))
+        msgr.verbose(u"{}".format(inter_txt))
 
 
 class SimulationTimes(object):
