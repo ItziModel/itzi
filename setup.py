@@ -7,6 +7,7 @@ import io
 from setuptools import setup, find_packages
 from setuptools.extension import Extension
 from setuptools.dist import Distribution
+from setuptools.command.build_ext import build_ext
 try:
     import numpy as np
 except ImportError:
@@ -45,9 +46,29 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
 DESCR = "A 2D superficial flow simulation model using GRASS GIS as a back-end"
 
 
+copt =  {'msvc': ['/openmp', '/Ox'],
+         'mingw32' : ['-O3', '-w', '-fopenmp', '-lgomp', '-lpthread'],
+         'unix' : ['-O3', '-w', '-fopenmp']
+         }
+lopt =  {'mingw32' : ['-lgomp', '-lpthread'],
+         'unix' : ['-lgomp']
+         }
+
+
+class build_ext_compiler_check(build_ext):
+    def build_extensions(self):
+        compiler = self.compiler.compiler_type
+        print("compiler: {}".format(compiler))
+        if copt.has_key(compiler):
+           for e in self.extensions:
+               e.extra_compile_args = copt[compiler]
+        if lopt.has_key(compiler):
+            for e in self.extensions:
+                e.extra_link_args = lopt[compiler]
+        build_ext.build_extensions(self)
+
+
 FLOW = Extension('flow', sources=['itzi/flow.c'],
-                 extra_compile_args=['-O3', '-w', '-fopenmp', '-lgomp', '-lpthread'],
-                 extra_link_args=['-lgomp', '-lpthread'],
                  include_dirs=[np.get_include()])
 
 
@@ -67,6 +88,7 @@ metadata = dict(name='itzi',
                 include_package_data=True,
                 entry_points=ENTRY_POINTS,
                 ext_modules=[FLOW,],
+                cmdclass={'build_ext': build_ext_compiler_check},
                 )
 
 
