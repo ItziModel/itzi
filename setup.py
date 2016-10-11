@@ -7,6 +7,11 @@ import io
 from setuptools import setup, find_packages
 from setuptools.extension import Extension
 from setuptools.dist import Distribution
+from setuptools.command.build_ext import build_ext
+try:
+    import numpy as np
+except ImportError:
+    sys.exit("Error: NumPy not found")
 
 
 SWMM_SOURCE = 'itzi/swmm/source/'
@@ -37,21 +42,6 @@ def swmm_get_source():
     return file_list
 
 
-def prepare_modules():
-    # import numpy at the last moment
-    # this enables pip to install numpy before itzi
-    import numpy as np
-    return [Extension('itzi/flow', sources=['itzi/flow.c'],
-                      extra_compile_args=['-fopenmp', '-O3'],
-                      extra_link_args=['-lgomp'],
-                      include_dirs=[np.get_include()]),
-            Extension('itzi/swmm/source/swmm5', sources=swmm_get_source(),
-                      extra_compile_args=['-fopenmp', '-w'],
-                      extra_link_args=['-lgomp'],
-                      )
-            ]
-
-
 ENTRY_POINTS = {'console_scripts': ['itzi=itzi.itzi:main', ], }
 
 
@@ -70,8 +60,36 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
 DESCR = "A 2D superficial flow simulation model using GRASS GIS as a back-end"
 
 
-REQUIRES = ['numpy', 'pyinstrument', 'msgpack-python', 'pandas',
-            'python-dateutil', 'matplotlib']
+REQUIRES = ['pyinstrument', 'msgpack-python', 'python-dateutil', 'matplotlib']
+
+
+# Set arguments according to compiler
+copt =  {'msvc': ['/openmp', '/Ox'],
+         'mingw32' : ['-O3', '-w', '-fopenmp', '-lgomp', '-lpthread'],
+         'unix' : ['-O3', '-w', '-fopenmp']
+         }
+lopt =  {'mingw32' : ['-lgomp', '-lpthread'],
+         'unix' : ['-lgomp']
+         }
+
+class build_ext_compiler_check(build_ext):
+    def build_extensions(self):
+        compiler = self.compiler.compiler_type
+        print("compiler: {}".format(compiler))
+        if copt.has_key(compiler):
+           for e in self.extensions:
+               e.extra_compile_args = copt[compiler]
+        if lopt.has_key(compiler):
+            for e in self.extensions:
+                e.extra_link_args = lopt[compiler]
+        build_ext.build_extensions(self)
+
+
+FLOW = Extension('flow', sources=['itzi/flow.c'],
+                 include_dirs=[np.get_include()])
+
+
+SWMM5 = Extension('swmm5', sources=swmm_get_source())
 
 
 metadata = dict(name='itzi',
@@ -86,16 +104,12 @@ metadata = dict(name='itzi',
                 keywords='science engineering hydrology',
                 packages=find_packages(),
                 install_requires=REQUIRES,
+                requires=['numpy', 'pyinstrument', 'pandas'],
                 include_package_data=True,
                 entry_points=ENTRY_POINTS,
+                ext_modules=[FLOW, SWMM5,],
+                cmdclass={'build_ext': build_ext_compiler_check},
                 )
-
-
-# build itzi. Recipe taken from bottleneck package
-if not(len(sys.argv) >= 2 and ('--help' in sys.argv[1:] or
-       sys.argv[1] in ('--help-commands', 'egg_info', '--version', 'clean',
-                       'build_sphinx'))):
-    metadata['ext_modules'] = prepare_modules()
 
 
 setup(**metadata)

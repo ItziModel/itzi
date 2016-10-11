@@ -35,6 +35,7 @@ class Hydrology(object):
         """time-step is by default equal to the default time-step
         """
         self._dt = self.def_dt
+        self.infiltration.solve_dt()
         return self
 
     @property

@@ -1,5 +1,4 @@
 *.py[cod]
-*.c
 *.so
 .~*
 build/

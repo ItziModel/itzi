@@ -15,20 +15,18 @@ GNU General Public License for more details.
 
 
 from __future__ import division
+import os
 import ConfigParser
 from datetime import datetime, timedelta
 import numpy as np
 
-import grass.script as grass
-
-import gis
+import messenger as msgr
 
 
 class ConfigReader(object):
     """Parse the configuration file and check validity of given options
     """
-    def __init__(self, filename, msgr):
-        self.msgr = msgr
+    def __init__(self, filename):
         self.config_file = filename
         # default values to be passed to simulation
         self.__set_defaults()
@@ -51,10 +49,12 @@ class ConfigReader(object):
         self.sim_param = {'hmin': 0.005, 'cfl': 0.7, 'theta': 0.9,
                           'g': 9.80665, 'vrouting': 0.1, 'dtmax': 5.,
                           'slmax': .1, 'dtinf': 60., 'inf_model': None}
+        k_grass_params = ['grass_bin', 'grassdata', 'location', 'mapset']
         self.raw_input_times = dict.fromkeys(k_raw_input_times)
         self.output_map_names = dict.fromkeys(k_output_map_names)
         self.input_map_names = dict.fromkeys(k_input_map_names)
         self.drainage_params = dict.fromkeys(k_drainage_params)
+        self.grass_params = dict.fromkeys(k_grass_params)
         self.out_prefix = 'itzi_results_{}'.format(datetime.now().strftime('%Y%m%dT%H%M%S'))
         self.stats_file = None
         return self
@@ -65,15 +65,15 @@ class ConfigReader(object):
         # read file and populate dictionaries
         self.read_param_file()
         # process inputs times
-        self.sim_times = SimulationTimes(self.raw_input_times, self.msgr)
+        self.sim_times = SimulationTimes(self.raw_input_times)
         # check if mandatory parameters are present
         self.check_mandatory()
         # check coherence of infiltrations entries
         self.check_inf_maps()
-        # check if the output files do not exist
-        self.check_output_files()
         # check the sanity of simulation parameters
         self.check_sim_params()
+        # check the sanity of GRASS parameters
+        self.check_grass_params()
         return self
 
     def read_param_file(self):
@@ -84,7 +84,7 @@ class ConfigReader(object):
         params = ConfigParser.SafeConfigParser(allow_no_value=True)
         f = params.read(self.config_file)
         if not f:
-            self.msgr.fatal(u"File <{}> not found".format(self.config_file))
+            msgr.fatal(u"File <{}> not found".format(self.config_file))
         # populate dictionaries using loops instead of using update() method
         # in order to not add invalid key
         for k in self.raw_input_times:
@@ -93,6 +93,9 @@ class ConfigReader(object):
         for k in self.sim_param:
             if params.has_option('options', k):
                 self.sim_param[k] = params.getfloat('options', k)
+        for k in self.grass_params:
+            if params.has_option('grass', k):
+                self.grass_params[k] = params.get('grass', k)
         for k in self.input_map_names:
             if params.has_option('input', k):
                 self.input_map_names[k] = params.get('input', k)
@@ -122,22 +125,23 @@ class ConfigReader(object):
                 self.output_map_names[v] = '{}_{}'.format(self.out_prefix, v)
         return self
 
-    def file_exist(self, name):
+    def file_exist(self, name, igis):
         """Return True if name is an existing map or stds, False otherwise
         """
         if not name:
             return False
         else:
-            _id = gis.Igis.format_id(name)
-            return gis.Igis.name_is_map(_id) or gis.Igis.name_is_stds(_id)
+            _id = igis.format_id(name)
+            return igis.name_is_map(_id) or igis.name_is_stds(_id)
 
     def check_output_files(self):
         """Check if the output files do not exist
         """
+        import gis
+        import grass.script as gscript
         for v in self.output_map_names.itervalues():
-            if self.file_exist(v) and not grass.overwrite():
-                self.msgr.fatal(u"File {} exists and "
-                                u"will not be overwritten".format(v))
+            if self.file_exist(v, gis.Igis) and not gscript.overwrite():
+                msgr.fatal(u"File {} exists and will not be overwritten".format(v))
 
     def check_sim_params(self):
         """Check if the simulations parameters are positives and valid
@@ -145,12 +149,21 @@ class ConfigReader(object):
         for k, v in self.sim_param.iteritems():
             if k == 'theta':
                 if not 0 <= v <= 1:
-                    self.msgr.fatal(u"{} value must be between 0 and 1".format(k))
+                    msgr.fatal(u"{} value must be between 0 and 1".format(k))
             elif k == 'inf_model':
                 continue
             else:
                 if not v > 0:
-                    self.msgr.fatal(u"{} value must be positive".format(k))
+                    msgr.fatal(u"{} value must be positive".format(k))
+
+    def check_grass_params(self):
+        """Check if all grass params are presents if one is given
+        """
+        grass_any = any(self.grass_params.values())
+        grass_all = all(self.grass_params.values())
+        if grass_any and not grass_all:
+            msgr.fatal(u"Missing GRASS parameter(s)")
+        return self
 
     def check_inf_maps(self):
         """check coherence of input infiltration maps
@@ -167,11 +180,10 @@ class ConfigReader(object):
         elif self.input_map_names[inf_k] and not ga_any:
             self.sim_param['inf_model'] = 'constant'
         elif self.input_map_names[inf_k] and ga_any:
-            self.msgr.fatal(u"Infiltration model incompatible "
-                            u"with user-defined rate")
+            msgr.fatal(u"Infiltration model incompatible with user-defined rate")
         # check if all maps for Green-Ampt are presents
         elif ga_any and not ga_all:
-            self.msgr.fatal(u"{} are mutualy inclusive".format(self.ga_list))
+            msgr.fatal(u"{} are mutualy inclusive".format(self.ga_list))
         elif ga_all and not self.input_map_names[inf_k]:
             self.sim_param['inf_model'] = 'green-ampt'
         return self
@@ -182,32 +194,41 @@ class ConfigReader(object):
         if not all([self.input_map_names['dem'],
                    self.input_map_names['friction'],
                    self.sim_times.record_step]):
-            self.msgr.fatal(u"inputs <dem>, <friction> and "
+            msgr.fatal(u"inputs <dem>, <friction> and "
                             u"<record_step> are mandatory")
 
     def display_sim_param(self):
         """Display simulation parameters if verbose
         """
-        self.msgr.verbose(u"Using the following parameters:")
-        txt_template = u"{}: {}"
+        inter_txt = '#'*50
+        txt_template = u"{:<24} {:<}"
+        msgr.verbose(u"Input maps:")
         for k, v in self.input_map_names.iteritems():
-            self.msgr.verbose(txt_template.format(k, v))
+            msgr.verbose(txt_template.format(k, v))
+        msgr.verbose(u"{}".format(inter_txt))
+        msgr.verbose(u"Output maps:")
         for k, v in self.output_map_names.iteritems():
-            self.msgr.verbose(txt_template.format(k, v))
+            msgr.verbose(txt_template.format(k, v))
+        msgr.verbose(u"{}".format(inter_txt))
+        msgr.verbose(u"Simulation parameters:")
         for k, v in self.sim_param.iteritems():
-            self.msgr.verbose(txt_template.format(k, v))
+            msgr.verbose(txt_template.format(k, v))
         # simulation times
-        self.msgr.verbose(txt_template.format('start', self.sim_times.start))
-        self.msgr.verbose(txt_template.format('end', self.sim_times.end))
-        self.msgr.verbose(txt_template.format('duration', self.sim_times.duration))
-        self.msgr.verbose(txt_template.format('duration', self.sim_times.duration))
+        msgr.verbose(u"{}".format(inter_txt))
+        msgr.verbose(u"Simulation times:")
+        txt_start_time = self.sim_times.start.isoformat(" ").split(".")[0]
+        txt_end_time = self.sim_times.end.isoformat(" ").split(".")[0]
+        msgr.verbose(txt_template.format('start', txt_start_time))
+        msgr.verbose(txt_template.format('end', txt_end_time))
+        msgr.verbose(txt_template.format('duration', self.sim_times.duration))
+        msgr.verbose(txt_template.format('record_step', self.sim_times.record_step))
+        msgr.verbose(u"{}".format(inter_txt))
 
 
 class SimulationTimes(object):
     """Store the information about simulation start & end time and duration
     """
-    def __init__(self, raw_input_times, msgr):
-        self.msgr = msgr
+    def __init__(self, raw_input_times):
         self.read_simulation_times(raw_input_times)
 
     def read_simulation_times(self, raw_input_times):
@@ -282,7 +303,7 @@ class SimulationTimes(object):
         b_start_end = (self.raw_start and self.raw_end and
                        not self.raw_duration)
         if not (b_dur or b_start_dur or b_start_end):
-            self.msgr.fatal(_(comb_err_msg))
+            msgr.fatal(comb_err_msg)
         # if only duration is given, temporal type is relative
         if b_dur:
             self.temporal_type = 'relative'
@@ -299,7 +320,7 @@ class SimulationTimes(object):
             try:
                 return self.str_to_timedelta(string)
             except ValueError:
-                self.msgr.fatal(_(self.rel_err_msg.format(string)))
+                msgr.fatal(self.rel_err_msg.format(string))
         else:
             return None
 
@@ -312,7 +333,7 @@ class SimulationTimes(object):
             try:
                 return datetime.strptime(string, self.date_format)
             except ValueError:
-                self.msgr.fatal(_(self.abs_err_msg.format(string)))
+                msgr.fatal(self.abs_err_msg.format(string))
         else:
             return None
 
@@ -325,6 +346,6 @@ class SimulationTimes(object):
         if self.end is None:
             self.end = self.start + self.duration
         if self.start >= self.end:
-            self.msgr.fatal(_("Simulation duration must be positive"))
+            msgr.fatal("Simulation duration must be positive")
         if self.duration is None:
             self.duration = self.end - self.start

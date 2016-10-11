@@ -18,14 +18,13 @@ from __future__ import division
 import pandas as pd
 import dateutil.parser
 import matplotlib.pyplot as plt
-from grass.pygrass.messages import Messenger
+import messenger as msgr
 
 
 class ResultsReader(object):
-    def __init__(self, results, msgr):
+    def __init__(self, results):
         """results is deserialized object
         """
-        self.msgr = msgr
         self.results = results
         self.records = self.results['records']
 
@@ -47,14 +46,14 @@ class ResultsReader(object):
         """Verify if the node ID is registered in the file
         """
         if node_id not in self.nodes_id:
-            self.msgr.fatal(_(u"Unknown node ID: '{}'".format(node_id)))
+            msgr.fatal(u"Unknown node ID: '{}'".format(node_id))
         return self
 
     def verif_node_value(self, value):
         """
         """
         if value not in self.node_values:
-            self.msgr.fatal(_(u"Unknown node value: '{}'".format(value)))
+            msgr.fatal(u"Unknown node value: '{}'".format(value))
         return self
 
     def _get_node_records(self, node_id):
@@ -76,7 +75,7 @@ class ResultsReader(object):
             try:
                 plt.plot(self._get_node_value(node_id, v_id), label=v_id)
             except ValueError:
-                self.msgr.warning(_(u"Cannot plot '{}'".format(v_id)))
+                msgr.warning(_(u"Cannot plot '{}'".format(v_id))
                 continue
             plt.ylabel(u"value")
             plt.xlabel(u"elapsed time")
@@ -105,4 +104,4 @@ class ResultsReader(object):
         try:
             return dateutil.parser.parse(date)
         except ValueError:
-            self.msgr.fatal(_(u"Cannot parse date: '{}'".format(date)))
+            msgr.fatal(u"Cannot parse date: '{}'".format(date))

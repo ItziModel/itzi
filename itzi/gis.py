@@ -18,11 +18,12 @@ from datetime import datetime, timedelta
 from collections import namedtuple
 import os
 
+import messenger as msgr
+
 import grass.script as grass
 import grass.temporal as tgis
 from grass.pygrass import raster
 from grass.pygrass.gis.region import Region
-from grass.pygrass.messages import Messenger
 import grass.pygrass.utils as gutils
 from grass.exceptions import FatalError, CalledModuleError
 
@@ -59,7 +60,6 @@ class Igis(object):
         self.start_time = start_time
         self.end_time = end_time
         self.dtype = dtype
-        self.msgr = Messenger()
         self.region = Region()
         self.xr = self.region.cols
         self.yr = self.region.rows
@@ -71,7 +71,7 @@ class Igis(object):
         self.mapset = gutils.getenv('MAPSET')
         self.maps = dict.fromkeys(mkeys)
         # init temporal module
-        tgis.init(raise_fatal_error=True)
+        tgis.init()
         # define MapData namedtuple and cols to retrieve from STRDS
         self.cols = ['id', 'start_time', 'end_time']
         self.MapData = namedtuple('MapData', self.cols)
@@ -141,7 +141,7 @@ class Igis(object):
         False if not
         """
         # make sure temporal module is initialized
-        tgis.init(raise_fatal_error=True)
+        tgis.init()
         if tgis.SpaceTimeRasterDataset(name).is_in_db():
             return True
         else:
@@ -194,15 +194,15 @@ class Igis(object):
             elif self.name_is_stds(self.format_id(map_name)):
                 strds_id = self.format_id(map_name)
                 if not self.stds_temporal_sanity(strds_id):
-                    self.msgr.fatal(u"{}: inadequate "
-                                    u"temporal format".format(map_name))
+                    msgr.fatal(u"{}: inadequate temporal format"
+                               u"".format(map_name))
                 map_list = self.raster_list_from_strds(strds_id)
             elif self.name_is_map(self.format_id(map_name)):
                 map_list = [self.MapData(id=self.format_id(map_name),
                                          start_time=self.start_time,
                                          end_time=self.end_time)]
             else:
-                self.msgr.fatal(_(u"{} not found!".format(map_name)))
+                msgr.fatal(u"{} not found!".format(map_name))
             self.maps[k] = map_list
         return self
 
@@ -218,20 +218,20 @@ class Igis(object):
         # valid topology
         if not stds.check_temporal_topology():
             out = False
-            self.msgr.warning(_(u"{}: invalid topology".format(stds_id)))
+            msgr.warning(u"{}: invalid topology".format(stds_id))
         # no gap
         if stds.count_gaps() != 0:
             out = False
-            self.msgr.warning(_(u"{}: gaps found".format(stds_id)))
+            msgr.warning(u"{}: gaps found".format(stds_id))
         # cover all simulation time
         sim_start, sim_end = self.get_sim_extend_in_stds_unit(stds)
         stds_start, stds_end = stds.get_temporal_extent_as_tuple()
         if stds_start > sim_start:
             out = False
-            self.msgr.warning(u"{}: starts after simulation".format(stds_id))
+            msgr.warning(u"{}: starts after simulation".format(stds_id))
         if stds_end < sim_end:
             out = False
-            self.msgr.warning(u"{}: ends before simulation".format(stds_id))
+            msgr.warning(u"{}: ends before simulation".format(stds_id))
         return out
 
     def raster_list_from_strds(self, strds_name):
@@ -256,7 +256,7 @@ class Igis(object):
         if any(maps_not_found):
             err_msg = u"STRDS <{}>: Can't find following maps: {}"
             str_lst = ','.join(maps_not_found)
-            self.msgr.fatal(err_msg.format(strds_name, str_lst))
+            msgr.fatal(err_msg.format(strds_name, str_lst))
         # change time data to datetime format
         if strds.get_temporal_type() == 'relative':
             rel_unit = strds.get_relative_time_unit().encode('ascii', 'ignore')
@@ -314,6 +314,9 @@ class Igis(object):
         assert isinstance(mkey, basestring), "not a string!"
         assert isinstance(strds_name, basestring), "not a string!"
         assert isinstance(t_type, basestring), "not a string!"
+        # Print message in case of decreased GRASS verbosity
+        if msgr.verbosity() <= 2:
+            msgr.message(u"Registering maps in temporal framework...")
         # create strds
         strds_id = self.format_id(strds_name)
         strds_title = mkey
