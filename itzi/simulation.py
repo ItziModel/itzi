@@ -302,8 +302,8 @@ class Report(object):
                 self.gis.write_raster_map(arr, map_name, k)
                 # add map name and time to the corresponding list
                 if self.temporal_type == 'relative':
-                    sim_time_s = (sim_time - self.gis.start_time).total_seconds()
-                self.output_maplist[k].append((map_name, sim_time_s))
+                    sim_time = (sim_time - self.gis.start_time).total_seconds()
+                self.output_maplist[k].append((map_name, sim_time))
         return self
 
     def write_error_to_gis(self, arr_error):
