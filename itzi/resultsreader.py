@@ -75,7 +75,7 @@ class ResultsReader(object):
             try:
                 plt.plot(self._get_node_value(node_id, v_id), label=v_id)
             except ValueError:
-                msgr.warning(_(u"Cannot plot '{}'".format(v_id))
+                msgr.warning(u"Cannot plot '{}'".format(v_id))
                 continue
             plt.ylabel(u"value")
             plt.xlabel(u"elapsed time")
