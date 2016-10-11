@@ -88,7 +88,7 @@ class SimulationRunner(object):
                                 input_maps=self.conf.input_map_names,
                                 output_maps=self.conf.output_map_names,
                                 sim_param=self.conf.sim_param,
-                                drainage_params=conf.drainage_params)
+                                drainage_params=self.conf.drainage_params)
         sim.run()
         # delete the rcfile
         if self.grass_use_file:
@@ -235,7 +235,6 @@ def itzi_run(args):
             msgr.fatal(u"Please define [grass] section in parameter file")
         elif grass_use_file:
             set_ldpath(get_gisbase(grassbin))
-
         file_name = os.path.basename(conf_file)
         msgr.message(u"Starting simulation of {}...".format(file_name))
         # display parameters (if verbose)
@@ -285,7 +284,7 @@ def itzi_read(args):
     if args.type == 'node':
         processor.verif_node_id(args.id)
         if args.action == 'plot':
-            processor.plot_node_values(args.id, args.variables)
+            processor.plot_node_values(args.id, args.variable)
         elif args.action == 'csv':
             processor.node_values_to_csv(args.id, args.output)
     elif args.type == 'link':
@@ -298,8 +297,7 @@ def itzi_read(args):
 # Parsing command line #
 ########################
 
-DESCR = (u"A dynamic, fully distributed hydraulic and hydrologic model. "
-         u"Must be run within a GRASS GIS environment.")
+DESCR = (u"A dynamic, fully distributed hydraulic and hydrologic model.")
 
 parser = argparse.ArgumentParser(description=DESCR)
 subparsers = parser.add_subparsers()
@@ -330,12 +328,12 @@ read_parser.add_argument("--output",
                          help=u"CSV file name. If not given, "
                               u"print to standard output")
 read_parser.add_argument("action", choices=['plot', 'csv'],
-                         help=u"action to perform")
+                         help=u"Action to perform")
 read_parser.add_argument("type", choices=['node', 'link'],
                          help=u"Type of object to read")
 read_parser.add_argument("id", help=u"ID of object")
-read_parser.add_argument("variables", nargs='*',
-                         help=u"list of variables")
+read_parser.add_argument("variable", nargs='*',
+                         help=u"Variable to interrogate")
 read_parser.set_defaults(func=itzi_read)
 
 
