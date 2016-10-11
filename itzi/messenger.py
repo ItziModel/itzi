@@ -29,7 +29,7 @@ PAD = " " * 30  # Necessary to print a clean line
 raise_on_error = False
 
 def verbosity():
-    return int(os.environ['ITZI_VERBOSE'])
+    return int(os.environ.get('ITZI_VERBOSE'))
 
 
 def percent(start_time, end_time, sim_time, sim_start_time):
@@ -51,10 +51,9 @@ def percent(start_time, end_time, sim_time, sim_start_time):
             rate = 0
         remaining = (end_time - sim_time).total_seconds()
         eta = timedelta(seconds=int(remaining * rate))
-        txt = u"Time: {sim} Advance: {perc:.1%} ETA: {eta}"
+        txt = u"Time: {sim} Advance: {perc:.1%} ETA: {eta}{pad}"
         disp = txt.format(sim=sim_time.isoformat(" ").split(".")[0],
-                          perc=advance_perc,
-                          eta=eta)
+                          perc=advance_perc, eta=eta, pad=" " * 5)
         print(disp, file=OUTPUT, end='\r')
 
 
