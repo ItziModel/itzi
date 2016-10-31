@@ -152,7 +152,7 @@ class Igis(object):
         """return True if the given name is a map in the grass database
         False if not
         """
-        if grass.find_file(name=map_id, element='cell')['file']:
+        if grass.find_file(name=map_id, element='cell').get('file'):
             return True
         else:
             return False
