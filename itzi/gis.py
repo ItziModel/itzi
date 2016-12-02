@@ -334,8 +334,10 @@ class Igis(object):
             # load spatial data from map
             raster_dts.load()
             # set time
+            assert isinstance(map_time, datetime)
             if t_type == 'relative':
-                raster_dts.set_relative_time(map_time, None, 'seconds')
+                rel_time = (map_time - self.start_time).total_seconds()
+                raster_dts.set_relative_time(rel_time, None, 'seconds')
             elif t_type == 'absolute':
                 raster_dts.set_absolute_time(start_time=map_time)
             else:
