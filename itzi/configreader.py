@@ -254,7 +254,6 @@ class SimulationTimes(object):
         assert isinstance(self.end, datetime)
         assert isinstance(self.start, datetime)
         assert isinstance(self.duration, timedelta)
-        assert isinstance(self.record_step, timedelta)
         assert self.end >= self.start
         assert self.duration == (self.end - self.start)
 
