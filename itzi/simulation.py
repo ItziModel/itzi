@@ -103,7 +103,7 @@ class SimulationManager(object):
         self.hydrology = hydrology.Hydrology(self.rast_domain, self.dtinf,
                                              self.infiltration)
 
-        # SuperficialSimulation
+        # SurfaceSimulation
         self.surf_sim = SuperficialSimulation(self.rast_domain,
                                               self.sim_param)
 
@@ -152,6 +152,7 @@ class SimulationManager(object):
     def step(self):
         """Step each of the model if needed
         """
+
         # hydrology
         if self.sim_time == self.next_ts['hyd']:
             self.hydrology.solve_dt()
@@ -160,13 +161,14 @@ class SimulationManager(object):
             self.hydrology.step()
             # update stat array
             self.rast_domain.populate_stat_array('inf', self.sim_time)
+            self.rast_domain.populate_stat_array('s_drain', self.sim_time)
 
-        # calculate superficial flow #
-        # update arrays of infiltration, rainfall etc.
+        # calculate surface flow #
+        # update network drainage and inflow arrays
         self.rast_domain.update_ext_array()
         # force time-step to be the general time-step
         self.surf_sim.dt = self.dt
-        # step() raise NullError in case of NaN/NULL cell
+        # surf_sim.step() raises NullError in case of NaN cell
         # if this happen, stop simulation and
         # output a map showing the errors
         try:

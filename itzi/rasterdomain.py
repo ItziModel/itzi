@@ -118,7 +118,7 @@ class RasterDomain(object):
                              'pres': 'capillary_pressure',
                              'con': 'hydraulic_conductivity',
                              'in_inf': 'infiltration',
-                             's_drain': 'drainage_capacity',
+                             'drain_cap': 'drainage_capacity',
                              'rain': 'rain', 'in_q': 'inflow',
                              'bcv': 'bcval', 'bct': 'bctype'}
         # all keys that will be used for the arrays
@@ -126,15 +126,14 @@ class RasterDomain(object):
         self.k_internal = ['inf', 'hmax', 'ext', 'y', 'hfe', 'hfs',
                            'qe', 'qs', 'qe_new', 'qs_new', 'etp',
                            'ue', 'us', 'v', 'vdir', 'vmax',
-                           'q_drain', 'dire', 'dirs']
+                           'n_drain', 's_drain', 'dire', 'dirs']
         # arrays gathering the cumulated water depth from corresponding array
         self.k_stats = ['st_bound', 'st_inf', 'st_rain', 'st_etp',
-                        'st_inflow', 'st_drain']
+                        'st_inflow', 'st_sdrain', 'st_ndrain', 'st_herr']
         self.stats_corresp = {'inf': 'st_inf', 'rain': 'st_rain',
-                              'in_q': 'st_inflow', 'q_drain': 'st_drain'}
+                              'in_q': 'st_inflow', 's_drain': 'st_sdrain',
+                              'n_drain': 'st_ndrain'}
         self.k_all = self.k_input + self.k_internal + self.k_stats
-        # maps used to calculate external value
-        self.k_ext = ['rain', 'inf', 'q_drain', 'in_q']
         # last update of statistical map entry
         self.stats_update_time = dict.fromkeys(self.k_stats)
 
@@ -143,7 +142,7 @@ class RasterDomain(object):
 
         # boolean dict that indicate if an array has been updated
         self.isnew = dict.fromkeys(self.k_all, True)
-        self.isnew['q_drain'] = False
+        self.isnew['n_drain'] = False
 
         # create an array mask
         self.mask = np.full(shape=self.shape,
@@ -173,12 +172,15 @@ class RasterDomain(object):
         self.populate_stat_array('in_q', sim_time)
         return self.asum('st_inflow') * self.cell_surf
 
-    def drain_vol(self, sim_time):
-        self.populate_stat_array('drain', sim_time)
-        return self.asum('st_drain') * self.cell_surf
+    def sdrain_vol(self, sim_time):
+        self.populate_stat_array('s_drain', sim_time)
+        return self.asum('st_sdrain') * self.cell_surf
 
     def boundary_vol(self):
         return self.asum('st_bound') * self.cell_surf
+
+    def err_vol(self):
+        return self.asum('st_herr') * self.cell_surf
 
     def zeros_array(self):
         """return a np array of the domain dimension, filled with zeros.
@@ -272,7 +274,7 @@ class RasterDomain(object):
         return self
 
     def populate_stat_array(self, k, sim_time):
-        """given an external input array key,
+        """given an input array key,
         populate the corresponding statistic array.
         If it's the first update, only check in the time.
         Should be called before updating the array
@@ -280,7 +282,7 @@ class RasterDomain(object):
         sk = self.stats_corresp[k]
         update_time = self.stats_update_time[sk]
         # make sure everything is in m/s
-        if k in ['rain', 'inf']:
+        if k in ['rain', 'inf', 's_drain']:
             conv_factor = 1 / self.mmh_to_ms
         else:
             conv_factor = 1.
@@ -296,13 +298,14 @@ class RasterDomain(object):
         return None
 
     def update_ext_array(self):
-        """If one of the input array has been updated,
-        combine rain, infiltration etc. into a unique array 'ext' in m/s.
-        Rainfall and infiltration are considered in mm/h,
-        in_q and q_drain in m/s
+        """If one of the external input array has been updated,
+        combine them into a unique array 'ext' in m/s.
+        in_q and n_drain in m/s.
+        This applies for inputs that are needed to be taken into account,
+         at every timestep, like inflows from user or drainage.
         """
-        if any([self.isnew[k] for k in ('in_q', 'q_drain')]):
-            flow.set_ext_array(self.arr['in_q'], self.arr['q_drain'],
+        if any([self.isnew[k] for k in ('in_q', 'n_drain')]):
+            flow.set_ext_array(self.arr['in_q'], self.arr['n_drain'],
                                self.arr['ext'])
             self.isnew['ext'] = True
         else:
@@ -377,8 +380,7 @@ class RasterDomain(object):
     def reset_stats(self, sim_time):
         """Set stats arrays to zeros and the update time to current time
         """
-        for k in ['st_bound', 'st_inf', 'st_rain',
-                  'st_inflow', 'st_drain']:
+        for k in self.k_stats:
             self.arr[k][:] = 0.
             self.stats_update_time[k] = sim_time
         return self
