@@ -301,7 +301,7 @@ def solve_h(DTYPE_t [:, :] arr_ext,
             DTYPE_t [:, :] arr_qn, DTYPE_t [:, :] arr_qs,
             DTYPE_t [:, :] arr_bct, DTYPE_t [:, :] arr_bcv,
             DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_hmax,
-            DTYPE_t [:, :] arr_hfix,
+            DTYPE_t [:, :] arr_hfix, DTYPE_t [:, :] arr_herr,
             float dx, float dy, float dt):
     '''Update the water depth and max depth
     Adjust water depth according to in-domain 'boundary' condition
@@ -324,8 +324,12 @@ def solve_h(DTYPE_t [:, :] arr_ext,
             hmax = arr_hmax[r, c]
             # Sum of flows in m/s
             q_sum = (qw - qe) / dx + (qn - qs) / dy
-            # calculatre new flow depth, min depth zero
-            h_new = max(h + (qext + q_sum) * dt, 0)
+            # calculatre new flow depth
+            h_new = h + (qext + q_sum) * dt
+            if h_new < 0.:
+                # Write error. Always positive (mass creation)
+                arr_herr[r, c] += - h_new
+                h_new = 0.
             # Apply fixed water level
             if bct == 4:
                 # Positive if water enters the domain
