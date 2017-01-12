@@ -44,7 +44,8 @@ class ConfigReader(object):
                              'infiltration', 'drainage_capacity'] + self.ga_list
         k_output_map_names = ['h', 'wse', 'v', 'vdir', 'qx', 'qy',
                               'boundaries', 'infiltration', 'rainfall',
-                              'inflow', 'drainage']
+                              'inflow', 'drainage_cap', 'drainage_net',
+                              'verror']
         self.sim_param = {'hmin': 0.005, 'cfl': 0.7, 'theta': 0.9,
                           'g': 9.80665, 'vrouting': 0.1, 'dtmax': 5.,
                           'slmax': .1, 'dtinf': 60., 'inf_model': None}
