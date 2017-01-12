@@ -99,7 +99,7 @@ class SimulationRunner(object):
         return self
 
     def set_grass_session(self):
-        """Inspire by example on GRASS wiki
+        """Inspired by example on GRASS wiki
         """
         grassbin = self.conf.grass_params['grass_bin']
         gisdb = self.conf.grass_params['grassdata']
@@ -276,8 +276,7 @@ def itzi_version(args):
 # Parsing command line #
 ########################
 
-DESCR = (u"A dynamic, fully distributed hydraulic and hydrologic model. "
-         u"Must be run within a GRASS GIS environment.")
+DESCR = (u"A dynamic, fully distributed hydraulic and hydrologic model.")
 
 parser = argparse.ArgumentParser(description=DESCR)
 subparsers = parser.add_subparsers()
@@ -286,7 +285,7 @@ subparsers = parser.add_subparsers()
 run_parser = subparsers.add_parser("run", help=u"run a simulation",
                                    description="run a simulation")
 run_parser.add_argument("config_file", nargs='+',
-                        help=(u"an Itzï configuration files "
+                        help=(u"an Itzï configuration file "
                               u"(if several given, run in batch mode)"))
 run_parser.add_argument("-o", action='store_true', help=u"overwrite files if exist")
 run_parser.add_argument("-p", action='store_true', help=u"activate profiler")

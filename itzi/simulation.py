@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import copy
 
-from superficialflow import SuperficialSimulation
+from superficialflow import SurfaceFlowSimulation
 from rasterdomain import RasterDomain
 from massbalance import MassBal
 import messenger as msgr
@@ -103,8 +103,8 @@ class SimulationManager(object):
         self.hydrology = hydrology.Hydrology(self.rast_domain, self.dtinf,
                                              self.infiltration)
 
-        # SurfaceSimulation
-        self.surf_sim = SuperficialSimulation(self.rast_domain,
+        # Surface flows simulation
+        self.surf_sim = SurfaceFlowSimulation(self.rast_domain,
                                               self.sim_param)
 
         # Instantiate Massbal object
@@ -120,7 +120,7 @@ class SimulationManager(object):
 
     def run(self):
         """Perform a full simulation
-        including infiltration, superficial flow etc.,
+        including infiltration, surface flow etc.,
         recording of data and mass_balance calculation
         """
         # dict of next time-step (datetime object)

@@ -43,7 +43,7 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
                "Topic :: Scientific/Engineering"]
 
 
-DESCR = "A 2D superficial flow simulation model using GRASS GIS as a back-end"
+DESCR = "A 2D hydrologic model using GRASS GIS as a back-end"
 
 
 copt =  {'msvc': ['/openmp', '/Ox'],
