@@ -22,7 +22,7 @@ import time
 from itzi_error import NullError, DtError
 
 
-class SuperficialSimulation(object):
+class SurfaceFlowSimulation(object):
     """Surface flow simulation on staggered raster grid
     Accessed through step() and get_output_arrays() methods
     By convention the flow is:
