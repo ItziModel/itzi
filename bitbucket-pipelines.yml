@@ -12,6 +12,6 @@ pipelines:
             - pip install --disable-pip-version-check --upgrade pip
             - pip install pyinstrument
             - pip install twine
-            - pip python setup.py sdist
+            - python setup.py sdist
             - twine -u $PYPI_USER -p $PYPI_PWD dist/*
 
