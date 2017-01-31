@@ -6,7 +6,7 @@ pipelines:
     push_to_pypi:
       - step:
           script:
-            - apt-get install numpy
+            - apt-get install python-numpy
             - pip install --disable-pip-version-check --upgrade pip
             - pip install pyinstrument
             - pip install twine
