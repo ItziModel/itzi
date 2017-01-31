@@ -1,0 +1,19 @@
+# This is a sample build configuration for Python.
+# Check our guides at https://confluence.atlassian.com/x/VYk8Lw for more examples.
+# Only use spaces to indent your .yml configuration.
+# -----
+# You can specify a custom docker image from Docker Hub as your build environment.
+image: ubuntu:16.10
+
+pipelines:
+  tags:
+    '*':
+      - step:
+        script: # Modify the commands below to build your repository.
+          - apt-get install numpy
+          - pip install --disable-pip-version-check --user --upgrade pip
+          - pip install pyinstrument
+          - pip install twine
+          - pip python setup.py sdist
+          - twine -u $PYPI_USER -p $PYPI_PWD dist/*
+            
