@@ -16,4 +16,3 @@ pipelines:
           - pip install twine
           - pip python setup.py sdist
           - twine -u $PYPI_USER -p $PYPI_PWD dist/*
-            
