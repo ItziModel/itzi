@@ -13,5 +13,5 @@ pipelines:
             - pip install pyinstrument
             - pip install twine
             - python setup.py sdist
-            - twine -u $PYPI_USER -p $PYPI_PWD dist/*
+            - twine upload -u $PYPI_USER -p $PYPI_PWD dist/*
 
