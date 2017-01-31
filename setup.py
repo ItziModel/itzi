@@ -38,7 +38,6 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
                "Operating System :: OS Independent",
                "Programming Language :: Cython",
                "Programming Language :: Python",
-               "Programming Language :: Python :: 2",
                "Programming Language :: Python :: 2.7",
                "Topic :: Scientific/Engineering"]
 
