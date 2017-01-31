@@ -6,6 +6,24 @@ Release Notes
 These are the major changes made in each release.
 For details of the changes please see the commit log of the git repository.
 
+Itzï 17.1
+---------
+
+*Release date: 2017-01-31*
+
+This is mainly a bugfix release
+
+**Corrected bugs**
+
+- Mass balance calculation now takes into account the volume from drainage capacity
+- Volume error calculation is more accurate
+
+**New features**
+
+- Add the possibility to export the map of created volume from continuity error
+- The *%error* column of the statistic output is now the percentage of the domain volume variation that is due to error
+
+
 Itzï 16.9
 ---------
 
