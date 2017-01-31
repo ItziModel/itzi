@@ -2,14 +2,14 @@
 image: ubuntu:16.10
 
 pipelines:
-  tags:
-    '*':  # independent of tag name
+  custom:  # done manually
+    push_to_pypi:
       - step:
-        script:
-          - apt-get install numpy
-          - pip install --disable-pip-version-check --upgrade pip
-          - pip install pyinstrument
-          - pip install twine
-          - pip python setup.py sdist
-          - twine -u $PYPI_USER -p $PYPI_PWD dist/*
+          script:
+            - apt-get install numpy
+            - pip install --disable-pip-version-check --upgrade pip
+            - pip install pyinstrument
+            - pip install twine
+            - pip python setup.py sdist
+            - twine -u $PYPI_USER -p $PYPI_PWD dist/*
 
