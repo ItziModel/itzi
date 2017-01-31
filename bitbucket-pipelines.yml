@@ -8,6 +8,7 @@ pipelines:
           script:
             - apt-get update
             - apt-get -y install python-numpy
+            - apt-get -y install python-pip
             - pip install --disable-pip-version-check --upgrade pip
             - pip install pyinstrument
             - pip install twine
