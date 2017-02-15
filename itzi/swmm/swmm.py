@@ -1,7 +1,7 @@
 # coding=utf8
 
 """
-Copyright (C) 2015-2016  Laurent Courty
+Copyright (C) 2015-2017  Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -474,7 +474,7 @@ class SwmmNode(object):
 
     def get_linkage_type(self, wse):
         '''select the linkage type (Chen et al.,2007)
-        wse = Water Surface Elevation (from 2D superficial model)
+        wse = Water Surface Elevation (from 2D surface model)
         '''
         if wse <= self.crest_elev and self.head <= self.crest_elev:
             return 'no_linkage'
@@ -536,7 +536,7 @@ class SwmmNode(object):
         return self
 
     def set_linkage_flow(self, wse, cell_surf, dt2d, dt1d):
-        '''Calculate the flow between superficial and drainage models
+        '''Calculate the flow between surface and drainage models
         Cf. Chen et al.(2007)
         flow sign is :
          - negative when entering the drainage (leaving the 2D model)
@@ -621,7 +621,7 @@ class SwmmNode(object):
                 'volume': self.volume, 'full volume': self.full_volume,
                 'overflow': self.overflow, 'ponded area': self.ponded_area,
                 'head': self.head, 'crest elevation': self.crest_elev,
-                'superficial head': self.wse}
+                'surface head': self.wse}
 
 
 class SwmmInputParser(object):
