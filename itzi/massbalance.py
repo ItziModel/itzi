@@ -38,8 +38,9 @@ class MassBal(object):
         self.fields = ['sim_time',  # either timedelta or datetime
                        'avg_timestep', '#timesteps',
                        'boundary_vol', 'rain_vol', 'inf_vol',
-                       'inflow_vol',
-                       'domain_vol', 'vol_error', '%error']
+                       'inflow_vol', 'drain_cap_vol',
+                       'domain_vol', 'created_vol',
+                       '%error']
         # data written to file as one line
         self.line = dict.fromkeys(self.fields)
         # data collected during simulation
@@ -100,8 +101,11 @@ class MassBal(object):
         avg_timestep = elapsed_time / self.line['#timesteps']
         self.line['avg_timestep'] = '{:.3f}'.format(avg_timestep)
 
-        # sum of inflow (positive) / outflow (negative) volumes
+        # domain volume
         self.read_dom_vol()
+        self.line['domain_vol'] = '{:.3f}'.format(self.new_dom_vol)
+
+        # sum of inflow (positive) / outflow (negative) volumes
         boundary_vol = self.dom.boundary_vol()
         self.line['boundary_vol'] = '{:.3f}'.format(boundary_vol)
         rain_vol = self.dom.rain_vol(sim_time)
@@ -110,18 +114,18 @@ class MassBal(object):
         self.line['inf_vol'] = '{:.3f}'.format(inf_vol)
         inflow_vol = self.dom.inflow_vol(sim_time)
         self.line['inflow_vol'] = '{:.3f}'.format(inflow_vol)
+        drain_cap_vol = - self.dom.sdrain_vol(sim_time)
+        self.line['drain_cap_vol'] = '{:.3f}'.format(drain_cap_vol)
 
-        # mass error calculation
-        self.line['domain_vol'] = '{:.3f}'.format(self.new_dom_vol)
-        sum_ext_vol = sum([boundary_vol, rain_vol, inf_vol,
-                           inflow_vol])
-        dom_vol_theor = self.old_dom_vol + sum_ext_vol
-        vol_error = self.new_dom_vol - dom_vol_theor
-        self.line['vol_error'] = '{:.3f}'.format(vol_error)
-        if self.new_dom_vol <= 0:
+        # Computation error from array
+        vol_error = self.dom.err_vol()
+        self.line['created_vol'] = '{:.3f}'.format(vol_error)
+        # Continuity error: part of volume change due to error
+        dom_vol_diff = self.new_dom_vol - self.old_dom_vol
+        if dom_vol_diff <= 0:
             self.line['%error'] = '-'
         else:
-            self.line['%error'] = '{:.2%}'.format(vol_error / self.new_dom_vol)
+            self.line['%error'] = '{:.2%}'.format(vol_error/dom_vol_diff)
 
         # Add line to file
         with open(self.file_name, 'a') as f:

@@ -52,12 +52,11 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
                "Operating System :: OS Independent",
                "Programming Language :: Cython",
                "Programming Language :: Python",
-               "Programming Language :: Python :: 2",
                "Programming Language :: Python :: 2.7",
                "Topic :: Scientific/Engineering"]
 
 
-DESCR = "A 2D superficial flow simulation model using GRASS GIS as a back-end"
+DESCR = "A 2D hydrologic model using GRASS GIS as a back-end"
 
 
 REQUIRES = ['pyinstrument', 'msgpack-python', 'python-dateutil', 'matplotlib']

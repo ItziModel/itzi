@@ -4,13 +4,13 @@ Itzï
 ====
 
 Itzï is a dynamic, fully distributed hydrologic and hydraulic model that
-simulates 2D superficial flows on a regular raster grid using simplified shallow water equations.
+simulates 2D surface flows on a regular raster grid using simplified shallow water equations.
 It uses GRASS GIS as a back-end for entry data and result writing.
 
 Description
 ===========
 
-Itzï allows to simulate superficial flows from direct rainfall or user-given point inflows.
+Itzï allows to simulate surface flows from direct rainfall or user-given point inflows.
 It GIS integration simplifies the pre- and post-processing of data.
 Notably, to change the resolution or the extend of the computational domain,
 the user just need to change the GRASS computational region and the raster mask, if applicable.

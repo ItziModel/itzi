@@ -22,8 +22,8 @@ import time
 from itzi_error import NullError, DtError
 
 
-class SuperficialSimulation(object):
-    """Represents a staggered grid where flow is simulated
+class SurfaceFlowSimulation(object):
+    """Surface flow simulation on staggered raster grid
     Accessed through step() and get_output_arrays() methods
     By convention the flow is:
      - calculated at the East and South faces of each cell
@@ -160,6 +160,7 @@ class SuperficialSimulation(object):
                      arr_bct=self.dom.get('bct'), arr_bcv=self.dom.get('bcv'),
                      arr_h=self.dom.get('h'), arr_hmax=self.dom.get('hmax'),
                      arr_hfix=self.dom.get('st_bound'),
+                     arr_herr=self.dom.get('st_herr'),
                      dx=self.dx, dy=self.dy, dt=self._dt)
         assert not np.any(self.dom.get('h') < 0)
         return self

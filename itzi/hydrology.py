@@ -59,11 +59,23 @@ class Hydrology(object):
         """
         # calculate flows
         self.infiltration.step()
+        self.calculate_simple_drainage()
         self.apply_hydrology()
         return self
 
-    def apply_hydrology(self):
+    def calculate_simple_drainage(self):
+        """This is used as an approximation of the drainage capacity of the area
+        It is done by removing a user-defined amount of water from the domain.
+        Input and output are considered to be in mm/h
         """
+        flow.inf_user(arr_h=self.dom.get('h'),
+                      arr_inf_in=self.dom.get('drain_cap'),
+                      arr_inf_out=self.dom.get('s_drain'),
+                      dt=self._dt)
+
+    def apply_hydrology(self):
+        """Update water depth (h) by adding/removing volume from:
+        rainfall, infiltration, evapotranspiration and lump-sum drainage.
         """
         flow.apply_hydrology(arr_rain=self.dom.get('rain'),
                              arr_inf=self.dom.get('inf'),
@@ -72,12 +84,3 @@ class Hydrology(object):
                              arr_h=self.dom.get('h'),
                              dt=self._dt)
         return self
-
-    #~ def calculate_simple_drainage(self):
-        #~ """This is used as an approximation of the drainage capacity of the area
-        #~ It is done by removing a user-defined amount of water from the domain.
-        #~ """
-        #~ flow.inf_user(arr_h=self.dom.get('h'),
-              #~ arr_inf_in=self.dom.get('s_drain'),
-              #~ arr_inf_out=self.dom.get('inf'),
-              #~ dt=self._dt)

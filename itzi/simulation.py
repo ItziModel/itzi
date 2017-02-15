@@ -20,7 +20,7 @@ import numpy as np
 import copy
 import msgpack
 
-from superficialflow import SuperficialSimulation
+from superficialflow import SurfaceFlowSimulation
 from rasterdomain import RasterDomain
 from massbalance import MassBal
 from drainage import DrainageSimulation
@@ -109,8 +109,8 @@ class SimulationManager(object):
         self.hydrology = hydrology.Hydrology(self.rast_domain, self.dtinf,
                                              self.infiltration)
 
-        # SuperficialSimulation
-        self.surf_sim = SuperficialSimulation(self.rast_domain,
+        # Surface flows simulation
+        self.surf_sim = SurfaceFlowSimulation(self.rast_domain,
                                               self.sim_param)
 
         # Instantiate Massbal object
@@ -137,7 +137,7 @@ class SimulationManager(object):
 
     def run(self):
         """Perform a full simulation
-        including infiltration, superficial flow etc.,
+        including infiltration, surface flow etc.,
         recording of data and mass_balance calculation
         """
         # dict of next time-step (datetime object)
@@ -172,6 +172,7 @@ class SimulationManager(object):
     def step(self):
         """Step each of the model if needed
         """
+
         # hydrology
         if self.sim_time == self.next_ts['hyd']:
             self.hydrology.solve_dt()
@@ -180,6 +181,7 @@ class SimulationManager(object):
             self.hydrology.step()
             # update stat array
             self.rast_domain.populate_stat_array('inf', self.sim_time)
+            self.rast_domain.populate_stat_array('s_drain', self.sim_time)
 
         # calculate drainage
         if self.sim_time == self.next_ts['drain'] and self.drainage:

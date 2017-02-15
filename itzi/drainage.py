@@ -106,7 +106,7 @@ class DrainageSimulation(object):
         """
         arr_h = self.dom.get('h')
         arr_z = self.dom.get('z')
-        arr_qd = self.dom.get('q_drain')
+        arr_qd = self.dom.get('n_drain')
         for node, row, col in self.drain_nodes:
             node.update()
             h = arr_h[row, col]
