@@ -176,6 +176,10 @@ class RasterDomain(object):
         self.populate_stat_array('s_drain', sim_time)
         return self.asum('st_sdrain') * self.cell_surf
 
+    def ndrain_vol(self, sim_time):
+        self.populate_stat_array('n_drain', sim_time)
+        return self.asum('st_ndrain') * self.cell_surf
+
     def boundary_vol(self):
         return self.asum('st_bound') * self.cell_surf
 

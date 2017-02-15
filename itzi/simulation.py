@@ -191,6 +191,8 @@ class SimulationManager(object):
             self.drainage.step()
             self.drainage.apply_linkage(self.dt.total_seconds())
             self.rast_domain.isnew['n_drain'] = True
+            # update stat array
+            self.rast_domain.populate_stat_array('n_drain', self.sim_time)
         else:
             self.rast_domain.isnew['n_drain'] = False
 
