@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2015-2016  Laurent Courty
+Copyright (C) 2015-2017 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -190,9 +190,9 @@ class SimulationManager(object):
             self.next_ts['drain'] += self.drainage.dt
             self.drainage.step()
             self.drainage.apply_linkage(self.dt.total_seconds())
-            self.rast_domain.isnew['q_drain'] = True
+            self.rast_domain.isnew['n_drain'] = True
         else:
-            self.rast_domain.isnew['q_drain'] = False
+            self.rast_domain.isnew['n_drain'] = False
 
         # calculate superficial flow #
         # update arrays of infiltration, rainfall etc.
