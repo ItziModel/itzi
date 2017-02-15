@@ -59,7 +59,8 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
 DESCR = "A 2D hydrologic model using GRASS GIS as a back-end"
 
 
-REQUIRES = ['pyinstrument', 'msgpack-python', 'python-dateutil', 'matplotlib']
+REQUIRES = ['pyinstrument', 'msgpack-python', 'python-dateutil',
+            'matplotlib', 'pandas', 'networkx']
 
 
 # Set arguments according to compiler
@@ -103,7 +104,6 @@ metadata = dict(name='itzi',
                 keywords='science engineering hydrology',
                 packages=find_packages(),
                 install_requires=REQUIRES,
-                requires=['numpy', 'pyinstrument', 'pandas'],
                 include_package_data=True,
                 entry_points=ENTRY_POINTS,
                 ext_modules=[FLOW, SWMM5,],

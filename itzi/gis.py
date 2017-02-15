@@ -120,6 +120,17 @@ class Igis(object):
         """
         return gutils.coor2pixel(coor, self.region)
 
+    def is_in_region(self, x, y):
+        """For a given coordinate pair(x, y),
+        return True is inside raster region, False otherwise.
+        """
+        bool_x = (self.reg_bbox['w'] < x < self.reg_bbox['e'])
+        bool_y = (self.reg_bbox['s'] < y < self.reg_bbox['n'])
+        if bool_x and bool_y:
+            return True
+        else:
+            return False
+
     @staticmethod
     def format_id(name):
         """Take a map or stds name as input

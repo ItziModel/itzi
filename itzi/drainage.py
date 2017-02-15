@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2016  Laurent Courty
+Copyright (C) 2016-2017 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -17,8 +17,7 @@ import os
 from datetime import datetime, timedelta
 from collections import namedtuple
 import numpy as np
-
-import grass.pygrass.utils as gutils
+import networkx as nx
 
 from swmm import swmm
 from itzi_error import DtError
@@ -38,8 +37,7 @@ class DrainageSimulation(object):
         self.swmm5.swmm_start()
         # allow ponding
         self.swmm5.set_allow_ponding()
-        # Raster computational domain
-        self.bbox = igis.reg_bbox
+
         self.cell_surf = igis.dx * igis.dy
         self.gis = igis
 
@@ -69,24 +67,13 @@ class DrainageSimulation(object):
     def dt(self, value):
         raise DtError("Can't set time-step of a SWMM simulation")
 
-    def is_in_region(self, x, y):
-        """For a given coordinate pair(x, y),
-        return True is inside raster region, False otherwise.
-        """
-        bool_x = (self.bbox['w'] < x < self.bbox['e'])
-        bool_y = (self.bbox['s'] < y < self.bbox['n'])
-        if bool_x and bool_y:
-            return True
-        else:
-            return False
-
     def create_node_list(self, j_dict):
         """create list of drainage nodes objects with
         corresponding grid coordinates
         """
         self.drain_nodes = []
         for k, n in j_dict.iteritems():
-            if self.is_in_region(n.x, n.y):
+            if self.gis.is_in_region(n.x, n.y):
                 node = swmm.SwmmNode(swmm_object=self.swmm5, node_id=k)
                 row, col = self.gis.coor2pixel((n.x, n.y))
                 self.drain_nodes.append((node, int(row), int(col)))
@@ -135,3 +122,13 @@ class DrainageSimulation(object):
         """Return links values in a ID:values dict
         """
         return {}
+
+
+class NetworkResultsWriter(object):
+    """Generate a networkx object to represent the drainage network.
+    """
+    def __init(self, swmm5):
+        """swmm5 is a swmm5 simulation object
+        """
+        self.swmm5 = swmm5
+
