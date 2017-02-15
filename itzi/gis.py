@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2015-2016 Laurent Courty
+Copyright (C) 2015-2017 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -44,11 +44,6 @@ class Igis(object):
                   'CELL': ('bool_', 'int_', 'intc', 'intp',
                            'int8', 'int16', 'int32', 'int64',
                            'uint8', 'uint16', 'uint32', 'uint64')}
-    # conversion from month number to accepted grass month notation
-    # datetime object strftime can't be used because it depend on the locale
-    month_conv = {1: 'jan', 2: 'feb', 3: 'mar', 4: 'apr',
-                  5: 'may', 6: 'june', 7: 'july', 8: 'aug',
-                  9: 'Sept', 10: 'oct', 11: 'Nov', 12: 'dec'}
 
     def __init__(self, start_time, end_time, dtype, mkeys):
         assert isinstance(start_time, datetime), \
