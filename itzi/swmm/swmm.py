@@ -17,10 +17,14 @@ GNU General Public License for more details.
 from __future__ import division
 import os
 import ctypes as c
-from structs import NodeData, NodeType, LinkData
+from structs import NodeData, NodeType, LinkData, LinkType
 import math
 import collections
 import swmm_error
+
+# coordinates container
+Coordinates = collections.namedtuple('Coordinates', ['x', 'y'])
+
 
 class Swmm5(object):
     '''A class implementing high-level swmm5 functions.
@@ -410,6 +414,49 @@ class Swmm5(object):
         return self
 
 
+class SwmmLink(object):
+    """Define access to a SWMM link object
+    """
+    def __init__(self, swmm_object, link_id):
+        self.swmm_sim = swmm_object
+        self.link_id = link_id
+        self.foot = self.swmm_sim.foot
+        # correspondence between C enum and python string
+        self.link_types = {LinkType.CONDUIT: "conduit",
+                           LinkType.PUMP: "pump",
+                           LinkType.ORIFICE: "orifice",
+                           LinkType.WEIR: "weir",
+                           LinkType.OUTLET: "outlet"}
+        # load values from SWMM
+        self.update()
+
+    def update(self):
+        '''Retrieve node data from SWMM in SI units.
+        To be done after each simulation time-step
+        '''
+        # retrieve the link data in US units
+        c_link_data = self.swmm_sim.swmm_getLinkData(link_id=self.link_id)
+
+        # upstream and downstream nodes
+        self.start_node_id = c_link_data.node1
+        self.start_node_offset = c_link_data.offset1 * self.foot
+        self.end_node_id = c_link_data.node2
+        self.end_node_offset = c_link_data.offset2 * self.foot
+
+        # link type
+        self.link_type = self.link_types[c_link_data.type]
+
+        # store computed values in SI units
+        self.flow = c_link_data.flow * self.foot ** 3
+        self.depth = c_link_data.depth * self.foot
+        self.velocity = c_link_data.velocity * self.foot
+        self.volume = c_link_data.volume * self.foot ** 3
+        self.full_depth = c_link_data.yFull * self.foot
+        self.froude = c_link_data.froude
+
+        return self
+
+
 class SwmmNode(object):
     '''Define a SWMM node object
     should be defined by a swmm simulation object and a node ID
@@ -422,7 +469,9 @@ class SwmmNode(object):
         self.node_id = node_id
         self.coordinates = coordinates
         self.grid_coords = grid_coords
-        self.linkage_flow = 0
+        self.linkage_flow = 0.
+        self.wse = 0.
+        self.linkage_type = None
         self.g = 9.80665
         # node type correspondance
         node_types = {NodeType.STORAGE: 'storage',
@@ -469,13 +518,21 @@ class SwmmNode(object):
         self.crest_elev = self.c_node_data.crestElev * self.foot
         return self
 
+    def is_linkable(self):
+        """Return True if the node is used for interactions with surface
+        """
+        if self.node_type == 'junction' and self.grid_coords:
+            return True
+        else:
+            return False
+
     def add_inflow(self, inflow):
         '''add an inflow in CMS'''
         self.swmm_sim.add_node_inflow(node_id=self.node_id, inflow=inflow)
         return self
 
     def get_linkage_type(self, wse):
-        '''select the linkage type (Chen et al.,2007)
+        '''select the linkage type (Chen et al. 2007)
         wse = Water Surface Elevation (from 2D surface model)
         '''
         if wse <= self.crest_elev and self.head <= self.crest_elev:
@@ -687,6 +744,7 @@ class SwmmInputParser(object):
         # define junction container
         self.junction_values = ['x', 'y', 'elev', 'ymax', 'y0', 'ysur', 'apond']
         self.Junction = collections.namedtuple('Junction', self.junction_values)
+
         # read and parse the input file
         self.inp = dict.fromkeys(self.sections_kwd)
         self.read_inp(input_file)
@@ -737,3 +795,28 @@ class SwmmInputParser(object):
                     values = [float(c[1]), float(c[2])] + j_val
                     d[name] = self.Junction._make(values)
         return d
+
+    def get_nodes_id_as_dict(self):
+        """return a dict of id:coordinates
+        """
+        # sections to search
+        node_types = ["junction",
+                      "outfall",
+                      "divider",
+                      "storage"]
+        # a list of all nodes id
+        nodes = []
+        for n_t in node_types:
+            # add id only if there is values in the dict entry
+            if self.inp[n_t]:
+                for line in self.inp[n_t]:
+                    nodes.append(line[0])
+        # fill the dict
+        nodes_dict = {}
+        for coords in self.inp['coordinate']:
+            for node_id in nodes:
+                name = coords[0]
+                if node_id == name:
+                    nodes_dict[node_id] = Coordinates(float(coords[1]),
+                                                      float(coords[2]))
+        return nodes_dict

@@ -68,3 +68,11 @@ class NodeType:
     OUTFALL = 1
     STORAGE = 2
     DIVIDER = 3
+
+
+class LinkType:
+    CONDUIT = 0
+    PUMP = 1
+    ORIFICE = 2
+    WEIR = 3
+    OUTLET = 4
