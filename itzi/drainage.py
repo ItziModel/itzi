@@ -27,6 +27,7 @@ class DrainageSimulation(object):
     """manage simulation of the pipe network
     write results to RasterDomain object
     """
+    GridCoords = namedtuple('GridCoords', ['row', 'col'])
     def __init__(self, domain, inp, igis):
         self.dom = domain
         # create swmm object and open files
@@ -72,11 +73,17 @@ class DrainageSimulation(object):
         corresponding grid coordinates
         """
         self.drain_nodes = []
-        for k, n in j_dict.iteritems():
-            if self.gis.is_in_region(n.x, n.y):
-                node = swmm.SwmmNode(swmm_object=self.swmm5, node_id=k)
-                row, col = self.gis.coor2pixel((n.x, n.y))
-                self.drain_nodes.append((node, int(row), int(col)))
+        for k, coords in j_dict.iteritems():
+            # create Node object
+            node = swmm.SwmmNode(swmm_object=self.swmm5, node_id=k,
+                                 coordinates=coords)
+            if self.gis.is_in_region(coords.x, coords.y):
+                # calculate grid coordinates and add them to the object
+                row, col = self.gis.coor2pixel((coords.x, coords.y))
+                node.grid_coords = DrainageSimulation.GridCoords(int(row),
+                                                                 int(col))
+            # add to list of nodes
+            self.drain_nodes.append(node)
         return self
 
     def step(self):
@@ -94,8 +101,9 @@ class DrainageSimulation(object):
         arr_h = self.dom.get('h')
         arr_z = self.dom.get('z')
         arr_qd = self.dom.get('n_drain')
-        for node, row, col in self.drain_nodes:
+        for node in self.drain_nodes:
             node.update()
+            row, col = node.grid_coords
             h = arr_h[row, col]
             z = arr_z[row, col]
             wse = h + z
@@ -115,7 +123,7 @@ class DrainageSimulation(object):
     def get_serialized_nodes_values(self):
         """Return nodes values in a ID: values dict
         """
-        return {n[0].node_id: n[0].get_values_as_dict()
+        return {n.node_id: n.get_values_as_dict()
                 for n in self.drain_nodes}
 
     def get_serialized_links_values(self):

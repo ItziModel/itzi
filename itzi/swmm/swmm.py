@@ -414,12 +414,14 @@ class SwmmNode(object):
     '''Define a SWMM node object
     should be defined by a swmm simulation object and a node ID
     '''
-    def __init__(self, swmm_object=None, node_id=None):
+    def __init__(self, swmm_object, node_id, coordinates=None, grid_coords=None):
         self.swmm_sim = swmm_object
         if not self.swmm_sim.is_started:
             raise swmm_error.NotStartedError
         # need to add a node validity check
         self.node_id = node_id
+        self.coordinates = coordinates
+        self.grid_coords = grid_coords
         self.linkage_flow = 0
         self.g = 9.80665
         # node type correspondance
