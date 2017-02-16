@@ -102,17 +102,19 @@ class DrainageSimulation(object):
         arr_z = self.dom.get('z')
         arr_qd = self.dom.get('n_drain')
         for node in self.drain_nodes:
-            node.update()
-            row, col = node.grid_coords
-            h = arr_h[row, col]
-            z = arr_z[row, col]
-            wse = h + z
-            node.set_crest_elev(z)
-            node.set_pondedArea()
-            node.set_linkage_flow(wse, self.cell_surf, dt2d, self._dt)
-            node.add_inflow(-node.linkage_flow)
-            # apply flow in m/s to array
-            arr_qd[row, col] = node.linkage_flow / self.cell_surf
+            # only apply if the node is inside the domain
+            if node.grid_coords:
+                node.update()
+                row, col = node.grid_coords
+                h = arr_h[row, col]
+                z = arr_z[row, col]
+                wse = h + z
+                node.set_crest_elev(z)
+                node.set_pondedArea()
+                node.set_linkage_flow(wse, self.cell_surf, dt2d, self._dt)
+                node.add_inflow(-node.linkage_flow)
+                # apply flow in m/s to array
+                arr_qd[row, col] = node.linkage_flow / self.cell_surf
         return self
 
     def get_serialized_project_values(self):
