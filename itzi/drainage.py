@@ -102,9 +102,9 @@ class DrainageSimulation(object):
         arr_z = self.dom.get('z')
         arr_qd = self.dom.get('n_drain')
         for node in self.drain_nodes:
+            node.update()
             # only apply if the node is inside the domain
             if node.grid_coords:
-                node.update()
                 row, col = node.grid_coords
                 h = arr_h[row, col]
                 z = arr_z[row, col]
@@ -137,8 +137,8 @@ class DrainageSimulation(object):
 class NetworkResultsWriter(object):
     """Generate a networkx object to represent the drainage network.
     """
-    def __init(self, swmm5):
+    def __init__(self, swmm_object):
         """swmm5 is a swmm5 simulation object
         """
-        self.swmm5 = swmm5
+        self.swmm5 = swmm_object
 
