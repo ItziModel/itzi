@@ -258,13 +258,13 @@ class Swmm5(object):
         '''Retrieve link data using GESZ function
         link_id = a string
         '''
-        # Return None if no node_id is given or if not a string
-        if not isinstance(node_id, str):
+        # Return None if no id is given or if not a string
+        if not isinstance(link_id, str):
             return None
         else:
             # Call the C function
             c_link_data = LinkData()
-            err = self.c_swmm5.swmm_getLinkData(c.c_char_p(node_id),
+            err = self.c_swmm5.swmm_getLinkData(c.c_char_p(link_id),
                                                 c.byref(c_link_data))
             if err != 0:
                 raise swmm_error.SwmmError(err)
@@ -414,16 +414,20 @@ class Swmm5(object):
 class SwmmLink(object):
     """Define access to a SWMM link object
     """
+    # correspondence between C enum and python string
+    link_types = {LinkType.CONDUIT: "conduit",
+                  LinkType.PUMP: "pump",
+                  LinkType.ORIFICE: "orifice",
+                  LinkType.WEIR: "weir",
+                  LinkType.OUTLET: "outlet"}
+
     def __init__(self, swmm_object, link_id):
         self.swmm_sim = swmm_object
         self.link_id = link_id
         self.foot = self.swmm_sim.foot
-        # correspondence between C enum and python string
-        self.link_types = {LinkType.CONDUIT: "conduit",
-                           LinkType.PUMP: "pump",
-                           LinkType.ORIFICE: "orifice",
-                           LinkType.WEIR: "weir",
-                           LinkType.OUTLET: "outlet"}
+        self.start_node_id = None
+        self.end_node_id = None
+        self.vertices = []
         # load values from SWMM
         self.update()
 
@@ -432,8 +436,9 @@ class SwmmLink(object):
         """Using the c structs definition,
         return a list of tuple(name, type) to be used in sqlite table creation
         """
-        # create the list with the cat key
-        sql_columns_def = [(u'cat', 'INTEGER PRIMARY KEY')]
+        # create the list
+        sql_columns_def = [(u'cat', 'INTEGER PRIMARY KEY'),
+                           (u'link_id', 'TEXT')]
         # correspondence between c types and sqlite types
         corresp = {c.c_double: 'REAL',
                    c.c_int: 'INT',
@@ -441,7 +446,7 @@ class SwmmLink(object):
         # do the magic
         for i in LinkData._fields_:
             col_name = u'{}'.format(i[0])
-            # export link type as text rather than enum code
+            # export link type as text
             if col_name == 'type':
                 col_type = 'TEXT'
             else:
@@ -457,9 +462,7 @@ class SwmmLink(object):
         c_link_data = self.swmm_sim.swmm_getLinkData(link_id=self.link_id)
 
         # upstream and downstream nodes
-        self.start_node_id = c_link_data.node1
         self.start_node_offset = c_link_data.offset1 * self.foot
-        self.end_node_id = c_link_data.node2
         self.end_node_offset = c_link_data.offset2 * self.foot
 
         # link type
@@ -475,11 +478,23 @@ class SwmmLink(object):
 
         return self
 
+    def get_attrs(self):
+        """return a list of link data in the right DB order
+        """
+        return [self.link_id, self.flow, self.depth, self.velocity,
+                self.volume, self.link_type, self.start_node_offset,
+                self.end_node_offset, self.full_depth, self.froude]
+
 
 class SwmmNode(object):
     '''Define a SWMM node object
     should be defined by a swmm simulation object and a node ID
     '''
+    node_types = {NodeType.STORAGE: 'storage',
+                  NodeType.JUNCTION: 'junction',
+                  NodeType.OUTFALL: 'outfall',
+                  NodeType.DIVIDER: 'divider'}
+
     def __init__(self, swmm_object, node_id, coordinates=None, grid_coords=None):
         self.swmm_sim = swmm_object
         if not self.swmm_sim.is_started:
@@ -490,32 +505,29 @@ class SwmmNode(object):
         self.grid_coords = grid_coords
         self.linkage_flow = 0.
         self.wse = 0.
-        self.linkage_type = None
+        self.linkage_type = "Not linked"
         self.g = 9.80665
-        # node type correspondance
-        node_types = {NodeType.STORAGE: 'storage',
-                      NodeType.JUNCTION: 'junction',
-                      NodeType.OUTFALL: 'outfall',
-                      NodeType.DIVIDER: 'divider'}
-        # retrieve the node data in US units
-        self.c_node_data = self.swmm_sim.swmm_getNodeData(node_id=self.node_id)
-        self.node_type = node_types[self.c_node_data.type]
         self.foot = self.swmm_sim.foot
-        self.overflow_area = self.get_overflow_area()
-        # calculate circumference from area (node considered circular)
-        self.weir_width = math.pi * 2 * math.sqrt(self.overflow_area / math.pi)
-        # length of weir in direction of flow
-        self.weir_length = 0.1
         # set / update node data from SWMM
         self.update()
+
+        if self.node_type == 'junction':
+            self.overflow_area = self.get_overflow_area()
+            # calculate circumference from area (node considered circular)
+            self.weir_width = math.pi * 2 * math.sqrt(self.overflow_area / math.pi)
+        # length of weir in direction of flow
+        self.weir_length = 0.1
+
 
     @staticmethod
     def get_sql_columns_def():
         """Using the c structs definition,
         return a list of tuple(name, type) to be used in sqlite table creation
         """
-        # create the list with the cat key
-        sql_columns_def = [(u'cat', 'INTEGER PRIMARY KEY')]
+        # create the list
+        sql_columns_def = [(u'cat', 'INTEGER PRIMARY KEY'),
+                           (u'node_id', 'TEXT'),
+                           (u'linkage_type', 'TEXT')]
         # correspondence between c types and sqlite types
         corresp = {c.c_double: 'REAL',
                    c.c_int: 'INT',
@@ -537,6 +549,8 @@ class SwmmNode(object):
         '''
         # retrieve the node data in US units
         self.c_node_data = self.swmm_sim.swmm_getNodeData(node_id=self.node_id)
+
+        self.node_type = self.node_types[self.c_node_data.type]
 
         self.sub_index = self.c_node_data.subIndex
         self.invert_elev = self.c_node_data.invertElev * self.foot
@@ -616,7 +630,7 @@ class SwmmNode(object):
         '''
         if self.node_type == 'storage':
             c_surf_area = self.swmm_sim.c_swmm5.node_getSurfArea(
-                    c.c_int(self.node_id), c.c_double(self.full_depth))
+                    c.c_char_p(self.node_id), c.c_double(self.full_depth))
             return c_surf_area.value * self.foot ** 2
         elif self.node_type == 'outfall':
             raise RuntimeError('Outfall cannnot overflow')
@@ -726,9 +740,9 @@ class SwmmNode(object):
     def get_attrs(self):
         """return a list of node data in the right DB order
         """
-        return [self.inflow, self.outflow, self.head, self.crest_elev,
-                self.node_type, self.sub_index, self.invert_elev,
-                self.init_depth, self.full_depth, self.sur_depth,
+        return [self.node_id, self.linkage_type, self.inflow, self.outflow,
+                self.head, self.crest_elev, self.node_type, self.sub_index,
+                self.invert_elev, self.init_depth, self.full_depth, self.sur_depth,
                 self.ponded_area, self.degree, self.updated, self.crown_elev,
                 self.losses, self.volume, self.full_volume, self.overflow,
                 self.depth, self.lat_flow]
@@ -737,66 +751,33 @@ class SwmmNode(object):
 class SwmmInputParser(object):
     """A parser for swmm input text file
     """
+    # list of sections keywords
+    sections_kwd = ["title",  # project title
+                    "option",  # analysis options
+                    "junction",  # junction node information
+                    "outfall",  # outfall node information
+                    "divider",  # flow divider node information
+                    "storage",  # storage node information
+                    "conduit",  # conduit link information
+                    "pump",  # pump link
+                    "orifice",  # orifice link
+                    "weir",  # weir link
+                    "outlet",  # outlet link
+                    "xsection",  # conduit, orifice, and weir cross-section geometry
+                    'coordinate',  # coordinates of drainage system nodes
+                    'vertice',  # coordinates of interior vertex points of links
+                    ]
+
+    link_types = ['conduit', 'pump', 'orifice', 'weir', 'outlet']
+
+    # define object containers
+    junction_values = ['x', 'y', 'elev', 'ymax', 'y0', 'ysur', 'apond']
+    Junction = collections.namedtuple('Junction', junction_values)
+    Link = collections.namedtuple('Link', ['in_node', 'out_node', 'vertices'])
+    # coordinates container
+    Coordinates = collections.namedtuple('Coordinates', ['x', 'y'])
+
     def __init__(self, input_file):
-        # list of sections keywords
-        self.sections_kwd = ["title",  # project title
-                             "option",  # analysis options
-                             "report",   # output reporting instructions
-                             "files",  # interface file options
-                             "raingage",  # rain gage information
-                             "evaporation",  # evaporation data
-                             "temperature",  # air temperature and snow melt data
-                             "subcatchment",  # basic subcatchment information
-                             "subarea",  # subcatchment impervious/pervious sub-area data
-                             "infiltration",  # subcatchment infiltration parameters
-                             "aquifer",  # groundwater aquifer parameters
-                             "groundwater",  # subcatchment groundwater parameters
-                             "snowpack",  # subcatchment snow pack parameters
-                             "junction",  # junction node information
-                             "outfall",  # outfall node information
-                             "divider",  # flow divider node information
-                             "storage",  # storage node information
-                             "conduit",  # conduit link information
-                             "pump",  # pump link
-                             "orifice",  # orifice link
-                             "weir",  # weir link
-                             "outlet",  # outlet link
-                             "xsection",  # conduit, orifice, and weir cross-section geometry
-                             "losse",  # conduit entrance/exit losses and flap valve
-                             "transect",  # transect geometry for conduits with irregular cross-sections
-                             "control",  # rules that control pump and regulator operation
-                             "pollutant",  # identifies the pollutants being analyzed
-                             "landuse",  # land use categories
-                             "coverage",  # assignment of land uses to subcatchments
-                             "buildup",  # buildup functions for pollutants and land uses
-                             "washoff",  # buildup functions for pollutants and land uses
-                             "treatment",  # pollutant removal functions at conveyance system nodes
-                             "dwf",  # baseline dry weather sanitary inflow at nodes
-                             "pattern",  # periodic variation in dry weather inflow
-                             "inflow",  # external hydrograph/pollutograph inflow at nodes
-                             "loading",  # initial pollutant loads on subcatchments
-                             "rdii",  # rainfall-dependent i/i information at nodes
-                             "hydrograph",  # unit hydrograph data used to construct rdii inflows
-                             "curve",  # x-y tabular data referenced in other sections
-                             "timeserie",  # describes how a quantity varies over time
-                             "lid_control",  # low impact development control information
-                             "lid_usage",  # assignment of lid controls to subcatchments
-                             'tag',  # ?
-                             'map',  # provides dimensions and distance units for the map
-                             'coordinate',  # coordinates of drainage system nodes
-                             'vertice',  # coordinates of interior vertex points of curved drainage system links
-                             'polygon', # coordinates of to vertex points of polygons that define a subcatchment boundary
-                             'label',  # coordinates of user-defined map labels
-                             'backdrop',  # coordinates of the bounding rectangle and file name of the backdrop
-                             'symbol',  # coordinates of rain gage symbols
-                             'profile',  # ?
-                             'gwf',  # ?
-                             'adjustment'] # ?
-        # define junction container
-        self.junction_values = ['x', 'y', 'elev', 'ymax', 'y0', 'ysur', 'apond']
-        self.Junction = collections.namedtuple('Junction', self.junction_values)
-        # coordinates container
-        self.Coordinates = collections.namedtuple('Coordinates', ['x', 'y'])
         # read and parse the input file
         self.inp = dict.fromkeys(self.sections_kwd)
         self.read_inp(input_file)
@@ -824,6 +805,8 @@ class SwmmInputParser(object):
                 # retrive current standard section name
                 elif line.startswith('['):
                     current_section = self.section_kwd(line.strip().strip('[] '))
+                elif current_section is None:
+                    continue
                 else:
                     if self.inp[current_section] is None:
                         self.inp[current_section] = []
@@ -859,16 +842,51 @@ class SwmmInputParser(object):
         # a list of all nodes id
         nodes = []
         for n_t in node_types:
-            # add id only if there is values in the dict entry
+            # add id only if there are values in the dict entry
             if self.inp[n_t]:
                 for line in self.inp[n_t]:
                     nodes.append(line[0])
+
+        # A coordinates dict
+        coords_dict = {}
+        if self.inp['coordinate']:
+            for coords in self.inp['coordinate']:
+                coords_dict[coords[0]] = self.Coordinates(float(coords[1]),
+                                                          float(coords[2]))
         # fill the dict
-        nodes_dict = {}
-        for coords in self.inp['coordinate']:
-            for node_id in nodes:
-                name = coords[0]
-                if node_id == name:
-                    nodes_dict[node_id] = self.Coordinates(float(coords[1]),
-                                                           float(coords[2]))
-        return nodes_dict
+        node_dict = {}
+        for node_id in nodes:
+            if node_id in coords_dict:
+                node_dict[node_id] = coords_dict[node_id]
+            else:
+                node_dict[node_id] = None
+        return node_dict
+
+    def get_links_id_as_dict(self):
+        """return a list of id:SwmmLink
+        """
+        links_dict = {}
+        # loop through all types of links
+        for k in self.link_types:
+            links = self.inp[k]
+            if links is not None:
+                for ln in links:
+                    ID = ln[0]
+                    vertices = self.get_vertices(ID)
+                    # names of link, inlet and outlet nodes
+                    links_dict[ID] = self.Link(in_node=ln[1],
+                                               out_node=ln[2],
+                                               vertices=vertices)
+        return links_dict
+
+    def get_vertices(self, link_name):
+        """For a given link name, return a list of Coordinates objects
+        """
+        vertices = []
+        if isinstance(self.inp['vertice'], list):
+            for vertex in self.inp['vertice']:
+                if link_name == vertex[0]:
+                    vertex_c = self.Coordinates(float(vertex[1]),
+                                                float(vertex[2]))
+                    vertices.append(vertex_c)
+        return vertices

@@ -36,8 +36,8 @@ class LinkData(c.Structure):
                 ('volume', c.c_double),
                 #~ ('shearVelocity', c.c_double),
                 ('type', c.c_int),        # link type code
-                ('node1', c.c_char),      # start node ID
-                ('node2', c.c_char),      # end node ID
+                #~ ('node1', c.c_char),      # start node ID
+                #~ ('node2', c.c_char),      # end node ID
                 ('offset1', c.c_double),  # ht. above start node invert (ft)
                 ('offset2', c.c_double),  # ht. above end node invert (ft)
                 ('yFull', c.c_double),    # depth when full (ft)

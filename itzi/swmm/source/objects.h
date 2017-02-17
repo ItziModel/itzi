@@ -54,8 +54,8 @@ typedef struct
 // added by L. Courty
 	//~ double shearVelocity;
     int type;              // link type code
-    char* node1;           // start node ID
-    char* node2;           // end node ID
+    //~ char* node1;           // start node ID
+    //~ char* node2;           // end node ID
     double offset1;        // ht. above start node invert (ft)
     double offset2;        // ht. above end node invert (ft)
 	double yFull;          // depth when full (ft)
