@@ -76,10 +76,10 @@ class build_ext_compiler_check(build_ext):
     def build_extensions(self):
         compiler = self.compiler.compiler_type
         print("compiler: {}".format(compiler))
-        if copt.has_key(compiler):
+        if compiler in copt:
            for e in self.extensions:
                e.extra_compile_args = copt[compiler]
-        if lopt.has_key(compiler):
+        if compiler in lopt:
             for e in self.extensions:
                 e.extra_link_args = lopt[compiler]
         build_ext.build_extensions(self)
