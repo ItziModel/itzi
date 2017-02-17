@@ -49,6 +49,14 @@ class Igis(object):
                            'int8', 'int16', 'int32', 'int64',
                            'uint8', 'uint16', 'uint32', 'uint64')}
 
+    # colour rules
+    _ROOT = os.path.dirname(__file__)
+    _DIR = os.path.join(_ROOT, 'data', 'colortable')
+    rules_h = os.path.join(_DIR, 'depth.txt')
+    rules_v = os.path.join(_DIR, 'velocity.txt')
+    rules_def = os.path.join(_DIR, 'default.txt')
+    colors_rules_dict = {'h': rules_h, 'v': rules_v, 'vdir': 'aspectcolr'}
+
     # define used namedtuples
     strds_cols = ['id', 'start_time', 'end_time']
     MapData = namedtuple('MapData', strds_cols)
@@ -77,16 +85,6 @@ class Igis(object):
         # init temporal module
         tgis.init()
 
-
-        # color tables files
-        _ROOT = os.path.dirname(__file__)
-        _DIR = os.path.join(_ROOT, 'data', 'colortable')
-        _H = 'depth.txt'
-        _V = 'velocity.txt'
-        _DEF = 'default.txt'
-        self.rules_h = os.path.join(_DIR, _H)
-        self.rules_v = os.path.join(_DIR, _V)
-        self.rules_def = os.path.join(_DIR, _DEF)
         assert os.path.isfile(self.rules_h)
         assert os.path.isfile(self.rules_v)
         assert os.path.isfile(self.rules_def)
@@ -418,17 +416,14 @@ class Igis(object):
                                    stds_title, stds_desc, "mean",
                                    overwrite=self.overwrite)
 
-        # create RasterDataset objects list
+        # create MapDataset objects list
         map_dts_lst = []
         for map_name, map_time in map_list:
             # create MapDataset
             map_id = self.format_id(map_name)
-            if stds_type == 'strds':
-                map_dts = tgis.RasterDataset(map_id)
-            elif stds_type == 'stvds':
-                map_dts = tgis.VectorDataset(map_id)
-            else:
-                assert False, "unknown stds type!"
+            map_dts_type = {'strds': tgis.RasterDataset,
+                            'stvds': tgis.VectorDataset}
+            map_dts = map_dts_type[stds_type](map_id)
             # load spatial data from map
             map_dts.load()
             # set time
@@ -442,14 +437,9 @@ class Igis(object):
                 assert False, "unknown temporal type!"
             # populate the list
             map_dts_lst.append(map_dts)
-        # Finaly register the maps
-        if t_type == 'relative':
-            r_unit = 'seconds'
-        elif t_type == 'absolute':
-            r_unit = ''
-        else:
-            assert False, "unknown temporal type!"
-
+        # Finally register the maps
+        unit_corresp = {'relative': 'seconds', 'absolute': ''}
+        r_unit = unit_corresp[t_type]
         stds_corresp = {'strds': 'raster', 'stvds': 'vector'}
         tgis.register.register_map_object_list(stds_corresp[stds_type],
                                                map_dts_lst,
@@ -460,13 +450,9 @@ class Igis(object):
     def apply_color_table(self, map_name, mkey):
         '''apply a color table determined by mkey to the given map
         '''
-        if mkey == 'h':
-            colors_rules = self.rules_h
-        elif mkey == 'v':
-            colors_rules = self.rules_v
-        elif mkey == 'vdir':
-            colors_rules = 'aspectcolr'
-        else:
+        try:
+            colors_rules = self.colors_rules_dict[mkey]
+        except KeyError:
             colors_rules = self.rules_def
         grass.run_command('r.colors', quiet=True,
                           rules=colors_rules, map=map_name)
