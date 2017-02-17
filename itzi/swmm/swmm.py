@@ -427,6 +427,28 @@ class SwmmLink(object):
         # load values from SWMM
         self.update()
 
+    @staticmethod
+    def get_sql_columns_def():
+        """Using the c structs definition,
+        return a list of tuple(name, type) to be used in sqlite table creation
+        """
+        # create the list with the cat key
+        sql_columns_def = [(u'cat', 'INTEGER PRIMARY KEY')]
+        # correspondence between c types and sqlite types
+        corresp = {c.c_double: 'REAL',
+                   c.c_int: 'INT',
+                   c.c_char: 'TEXT'}
+        # do the magic
+        for i in LinkData._fields_:
+            col_name = u'{}'.format(i[0])
+            # export link type as text rather than enum code
+            if col_name == 'type':
+                col_type = 'TEXT'
+            else:
+                col_type = corresp[i[1]]
+            sql_columns_def.append((col_name, col_type))
+        return sql_columns_def
+
     def update(self):
         '''Retrieve node data from SWMM in SI units.
         To be done after each simulation time-step
@@ -700,6 +722,16 @@ class SwmmNode(object):
                 'overflow': self.overflow, 'ponded area': self.ponded_area,
                 'head': self.head, 'crest elevation': self.crest_elev,
                 'surface head': self.wse}
+
+    def get_attrs(self):
+        """return a list of node data in the right DB order
+        """
+        return [self.inflow, self.outflow, self.head, self.crest_elev,
+                self.node_type, self.sub_index, self.invert_elev,
+                self.init_depth, self.full_depth, self.sur_depth,
+                self.ponded_area, self.degree, self.updated, self.crown_elev,
+                self.losses, self.volume, self.full_volume, self.overflow,
+                self.depth, self.lat_flow]
 
 
 class SwmmInputParser(object):

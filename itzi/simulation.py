@@ -248,6 +248,7 @@ class Report(object):
         self.drainage_values = {'records': []}
         # a dict containing lists of maps written to gis to be registered
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
+        self.vector_drainage_maplist = []
         self.last_step = copy.copy(self.gis.start_time)
 
     def step(self, sim_time):
@@ -341,30 +342,33 @@ class Report(object):
         if name is populated, create a strds of the right temporal type
         and register the corresponding listed maps
         """
+        # rasters
         for mkey, lst in self.output_maplist.iteritems():
             strds_name = self.out_map_names[mkey]
             if strds_name is None:
                 continue
-            self.gis.register_maps_in_strds(mkey, strds_name, lst,
-                                            self.temporal_type)
+            self.gis.register_maps_in_stds(mkey, strds_name, lst, 'strds',
+                                           self.temporal_type)
+        # vector  # Not working yet
+        #~ self.gis.register_maps_in_stds("Itzï drainage results",
+                                        #~ self.drainage_out,
+                                        #~ self.vector_drainage_maplist,
+                                        #~ 'stvds',
+                                        #~ self.temporal_type)
         return self
 
     def save_drainage_values(self, sim_time):
-        """Populate a dict with values from drainage network
+        """Write vector map of drainage network
         """
-        if self.temporal_type == 'absolute':
-            date = sim_time.isoformat()
-        elif self.temporal_type == 'relative':
-            date = str(sim_time - self.gis.start_time)
-        else:
-            assert False, u"Unknown temporal type"
-        proj = self.drainage_sim.get_serialized_project_values()
-        nodes = self.drainage_sim.get_serialized_nodes_values()
-        links = self.drainage_sim.get_serialized_links_values()
-        self.drainage_values['records'].append({'date': date,
-                                                'project': proj,
-                                                'nodes': nodes,
-                                                'links': links})
+        drainage_network = self.drainage_sim.drainage_network
+        linking_elem = self.drainage_sim.linking_elements
+        # format map name
+        suffix = str(self.record_counter).zfill(4)
+        map_name = "{}_{}".format(self.drainage_out, suffix)
+        # write the map
+        self.gis.write_vector_map(drainage_network, map_name, linking_elem)
+        #
+        self.vector_drainage_maplist.append((map_name, sim_time))
         return self
 
     def drainage_values_to_json(self):

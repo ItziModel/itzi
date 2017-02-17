@@ -27,6 +27,11 @@ class DrainageSimulation(object):
     """manage simulation of the pipe network
     write results to RasterDomain object
     """
+
+    # define namedtuples
+    LayerDescr = namedtuple('LayerDescr', ['table_suffix', 'cols', 'layer_number'])
+    GridCoords = namedtuple('GridCoords', ['row', 'col'])
+
     def __init__(self, domain, inp, igis):
         self.dom = domain
         # create swmm object and open files
@@ -41,8 +46,15 @@ class DrainageSimulation(object):
         self.cell_surf = igis.dx * igis.dy
         self.gis = igis
 
-        # definition of grid coordinates
-        self.GridCoords = namedtuple('GridCoords', ['row', 'col'])
+        # definition of linking_elements (used for GRASS vector writing)
+        node_col_def = swmm.SwmmNode.get_sql_columns_def()
+        link_col_def = swmm.SwmmLink.get_sql_columns_def()
+        self.linking_elements = {'node': self.LayerDescr(table_suffix='_node',
+                                                         cols=node_col_def,
+                                                         layer_number=1),
+                                 'link': self.LayerDescr(table_suffix='_link',
+                                                         cols=link_col_def,
+                                                         layer_number=2)}
 
         # create a graph made of drainage nodes and links objects
         swmm_inp = swmm.SwmmInputParser(inp)
