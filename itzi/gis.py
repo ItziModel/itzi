@@ -333,33 +333,38 @@ class Igis(object):
 
             # Points
             for node in drainage_network.nodes():
-                point = Point(*node.coordinates)
-                # add values
-                map_layer, dbtable = dblinks['node']
-                self.write_vector_geometry(vect_map, point, cat_num, map_layer)
-                # Get DB attributes
-                attrs = tuple([cat_num] + node.get_attrs())
-                db_info['node'].append(attrs)
-                # bump cat
-                cat_num += 1
+                if node.coordinates:
+                    point = Point(*node.coordinates)
+                    # add values
+                    map_layer, dbtable = dblinks['node']
+                    self.write_vector_geometry(vect_map, point,
+                                               cat_num, map_layer)
+                    # Get DB attributes
+                    attrs = tuple([cat_num] + node.get_attrs())
+                    db_info['node'].append(attrs)
+                    # bump cat
+                    cat_num += 1
 
             # Lines
-            #~ # iterate edges
-            #~ for in_node, out_node, edge_data in drainage_network.edges_iter(data=True):
-                #~ # assemble geometry
-                #~ in_node_coor = drainage_network.node[in_node]['coordinates']
-                #~ out_node_coor = drainage_network.node[out_node]['coordinates']
-                #~ line_object = Line([in_node_coor]
-                                   #~ + edge_data['vertices']
-                                   #~ + [out_node_coor])
-                #~ # set category and layer link
-                #~ map_layer, dbtable = dblinks[edge_data['type']]
-                #~ write_geometry(vect_map, line_object, cat_num, map_layer)
-                #~ # keep DB info
-                #~ attrs = tuple([cat_num] + [i for i in edge_data['values']])
-                #~ db_info[edge_data['type']].append(attrs)
-                #~ # bump cat
-                #~ cat_num += 1
+            for in_node, out_node, edge_data in drainage_network.edges_iter(data=True):
+                link = edge_data['object']
+                # load link values from simulation
+                link.update()
+                # assemble geometry
+                in_node_coor = in_node.coordinates
+                out_node_coor = out_node.coordinates
+                if in_node_coor and out_node_coor:
+                    line_object = Line([in_node_coor]
+                                       + link.vertices
+                                       + [out_node_coor])
+                    # set category and layer link
+                    map_layer, dbtable = dblinks['link']
+                    self.write_vector_geometry(vect_map, line_object, cat_num, map_layer)
+                    # keep DB info
+                    attrs = tuple([cat_num] + link.get_attrs())
+                    db_info['link'].append(attrs)
+                    # bump cat
+                    cat_num += 1
 
         # write DB
         for geom_type, attrs in db_info.iteritems():

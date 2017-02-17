@@ -280,8 +280,6 @@ class Report(object):
             self.write_hmax_to_gis()
         if self.out_map_names['v']:
             self.write_vmax_to_gis()
-        if self.drainage_sim:
-            self.drainage_values_to_json()
         return self
 
     def write_mass_balance(self, sim_time):
@@ -350,11 +348,12 @@ class Report(object):
             self.gis.register_maps_in_stds(mkey, strds_name, lst, 'strds',
                                            self.temporal_type)
         # vector
-        self.gis.register_maps_in_stds("Itzï drainage results",
-                                        self.drainage_out,
-                                        self.vector_drainage_maplist,
-                                        'stvds',
-                                        self.temporal_type)
+        if self.drainage_sim:
+            self.gis.register_maps_in_stds("Itzï drainage results",
+                                            self.drainage_out,
+                                            self.vector_drainage_maplist,
+                                            'stvds',
+                                            self.temporal_type)
         return self
 
     def save_drainage_values(self, sim_time):
@@ -369,11 +368,4 @@ class Report(object):
         self.gis.write_vector_map(drainage_network, map_name, linking_elem)
         #
         self.vector_drainage_maplist.append((map_name, sim_time))
-        return self
-
-    def drainage_values_to_json(self):
-        """Dump drainage values to a json file
-        """
-        with open(self.drainage_out, 'w') as outfile:
-            msgpack.dump(self.drainage_values, outfile)
         return self
