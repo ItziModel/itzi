@@ -27,7 +27,6 @@ class DrainageSimulation(object):
     """manage simulation of the pipe network
     write results to RasterDomain object
     """
-    GridCoords = namedtuple('GridCoords', ['row', 'col'])
     def __init__(self, domain, inp, igis):
         self.dom = domain
         # create swmm object and open files
@@ -38,13 +37,17 @@ class DrainageSimulation(object):
         self.swmm5.swmm_start()
         # allow ponding
         self.swmm5.set_allow_ponding()
-
+        # geo information
         self.cell_surf = igis.dx * igis.dy
         self.gis = igis
 
-        # create a list of linkable nodes
+        # definition of grid coordinates
+        self.GridCoords = namedtuple('GridCoords', ['row', 'col'])
+
+        # create a graph made of drainage nodes and links objects
         swmm_inp = swmm.SwmmInputParser(inp)
-        self.create_node_list(swmm_inp.get_juntions_as_dict())
+        node_list = self.get_node_objects_list(swmm_inp.get_nodes_id_as_dict())
+        self.create_drainage_network_graph(node_list)
 
     def __del__(self):
         self.swmm5.swmm_end()
@@ -68,22 +71,31 @@ class DrainageSimulation(object):
     def dt(self, value):
         raise DtError("Can't set time-step of a SWMM simulation")
 
-    def create_node_list(self, j_dict):
-        """create list of drainage nodes objects with
-        corresponding grid coordinates
+    def get_node_objects_list(self, n_dict):
+        """create list of drainage nodes objects
         """
-        self.drain_nodes = []
-        for k, coords in j_dict.iteritems():
+        drain_nodes = []
+        for k, coords in n_dict.iteritems():
             # create Node object
             node = swmm.SwmmNode(swmm_object=self.swmm5, node_id=k,
                                  coordinates=coords)
             if self.gis.is_in_region(coords.x, coords.y):
                 # calculate grid coordinates and add them to the object
                 row, col = self.gis.coor2pixel((coords.x, coords.y))
-                node.grid_coords = DrainageSimulation.GridCoords(int(row),
-                                                                 int(col))
+                node.grid_coords = self.GridCoords(int(row), int(col))
             # add to list of nodes
-            self.drain_nodes.append(node)
+            drain_nodes.append(node)
+        return drain_nodes
+
+    def create_drainage_network_graph(self, node_list, link_list=None):
+        """create a networkx object using given links and nodes lists
+        """
+        self.drainage_network = nx.MultiDiGraph()
+        self.drainage_network.add_nodes_from(node_list)
+        #~ for link_name, link_value in links.iteritems():
+            #~ network.add_edge(link_value.in_node, link_value.out_node, name=link_name,
+                             #~ vertices=link_value.vertices, type=link_value.type,
+                             #~ values=link_value.values)
         return self
 
     def step(self):
@@ -101,10 +113,10 @@ class DrainageSimulation(object):
         arr_h = self.dom.get('h')
         arr_z = self.dom.get('z')
         arr_qd = self.dom.get('n_drain')
-        for node in self.drain_nodes:
+        for node in self.drainage_network.nodes():
             node.update()
             # only apply if the node is inside the domain
-            if node.grid_coords:
+            if node.is_linkable():
                 row, col = node.grid_coords
                 h = arr_h[row, col]
                 z = arr_z[row, col]
@@ -125,20 +137,12 @@ class DrainageSimulation(object):
     def get_serialized_nodes_values(self):
         """Return nodes values in a ID: values dict
         """
-        return {n.node_id: n.get_values_as_dict()
-                for n in self.drain_nodes}
+        #~ return {n.node_id: n.get_values_as_dict()
+                #~ for n in self.drain_nodes}
+        return {}
 
     def get_serialized_links_values(self):
         """Return links values in a ID:values dict
         """
         return {}
-
-
-class NetworkResultsWriter(object):
-    """Generate a networkx object to represent the drainage network.
-    """
-    def __init__(self, swmm_object):
-        """swmm5 is a swmm5 simulation object
-        """
-        self.swmm5 = swmm_object
 
