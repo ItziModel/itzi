@@ -349,12 +349,12 @@ class Report(object):
                 continue
             self.gis.register_maps_in_stds(mkey, strds_name, lst, 'strds',
                                            self.temporal_type)
-        # vector  # Not working yet
-        #~ self.gis.register_maps_in_stds("Itzï drainage results",
-                                        #~ self.drainage_out,
-                                        #~ self.vector_drainage_maplist,
-                                        #~ 'stvds',
-                                        #~ self.temporal_type)
+        # vector
+        self.gis.register_maps_in_stds("Itzï drainage results",
+                                        self.drainage_out,
+                                        self.vector_drainage_maplist,
+                                        'stvds',
+                                        self.temporal_type)
         return self
 
     def save_drainage_values(self, sim_time):

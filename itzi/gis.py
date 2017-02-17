@@ -344,7 +344,6 @@ class Igis(object):
                 cat_num += 1
 
             # Lines
-            #~ msgr.verbose("points: {}".format(nx.number_of_edges(drainage_network)))
             #~ # iterate edges
             #~ for in_node, out_node, edge_data in drainage_network.edges_iter(data=True):
                 #~ # assemble geometry
@@ -438,13 +437,13 @@ class Igis(object):
             # populate the list
             map_dts_lst.append(map_dts)
         # Finally register the maps
-        unit_corresp = {'relative': 'seconds', 'absolute': ''}
-        r_unit = unit_corresp[t_type]
+        t_unit = {'relative': 'seconds', 'absolute': ''}
         stds_corresp = {'strds': 'raster', 'stvds': 'vector'}
+        del_empty = {'strds': True, 'stvds': False}
         tgis.register.register_map_object_list(stds_corresp[stds_type],
-                                               map_dts_lst,
-                                               stds, delete_empty=True,
-                                               unit=r_unit)
+                                               map_dts_lst, stds,
+                                               delete_empty=del_empty[stds_type],
+                                               unit=t_unit[t_type])
         return self
 
     def apply_color_table(self, map_name, mkey):
