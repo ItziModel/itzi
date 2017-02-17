@@ -24,7 +24,7 @@ from itzi_error import ItziFatal
 OUTPUT = sys.stderr
 FATAL = "ERROR: "
 WARNING = "WARNING: "
-PAD = " " * 30  # Necessary to print a clean line
+PAD = " " * 35  # Necessary to print a clean line
 
 raise_on_error = False
 
@@ -53,7 +53,7 @@ def percent(start_time, end_time, sim_time, sim_start_time):
         eta = timedelta(seconds=int(remaining * rate))
         txt = u"Time: {sim} Advance: {perc:.1%} ETA: {eta}{pad}"
         disp = txt.format(sim=sim_time.isoformat(" ").split(".")[0],
-                          perc=advance_perc, eta=eta, pad=" " * 5)
+                          perc=advance_perc, eta=eta, pad=" " * 10)
         print(disp, file=OUTPUT, end='\r')
 
 
