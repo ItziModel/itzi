@@ -614,10 +614,9 @@ class SwmmNode(object):
         the crest elevation could not be lower than ground
         update swmm Node.fullDepth if necessary
         '''
-        new_crest = max(self.crest_elev, z)
-        if new_crest != self.crest_elev:
+        if z > self.crest_elev:
             # set new FullDepth in swmm:
-            c_new_FullDepth = c.c_double((new_crest - self.invert_elev) /
+            c_new_FullDepth = c.c_double((z - self.invert_elev) /
                                          self.foot)
             self.swmm_sim.c_swmm5.swmm_setNodeFullDepth(
                 c.c_char_p(self.node_id), c_new_FullDepth)
