@@ -54,8 +54,11 @@ class Igis(object):
     _DIR = os.path.join(_ROOT, 'data', 'colortable')
     rules_h = os.path.join(_DIR, 'depth.txt')
     rules_v = os.path.join(_DIR, 'velocity.txt')
+    rules_vdir = os.path.join(_DIR, 'vdir.txt')
+    rules_fr = os.path.join(_DIR, 'froude.txt')
     rules_def = os.path.join(_DIR, 'default.txt')
-    colors_rules_dict = {'h': rules_h, 'v': rules_v, 'vdir': 'aspectcolr'}
+    colors_rules_dict = {'h': rules_h, 'v': rules_v, 'vdir': rules_vdir,
+                         'fr': rules_fr}
 
     # define used namedtuples
     strds_cols = ['id', 'start_time', 'end_time']

@@ -42,7 +42,7 @@ class ConfigReader(object):
         k_input_map_names = ['dem', 'friction', 'start_h', 'start_y',
                              'rain', 'inflow', 'bcval', 'bctype',
                              'infiltration', 'drainage_capacity'] + self.ga_list
-        k_output_map_names = ['h', 'wse', 'v', 'vdir', 'qx', 'qy',
+        k_output_map_names = ['h', 'wse', 'v', 'vdir', 'qx', 'qy', 'fr',
                               'boundaries', 'infiltration', 'rainfall',
                               'inflow', 'drainage_cap', 'drainage_net',
                               'verror']

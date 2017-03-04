@@ -125,7 +125,7 @@ class RasterDomain(object):
         self.k_input = self.in_k_corresp.keys()
         self.k_internal = ['inf', 'hmax', 'ext', 'y', 'hfe', 'hfs',
                            'qe', 'qs', 'qe_new', 'qs_new', 'etp',
-                           'ue', 'us', 'v', 'vdir', 'vmax',
+                           'ue', 'us', 'v', 'vdir', 'vmax', 'fr',
                            'n_drain', 's_drain', 'dire', 'dirs']
         # arrays gathering the cumulated water depth from corresponding array
         self.k_stats = ['st_bound', 'st_inf', 'st_rain', 'st_etp',
@@ -328,6 +328,8 @@ class RasterDomain(object):
             out_arrays['v'] = self.get_unmasked('v')
         if self.out_map_names['vdir'] is not None:
             out_arrays['vdir'] = self.get_unmasked('vdir')
+        if self.out_map_names['fr'] is not None:
+            out_arrays['fr'] = self.get_unmasked('fr')
         if self.out_map_names['qx'] is not None:
             out_arrays['qx'] = self.get_unmasked('qe_new') * self.dy
         if self.out_map_names['qy'] is not None:
