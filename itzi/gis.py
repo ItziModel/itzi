@@ -20,7 +20,7 @@ import os
 
 import messenger as msgr
 
-import grass.script as grass
+import grass.script as gscript
 import grass.temporal as tgis
 from grass.pygrass import raster
 from grass.pygrass.gis.region import Region
@@ -82,7 +82,7 @@ class Igis(object):
         self.dy = self.region.nsres
         self.reg_bbox = {'e': self.region.east, 'w': self.region.west,
                          'n': self.region.north, 's': self.region.south}
-        self.overwrite = grass.overwrite()
+        self.overwrite = gscript.overwrite()
         self.mapset = gutils.getenv('MAPSET')
         self.maps = dict.fromkeys(mkeys)
         # init temporal module
@@ -166,7 +166,7 @@ class Igis(object):
         """return True if the given name is a map in the grass database
         False if not
         """
-        if grass.find_file(name=map_id, element='cell').get('file'):
+        if gscript.find_file(name=map_id, element='cell').get('file'):
             return True
         else:
             return False
@@ -461,6 +461,6 @@ class Igis(object):
             colors_rules = self.colors_rules_dict[mkey]
         except KeyError:
             colors_rules = self.rules_def
-        grass.run_command('r.colors', quiet=True,
-                          rules=colors_rules, map=map_name)
+        gscript.run_command('r.colors', quiet=True,
+                            rules=colors_rules, map=map_name)
         return self
