@@ -400,7 +400,7 @@ class Swmm5(object):
         #~ self.swmm_close()
         #~ return err
 
-    def c_run(self, input_file = None, report_file = None, output_file = None):
+    def c_run(self, input_file=None, report_file=None, output_file=None):
         '''Runs a swmm simulation by calling the C funtion
         '''
         err = self.c_swmm5.swmm_run(c.c_char_p(input_file),
