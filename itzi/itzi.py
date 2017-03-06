@@ -274,28 +274,6 @@ def itzi_version(args):
         print(f.readline().strip())
 
 
-def itzi_read(args):
-    import msgpack
-    from resultsreader import ResultsReader
-
-    # read input and affect variables
-    with open(args.result_file, 'r') as infile:
-        results = msgpack.load(infile)
-    processor = ResultsReader(results)
-
-    # perform actions
-    if args.type == 'node':
-        processor.verif_node_id(args.id)
-        if args.action == 'plot':
-            processor.plot_node_values(args.id, args.variable)
-        elif args.action == 'csv':
-            processor.node_values_to_csv(args.id, args.output)
-    elif args.type == 'link':
-        pass
-    else:
-        msgr.fatal(u"Unknown type: '{}'".format(args.type))
-    return None
-
 ########################
 # Parsing command line #
 ########################
@@ -322,22 +300,6 @@ run_parser.set_defaults(func=itzi_run)
 version_parser = subparsers.add_parser("version",
                                        help=u"display software version number")
 version_parser.set_defaults(func=itzi_version)
-
-# read results
-read_parser = subparsers.add_parser("read", help=u"read simulation results",
-                                    description=u"read simulation results")
-read_parser.add_argument("result_file", help=u"an Itzï results file")
-read_parser.add_argument("--output",
-                         help=u"CSV file name. If not given, "
-                              u"print to standard output")
-read_parser.add_argument("action", choices=['plot', 'csv'],
-                         help=u"Action to perform")
-read_parser.add_argument("type", choices=['node', 'link'],
-                         help=u"Type of object to read")
-read_parser.add_argument("id", help=u"ID of object")
-read_parser.add_argument("variable", nargs='*',
-                         help=u"Variable to interrogate")
-read_parser.set_defaults(func=itzi_read)
 
 
 if __name__ == "__main__":

@@ -59,8 +59,7 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
 DESCR = "A 2D hydrologic model using GRASS GIS as a back-end"
 
 
-REQUIRES = ['pyinstrument', 'msgpack-python', 'python-dateutil',
-            'matplotlib', 'pandas', 'networkx']
+REQUIRES = ['pyinstrument', 'networkx']
 
 
 # Set arguments according to compiler
@@ -96,7 +95,7 @@ metadata = dict(name='itzi',
                 version=get_version(),
                 description=DESCR,
                 long_description=get_long_description(),
-                url='http://itzi.org',
+                url='http://www.itzi.org',
                 author='Laurent Courty',
                 author_email='lrntct@gmail.com',
                 license='GPLv2',
