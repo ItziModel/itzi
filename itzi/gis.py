@@ -78,6 +78,10 @@ class Igis(object):
         self.region = Region()
         self.xr = self.region.cols
         self.yr = self.region.rows
+        # Check if region is at least 3x3
+        if self.xr < 3 or self.yr < 3:
+            msgr.fatal(u"GRASS Region should be at least 3 cells by 3 cells")
+
         self.dx = self.region.ewres
         self.dy = self.region.nsres
         self.reg_bbox = {'e': self.region.east, 'w': self.region.west,

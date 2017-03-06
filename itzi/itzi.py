@@ -42,6 +42,7 @@ from pyinstrument import Profiler
 from datetime import timedelta
 
 from configreader import ConfigReader
+import itzi_error
 import messenger as msgr
 
 
@@ -184,6 +185,10 @@ def sim_runner_worker(conf, grass_use_file, grassbin):
     try:
         sim_runner = SimulationRunner(conf, grass_use_file, grassbin)
         sim_runner.run()
+    except itzi_error.ItziError:
+        # if an Itzï error, only print the last line of the traceback
+        traceback_lines = traceback.format_exc().splitlines()
+        msgr.warning("Error during execution: {}".format(traceback_lines[-1]))
     except:
         msgr.warning("Error during execution: {}".format(traceback.format_exc()))
 
