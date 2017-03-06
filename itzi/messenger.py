@@ -28,6 +28,7 @@ PAD = " " * 35  # Necessary to print a clean line
 
 raise_on_error = False
 
+
 def verbosity():
     return int(os.environ.get('ITZI_VERBOSE'))
 
@@ -42,7 +43,7 @@ def percent(start_time, end_time, sim_time, sim_start_time):
     if verbosity() == 1:
         print(u"{:.1%}".format(advance_perc), file=OUTPUT, end='\r')
 
-    elif verbosity() >=2:
+    elif verbosity() >= 2:
         now = datetime.now()
         elapsed_s = (now - sim_start_time).total_seconds()
         try:

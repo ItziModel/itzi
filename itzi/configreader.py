@@ -197,7 +197,7 @@ class ConfigReader(object):
                    self.input_map_names['friction'],
                    self.sim_times.record_step]):
             msgr.fatal(u"inputs <dem>, <friction> and "
-                            u"<record_step> are mandatory")
+                       u"<record_step> are mandatory")
 
     def display_sim_param(self):
         """Display simulation parameters if verbose

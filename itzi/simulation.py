@@ -350,10 +350,10 @@ class Report(object):
         # vector
         if self.drainage_sim:
             self.gis.register_maps_in_stds("Itzï drainage results",
-                                            self.drainage_out,
-                                            self.vector_drainage_maplist,
-                                            'stvds',
-                                            self.temporal_type)
+                                           self.drainage_out,
+                                           self.vector_drainage_maplist,
+                                           'stvds',
+                                           self.temporal_type)
         return self
 
     def save_drainage_values(self, sim_time):

@@ -121,6 +121,7 @@ class SimulationRunner(object):
         self.rcfile = gsetup.init(gisbase, gisdb, location, mapset)
         return self
 
+
 def get_gisbase(grassbin):
     """query GRASS 7 itself for its GISBASE
     """
@@ -144,9 +145,9 @@ def set_ldpath(gisbase):
     And then re-execute the process to take the changes into account
     """
     # choose right path for each platform
-    if (sys.platform.startswith('linux')
-            or 'bsd' in sys.platform
-            or 'solaris' in sys.platform):
+    if (sys.platform.startswith('linux') or
+            'bsd' in sys.platform or
+            'solaris' in sys.platform):
         ldvar = 'LD_LIBRARY_PATH'
     elif sys.platform.startswith('win'):
         ldvar = 'PATH'
@@ -166,6 +167,7 @@ def set_ldpath(gisbase):
         # if the variable exists but does not have the path
         os.environ[ldvar] += os.pathsep + ld_base
         reexec()
+
 
 def reexec():
     """Re-execute the software with the same arguments
@@ -215,7 +217,7 @@ def itzi_run(args):
     if args.q >= 1:
         # no warnings
         os.environ['GRASS_VERBOSE'] = '-1'
-    elif args.v >=1:
+    elif args.v >= 1:
         # normal
         os.environ['GRASS_VERBOSE'] = '2'
     else:
@@ -270,6 +272,7 @@ def itzi_version(args):
     F_VERSION = os.path.join(ROOT, 'data', 'VERSION')
     with open(F_VERSION, 'r') as f:
         print(f.readline().strip())
+
 
 def itzi_read(args):
     import msgpack

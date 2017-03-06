@@ -332,7 +332,7 @@ class Igis(object):
             cat_num = 1
 
             # dict to keep DB infos to write DB after geometries
-            db_info = {k:[] for k in linking_elem}
+            db_info = {k: [] for k in linking_elem}
 
             # Points
             for node in drainage_network.nodes():
@@ -420,8 +420,8 @@ class Igis(object):
         stds_id = self.format_id(stds_name)
         stds_desc = ""
         stds = tgis.open_new_stds(stds_id, stds_type, t_type,
-                                   stds_title, stds_desc, "mean",
-                                   overwrite=self.overwrite)
+                                  stds_title, stds_desc, "mean",
+                                  overwrite=self.overwrite)
 
         # create MapDataset objects list
         map_dts_lst = []
