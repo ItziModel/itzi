@@ -21,6 +21,7 @@ from datetime import datetime, timedelta
 import numpy as np
 
 import messenger as msgr
+from const import *
 
 
 class ConfigReader(object):
@@ -48,9 +49,9 @@ class ConfigReader(object):
                               'verror']
         k_drainage_params = ['swmm_inp', 'output']
 
-        self.sim_param = {'hmin': 0.005, 'cfl': 0.7, 'theta': 0.9,
-                          'g': 9.80665, 'vrouting': 0.1, 'dtmax': 5.,
-                          'slmax': .1, 'dtinf': 60., 'inf_model': None}
+        self.sim_param = {'hmin': HFMIN, 'cfl': CFL, 'theta': THETA,
+                          'g': G, 'vrouting': VROUTING, 'dtmax': DTMAX,
+                          'slmax': SLMAX, 'dtinf': DTINF, 'inf_model': None}
         k_grass_params = ['grass_bin', 'grassdata', 'location', 'mapset']
         self.raw_input_times = dict.fromkeys(k_raw_input_times)
         self.output_map_names = dict.fromkeys(k_output_map_names)

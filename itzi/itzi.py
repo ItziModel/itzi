@@ -44,7 +44,7 @@ from datetime import timedelta
 from configreader import ConfigReader
 import itzi_error
 import messenger as msgr
-
+from const import *
 
 def main():
     args = parser.parse_args()
@@ -207,16 +207,17 @@ def itzi_run(args):
         os.environ['GRASS_OVERWRITE'] = '1'
     else:
         os.environ['GRASS_OVERWRITE'] = '0'
+    # verbosity
     if args.q == 2:
-        os.environ['ITZI_VERBOSE'] = '0'
+        os.environ['ITZI_VERBOSE'] = str(SUPER_QUIET)
     elif args.q == 1:
-        os.environ['ITZI_VERBOSE'] = '1'
+        os.environ['ITZI_VERBOSE'] = str(QUIET)
     elif args.v == 1:
-        os.environ['ITZI_VERBOSE'] = '3'
+        os.environ['ITZI_VERBOSE'] = str(VERBOSE)
     elif args.v >= 2:
-        os.environ['ITZI_VERBOSE'] = '4'
+        os.environ['ITZI_VERBOSE'] = str(DEBUG)
     else:
-        os.environ['ITZI_VERBOSE'] = '2'
+        os.environ['ITZI_VERBOSE'] = str(MESSAGE)
 
     # setting GRASS verbosity (especially for maps registration)
     if args.q >= 1:

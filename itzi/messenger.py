@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2015-2016 Laurent Courty
+Copyright (C) 2015-2017 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -20,6 +20,7 @@ import os
 from datetime import timedelta, datetime
 
 from itzi_error import ItziFatal
+from const import *
 
 OUTPUT = sys.stderr
 FATAL = "ERROR: "
@@ -40,10 +41,10 @@ def percent(start_time, end_time, sim_time, sim_start_time):
     duration_s = (end_time-start_time).total_seconds()
     advance_perc = sim_time_s / duration_s
 
-    if verbosity() == 1:
+    if verbosity() == QUIET:
         print(u"{:.1%}".format(advance_perc), file=OUTPUT, end='\r')
 
-    elif verbosity() >= 2:
+    elif verbosity() >= MESSAGE:
         now = datetime.now()
         elapsed_s = (now - sim_start_time).total_seconds()
         try:
@@ -59,22 +60,22 @@ def percent(start_time, end_time, sim_time, sim_start_time):
 
 
 def message(msg):
-    if verbosity() >= 2:
+    if verbosity() >= MESSAGE:
         print(msg + PAD, file=OUTPUT)
 
 
 def verbose(msg):
-    if verbosity() >= 3:
+    if verbosity() >= VERBOSE:
         print(msg + PAD, file=OUTPUT)
 
 
 def debug(msg):
-    if verbosity() >= 4:
+    if verbosity() >= DEBUG:
         print(msg + PAD, file=OUTPUT)
 
 
 def warning(msg):
-    if verbosity() >= 0:
+    if verbosity() >= SUPER_QUIET:
         print(WARNING + msg + PAD, file=OUTPUT)
 
 
