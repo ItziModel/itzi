@@ -5,15 +5,12 @@ NAME:      Itzï
 
 AUTHOR(S): Laurent Courty
 
-PURPOSE:   Simulate dynamic superficial water flows using a simplified
-           quasi-2D implementation of the Shallow Water Equations.
+PURPOSE:   A dynamic, GIS flood simulation computer model.
            See:
-           De Almeida, G. & Bates, P., 2013. Applicability of the local
-           inertial approximation of the shallow water equations to
-           flood modeling. Water Resources Research, 49(8), pp.4833–4844.
-           Sampson, C.C. et al., 2013. An automated routing methodology
-           to enable direct rainfall in high resolution shallow water models.
-           Hydrological Processes, 27(3), pp.467–476.
+           Courty, L. G., Pedrozo-Acuña, A., and Bates, P. D.:
+           Itzï (version 16.8): An open-source,
+           distributed GIS model for dynamic flood simulation,
+           Geosci. Model Dev. Discuss., doi:10.5194/gmd-2016-283, in review, 2016.
 
 COPYRIGHT: (C) 2015-2017 by Laurent Courty
 
