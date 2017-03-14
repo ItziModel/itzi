@@ -5,8 +5,7 @@ NAME:      Itzï
 
 AUTHOR(S): Laurent Courty
 
-PURPOSE:   A dynamic, GIS flood simulation computer model.
-           See:
+PURPOSE:   A distributed GIS computer model for flood simulation. See:
            Courty, L. G., Pedrozo-Acuña, A., and Bates, P. D.:
            Itzï (version 16.8): An open-source,
            distributed GIS model for dynamic flood simulation,
