@@ -104,13 +104,14 @@ class SimulationRunner(object):
         location = self.conf.grass_params['location']
         mapset = self.conf.grass_params['mapset']
 
-        # check if the given parameters exist
-        if not os.path.isdir(gisdb):
-            msgr.fatal(u"GRASS DB not found: '{}'".format(gisdb))
-        elif not os.path.isdir(os.path.join(gisdb, location)):
-            msgr.fatal(u"GRASS location not found: '{}'".format(location))
-        elif not os.path.isdir(os.path.join(gisdb, location, mapset)):
-            msgr.fatal(u"GRASS mapset not found: '{}'".format(mapset))
+        # check if the given parameters exist and can be accessed
+        error_msg = u"'{}' does not exist or do not have adequate permissions"
+        if not os.access(gisdb, os.R_OK):
+            msgr.fatal(error_msg.format(gisdb))
+        elif not os.access(os.path.join(gisdb, location), os.R_OK):
+            msgr.fatal(error_msg.format(location))
+        elif not os.access(os.path.join(gisdb, location, mapset), os.W_OK):
+            msgr.fatal(error_msg.format(mapset))
 
         # query GRASS 7 itself for its GISBASE
         gisbase = get_gisbase(grassbin)
