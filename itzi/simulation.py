@@ -91,28 +91,21 @@ class SimulationManager(object):
         # RasterDomain
         self.rast_domain = RasterDomain(self.dtype, self.gis,
                                         self.in_map_names, self.out_map_names)
-
         # Infiltration
-        if self.inf_model == 'constant':
-            self.infiltration = infiltration.InfConstantRate(self.rast_domain,
-                                                             self.dtinf)
-        elif self.inf_model == 'green-ampt':
-            self.infiltration = infiltration.InfGreenAmpt(self.rast_domain,
+        inf_class = {'constant': infiltration.InfConstantRate,
+                     'green-ampt': infiltration.InfGreenAmpt,
+                     'null': infiltration.InfNull}
+        try:
+            self.infiltration = inf_class[self.inf_model](self.rast_domain,
                                                           self.dtinf)
-        elif self.inf_model is None:
-            self.infiltration = infiltration.InfNull(self.rast_domain,
-                                                     self.dtinf)
-        else:
+        except KeyError:
             assert False, u"Unknow infiltration model: {}".format(self.inf_model)
-
         # Hydrology
         self.hydrology = hydrology.Hydrology(self.rast_domain, self.dtinf,
                                              self.infiltration)
-
         # Surface flows simulation
         self.surf_sim = SurfaceFlowSimulation(self.rast_domain,
                                               self.sim_param)
-
         # Instantiate Massbal object
         if self.stats_file:
             self.massbal = MassBal(self.stats_file, self.rast_domain,
@@ -267,14 +260,14 @@ class Report(object):
         return self
 
     def end(self, sim_time):
-        """write last mass balance
+        """Perform the last step
         register maps in gis
         write max level maps
-        write json drainage data
         """
         assert isinstance(sim_time, datetime)
-        if self.massbal:
-            self.write_mass_balance(sim_time)
+        # do the last step
+        self.step(sim_time)
+        # register maps and write max maps
         self.register_results_in_gis()
         if self.out_map_names['h']:
             self.write_hmax_to_gis()

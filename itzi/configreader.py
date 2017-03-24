@@ -179,7 +179,7 @@ class ConfigReader(object):
         ga_all = all(self.input_map_names[i] for i in self.ga_list)
         # verify parameters
         if not self.input_map_names[inf_k] and not ga_any:
-            self.sim_param['inf_model'] = None
+            self.sim_param['inf_model'] = 'null'
         elif self.input_map_names[inf_k] and not ga_any:
             self.sim_param['inf_model'] = 'constant'
         elif self.input_map_names[inf_k] and ga_any:
