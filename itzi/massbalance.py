@@ -21,8 +21,6 @@ import copy
 
 class MassBal(object):
     """Follow-up the mass balance during the simulation run
-    Mass balance error is the difference between the actual volume and
-    the theoretical volume. The latter is the old volume + input - output.
     Intended use:
     at each record time, using write_values():
     averaged or cumulated values for the considered time difference are
@@ -98,8 +96,11 @@ class MassBal(object):
         self.line['#timesteps'] = len(self.sim_data['tstep'])
         # average time-step calculation
         elapsed_time = sum(self.sim_data['tstep'])
-        avg_timestep = elapsed_time / self.line['#timesteps']
-        self.line['avg_timestep'] = '{:.3f}'.format(avg_timestep)
+        try:
+            avg_timestep = elapsed_time / self.line['#timesteps']
+            self.line['avg_timestep'] = '{:.3f}'.format(avg_timestep)
+        except ZeroDivisionError:
+            self.line['avg_timestep'] = '-'
 
         # domain volume
         self.read_dom_vol()

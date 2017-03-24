@@ -135,7 +135,7 @@ class SimulationManager(object):
         """
         # dict of next time-step (datetime object)
         self.next_ts = {'end': self.end_time,
-                        'rec': self.start_time}
+                        'rec': self.start_time + self.record_step}
         for k in ['hyd', 'surf', 'drain']:
             self.next_ts[k] = self.start_time
         # case if no drainage simulation
@@ -143,6 +143,11 @@ class SimulationManager(object):
             self.next_ts['drain'] = self.end_time
         # First time-step is forced
         self.nextstep = self.sim_time + self.dt
+        # record initial state
+        self.rast_domain.update_input_arrays(self.sim_time)
+        self.report.step(self.sim_time)
+        self.rast_domain.reset_stats(self.sim_time)
+
         sim_start_time = datetime.now()
         msgr.verbose(u"Starting time-stepping...")
         while self.sim_time < self.end_time:
@@ -165,7 +170,6 @@ class SimulationManager(object):
     def step(self):
         """Step each of the model if needed
         """
-
         # hydrology
         if self.sim_time == self.next_ts['hyd']:
             self.hydrology.solve_dt()
@@ -189,7 +193,7 @@ class SimulationManager(object):
         else:
             self.rast_domain.isnew['n_drain'] = False
 
-        # calculate superficial flow #
+        # calculate surface flow #
         # update arrays of infiltration, rainfall etc.
         self.rast_domain.update_ext_array()
         # force time-step to be the general time-step
@@ -207,6 +211,7 @@ class SimulationManager(object):
         self.surf_sim.solve_dt()
         self.next_ts['surf'] += self.surf_sim.dt
 
+        # send current time-step duration to mass balance object
         if self.massbal:
             self.massbal.add_value('tstep', self.dt.total_seconds())
         # write simulation results
