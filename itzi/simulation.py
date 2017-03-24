@@ -135,7 +135,7 @@ class SimulationManager(object):
         """
         # dict of next time-step (datetime object)
         self.next_ts = {'end': self.end_time,
-                        'rec': self.start_time + self.record_step}
+                        'rec': self.start_time}
         for k in ['hyd', 'surf', 'drain']:
             self.next_ts[k] = self.start_time
         # case if no drainage simulation

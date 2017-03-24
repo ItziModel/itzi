@@ -463,8 +463,9 @@ class Igis(object):
         '''
         try:
             colors_rules = self.colors_rules_dict[mkey]
+            gscript.run_command('r.colors', quiet=True,
+                                rules=colors_rules, map=map_name)
         except KeyError:
-            colors_rules = self.rules_def
-        gscript.run_command('r.colors', quiet=True,
-                            rules=colors_rules, map=map_name)
+            # in case no specific color table is given, use GRASS default.
+            pass
         return self
