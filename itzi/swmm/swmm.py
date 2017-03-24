@@ -21,6 +21,7 @@ from structs import NodeData, NodeType, LinkData, LinkType
 import math
 import collections
 import swmm_error
+import numpy as np
 
 
 class Swmm5(object):
@@ -889,3 +890,51 @@ class SwmmInputParser(object):
                                                 float(vertex[2]))
                     vertices.append(vertex_c)
         return vertices
+
+
+class SwmmNetwork(object):
+    """Represent a SWMM network
+    values of Nodes and Links are stored in dicts of np.ndarray
+    """
+    def __init__(self, swmm_object, nodes_dict, links_dict):
+        self.swmm_sim = swmm_object
+        # data type of each array
+        nodes_dtypes = {'node_id': 'string', 'linkage_type': 'string',
+                        'inflow': np.float32, 'outflow': np.float32,
+                        'head': np.float32, 'crest_elev': np.float32,
+                        'node_type': 'string', 'sub_index': np.int32,
+                        'invert_elev': np.float32, 'init_depth': np.float32,
+                        'full_depth': np.float32, 'sur_depth': np.float32,
+                        'ponded_area': np.float32, 'degree': np.int32,
+                        'updated': np.int8, 'crown_elev': np.float32,
+                        'losses': np.float32, 'volume': np.float32,
+                        'full_volume': np.float32, 'overflow': np.float32,
+                        'depth': np.float32, 'lat_flow': np.float32,
+                        'x': np.float32, 'y': np.float32}
+        self.nodes = dict.fromkeys(nodes_dtypes.keys())
+        # data type of each array
+        links_dtypes = {'link_id': 'string', 'flow',
+                        'depth': np.float32, 'velocity': np.float32,
+                        'volume': np.float32, 'link_type': 'string',
+                        'start_node_offset': np.float32,
+                        'end_node_offset': np.float32,
+                        'full_depth': np.float32, 'froude': np.float32}
+        self.links = dict.fromkeys(links_dtypes.keys())
+
+    def get_nodes(self, k):
+        """for a given key, return the corresponding array
+        """
+        return self.nodes[k]
+
+    def _set_arrays(self):
+    """set arrays according to types and number of objects
+    """
+    nobjects = self.swmm_sim.get_nobjects()
+    nnodes = nobjects['NODE']
+    nlinks = nobjects['LINK']
+    # nodes arrays
+    for k in self.nodes:
+        self.nodes[k] = np.zeros(shape=nnodes, dtype=nodes_dtypes[k])
+    # links arrays
+    for k in self.links:
+        self.links[k] = np.zeros(shape=nlinks, dtype=links_dtypes[k])
