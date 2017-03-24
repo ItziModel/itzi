@@ -104,6 +104,14 @@ class SimulationRunner(object):
         location = self.conf.grass_params['location']
         mapset = self.conf.grass_params['mapset']
 
+        # check if the given parameters exist
+        if not os.path.isdir(gisdb):
+            msgr.fatal(u"GRASS DB not found: '{}'".format(gisdb))
+        elif not os.path.isdir(os.path.join(gisdb, location)):
+            msgr.fatal(u"GRASS location not found: '{}'".format(location))
+        elif not os.path.isdir(os.path.join(gisdb, location, mapset)):
+            msgr.fatal(u"GRASS mapset not found: '{}'".format(mapset))
+
         # query GRASS 7 itself for its GISBASE
         gisbase = get_gisbase(grassbin)
 
@@ -127,14 +135,14 @@ def get_gisbase(grassbin):
         p = subprocess.Popen(startcmd, shell=False,
                              stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE)
-        out, err = p.communicate()
+        stdout, stderr = p.communicate()
     except OSError as error:
-        msgr.fatal("Cannot find GRASS GIS start script"
-                   " {cmd}: {error}".format(cmd=startcmd[0], error=error))
+        msgr.fatal("Cannot find GRASS GIS binary"
+                   " '{cmd}' {error}".format(cmd=startcmd[0], error=error))
     if p.returncode != 0:
-        msgr.fatal("Issues running GRASS GIS start script"
-                   " {cmd}: {error}".format(cmd=' '.join(startcmd), error=err))
-    return out.strip(os.linesep)
+        msgr.fatal("Error while running GRASS GIS start-up script"
+                   " '{cmd}': {error}".format(cmd=' '.join(startcmd), error=stderr))
+    return stdout.strip(os.linesep)
 
 
 def set_ldpath(gisbase):
