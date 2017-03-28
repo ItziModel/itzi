@@ -8,6 +8,7 @@ from setuptools import setup, find_packages
 from setuptools.extension import Extension
 from setuptools.dist import Distribution
 from setuptools.command.build_ext import build_ext
+from Cython.Build import cythonize
 try:
     import numpy as np
 except ImportError:
@@ -84,11 +85,17 @@ class build_ext_compiler_check(build_ext):
         build_ext.build_extensions(self)
 
 
-FLOW = Extension('flow', sources=['itzi/flow.c'],
-                 include_dirs=[np.get_include()])
+ext_flow = Extension('flow', sources=['itzi/flow.c'],
+                     include_dirs=[np.get_include()])
+
+# swmm Cython interface
+ext_iswmm = Extension('swmm_c', sources=['itzi/swmm/swmm_c.pyx'] + swmm_get_source(),
+                      include_dirs=[np.get_include()] + swmm_get_source(),
+                      #~ libraries=['swmm5.so'],
+                      library_dirs=[SWMM_SOURCE])
 
 
-SWMM5 = Extension('swmm5', sources=swmm_get_source())
+ext_swmm = Extension('swmm5', sources=swmm_get_source())
 
 
 metadata = dict(name='itzi',
@@ -97,7 +104,7 @@ metadata = dict(name='itzi',
                 long_description=get_long_description(),
                 url='http://www.itzi.org',
                 author='Laurent Courty',
-                author_email='lrntct@gmail.com',
+                author_email='laurent@courty.me',
                 license='GPLv2',
                 classifiers=CLASSIFIERS,
                 keywords='science engineering hydrology',
@@ -105,7 +112,7 @@ metadata = dict(name='itzi',
                 install_requires=REQUIRES,
                 include_package_data=True,
                 entry_points=ENTRY_POINTS,
-                ext_modules=[FLOW, SWMM5,],
+                ext_modules=[ext_swmm, ext_flow] + cythonize([ext_iswmm]),
                 cmdclass={'build_ext': build_ext_compiler_check},
                 )
 
