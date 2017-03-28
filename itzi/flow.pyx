@@ -22,7 +22,6 @@ from libc.math cimport sqrt as c_sqrt
 from libc.math cimport fabs as c_abs
 from libc.math cimport atan2 as c_atan
 
-DTYPE = np.float32
 ctypedef np.float32_t DTYPE_t
 cdef float PI = 3.1415926535898
 
