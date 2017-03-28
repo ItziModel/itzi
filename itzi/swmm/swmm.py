@@ -17,11 +17,12 @@ GNU General Public License for more details.
 from __future__ import division
 import os
 import ctypes as c
-from structs import NodeData, NodeType, LinkData, LinkType
+from structs import *
 import math
 import collections
 import swmm_error
 import numpy as np
+import swmm_c
 
 
 class Swmm5(object):
@@ -107,19 +108,7 @@ class Swmm5(object):
             raise swmm_error.NotOpenError
         route_code = c.c_uint.in_dll(self.c_swmm5, 'RouteModel').value
         # Cf. enum RouteModelType in enums.h
-        if route_code == 0:
-            route_model = 'NO_ROUTING'  # no routing
-        elif route_code == 1:
-            route_model = 'SF'  # steady flow model
-        elif route_code == 2:
-            route_model = 'KW'  # kinematic wave model
-        elif route_code == 3:
-            route_model = 'EKW'  # extended kin. wave model
-        elif route_code == 4:
-            route_model = 'DW'  # dynamic wave model
-        else:
-            raise ValueError('Unknown routing model')
-        return route_model
+        return ROUTING_MODELS.get(route_code)
 
     def get_NewRoutingTime(self):
         """retrieve new routing time in msec from shared object
@@ -138,6 +127,19 @@ class Swmm5(object):
             raise swmm_error.NotStartedError
         old_routing = c.c_double.in_dll(self.c_swmm5, 'OldRoutingTime').value
         return old_routing / 1000.
+
+    def get_index(self, object_type, object_id):
+        """with a given type and id, return the swmm object index
+        """
+        assert isinstance(object_type, int)
+        # Return None if id is not a string
+        if not isinstance(object_id, str):
+            return None
+        else:
+            # Call the C function
+            link_idx = self.c_swmm5.project_findObject(object_type,
+                                                       c.c_char_p(object_id))
+            return link_idx
 
     def get_MinSurfArea(self):
         '''Get the node minimal surface area in sqm
@@ -255,38 +257,6 @@ class Swmm5(object):
         node_var['QUALITY'] = c_arr_var[6]
         return node_var
 
-    def swmm_getLinkData(self, link_id=None):
-        '''Retrieve link data using GESZ function
-        link_id = a string
-        '''
-        # Return None if no id is given or if not a string
-        if not isinstance(link_id, str):
-            return None
-        else:
-            # Call the C function
-            c_link_data = LinkData()
-            err = self.c_swmm5.swmm_getLinkData(c.c_char_p(link_id),
-                                                c.byref(c_link_data))
-            if err != 0:
-                raise swmm_error.SwmmError(err)
-            return c_link_data
-
-    def swmm_getNodeData(self, node_id=None):
-        '''Retrieve node data using GESZ function
-        node_id = a string
-        '''
-        # Return None if no node_id is given or if not a string
-        if not isinstance(node_id, str):
-            return None
-        else:
-            # Call the C function
-            c_node_data = NodeData()
-            err = self.c_swmm5.swmm_getNodeData(c.c_char_p(node_id),
-                                                c.byref(c_node_data))
-            if err != 0:
-                raise swmm_error.SwmmError(err)
-            return c_node_data
-
     def swmm_addNodeInflow(self, node_id, inflow=0):
         '''Add an inflow to a given node
         node_id: a node ID (string)
@@ -297,57 +267,6 @@ class Swmm5(object):
         if err != 0:
             raise swmm_error.SwmmError(err)
         return self
-
-    def swmm_getNodeInflows(self):
-        '''Get inflows of all nodes
-        return a list of inflow values
-        '''
-        # get number of nodes
-        nnodes = self.get_nobjects()['NODE']
-        # create the result list
-        node_inflows = [i for i in xrange(nnodes)]
-        # transform it into a C array
-        c_arr_flows = (c.c_double * len(node_inflows))(*node_inflows)
-        err = self.c_swmm5.swmm_getNodeInflows(c_arr_flows)
-        if err != 0:
-            raise swmm_error.SwmmError(err)
-        # Put back the result in Python style list
-        node_inflows = [i for i in c_arr_flows]
-        return node_inflows
-
-    def swmm_getNodeOutflows(self):
-        '''Get outflows of all nodes
-        return a list of outflows values
-        '''
-        # get number of nodes
-        nnodes = self.get_nobjects()['NODE']
-        # create the result list
-        node_outflows = [i for i in xrange(nnodes)]
-        # transform it into a C array
-        c_arr_flows = (c.c_double * len(node_outflows))(*node_outflows)
-        err = self.c_swmm5.swmm_getNodeOutflows(c_arr_flows)
-        if err != 0:
-            raise swmm_error.SwmmError(err)
-        # Put back the result in Python style list
-        node_outflows = [i for i in c_arr_flows]
-        return node_outflows
-
-    def swmm_getNodeHeads(self):
-        '''Get hydraulic head of all nodes
-        return a list of hydraulic head values
-        '''
-        # get number of nodes
-        nnodes = self.get_nobjects()['NODE']
-        # create the result list
-        node_heads = [i for i in xrange(nnodes)]
-        # transform it into a C array
-        c_arr_flows = (c.c_double * len(node_heads))(*node_heads)
-        err = self.c_swmm5.swmm_getNodeHeads(c_arr_flows)
-        if err != 0:
-            raise swmm_error.SwmmError(err)
-        # Put back the result in Python style list
-        node_heads = [i for i in c_arr_flows]
-        return node_heads
 
     def get_node_data(self, node_id=None):
         '''Retrieve data from a node in SI units
@@ -380,48 +299,10 @@ class Swmm5(object):
                               c.c_double(route_step))
         return routing_step
 
-    #~ def run(self, input_file = None, report_file = None, output_file = None):
-        #~ '''Runs a SWMM simulation by calling Python functions
-        #~ '''
-        #~ # open a SWMM project
-        #~ self.swmm_open(input_file = input_file,
-                       #~ report_file = report_file,
-                       #~ output_file = output_file)
-        #~ # initialize all processing systems
-        #~ self.swmm_start()
-        #~ # Computes the first step
-        #~ err, elapsed_time = self.swmm_step()
-        #~ # step through the simulation
-        #~ while elapsed_time > 0.0 and err == 0:
-            #~ # extend the simulation by one routing time step
-            #~ err, elapsed_time = self.swmm_step(elapsed_time = elapsed_time)
-        #~ # close all processing systems
-        #~ self.swmm_end()
-        #~ # close the project
-        #~ self.swmm_close()
-        #~ return err
-
-    def c_run(self, input_file=None, report_file=None, output_file=None):
-        '''Runs a swmm simulation by calling the C funtion
-        '''
-        err = self.c_swmm5.swmm_run(c.c_char_p(input_file),
-                                    c.c_char_p(report_file),
-                                    c.c_char_p(output_file))
-        if err != 0:
-            raise swmm_error.SwmmError(err)
-        return self
-
 
 class SwmmLink(object):
     """Define access to a SWMM link object
     """
-    # correspondence between C enum and python string
-    link_types = {LinkType.CONDUIT: "conduit",
-                  LinkType.PUMP: "pump",
-                  LinkType.ORIFICE: "orifice",
-                  LinkType.WEIR: "weir",
-                  LinkType.OUTLET: "outlet"}
-
     def __init__(self, swmm_object, link_id):
         self.swmm_sim = swmm_object
         self.link_id = link_id
@@ -491,11 +372,6 @@ class SwmmNode(object):
     '''Define a SWMM node object
     should be defined by a swmm simulation object and a node ID
     '''
-    node_types = {NodeType.STORAGE: 'storage',
-                  NodeType.JUNCTION: 'junction',
-                  NodeType.OUTFALL: 'outfall',
-                  NodeType.DIVIDER: 'divider'}
-
     def __init__(self, swmm_object, node_id, coordinates=None, grid_coords=None):
         self.swmm_sim = swmm_object
         if not self.swmm_sim.is_started:
@@ -863,7 +739,7 @@ class SwmmInputParser(object):
         return node_dict
 
     def get_links_id_as_dict(self):
-        """return a list of id:SwmmLink
+        """return a list of id:Link
         """
         links_dict = {}
         # loop through all types of links
@@ -891,7 +767,6 @@ class SwmmInputParser(object):
                     vertices.append(vertex_c)
         return vertices
 
-
 class SwmmNetwork(object):
     """Represent a SWMM network
     values of Nodes and Links are stored in dicts of np.ndarray
@@ -899,42 +774,100 @@ class SwmmNetwork(object):
     def __init__(self, swmm_object, nodes_dict, links_dict):
         self.swmm_sim = swmm_object
         # data type of each array
-        nodes_dtypes = {'node_id': 'string', 'linkage_type': 'string',
-                        'inflow': np.float32, 'outflow': np.float32,
-                        'head': np.float32, 'crest_elev': np.float32,
-                        'node_type': 'string', 'sub_index': np.int32,
-                        'invert_elev': np.float32, 'init_depth': np.float32,
-                        'full_depth': np.float32, 'sur_depth': np.float32,
-                        'ponded_area': np.float32, 'degree': np.int32,
-                        'updated': np.int8, 'crown_elev': np.float32,
-                        'losses': np.float32, 'volume': np.float32,
-                        'full_volume': np.float32, 'overflow': np.float32,
-                        'depth': np.float32, 'lat_flow': np.float32,
-                        'x': np.float32, 'y': np.float32}
-        self.nodes = dict.fromkeys(nodes_dtypes.keys())
+        self.nodes_dtypes = {'node_id': np.int32, 'linkage_type': '|S20',
+                             'inflow': np.float32, 'outflow': np.float32,
+                             'head': np.float32, 'crest_elev': np.float32,
+                             'node_type': np.int32, 'sub_index': np.int32,
+                             'invert_elev': np.float32, 'init_depth': np.float32,
+                             'full_depth': np.float32, 'sur_depth': np.float32,
+                             'ponded_area': np.float32, 'degree': np.int32,
+                             'crown_elev': np.float32,
+                             'losses': np.float32, 'volume': np.float32,
+                             'full_volume': np.float32, 'overflow': np.float32,
+                             'depth': np.float32, 'lat_flow': np.float32,
+                             'x': np.float32, 'y': np.float32}
+        self.nodes = dict.fromkeys(self.nodes_dtypes.keys())
         # data type of each array
-        links_dtypes = {'link_id': 'string', 'flow',
-                        'depth': np.float32, 'velocity': np.float32,
-                        'volume': np.float32, 'link_type': 'string',
-                        'start_node_offset': np.float32,
-                        'end_node_offset': np.float32,
-                        'full_depth': np.float32, 'froude': np.float32}
-        self.links = dict.fromkeys(links_dtypes.keys())
+        self.links_dtypes = {'link_id': np.int32, 'flow': np.float32,
+                             'depth': np.float32, 'velocity': np.float32,
+                             'volume': np.float32, 'link_type': np.int32,
+                             'start_node_offset': np.float32,
+                             'end_node_offset': np.float32,
+                             'full_depth': np.float32, 'froude': np.float32}
+        self.links = dict.fromkeys(self.links_dtypes.keys())
 
-    def get_nodes(self, k):
+        # create dicts {idx: id}
+        self.links_id = {}
+        for link_id in links_dict:
+            link_idx = self.swmm_sim.get_index(ObjectType.LINK, link_id)
+            self.links_id[link_idx] = link_id
+        self.nodes_id = {}
+        for node_id in nodes_dict:
+            node_idx = self.swmm_sim.get_index(ObjectType.NODE, node_id)
+            self.nodes_id[node_idx] = node_id
+
+        # set arrays
+        self._create_arrays()
+
+    def get(self, obj_type, k):
         """for a given key, return the corresponding array
         """
-        return self.nodes[k]
+        obj_types = {'links': self.links,
+                     'nodes': self.nodes}
+        return obj_types.get(obj_type).get(k)
 
-    def _set_arrays(self):
-    """set arrays according to types and number of objects
-    """
-    nobjects = self.swmm_sim.get_nobjects()
-    nnodes = nobjects['NODE']
-    nlinks = nobjects['LINK']
-    # nodes arrays
-    for k in self.nodes:
-        self.nodes[k] = np.zeros(shape=nnodes, dtype=nodes_dtypes[k])
-    # links arrays
-    for k in self.links:
-        self.links[k] = np.zeros(shape=nlinks, dtype=links_dtypes[k])
+    def _create_arrays(self):
+        """create arrays according to types and number of objects
+        """
+        # nodes arrays
+        self.nodes['node_id'] = np.array(self.nodes_id.keys(),
+                                         dtype=self.nodes_dtypes['node_id'])
+        for k in self.nodes:
+            if k == 'node_id':
+                continue
+            self.nodes[k] = np.zeros_like(self.nodes['node_id'],
+                                           dtype=self.nodes_dtypes[k])
+        # links arrays
+        self.links['link_id'] = np.array(self.links_id.keys(),
+                                         dtype=self.links_dtypes['link_id'])
+        for k in self.links:
+            if k == 'link_id':
+                continue
+            self.links[k] = np.zeros_like(self.links['link_id'],
+                                           dtype=self.links_dtypes[k])
+        return self
+
+    def _update_links(self):
+        """Update values using cython function
+        """
+        swmm_c.update_links(self.links['link_id'], self.links['flow'],
+                            self.links['depth'], self.links['velocity'],
+                            self.links['volume'], self.links['link_type'],
+                            self.links['start_node_offset'],
+                            self.links['end_node_offset'],
+                            self.links['full_depth'], self.links['froude'])
+        return self
+
+    def _update_nodes(self):
+        """Update values using cython function
+        """
+        swmm_c.update_nodes(node_id=self.nodes['node_id'],
+                            inflow=self.nodes['inflow'], outflow=self.nodes['outflow'],
+                            head=self.nodes['head'], crest_elev=self.nodes['crest_elev'],
+                            node_type=self.nodes['node_type'], sub_index=self.nodes['sub_index'],
+                            invert_elev=self.nodes['invert_elev'], init_depth=self.nodes['init_depth'],
+                            full_depth=self.nodes['full_depth'], sur_depth=self.nodes['sur_depth'],
+                            ponded_area=self.nodes['ponded_area'], degree=self.nodes['degree'],
+                            crown_elev=self.nodes['crown_elev'],
+                            losses=self.nodes['losses'], volume=self.nodes['volume'],
+                            full_volume=self.nodes['full_volume'], overflow=self.nodes['overflow'],
+                            depth=self.nodes['depth'], lat_flow=self.nodes['lat_flow'])
+        return self
+
+    def update(self):
+        """
+        """
+        self._update_nodes()
+        self._update_links()
+        return self
+

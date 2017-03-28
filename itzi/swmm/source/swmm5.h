@@ -49,12 +49,12 @@ int  DLLEXPORT   swmm_getVersion(void);
 
 // Coupling functions (GESZ)
 int DLLEXPORT   swmm_getNodeID(int index, char* id);
-int DLLEXPORT   swmm_getNodeData(char* id, nodeData* data);
+int DLLEXPORT   swmm_getNodeData(int index, nodeData* data);
 int DLLEXPORT   swmm_getNodeInflows(double* flows);
 int DLLEXPORT   swmm_getNodeOutflows(double* flows);
 int DLLEXPORT   swmm_getNodeHeads(double* heads);
 int DLLEXPORT   swmm_addNodeInflow(char* id, double inflow);
-int DLLEXPORT   swmm_getLinkData(char* id, linkData* data);
+int DLLEXPORT   swmm_getLinkData(int index, linkData* data);
 
 // Coupling functions (L. Courty)
 int DLLEXPORT   swmm_setNodeFullDepth(char* id, double depth);

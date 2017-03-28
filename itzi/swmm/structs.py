@@ -76,3 +76,22 @@ class LinkType:
     ORIFICE = 2
     WEIR = 3
     OUTLET = 4
+
+
+# correspondence between C enum and python string
+LINK_TYPES = {LinkType.CONDUIT: "conduit",
+              LinkType.PUMP: "pump",
+              LinkType.ORIFICE: "orifice",
+              LinkType.WEIR: "weir",
+              LinkType.OUTLET: "outlet"}
+
+NODE_TYPES = {NodeType.STORAGE: 'storage',
+              NodeType.JUNCTION: 'junction',
+              NodeType.OUTFALL: 'outfall',
+              NodeType.DIVIDER: 'divider'}
+
+ROUTING_MODELS = {0: 'NO_ROUTING',  # no routing
+                  1: 'SF',  # steady flow model
+                  2: 'KW',  # kinematic wave model
+                  3: 'EKW',  # extended kin. wave model
+                  4: 'DW'}
