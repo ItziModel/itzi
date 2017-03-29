@@ -53,7 +53,7 @@ int DLLEXPORT   swmm_getNodeData(int index, nodeData* data);
 int DLLEXPORT   swmm_getNodeInflows(double* flows);
 int DLLEXPORT   swmm_getNodeOutflows(double* flows);
 int DLLEXPORT   swmm_getNodeHeads(double* heads);
-int DLLEXPORT   swmm_addNodeInflow(char* id, double inflow);
+int DLLEXPORT   swmm_addNodeInflow(int index, double inflow);
 int DLLEXPORT   swmm_getLinkData(int index, linkData* data);
 
 // Coupling functions (L. Courty)

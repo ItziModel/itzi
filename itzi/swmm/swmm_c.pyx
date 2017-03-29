@@ -22,12 +22,7 @@ import numpy as np
 from libc.math cimport pow as c_pow
 from libc.math cimport sqrt as c_sqrt
 from libc.math cimport fabs as c_abs
-
-# set paths
-ROOT = '.'
-DIR = os.path.join(ROOT, 'source')
-HEADERS = os.path.join(DIR, 'headers.h')
-H_SWMM5 = os.path.join(DIR, 'swmm5.h')
+from libc.math cimport copysign as c_copysign
 
 ctypedef np.float32_t F32_t
 ctypedef np.int32_t I32_t
@@ -35,6 +30,8 @@ ctypedef char* C30
 
 cdef float PI = 3.1415926535898
 cdef float FOOT = 0.3048
+cdef float WEIR_LENGTH = 0.1
+cdef float ORIFICE_COEFF = 0.4
 
 cdef extern from "source/headers.h" nogil:
     ctypedef struct linkData:
@@ -68,11 +65,19 @@ cdef extern from "source/headers.h" nogil:
         float overflow
         float newDepth
         float newLatFlow
+    float node_getSurfArea(int j, double d)
 
 cdef extern from "source/swmm5.h" nogil:
     int swmm_getNodeData(int index, nodeData* data)
     int swmm_getLinkData(int index, linkData* data)
+    int swmm_addNodeInflow(int index, double inflow)
 
+cdef enum linkage_types:
+    NOT_LINKED
+    NO_LINKAGE
+    FREE_WEIR
+    SUBMERGED_WEIR
+    ORIFICE
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
@@ -153,3 +158,111 @@ def update_nodes(I32_t[:] node_id, F32_t[:] inflow, F32_t[:] outflow, F32_t[:] h
         lat_flow[r]    = node_data.newLatFlow * FOOT ** 3
 
 
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+def apply_linkage_flow(I32_t[:] arr_node_id, F32_t[:] arr_crest_elev,
+                       F32_t[:] arr_depth, F32_t[:] arr_head,
+                       I32_t[:] arr_row, I32_t[:] arr_col,
+                       F32_t[:,:] arr_wse,
+                       I32_t[:] arr_linkage_type, F32_t[:,:] arr_qdrain,
+                       float cell_surf, float dt2d, float dt1d, float g):
+    '''select the linkage type then calculate the flow between
+    surface and drainage models (Chen et al. 2007)
+    flow sign is :
+     - negative when entering the drainage (leaving the 2D model)
+     - positive when leaving the drainage (entering the 2D model)
+    cell_surf: area in m² of the cell above the node
+    dt2d: time-step of the 2d model in seconds
+    dt1d: time-step of the drainage model in seconds
+    '''
+    cdef int i, imax, node_id, linkage_type, row, col
+    cdef float crest_elev, node_head, node_depth, weir_width, overflow_area
+    cdef float water_surf_up, water_surf_down, water_surf_diff, upstream_depth
+    cdef float weir_coeff, orif_coeff, dh, new_linkage_flow, maxflow
+    cdef float wse, unsigned_q, qdrain
+    imax = arr_node_id.shape[0]
+    for i in prange(imax, nogil=True):
+        # read values of node
+        node_id = arr_node_id[i]
+        crest_elev = arr_crest_elev[i]
+        node_head = arr_head[i]
+        node_depth = arr_depth[i]
+        row = arr_row[i]
+        col = arr_col[i]
+        # water level on the surface
+        wse = arr_wse[row, col]
+
+        ## linkage type ##
+        overflow_area = node_getSurfArea(node_id, node_depth)
+        # weir width is the circumference (node considered circular)
+        weir_width = PI * 2. * c_sqrt(overflow_area / PI)
+
+        if wse <= crest_elev and node_head <= crest_elev:
+            linkage_type = linkage_types.NO_LINKAGE
+        elif (wse > crest_elev > node_head or
+              wse <= crest_elev < node_head):
+            linkage_type = linkage_types.FREE_WEIR
+        elif (node_head >= crest_elev and
+              wse > crest_elev and
+              ((wse - crest_elev) <
+               (overflow_area / weir_width))):
+            linkage_type = linkage_types.SUBMERGED_WEIR
+        elif ((wse - crest_elev) >=
+              (overflow_area / weir_width)):
+            linkage_type = linkage_types.ORIFICE
+        # populate array with linkage type
+        arr_linkage_type[i] = linkage_type
+
+        ## linkage flow ##
+        water_surf_up = max(wse, node_head)
+        water_surf_down = min(wse, node_head)
+        water_surf_diff = water_surf_up - water_surf_down
+        upstream_depth = water_surf_up - crest_elev
+        weir_coeff = get_weir_coeff(upstream_depth)
+
+        # calculate the flow
+        if linkage_type == linkage_types.NO_LINKAGE:
+            unsigned_q = 0.
+
+        elif linkage_type == linkage_types.FREE_WEIR:
+            unsigned_q = (weir_coeff * weir_width *
+                          c_pow(upstream_depth, 3/2.) *
+                          c_sqrt(2. * g))
+
+        elif linkage_type == linkage_types.SUBMERGED_WEIR:
+            unsigned_q = (weir_coeff * weir_width * upstream_depth *
+                          c_sqrt(2. * g * water_surf_diff))
+
+        elif linkage_type == linkage_types.ORIFICE:
+            unsigned_q = (ORIFICE_COEFF * overflow_area *
+                          c_sqrt(2. * g * water_surf_diff))
+        else:
+            unsigned_q = 0.
+
+        # assign flow sign
+        new_linkage_flow = c_copysign(unsigned_q, node_head - wse)
+
+        # flow leaving the 2D domain can't drain the corresponding cell
+        if new_linkage_flow < 0:
+            dh = wse - max(crest_elev, node_head)
+            maxflow = dh * cell_surf * dt2d
+            new_linkage_flow = max(new_linkage_flow, -maxflow)
+        # flow leaving the drainage can't be higher than the water column above wse
+        elif new_linkage_flow > 0:
+            dh = node_head - wse
+            maxflow = dh * overflow_area * dt1d
+            new_linkage_flow = min(new_linkage_flow, maxflow)
+
+        # apply flow to 2D model and drainage model
+        arr_qdrain[row, col] = new_linkage_flow
+        swmm_addNodeInflow(i, - new_linkage_flow / FOOT ** 3)
+
+
+cdef float get_weir_coeff(float upstream_depth) nogil:
+    """Calculate the weir coefficient for linkage
+    according to equation found in Bos (1985)
+    upstream_depth: depth of water in the inflow element above crest_elev
+                    (depends on the direction of the flow)
+    """
+    return 0.93 + 0.1 * upstream_depth / WEIR_LENGTH

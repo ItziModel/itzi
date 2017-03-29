@@ -722,13 +722,8 @@ int DLLEXPORT   swmm_getNodeHeads(double* heads)
 
 int DLLEXPORT   swmm_getNodeData(int index, nodeData* data)
 {
-	//~ int index = -1;
-
 	if ( IsOpenFlag )
 	{
-		//~ index = project_findObject(NODE, id);
-		//~ if ( index < 0 )
-			//~ return ERR_NAME;
 		data->inflow = Node[index].inflow;
 		data->outflow = Node[index].outflow;
 		data->head = Node[index].invertElev + Node[index].newDepth;
@@ -756,18 +751,11 @@ int DLLEXPORT   swmm_getNodeData(int index, nodeData* data)
 	return ERR_NOT_OPEN;
 }
 
-int DLLEXPORT   swmm_addNodeInflow(char* id, double inflow)
+int DLLEXPORT   swmm_addNodeInflow(int index, double inflow)
 {
-	int index = -1;
-
 	if ( IsOpenFlag )
 	{
-		index = project_findObject(NODE, id);
-		if ( index < 0 )
-			return ERR_NAME;
-
 		Node[index].dllInflow += inflow;
-
 		return ERR_NONE;
 	}
 
@@ -776,15 +764,8 @@ int DLLEXPORT   swmm_addNodeInflow(char* id, double inflow)
 
 int DLLEXPORT   swmm_getLinkData(int index, linkData* data)
 {
-	//~ int index = -1;
-    //~ char node1 = '0';
-    //~ char node2 = '0';
-
 	if ( IsOpenFlag )
 	{
-		//~ index = project_findObject(LINK, id);
-		//~ if ( index < 0 )
-			//~ return ERR_NAME;
 
 		data->flow = Link[index].newFlow * Link[index].direction;
 		data->depth = Link[index].newDepth;

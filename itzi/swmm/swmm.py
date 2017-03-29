@@ -257,38 +257,6 @@ class Swmm5(object):
         node_var['QUALITY'] = c_arr_var[6]
         return node_var
 
-    def swmm_addNodeInflow(self, node_id, inflow=0):
-        '''Add an inflow to a given node
-        node_id: a node ID (string)
-        inflow: an inflow in CFS (float)
-        '''
-        err = self.c_swmm5.swmm_addNodeInflow(c.c_char_p(node_id),
-                                              c.c_double(inflow))
-        if err != 0:
-            raise swmm_error.SwmmError(err)
-        return self
-
-    def get_node_data(self, node_id=None):
-        '''Retrieve data from a node in SI units
-        node_id = a string of node name
-        output a dict'''
-        # retrieve the node data in US units
-        c_node_data = self.swmm_getNodeData(node_id=node_id)
-        # Make the conversion in a new dictionary
-        node_data_si = {}
-        node_data_si['inflow'] = c_node_data.inflow * self.foot ** 3
-        node_data_si['outflow'] = c_node_data.outflow * self.foot ** 3
-        node_data_si['head'] = c_node_data.head * self.foot
-        node_data_si['crestElev'] = c_node_data.crestElev * self.foot
-        return node_data_si
-
-    def add_node_inflow(self, node_id, inflow=0):
-        '''add an inflow in CMS to a given node'''
-        # need to add a name validity check
-        inflow_cfs = inflow / self.foot ** 3
-        self.swmm_addNodeInflow(node_id=node_id, inflow=inflow_cfs)
-        return self
-
     def routing_getRoutingStep(self):
         '''Get swmm routing time step'''
         route_code = c.c_int.in_dll(self.c_swmm5, 'RouteModel').value
@@ -302,153 +270,87 @@ class Swmm5(object):
 
 class SwmmLink(object):
     """Define access to a SWMM link object
+    It create an interface for the values stored in SwmmNetwork
     """
-    def __init__(self, swmm_object, link_id):
-        self.swmm_sim = swmm_object
+    sql_columns_def = [(u'cat', 'INTEGER PRIMARY KEY'),
+                       (u'link_id', 'TEXT'),
+                       (u'type', 'TEXT'),
+                       (u'flow', 'REAL'),
+                       (u'depth', 'REAL'),
+                       (u'velocity', 'REAL'),
+                       (u'volume', 'REAL'),
+                       (u'offset1', 'REAL'),
+                       (u'offset2', 'REAL'),
+                       (u'yFull', 'REAL'),
+                       (u'froude', 'REAL')]
+
+    def __init__(self, swmm_network, link_id):
+        self.swmm_net = swmm_network
         self.link_id = link_id
-        self.foot = self.swmm_sim.foot
         self.start_node_id = None
         self.end_node_id = None
         self.vertices = []
-        # load values from SWMM
-        self.update()
-
-    @staticmethod
-    def get_sql_columns_def():
-        """Using the c structs definition,
-        return a list of tuple(name, type) to be used in sqlite table creation
-        """
-        # create the list
-        sql_columns_def = [(u'cat', 'INTEGER PRIMARY KEY'),
-                           (u'link_id', 'TEXT')]
-        # correspondence between c types and sqlite types
-        corresp = {c.c_double: 'REAL',
-                   c.c_int: 'INT',
-                   c.c_char: 'TEXT'}
-        # do the magic
-        for i in LinkData._fields_:
-            col_name = u'{}'.format(i[0])
-            # export link type as text
-            if col_name == 'type':
-                col_type = 'TEXT'
-            else:
-                col_type = corresp[i[1]]
-            sql_columns_def.append((col_name, col_type))
-        return sql_columns_def
-
-    def update(self):
-        '''Retrieve node data from SWMM in SI units.
-        To be done after each simulation time-step
-        '''
-        # retrieve the link data in US units
-        c_link_data = self.swmm_sim.swmm_getLinkData(link_id=self.link_id)
-
-        # upstream and downstream nodes
-        self.start_node_offset = c_link_data.offset1 * self.foot
-        self.end_node_offset = c_link_data.offset2 * self.foot
-
-        # link type
-        self.link_type = self.link_types[c_link_data.type]
-
-        # store computed values in SI units
-        self.flow = c_link_data.flow * self.foot ** 3
-        self.depth = c_link_data.depth * self.foot
-        self.velocity = c_link_data.velocity * self.foot
-        self.volume = c_link_data.volume * self.foot ** 3
-        self.full_depth = c_link_data.yFull * self.foot
-        self.froude = c_link_data.froude
-
-        return self
 
     def get_attrs(self):
         """return a list of link data in the right DB order
         """
-        return [self.link_id, self.flow, self.depth, self.velocity,
-                self.volume, self.link_type, self.start_node_offset,
-                self.end_node_offset, self.full_depth, self.froude]
+        values = self.swmm_net.get_link_values(self.link_id)
+        link_type = LINK_TYPES[values['link_type']]
+        return [self.link_id, link_type, values['flow'], values['depth'],
+                values['velocity'], values['volume'],
+                values['start_node_offset'], values['end_node_offset'],
+                values['full_depth'], values['froude']]
 
 
 class SwmmNode(object):
     '''Define a SWMM node object
     should be defined by a swmm simulation object and a node ID
     '''
-    def __init__(self, swmm_object, node_id, coordinates=None, grid_coords=None):
-        self.swmm_sim = swmm_object
+    sql_columns_def = [(u'cat', 'INTEGER PRIMARY KEY'),
+                       (u'node_id', 'TEXT'),
+                       (u'type', 'TEXT'),
+                       (u'linkage_type', 'TEXT')
+                       (u'inflow', 'REAL'),
+                       (u'outflow', 'REAL'),
+                       (u'latFlow', 'REAL')
+                       (u'losses', 'REAL'),
+                       (u'overflow', 'REAL'),
+                       (u'depth', 'REAL'),
+                       (u'head', 'REAL'),
+                       (u'crownElev', 'REAL'),
+                       (u'crestElev', 'REAL'),
+                       (u'invertElev', 'REAL'),
+                       (u'initDepth', 'REAL'),
+                       (u'fullDepth', 'REAL'),
+                       (u'surDepth', 'REAL'),
+                       (u'pondedArea', 'REAL'),
+                       (u'degree', 'INT'),
+                       (u'newVolume', 'REAL'),
+                       (u'fullVolume', 'REAL')]
+
+    def __init__(self, swmm_network, node_id, coordinates=None, grid_coords=None):
+        self.swmm_net = swmm_network
         if not self.swmm_sim.is_started:
             raise swmm_error.NotStartedError
         # need to add a node validity check
         self.node_id = node_id
         self.coordinates = coordinates
         self.grid_coords = grid_coords
-        self.linkage_flow = 0.
-        self.wse = 0.
-        self.linkage_type = "Not linked"
-        self.g = 9.80665
-        self.foot = self.swmm_sim.foot
-        # set / update node data from SWMM
-        self.update()
+        self.node_type = None
 
-        if self.node_type == 'junction':
-            self.overflow_area = self.get_overflow_area()
-            # calculate circumference from area (node considered circular)
-            self.weir_width = math.pi * 2 * math.sqrt(self.overflow_area / math.pi)
-        # length of weir in direction of flow
-        self.weir_length = 0.1
-
-
-    @staticmethod
-    def get_sql_columns_def():
-        """Using the c structs definition,
-        return a list of tuple(name, type) to be used in sqlite table creation
+    def get_attrs(self):
+        """return a list of node data in the right DB order
         """
-        # create the list
-        sql_columns_def = [(u'cat', 'INTEGER PRIMARY KEY'),
-                           (u'node_id', 'TEXT'),
-                           (u'linkage_type', 'TEXT')]
-        # correspondence between c types and sqlite types
-        corresp = {c.c_double: 'REAL',
-                   c.c_int: 'INT',
-                   c.c_char: 'TEXT'}
-        # do the magic
-        for i in NodeData._fields_:
-            col_name = u'{}'.format(i[0])
-            # export node type as text rather than enum code
-            if col_name == 'type':
-                col_type = 'TEXT'
-            else:
-                col_type = corresp[i[1]]
-            sql_columns_def.append((col_name, col_type))
-        return sql_columns_def
-
-    def update(self):
-        '''Retrieve node data from SWMM in SI units.
-        To be done after each simulation time-step
-        '''
-        # retrieve the node data in US units
-        self.c_node_data = self.swmm_sim.swmm_getNodeData(node_id=self.node_id)
-
-        self.node_type = self.node_types[self.c_node_data.type]
-
-        self.sub_index = self.c_node_data.subIndex
-        self.invert_elev = self.c_node_data.invertElev * self.foot
-        self.init_depth = self.c_node_data.initDepth * self.foot
-        self.full_depth = self.c_node_data.fullDepth * self.foot
-        self.sur_depth = self.c_node_data.surDepth * self.foot
-        self.ponded_area = self.c_node_data.pondedArea * self.foot ** 2
-        self.degree = self.c_node_data.degree
-        self.updated = self.c_node_data.updated
-        self.crown_elev = self.c_node_data.crownElev * self.foot
-        self.inflow = self.c_node_data.inflow * self.foot ** 3
-        self.outflow = self.c_node_data.outflow * self.foot ** 3
-        self.losses = self.c_node_data.losses * self.foot ** 3
-        self.volume = self.c_node_data.newVolume * self.foot ** 3
-        self.full_volume = self.c_node_data.fullVolume * self.foot ** 3
-        self.overflow = self.c_node_data.overflow * self.foot ** 3
-        self.depth = self.c_node_data.newDepth * self.foot
-        self.lat_flow = self.c_node_data.newLatFlow * self.foot ** 3
-        self.head = self.c_node_data.head * self.foot
-        self.crest_elev = self.c_node_data.crestElev * self.foot
-        return self
+        values = self.swmm_net.get_node_values(self.node_id)
+        self.node_type = NODE_TYPES[values['node_type']]
+        linkage_type = LINKAGE_TYPE[values['linkage_type']]
+        return [self.node_id, self.node_type, linkage_type,
+                values['inflow'], values['outflow'], values['lat_flow'],
+                values['losses'], values['overflow'], values['depth'],
+                values['head'], values['crown_elev'], values['crest_elev'],
+                values['invert_elev'], values['init_depth'], values['full_depth'],
+                values['sur_depth'], values['ponded_area'], values['degree'],
+                values['volume'], values['full_volume']]
 
     def is_linkable(self):
         """Return True if the node is used for interactions with surface
@@ -457,34 +359,6 @@ class SwmmNode(object):
             return True
         else:
             return False
-
-    def add_inflow(self, inflow):
-        '''add an inflow in CMS'''
-        self.swmm_sim.add_node_inflow(node_id=self.node_id, inflow=inflow)
-        return self
-
-    def get_linkage_type(self, wse):
-        '''select the linkage type (Chen et al. 2007)
-        wse = Water Surface Elevation (from 2D surface model)
-        '''
-        if wse <= self.crest_elev and self.head <= self.crest_elev:
-            return 'no_linkage'
-        elif (wse > self.crest_elev > self.head or
-              wse <= self.crest_elev < self.head):
-            return 'free_weir'
-        elif (self.head >= self.crest_elev and
-              wse > self.crest_elev and
-              ((wse - self.crest_elev) <
-               (self.overflow_area / self.weir_width))):
-            return 'submerged_weir'
-        elif ((wse - self.crest_elev) >=
-              (self.overflow_area / self.weir_width)):
-            return 'orifice'
-        else:
-            raise swmm_error.LinkTypeError(u"node '{id}':, Unknown linkage type "
-                                           u"(wse: {wse}, crest: {crest}, head: {head})"
-                                           u"".format(id=self.node_id, wse=wse,
-                                                      crest=self.crest_elev, head=self.head))
 
     def set_crest_elev(self, z):
         '''Set the crest elevation according to the 2D dem
@@ -501,18 +375,6 @@ class SwmmNode(object):
             self.update()
         return self
 
-    def get_overflow_area(self):
-        '''Retrieve max. surface area of the node
-        '''
-        if self.node_type == 'storage':
-            c_surf_area = self.swmm_sim.c_swmm5.node_getSurfArea(
-                    c.c_char_p(self.node_id), c.c_double(self.full_depth))
-            return c_surf_area.value * self.foot ** 2
-        elif self.node_type == 'outfall':
-            raise RuntimeError('Outfall cannnot overflow')
-        else:
-            return self.swmm_sim.get_MinSurfArea()
-
     def set_pondedArea(self):
         '''Set the ponded area equal to overflow area.
         SWMM internal ponding don't have meaning anymore with the 2D coupling
@@ -524,104 +386,6 @@ class SwmmNode(object):
                                                      c_ponded)
         self.update()
         return self
-
-    def set_linkage_flow(self, wse, cell_surf, dt2d, dt1d):
-        '''Calculate the flow between surface and drainage models
-        Cf. Chen et al.(2007)
-        flow sign is :
-         - negative when entering the drainage (leaving the 2D model)
-         - positive when leaving the drainage (entering the 2D model)
-        cell_surf: area in m² of the cell above the node
-        dt2d: time-step of the 2d model in seconds
-        dt1d: time-step of the drainage model in seconds
-        '''
-        self.wse = float(wse)  # Force float to prevent serialization problems
-        water_surf_up = max(wse, self.head)
-        water_surf_down = min(wse, self.head)
-        upstream_depth = water_surf_up - self.crest_elev
-        # get the weir coefficient
-        weir_coeff = self.get_weir_coeff(upstream_depth=upstream_depth)
-        orif_coeff = self.get_orifice_coeff()
-        # calculate the flow
-        self.linkage_type = self.get_linkage_type(wse)
-        if self.linkage_type == 'no_linkage':
-            unsigned_q = 0
-
-        elif self.linkage_type == 'free_weir':
-            unsigned_q = (weir_coeff * self.weir_width *
-                          pow(upstream_depth, 3/2.) *
-                          math.sqrt(2 * self.g))
-
-        elif self.linkage_type == 'submerged_weir':
-            unsigned_q = (weir_coeff * self.weir_width * upstream_depth *
-                          math.sqrt(2 * self.g *
-                                    (water_surf_up - water_surf_down)))
-
-        elif self.linkage_type == 'orifice':
-            unsigned_q = (orif_coeff * self.overflow_area *
-                          math.sqrt(2 * self.g *
-                                    (water_surf_up - water_surf_down)))
-        else:
-            assert False, "unknow linkage type"
-
-        new_linkage_flow = math.copysign(unsigned_q, self.head - wse)
-
-        # flow leaving the 2D domain can't drain the corresponding cell
-        if new_linkage_flow < 0:
-            dh = wse - max(self.crest_elev, self.head)
-            assert dh > 0
-            maxflow = dh * cell_surf * dt2d
-            new_linkage_flow = max(new_linkage_flow, -maxflow)
-        # flow leaving the drainage can't be higher than the water column above wse
-        elif new_linkage_flow > 0:
-            dh = self.head - wse
-            assert dh > 0
-            maxflow = dh * self.overflow_area * dt1d
-            new_linkage_flow = min(new_linkage_flow, maxflow)
-
-        self.linkage_flow = new_linkage_flow
-
-        return self
-
-    def get_weir_coeff(self, upstream_depth):
-        '''Calculate the weir coefficient for linkage
-        according to equation found in Bos (1985)
-        upstream_depth: depend on the direction of the flow
-           = depth of water in the inflow element above self.crest_elev
-        '''
-        return 0.93 + 0.1 * upstream_depth / self.weir_length
-
-    def get_orifice_coeff(self):
-        '''Return the orifice discharge coefficient.
-        Using value found in Bos(1985)
-        '''
-        return 0.62
-
-    def get_values_as_dict(self):
-        """return a dict of node values
-        """
-        return {'type': self.node_type, 'overflow area': self.overflow_area,
-                'initial depth': self.init_depth, 'full depth': self.full_depth,
-                'surcharge depth': self.sur_depth, 'depth': self.depth,
-                'degree': self.degree, 'invert elevation': self.invert_elev,
-                'crown elevation': self.crown_elev, 'inflow': self.inflow,
-                'outflow': self.outflow, 'lateral inflow': self.lat_flow,
-                'linkage flow': self.linkage_flow,
-                'linkage type': self.linkage_type, 'losses': self.losses,
-                'volume': self.volume, 'full volume': self.full_volume,
-                'overflow': self.overflow, 'ponded area': self.ponded_area,
-                'head': self.head, 'crest elevation': self.crest_elev,
-                'surface head': self.wse}
-
-    def get_attrs(self):
-        """return a list of node data in the right DB order
-        """
-        return [self.node_id, self.linkage_type, self.inflow, self.outflow,
-                self.head, self.crest_elev, self.node_type, self.sub_index,
-                self.invert_elev, self.init_depth, self.full_depth, self.sur_depth,
-                self.ponded_area, self.degree, self.updated, self.crown_elev,
-                self.losses, self.volume, self.full_volume, self.overflow,
-                self.depth, self.lat_flow]
 
 
 class SwmmInputParser(object):
@@ -771,10 +535,11 @@ class SwmmNetwork(object):
     """Represent a SWMM network
     values of Nodes and Links are stored in dicts of np.ndarray
     """
-    def __init__(self, swmm_object, nodes_dict, links_dict):
+    def __init__(self, swmm_object, nodes_dict, links_dict, g):
+        self.g = g
         self.swmm_sim = swmm_object
         # data type of each array
-        self.nodes_dtypes = {'node_id': np.int32, 'linkage_type': '|S20',
+        self.nodes_dtypes = {'node_id': np.int32, 'linkage_type': np.int32,
                              'inflow': np.float32, 'outflow': np.float32,
                              'head': np.float32, 'crest_elev': np.float32,
                              'node_type': np.int32, 'sub_index': np.int32,
@@ -809,7 +574,7 @@ class SwmmNetwork(object):
         # set arrays
         self._create_arrays()
 
-    def get(self, obj_type, k):
+    def get_arr(self, obj_type, k):
         """for a given key, return the corresponding array
         """
         obj_types = {'links': self.links,
@@ -837,8 +602,8 @@ class SwmmNetwork(object):
                                            dtype=self.links_dtypes[k])
         return self
 
-    def _update_links(self):
-        """Update values using cython function
+    def update_links(self):
+        """Update arrays with values from SWMM using cython function
         """
         swmm_c.update_links(self.links['link_id'], self.links['flow'],
                             self.links['depth'], self.links['velocity'],
@@ -848,8 +613,8 @@ class SwmmNetwork(object):
                             self.links['full_depth'], self.links['froude'])
         return self
 
-    def _update_nodes(self):
-        """Update values using cython function
+    def update_nodes(self):
+        """Update arrays with values from SWMM using cython function
         """
         swmm_c.update_nodes(node_id=self.nodes['node_id'],
                             inflow=self.nodes['inflow'], outflow=self.nodes['outflow'],
@@ -864,10 +629,40 @@ class SwmmNetwork(object):
                             depth=self.nodes['depth'], lat_flow=self.nodes['lat_flow'])
         return self
 
-    def update(self):
+    def get_link_values(self, link_id):
+        """for a given link ID, return a dict of values
         """
-        """
-        self._update_nodes()
-        self._update_links()
-        return self
+        link_values = dict.fromkeys(self.links.keys())
+        # get the int link index
+        link_idx = self.swmm_sim.get_index(ObjectType.LINK, link_id)
+        # find the value of the given node
+        for k, arr in self.links:
+            link_values[k] = arr[self.nodes['node_id'] == link_idx]
+        return link_values
 
+    def get_node_values(self, node_id):
+        """for a given node ID, return a dict of values
+        """
+        node_values = dict.fromkeys(self.links.keys())
+        # get the int link index
+        node_idx = self.swmm_sim.get_index(ObjectType.NODE, node_id)
+        # find the value of the given node
+        for k, arr in self.links:
+            node_values[k] = arr[self.links['link_id'] == node_idx]
+        return link_values
+
+    def apply_linkage_flow(self, arr_wse, arr_qdrain, cell_surf, dt2d, dt1d):
+        """
+        """
+        apply_linkage_flow(arr_node_id, arr_crest_elev,
+                           arr_depth, arr_head,
+                           arr_row, arr_col,
+                           arr_wse,
+                           arr_linkage_type, arr_qdrain,
+                           cell_surf=cell_surf, dt2d=dt2d, dt1d=dt1d, g=self.g)
+
+    def apply_linkage(self, arr_h, arr_z, arr_qd):
+        """arr_h = depth in surface model
+           arr_z = terrain elevation
+           arr_qd = drainage flow
+        """

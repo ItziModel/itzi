@@ -94,4 +94,10 @@ ROUTING_MODELS = {0: 'NO_ROUTING',  # no routing
                   1: 'SF',  # steady flow model
                   2: 'KW',  # kinematic wave model
                   3: 'EKW',  # extended kin. wave model
-                  4: 'DW'}
+                  4: 'DW'}  # Dynamic wave
+
+LINKAGE_TYPE = {0: "not linked",
+                1: 'no_linkage',
+                2: 'free_weir',
+                3: 'submerged_weir',
+                4: 'orifice'}
