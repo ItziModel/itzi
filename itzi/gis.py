@@ -19,6 +19,7 @@ from collections import namedtuple
 import os
 
 import messenger as msgr
+import itzi_error
 
 import grass.script as gscript
 import grass.temporal as tgis
@@ -29,7 +30,7 @@ from grass.pygrass.vector import VectorTopo
 from grass.pygrass.vector.geometry import Point, Line
 from grass.pygrass.vector.basic import Cats
 from grass.pygrass.vector.table import Link
-from grass.exceptions import FatalError, CalledModuleError
+from grass.exceptions import FatalError
 
 
 class Igis(object):
@@ -355,8 +356,6 @@ class Igis(object):
             # Lines
             for in_node, out_node, edge_data in drainage_network.edges_iter(data=True):
                 link = edge_data['object']
-                # load link values from simulation
-                link.update()
                 # assemble geometry
                 in_node_coor = in_node.coordinates
                 out_node_coor = out_node.coordinates

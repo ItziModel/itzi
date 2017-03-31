@@ -1,49 +1,6 @@
 #! /usr/bin/python
 # coding=utf8
 
-import ctypes as c
-
-class NodeData(c.Structure):
-    '''Node results'''
-    _fields_ = [
-        ('inflow', c.c_double),       # total inflow (cfs)
-        ('outflow', c.c_double),      # total outflow (cfs)
-        ('head', c.c_double),         # Hydraulic head (invertElev + newDepth)
-        ('crestElev', c.c_double),    # max elevation of the node (invertElev + fullDepth)
-        ('type', c.c_int),            # node type code
-        ('subIndex', c.c_int),        # index of node sub-category
-        ('invertElev', c.c_double),   # invert elevation (ft)
-        ('initDepth', c.c_double),    # initial storage level (ft)
-        ('fullDepth', c.c_double),    # dist. from invert to surface (ft)
-        ('surDepth', c.c_double),     # added depth under surcharge (ft)
-        ('pondedArea', c.c_double),   # area filled by ponded water (ft2)
-        ('degree', c.c_int),          # number of outflow links
-        ('updated', c.c_char),        # true if state has been updated
-        ('crownElev', c.c_double),    # top of highest connecting conduit (ft)
-        ('losses', c.c_double),       # evap + exfiltration loss (ft3)
-        ('newVolume', c.c_double),    # current volume (ft3)
-        ('fullVolume', c.c_double),   # max. storage available (ft3)
-        ('overflow', c.c_double),     # overflow rate (cfs)
-        ('newDepth', c.c_double),     # current water depth (ft)
-        ('newLatFlow', c.c_double)]   # current lateral inflow (cfs)
-
-
-class LinkData(c.Structure):
-    '''Link results'''
-    _fields_ = [('flow', c.c_double),
-                ('depth', c.c_double),
-                ('velocity', c.c_double),
-                ('volume', c.c_double),
-                #~ ('shearVelocity', c.c_double),
-                ('type', c.c_int),        # link type code
-                #~ ('node1', c.c_char),      # start node ID
-                #~ ('node2', c.c_char),      # end node ID
-                ('offset1', c.c_double),  # ht. above start node invert (ft)
-                ('offset2', c.c_double),  # ht. above end node invert (ft)
-                ('yFull', c.c_double),    # depth when full (ft)
-                ('froude', c.c_double)]   # Froude number
-
-
 class ObjectType:
     GAGE = 0         # rain gage
     SUBCATCH = 1     # subcatchment
@@ -96,8 +53,8 @@ ROUTING_MODELS = {0: 'NO_ROUTING',  # no routing
                   3: 'EKW',  # extended kin. wave model
                   4: 'DW'}  # Dynamic wave
 
-LINKAGE_TYPE = {0: "not linked",
-                1: 'no_linkage',
-                2: 'free_weir',
-                3: 'submerged_weir',
+LINKAGE_TYPES = {0: "not linked",
+                1: 'linked, no flow',
+                2: 'free weir',
+                3: 'submerged weir',
                 4: 'orifice'}

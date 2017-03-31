@@ -54,12 +54,13 @@ int DLLEXPORT   swmm_getNodeInflows(double* flows);
 int DLLEXPORT   swmm_getNodeOutflows(double* flows);
 int DLLEXPORT   swmm_getNodeHeads(double* heads);
 int DLLEXPORT   swmm_addNodeInflow(int index, double inflow);
+int DLLEXPORT   swmm_getLinkID(int index, char* id);
 int DLLEXPORT   swmm_getLinkData(int index, linkData* data);
 
 // Coupling functions (L. Courty)
-int DLLEXPORT   swmm_setNodeFullDepth(char* id, double depth);
+int DLLEXPORT   swmm_setNodeFullDepth(int index, double depth);
 int DLLEXPORT   swmm_setAllowPonding(int ap);
-int DLLEXPORT swmm_setNodePondedArea(char* id, double area);
+int DLLEXPORT   swmm_setNodePondedArea(int index, double area);
 
 #ifdef __cplusplus 
 }   // matches the linkage specification from above */ 

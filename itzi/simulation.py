@@ -117,7 +117,7 @@ class SimulationManager(object):
         if self.drainage_params['swmm_inp']:
             self.drainage = DrainageSimulation(self.rast_domain,
                                                self.drainage_params['swmm_inp'],
-                                               self.gis)
+                                               self.gis, self.sim_param['g'])
         else:
             self.drainage = None
 

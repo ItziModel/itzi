@@ -112,7 +112,7 @@ metadata = dict(name='itzi',
                 install_requires=REQUIRES,
                 include_package_data=True,
                 entry_points=ENTRY_POINTS,
-                ext_modules=[ext_swmm, ext_flow] + cythonize([ext_iswmm]),
+                ext_modules=[ext_flow] + cythonize([ext_iswmm]),
                 cmdclass={'build_ext': build_ext_compiler_check},
                 )
 

@@ -666,12 +666,26 @@ int DLLEXPORT   swmm_getNodeID(int index, char* id)
 	if ( IsOpenFlag )
 	{
 		if ( index >= Nobjects[NODE] )
+        {
 			return ERR_NUMBER;
-
+        }
 		sstrncpy(id,Node[index].ID,MAXLINE);
 		return ERR_NONE;
 	}
+	return ERR_NOT_OPEN;
+}
 
+int DLLEXPORT   swmm_getLinkID(int index, char* id)
+{
+	if ( IsOpenFlag )
+	{
+		if ( index >= Nobjects[LINK] )
+        {
+			return ERR_NUMBER;
+        }
+		sstrncpy(id,Link[index].ID,MAXLINE);
+		return ERR_NONE;
+	}
 	return ERR_NOT_OPEN;
 }
 
@@ -744,10 +758,8 @@ int DLLEXPORT   swmm_getNodeData(int index, nodeData* data)
 		data->overflow = Node[index].overflow;
 		data->newDepth = Node[index].newDepth;
 		data->newLatFlow = Node[index].newLatFlow;
-
 		return ERR_NONE;
 	}
-
 	return ERR_NOT_OPEN;
 }
 
@@ -758,7 +770,6 @@ int DLLEXPORT   swmm_addNodeInflow(int index, double inflow)
 		Node[index].dllInflow += inflow;
 		return ERR_NONE;
 	}
-
 	return ERR_NOT_OPEN;
 }
 
@@ -766,7 +777,6 @@ int DLLEXPORT   swmm_getLinkData(int index, linkData* data)
 {
 	if ( IsOpenFlag )
 	{
-
 		data->flow = Link[index].newFlow * Link[index].direction;
 		data->depth = Link[index].newDepth;
 		data->volume = Link[index].newVolume;
@@ -793,21 +803,13 @@ int DLLEXPORT   swmm_getLinkData(int index, linkData* data)
 //   Coupling functions (L. Courty)
 //=============================================================================
 
-int DLLEXPORT   swmm_setNodeFullDepth(char* id, double depth)
+int DLLEXPORT   swmm_setNodeFullDepth(int index, double depth)
 {
-	int index = -1;
-
 	if ( IsOpenFlag )
 	{
-		index = project_findObject(NODE, id);
-		if ( index < 0 )
-			return ERR_NAME;
-
 		Node[index].fullDepth = depth;
-
 		return ERR_NONE;
 	}
-
 	return ERR_NOT_OPEN;
 }
 
@@ -817,18 +819,11 @@ int DLLEXPORT swmm_setAllowPonding(int ap)
     return 0;
 }
 
-int DLLEXPORT swmm_setNodePondedArea(char* id, double area)
+int DLLEXPORT swmm_setNodePondedArea(int index, double area)
 {
-	int index = -1;
-
 	if ( IsOpenFlag )
 	{
-		index = project_findObject(NODE, id);
-		if ( index < 0 )
-			return ERR_NAME;
-
 		Node[index].pondedArea = area;
-
 		return ERR_NONE;
 	}
 

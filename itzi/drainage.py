@@ -32,23 +32,24 @@ class DrainageSimulation(object):
     LayerDescr = namedtuple('LayerDescr', ['table_suffix', 'cols', 'layer_number'])
     GridCoords = namedtuple('GridCoords', ['row', 'col'])
 
-    def __init__(self, domain, inp, igis):
+    def __init__(self, domain, inp, igis, g):
         self.dom = domain
-        # create swmm object and open files
+        self.g = g
+        # create swmm object, open files and start simulation
         self.swmm5 = swmm.Swmm5()
         self.swmm5.swmm_open(input_file=inp,
                              report_file=os.devnull,
                              output_file='')
         self.swmm5.swmm_start()
         # allow ponding
-        self.swmm5.set_allow_ponding()
+        self.swmm5.allow_ponding()
         # geo information
         self.cell_surf = igis.dx * igis.dy
         self.gis = igis
 
         # definition of linking_elements (used for GRASS vector writing)
-        node_col_def = swmm.SwmmNode.get_sql_columns_def()
-        link_col_def = swmm.SwmmLink.get_sql_columns_def()
+        node_col_def = swmm.SwmmNode.sql_columns_def
+        link_col_def = swmm.SwmmLink.sql_columns_def
         self.linking_elements = {'node': self.LayerDescr(table_suffix='_node',
                                                          cols=node_col_def,
                                                          layer_number=1),
@@ -56,13 +57,20 @@ class DrainageSimulation(object):
                                                          cols=link_col_def,
                                                          layer_number=2)}
 
-        # create a graph made of drainage nodes and links objects
         swmm_inp = swmm.SwmmInputParser(inp)
-        node_dict = self.get_node_object_dict(swmm_inp.get_nodes_id_as_dict())
-        link_list = self.get_link_object_list(swmm_inp.get_links_id_as_dict())
-        self.create_drainage_network_graph(node_dict, link_list)
+        node_id_dict = swmm_inp.get_nodes_id_as_dict()
+        link_id_dict = swmm_inp.get_links_id_as_dict()
+        # create SwmmNetwork object
+        self.swmm_net = swmm.SwmmNetwork(node_id_dict, link_id_dict, self.gis, self.g)
+        # create a graph made of drainage nodes and links objects
+        node_obj_dict = self.get_node_object_dict(node_id_dict)
+        link_obj_list = self.get_link_object_list(link_id_dict)
+        self.create_drainage_network_graph(node_obj_dict, link_obj_list)
+
 
     def __del__(self):
+        """Make sure the swmm simulation is ended and closed properly.
+        """
         self.swmm5.swmm_end()
         self.swmm5.swmm_close()
 
@@ -90,13 +98,8 @@ class DrainageSimulation(object):
         drain_nodes = {}
         for k, coords in n_dict.iteritems():
             # create Node object
-            node = swmm.SwmmNode(swmm_object=self.swmm5, node_id=k,
+            node = swmm.SwmmNode(swmm_network=self.swmm_net, node_id=k,
                                  coordinates=coords)
-            if coords:
-                if self.gis.is_in_region(coords.x, coords.y):
-                    # calculate grid coordinates and add them to the object
-                    row, col = self.gis.coor2pixel((coords.x, coords.y))
-                    node.grid_coords = self.GridCoords(int(row), int(col))
             # populate dict
             drain_nodes[k] = node
         return drain_nodes
@@ -107,7 +110,7 @@ class DrainageSimulation(object):
         """
         drain_links = []
         for k, values in lnk_dict.iteritems():
-            drain_link = swmm.SwmmLink(swmm_object=self.swmm5, link_id=k)
+            drain_link = swmm.SwmmLink(swmm_network=self.swmm_net, link_id=k)
             drain_link.vertices = values.vertices
             drain_link.start_node_id = values.in_node
             drain_link.end_node_id = values.out_node
@@ -120,7 +123,6 @@ class DrainageSimulation(object):
         self.drainage_network = nx.MultiDiGraph()
         self.drainage_network.add_nodes_from(node_dict.values())
         for link in link_list:
-            link.update()
             in_node = link.start_node_id
             out_node = link.end_node_id
             self.drainage_network.add_edge(node_dict[in_node],
@@ -143,18 +145,7 @@ class DrainageSimulation(object):
         arr_h = self.dom.get('h')
         arr_z = self.dom.get('z')
         arr_qd = self.dom.get('n_drain')
-        for node in self.drainage_network.nodes():
-            node.update()
-            # only apply if the node is inside the domain
-            if node.is_linkable():
-                row, col = node.grid_coords
-                h = arr_h[row, col]
-                z = arr_z[row, col]
-                wse = h + z
-                node.set_crest_elev(z)
-                node.set_pondedArea()
-                node.set_linkage_flow(wse, self.cell_surf, dt2d, self._dt)
-                node.add_inflow(-node.linkage_flow)
-                # apply flow in m/s to array
-                arr_qd[row, col] = node.linkage_flow / self.cell_surf
+        self.swmm_net.apply_linkage(arr_h, arr_z, arr_qd, self.cell_surf,
+                                    dt2d, self._dt)
+
         return self
