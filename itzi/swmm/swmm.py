@@ -24,15 +24,15 @@ import swmm_error
 import numpy as np
 import swmm_c
 
+SO_SUBDIR = '../../swmm_c.so'
 
 class Swmm5(object):
     '''A class implementing high-level swmm5 functions.
     '''
     def __init__(self):
         # locate and open SWMM shared library
-        so_subdir = '../../swmm_c.so'
         prog_dir = os.path.dirname(__file__)
-        swmm_so = os.path.join(prog_dir, so_subdir)
+        swmm_so = os.path.join(prog_dir, SO_SUBDIR)
         self.c_swmm5 = c.CDLL(swmm_so)
 
         self.foot = 0.3048  # foot to metre
