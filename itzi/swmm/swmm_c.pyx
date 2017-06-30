@@ -262,8 +262,13 @@ def apply_linkage_flow(node_struct[:] arr_node,
         z = arr_z[row, col]
         wse = z + arr_h[row, col]
 
-        # the actual crest elevation cannot be lower than ground
-        crest_elev = max(node.crest_elev, z)
+        # the actual crest elevation should be equal to DEM
+        if node.crest_elev != z:
+            full_depth = z - node.invert_elev
+            swmm_setNodeFullDepth(node.idx, full_depth)
+            crest_elev = z
+        else:
+            crest_elev = node.crest_elev
 
         ## linkage type ##
         overflow_area = get_overflow_area(node.idx, node.depth)
