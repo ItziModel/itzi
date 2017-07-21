@@ -18,7 +18,6 @@ import warnings
 from datetime import datetime, timedelta
 import numpy as np
 import copy
-import msgpack
 
 from superficialflow import SurfaceFlowSimulation
 from rasterdomain import RasterDomain
