@@ -26,8 +26,12 @@ from libc.math cimport copysign as c_copysign
 
 cdef float PI = 3.1415926535898
 cdef float FOOT = 0.3048
-cdef float WEIR_LENGTH = 0.1
-cdef float ORIFICE_COEFF = .5
+
+# coefficients taken from Rubinato et al. (2017)
+# http://doi.org/10.1016/j.jhydrol.2017.06.024
+cdef float ORIFICE_COEFF = 0.167
+cdef float FREE_WEIR_COEFF = 0.54
+cdef float SUBMERGED_WEIR_COEFF = 0.056
 
 ctypedef np.float32_t F32_t
 ctypedef np.int32_t I32_t
@@ -338,43 +342,26 @@ cdef float get_linkage_flow(float wse, float node_head,
     head_down = min(wse, node_head)
     head_diff = head_up - head_down
     upstream_depth = head_up - crest_elev
-    weir_coeff = get_weir_coeff(upstream_depth)
 
     # calculate the flow
     if linkage_type == linkage_types.NO_LINKAGE:
         unsigned_q = 0.
 
     elif linkage_type == linkage_types.FREE_WEIR:
-        unsigned_q = (weir_coeff * weir_width *
+        unsigned_q = ((2./3.) * FREE_WEIR_COEFF * weir_width *
                       c_pow(upstream_depth, 3/2.) *
                       c_sqrt(2. * g))
 
     elif linkage_type == linkage_types.SUBMERGED_WEIR:
-        unsigned_q = (weir_coeff * weir_width * upstream_depth *
+        unsigned_q = (SUBMERGED_WEIR_COEFF * weir_width * upstream_depth *
                       c_sqrt(2. * g * head_diff))
 
     elif linkage_type == linkage_types.ORIFICE:
-        orifice_coeff = get_orifice_coeff()
-        unsigned_q = (orifice_coeff * overflow_area *
-                      c_sqrt(2. * g * head_diff))
+        unsigned_q = ORIFICE_COEFF * overflow_area * c_sqrt(2. * g * head_diff)
 
     # assign flow sign
     return c_copysign(unsigned_q, node_head - wse)
 
-
-cdef float get_weir_coeff(float upstream_depth) nogil:
-    """Calculate the weir coefficient for linkage
-    according to equation found in Bos (1985)
-    upstream_depth: depth of water in the inflow element above crest_elev
-                    (depends on the direction of the flow)
-    """
-    return 0.93 + 0.1 * upstream_depth / WEIR_LENGTH
-
-
-cdef float get_orifice_coeff() nogil:
-    """return orifice coefficient
-    """
-    return ORIFICE_COEFF
 
 cdef float get_overflow_area(int node_idx, float node_depth):
     """return overflow area defauting to MinSurfArea
