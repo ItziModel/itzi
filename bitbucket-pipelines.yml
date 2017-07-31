@@ -1,5 +1,5 @@
 # automate the pypi distribution process
-image: ubuntu:16.10
+image: ubuntu:17.04
 
 pipelines:
   custom:  # done manually
@@ -7,7 +7,7 @@ pipelines:
       - step:
           script:
             - apt-get update
-            - apt-get -y install python-numpy python-pip
+            - apt-get -y install python-numpy python-pip cython
             - pip install --disable-pip-version-check --upgrade pip
             - pip install pyinstrument twine
             - python setup.py sdist
