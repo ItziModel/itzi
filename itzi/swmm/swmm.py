@@ -24,7 +24,7 @@ import swmm_error
 import numpy as np
 import swmm_c
 
-SO_SUBDIR = '../../swmm_c.so'
+SO_SUBDIR = 'swmm_c.so'
 
 class Swmm5(object):
     '''A class implementing high-level swmm5 functions.
