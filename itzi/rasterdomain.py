@@ -343,9 +343,9 @@ class RasterDomain(object):
         if self.out_map_names['losses'] is not None:
             self.populate_stat_array('capped_losses', sim_time)
             out_arrays['losses'] = self.get_unmasked('st_losses') / interval_s
-        if self.out_map_names['drainage_net'] is not None:
+        if self.out_map_names['drainage_stats'] is not None:
             self.populate_stat_array('n_drain', sim_time)
-            out_arrays['drainage_net'] = self.get_unmasked('st_ndrain') / interval_s
+            out_arrays['drainage_stats'] = self.get_unmasked('st_ndrain') / interval_s
         if self.out_map_names['infiltration'] is not None:
             self.populate_stat_array('inf', sim_time)
             out_arrays['infiltration'] = (self.get_unmasked('st_inf') /
