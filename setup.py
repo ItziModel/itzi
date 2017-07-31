@@ -85,17 +85,13 @@ class build_ext_compiler_check(build_ext):
         build_ext.build_extensions(self)
 
 
-ext_flow = Extension('flow', sources=['itzi/flow.c'],
+ext_flow = Extension('itzi.flow', sources=['itzi/flow.pyx'],
                      include_dirs=[np.get_include()])
 
 # swmm Cython interface
-ext_iswmm = Extension('swmm_c', sources=['itzi/swmm/swmm_c.pyx'] + swmm_get_source(),
+ext_iswmm = Extension('itzi.swmm.swmm_c', sources=['itzi/swmm/swmm_c.pyx'] + swmm_get_source(),
                       include_dirs=[np.get_include()] + swmm_get_source(),
-                      #~ libraries=['swmm5.so'],
                       library_dirs=[SWMM_SOURCE])
-
-
-ext_swmm = Extension('swmm5', sources=swmm_get_source())
 
 
 metadata = dict(name='itzi',
@@ -112,7 +108,7 @@ metadata = dict(name='itzi',
                 install_requires=REQUIRES,
                 include_package_data=True,
                 entry_points=ENTRY_POINTS,
-                ext_modules=[ext_flow] + cythonize([ext_iswmm]),
+                ext_modules=cythonize([ext_iswmm, ext_flow]),
                 cmdclass={'build_ext': build_ext_compiler_check},
                 )
 
