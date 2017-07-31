@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import copy
 
-from superficialflow import SurfaceFlowSimulation
+from surfaceflow import SurfaceFlowSimulation
 from rasterdomain import RasterDomain
 from massbalance import MassBal
 from drainage import DrainageSimulation
