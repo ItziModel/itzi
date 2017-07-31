@@ -24,7 +24,7 @@ from itzi_error import NullError, DtError
 
 class SurfaceFlowSimulation(object):
     """Surface flow simulation on staggered raster grid
-    Accessed through step() and get_output_arrays() methods
+    Accessed through step() methods
     By convention the flow is:
      - calculated at the East and South faces of each cell
      - positive from West to East and from North to South
@@ -145,7 +145,7 @@ class SurfaceFlowSimulation(object):
             self._dt = newdt_s
 
     def update_h(self):
-        """Calculate new water depth
+        """Calculate new water depth, average velocity and Froude number
         """
         flow_west = self.dom.get_padded('qe_new')[self.ss, self.su]
         flow_east = self.dom.get('qe_new')
@@ -154,6 +154,13 @@ class SurfaceFlowSimulation(object):
         assert (flow_west.shape == flow_east.shape ==
                 flow_north.shape == flow_south.shape)
 
+        hflow_west = self.dom.get_padded('hfe')[self.ss, self.su]
+        hflow_east = self.dom.get('hfe')
+        hflow_north = self.dom.get_padded('hfs')[self.su, self.ss]
+        hflow_south = self.dom.get('hfs')
+        assert (hflow_west.shape == hflow_east.shape ==
+                hflow_north.shape == hflow_south.shape)
+
         flow.solve_h(arr_ext=self.dom.get('ext'),
                      arr_qe=flow_east, arr_qw=flow_west,
                      arr_qn=flow_north, arr_qs=flow_south,
@@ -161,7 +168,12 @@ class SurfaceFlowSimulation(object):
                      arr_h=self.dom.get('h'), arr_hmax=self.dom.get('hmax'),
                      arr_hfix=self.dom.get('st_bound'),
                      arr_herr=self.dom.get('st_herr'),
-                     dx=self.dx, dy=self.dy, dt=self._dt)
+                     arr_hfe=hflow_east, arr_hfw=hflow_west,
+                     arr_hfn=hflow_north, arr_hfs=hflow_south,
+                     arr_v=self.dom.get('v'), arr_vdir=self.dom.get('vdir'),
+                     arr_vmax=self.dom.get('vmax'),
+                     arr_fr=self.dom.get('fr'),
+                     dx=self.dx, dy=self.dy, dt=self._dt, g=self.g)
         assert not np.any(self.dom.get('h') < 0)
         return self
 
@@ -174,11 +186,10 @@ class SurfaceFlowSimulation(object):
                      arr_h=self.dom.get('h'),
                      arrp_qe=self.dom.get_padded('qe'),
                      arrp_qs=self.dom.get_padded('qs'),
+                     arr_hfe=self.dom.get('hfe'),
+                     arr_hfs=self.dom.get('hfs'),
                      arr_qe_new=self.dom.get('qe_new'),
                      arr_qs_new=self.dom.get('qs_new'),
-                     arr_hfe=self.dom.get('hfe'), arr_hfs=self.dom.get('hfs'),
-                     arr_v=self.dom.get('v'), arr_vdir=self.dom.get('vdir'),
-                     arr_vmax=self.dom.get('vmax'),
                      dt=self._dt, dx=self.dx, dy=self.dy, g=self.g,
                      theta=self.theta, hf_min=self.hf_min,
                      v_rout=self.v_routing, sl_thres=self.sl_thresh)

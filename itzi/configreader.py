@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2015-2016 Laurent Courty
+Copyright (C) 2015-2017 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -21,6 +21,7 @@ from datetime import datetime, timedelta
 import numpy as np
 
 import messenger as msgr
+from const import *
 
 
 class ConfigReader(object):
@@ -41,18 +42,20 @@ class ConfigReader(object):
                         'hydraulic_conductivity']
         k_input_map_names = ['dem', 'friction', 'start_h', 'start_y',
                              'rain', 'inflow', 'bcval', 'bctype',
-                             'infiltration', 'drainage_capacity'] + self.ga_list
-        k_output_map_names = ['h', 'wse', 'v', 'vdir', 'qx', 'qy',
+                             'infiltration', 'losses'] + self.ga_list
+        k_output_map_names = ['h', 'wse', 'v', 'vdir', 'qx', 'qy', 'fr',
                               'boundaries', 'infiltration', 'rainfall',
-                              'inflow', 'drainage_cap', 'drainage_net',
+                              'inflow', 'losses', 'drainage_net',
                               'verror']
-        self.sim_param = {'hmin': 0.005, 'cfl': 0.7, 'theta': 0.9,
-                          'g': 9.80665, 'vrouting': 0.1, 'dtmax': 5.,
-                          'slmax': .1, 'dtinf': 60., 'inf_model': None}
+        k_drainage_params = ['swmm_inp', 'output']
+        self.sim_param = {'hmin': HFMIN, 'cfl': CFL, 'theta': THETA,
+                          'g': G, 'vrouting': VROUTING, 'dtmax': DTMAX,
+                          'slmax': SLMAX, 'dtinf': DTINF, 'inf_model': None}
         k_grass_params = ['grass_bin', 'grassdata', 'location', 'mapset']
         self.raw_input_times = dict.fromkeys(k_raw_input_times)
         self.output_map_names = dict.fromkeys(k_output_map_names)
         self.input_map_names = dict.fromkeys(k_input_map_names)
+        self.drainage_params = dict.fromkeys(k_drainage_params)
         self.grass_params = dict.fromkeys(k_grass_params)
         self.out_prefix = 'itzi_results_{}'.format(datetime.now().strftime('%Y%m%dT%H%M%S'))
         self.stats_file = None
@@ -95,18 +98,36 @@ class ConfigReader(object):
         for k in self.grass_params:
             if params.has_option('grass', k):
                 self.grass_params[k] = params.get('grass', k)
+        # check for deprecated input names
+        if params.has_option('input', "drainage_capacity"):
+            msgr.warning(u"'drainage_capacity' is deprecated. "
+                         u"Use 'losses' instead.")
+            self.input_map_names['losses'] = params.get('input', "drainage_capacity")
+        # search for valid inputs
         for k in self.input_map_names:
             if params.has_option('input', k):
                 self.input_map_names[k] = params.get('input', k)
+
+        # drainage parameters
+        for k in self.drainage_params:
+            if params.has_option('drainage', k):
+                self.drainage_params[k] = params.get('drainage', k)
         # statistic file
         if params.has_option('statistics', 'stats_file'):
             self.stats_file = params.get('statistics', 'stats_file')
+        else:
+            self.stats_file = None
         # output maps
         if params.has_option('output', 'prefix'):
             self.out_prefix = params.get('output', 'prefix')
         if params.has_option('output', 'values'):
-            self.out_values = params.get('output', 'values').split(',')
-            self.out_values = [e.strip() for e in self.out_values]
+            out_values = params.get('output', 'values').split(',')
+            self.out_values = [e.strip() for e in out_values]
+            # check for deprecated values
+            if 'drainage_cap' in self.out_values and 'losses' not in self.out_values:
+                msgr.warning(u"'drainage_cap' is deprecated. "
+                              u"Use 'losses' instead.")
+                self.out_values.append('losses')
         self.generate_output_name()
         return self
 
@@ -169,7 +190,7 @@ class ConfigReader(object):
         ga_all = all(self.input_map_names[i] for i in self.ga_list)
         # verify parameters
         if not self.input_map_names[inf_k] and not ga_any:
-            self.sim_param['inf_model'] = None
+            self.sim_param['inf_model'] = 'null'
         elif self.input_map_names[inf_k] and not ga_any:
             self.sim_param['inf_model'] = 'constant'
         elif self.input_map_names[inf_k] and ga_any:
@@ -188,7 +209,7 @@ class ConfigReader(object):
                    self.input_map_names['friction'],
                    self.sim_times.record_step]):
             msgr.fatal(u"inputs <dem>, <friction> and "
-                            u"<record_step> are mandatory")
+                       u"<record_step> are mandatory")
 
     def display_sim_param(self):
         """Display simulation parameters if verbose
@@ -219,7 +240,7 @@ class ConfigReader(object):
 
 
 class SimulationTimes(object):
-    """Store the information about simulation starting & ending time and duration
+    """Store the information about simulation start & end time and duration
     """
     def __init__(self, raw_input_times):
         self.read_simulation_times(raw_input_times)
@@ -255,7 +276,6 @@ class SimulationTimes(object):
         assert isinstance(self.end, datetime)
         assert isinstance(self.start, datetime)
         assert isinstance(self.duration, timedelta)
-        assert isinstance(self.record_step, timedelta)
         assert self.end >= self.start
         assert self.duration == (self.end - self.start)
 

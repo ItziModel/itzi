@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2015-2016 Laurent Courty
+Copyright (C) 2015-2017 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -19,13 +19,18 @@ from collections import namedtuple
 import os
 
 import messenger as msgr
+import itzi_error
 
-import grass.script as grass
+import grass.script as gscript
 import grass.temporal as tgis
 from grass.pygrass import raster
 from grass.pygrass.gis.region import Region
 import grass.pygrass.utils as gutils
-from grass.exceptions import FatalError, CalledModuleError
+from grass.pygrass.vector import VectorTopo
+from grass.pygrass.vector.geometry import Point, Line
+from grass.pygrass.vector.basic import Cats
+from grass.pygrass.vector.table import Link
+from grass.exceptions import FatalError
 
 
 class Igis(object):
@@ -44,11 +49,22 @@ class Igis(object):
                   'CELL': ('bool_', 'int_', 'intc', 'intp',
                            'int8', 'int16', 'int32', 'int64',
                            'uint8', 'uint16', 'uint32', 'uint64')}
-    # conversion from month number to accepted grass month notation
-    # datetime object strftime can't be used because it depend on the locale
-    month_conv = {1: 'jan', 2: 'feb', 3: 'mar', 4: 'apr',
-                  5: 'may', 6: 'june', 7: 'july', 8: 'aug',
-                  9: 'Sept', 10: 'oct', 11: 'Nov', 12: 'dec'}
+
+    # colour rules
+    _ROOT = os.path.dirname(__file__)
+    _DIR = os.path.join(_ROOT, 'data', 'colortable')
+    rules_h = os.path.join(_DIR, 'depth.txt')
+    rules_v = os.path.join(_DIR, 'velocity.txt')
+    rules_vdir = os.path.join(_DIR, 'vdir.txt')
+    rules_fr = os.path.join(_DIR, 'froude.txt')
+    rules_def = os.path.join(_DIR, 'default.txt')
+    colors_rules_dict = {'h': rules_h, 'v': rules_v, 'vdir': rules_vdir,
+                         'fr': rules_fr}
+
+    # define used namedtuples
+    strds_cols = ['id', 'start_time', 'end_time']
+    MapData = namedtuple('MapData', strds_cols)
+    LinkDescr = namedtuple('LinkDescr', ['layer', 'table'])
 
     def __init__(self, start_time, end_time, dtype, mkeys):
         assert isinstance(start_time, datetime), \
@@ -60,29 +76,23 @@ class Igis(object):
         self.start_time = start_time
         self.end_time = end_time
         self.dtype = dtype
-        region = Region()
-        self.xr = region.cols
-        self.yr = region.rows
-        self.dx = region.ewres
-        self.dy = region.nsres
-        self.overwrite = grass.overwrite()
+        self.region = Region()
+        self.xr = self.region.cols
+        self.yr = self.region.rows
+        # Check if region is at least 3x3
+        if self.xr < 3 or self.yr < 3:
+            msgr.fatal(u"GRASS Region should be at least 3 cells by 3 cells")
+
+        self.dx = self.region.ewres
+        self.dy = self.region.nsres
+        self.reg_bbox = {'e': self.region.east, 'w': self.region.west,
+                         'n': self.region.north, 's': self.region.south}
+        self.overwrite = gscript.overwrite()
         self.mapset = gutils.getenv('MAPSET')
         self.maps = dict.fromkeys(mkeys)
         # init temporal module
         tgis.init()
-        # define MapData namedtuple and cols to retrieve from STRDS
-        self.cols = ['id', 'start_time', 'end_time']
-        self.MapData = namedtuple('MapData', self.cols)
 
-        # color tables files
-        _ROOT = os.path.dirname(__file__)
-        _DIR = os.path.join(_ROOT, 'data', 'colortable')
-        _H = 'depth.txt'
-        _V = 'velocity.txt'
-        _DEF = 'default.txt'
-        self.rules_h = os.path.join(_DIR, _H)
-        self.rules_v = os.path.join(_DIR, _V)
-        self.rules_def = os.path.join(_DIR, _DEF)
         assert os.path.isfile(self.rules_h)
         assert os.path.isfile(self.rules_v)
         assert os.path.isfile(self.rules_def)
@@ -118,6 +128,22 @@ class Igis(object):
         """
         return self.start_time + timedelta(seconds=self.to_s(unit, time))
 
+    def coor2pixel(self, coor):
+        """convert coordinates easting and northing to pixel row and column
+        """
+        return gutils.coor2pixel(coor, self.region)
+
+    def is_in_region(self, x, y):
+        """For a given coordinate pair(x, y),
+        return True is inside raster region, False otherwise.
+        """
+        bool_x = (self.reg_bbox['w'] < x < self.reg_bbox['e'])
+        bool_y = (self.reg_bbox['s'] < y < self.reg_bbox['n'])
+        if bool_x and bool_y:
+            return True
+        else:
+            return False
+
     @staticmethod
     def format_id(name):
         """Take a map or stds name as input
@@ -145,7 +171,7 @@ class Igis(object):
         """return True if the given name is a map in the grass database
         False if not
         """
-        if grass.find_file(name=map_id, element='cell')['file']:
+        if gscript.find_file(name=map_id, element='cell').get('file'):
             return True
         else:
             return False
@@ -241,7 +267,7 @@ class Igis(object):
         # retrieve data from DB
         where = "start_time <= '{e}' AND end_time >= '{s}'".format(
             e=str(sim_end), s=str(sim_start))
-        maplist = strds.get_registered_maps(columns=','.join(self.cols),
+        maplist = strds.get_registered_maps(columns=','.join(self.strds_cols),
                                             where=where,
                                             order='start_time')
         # check if every map exist
@@ -280,6 +306,89 @@ class Igis(object):
         self.apply_color_table(rast_name, mkey)
         return self
 
+    def create_db_links(self, vect_map, linking_elem):
+        """vect_map an open vector map
+        """
+        dblinks = {}
+        for layer_name, layer_dscr in linking_elem.iteritems():
+            # Create DB links
+            dblink = Link(layer=layer_dscr.layer_number, name=layer_name,
+                          table=vect_map.name + layer_dscr.table_suffix, key='cat')
+            # add link to vector map
+            if dblink not in vect_map.dblinks:
+                vect_map.dblinks.add(dblink)
+            # create table
+            dbtable = dblink.table()
+            dbtable.create(layer_dscr.cols, overwrite=True)
+            dblinks[layer_name] = self.LinkDescr(dblink.layer, dbtable)
+        return dblinks
+
+    def write_vector_map(self, drainage_network, map_name, linking_elem):
+        """Write a vector map to GRASS GIS using
+        drainage_network is a networkx object
+        """
+        node_cat = {}
+        link_cat = {}
+        with VectorTopo(map_name, mode='w', overwrite=self.overwrite) as vect_map:
+            # create db links and tables
+            dblinks = self.create_db_links(vect_map, linking_elem)
+
+            # set category manually
+            cat_num = 1
+
+            # dict to keep DB infos to write DB after geometries
+            db_info = {k: [] for k in linking_elem}
+
+            # Points
+            for node in drainage_network.nodes():
+                if node.coordinates:
+                    point = Point(*node.coordinates)
+                    # add values
+                    map_layer, dbtable = dblinks['node']
+                    self.write_vector_geometry(vect_map, point,
+                                               cat_num, map_layer)
+                    # Get DB attributes
+                    attrs = tuple([cat_num] + node.get_attrs())
+                    db_info['node'].append(attrs)
+                    # bump cat
+                    cat_num += 1
+
+            # Lines
+            for in_node, out_node, edge_data in drainage_network.edges_iter(data=True):
+                link = edge_data['object']
+                # assemble geometry
+                in_node_coor = in_node.coordinates
+                out_node_coor = out_node.coordinates
+                if in_node_coor and out_node_coor:
+                    line_object = Line([in_node_coor]
+                                       + link.vertices
+                                       + [out_node_coor])
+                    # set category and layer link
+                    map_layer, dbtable = dblinks['link']
+                    self.write_vector_geometry(vect_map, line_object, cat_num, map_layer)
+                    # keep DB info
+                    attrs = tuple([cat_num] + link.get_attrs())
+                    db_info['link'].append(attrs)
+                    # bump cat
+                    cat_num += 1
+
+        # write DB
+        for geom_type, attrs in db_info.iteritems():
+            map_layer, dbtable = dblinks[geom_type]
+            for attr in attrs:
+                dbtable.insert(attr)
+            dbtable.conn.commit()
+        return self
+
+    def write_vector_geometry(self, vector_map, geom, cat_num, map_layer):
+        """Write geometry in the adequate layer
+        """
+        cats = Cats(geom.c_cats)
+        cats.reset()
+        cats.set(cat_num, map_layer)
+        # write geometry
+        vector_map.write(geom)
+
     def get_array(self, mkey, sim_time):
         """take a given map key and simulation time
         return a numpy array associated with its start and end time
@@ -300,66 +409,62 @@ class Igis(object):
                 assert None, "No map found for {k} at time {t}".format(
                                             k=mkey, t=sim_time)
 
-    def register_maps_in_strds(self, mkey, strds_name, map_list, t_type):
-        '''Register given maps
-        '''
-        assert isinstance(mkey, basestring), "not a string!"
-        assert isinstance(strds_name, basestring), "not a string!"
+    def register_maps_in_stds(self, stds_title, stds_name, map_list, stds_type, t_type):
+        """Create a STDS, create one mapdataset for each map and
+        register them in the temporal database
+        """
+        assert isinstance(stds_title, basestring), "not a string!"
+        assert isinstance(stds_name, basestring), "not a string!"
         assert isinstance(t_type, basestring), "not a string!"
         # Print message in case of decreased GRASS verbosity
         if msgr.verbosity() <= 2:
             msgr.message(u"Registering maps in temporal framework...")
-        # create strds
-        strds_id = self.format_id(strds_name)
-        strds_title = mkey
-        strds_desc = ""
-        strds = tgis.open_new_stds(strds_id, 'strds', t_type,
-                                   strds_title, strds_desc, "mean",
-                                   overwrite=self.overwrite)
+        # create stds
+        stds_id = self.format_id(stds_name)
+        stds_desc = ""
+        stds = tgis.open_new_stds(stds_id, stds_type, t_type,
+                                  stds_title, stds_desc, "mean",
+                                  overwrite=self.overwrite)
 
-        # create RasterDataset objects list
-        raster_dts_lst = []
+        # create MapDataset objects list
+        map_dts_lst = []
         for map_name, map_time in map_list:
-            # create RasterDataset
+            # create MapDataset
             map_id = self.format_id(map_name)
-            raster_dts = tgis.RasterDataset(map_id)
+            map_dts_type = {'strds': tgis.RasterDataset,
+                            'stvds': tgis.VectorDataset}
+            map_dts = map_dts_type[stds_type](map_id)
             # load spatial data from map
-            raster_dts.load()
+            map_dts.load()
             # set time
+            assert isinstance(map_time, datetime)
             if t_type == 'relative':
-                # create timedelta
-                rel_time = map_time - self.start_time
-                rast_time = rel_time.total_seconds()
-                raster_dts.set_relative_time(rast_time, None, 'seconds')
+                rel_time = (map_time - self.start_time).total_seconds()
+                map_dts.set_relative_time(rel_time, None, 'seconds')
             elif t_type == 'absolute':
-                raster_dts.set_absolute_time(start_time=map_time)
+                map_dts.set_absolute_time(start_time=map_time)
             else:
                 assert False, "unknown temporal type!"
             # populate the list
-            raster_dts_lst.append(raster_dts)
-        # Finaly register the maps
-        if t_type == 'relative':
-            r_unit = 'seconds'
-        elif t_type == 'absolute':
-            r_unit = ''
-        else:
-            assert False, "unknown temporal type!"
-        tgis.register.register_map_object_list('raster', raster_dts_lst,
-                                               strds, delete_empty=True,
-                                               unit=r_unit)
+            map_dts_lst.append(map_dts)
+        # Finally register the maps
+        t_unit = {'relative': 'seconds', 'absolute': ''}
+        stds_corresp = {'strds': 'raster', 'stvds': 'vector'}
+        del_empty = {'strds': True, 'stvds': False}
+        tgis.register.register_map_object_list(stds_corresp[stds_type],
+                                               map_dts_lst, stds,
+                                               delete_empty=del_empty[stds_type],
+                                               unit=t_unit[t_type])
         return self
 
     def apply_color_table(self, map_name, mkey):
         '''apply a color table determined by mkey to the given map
         '''
-        if mkey == 'h':
-            colors_rules = self.rules_h
-        elif mkey == 'v':
-            colors_rules = self.rules_v
-        elif mkey == 'vdir':
-            colors_rules = 'aspectcolr'
-        else:
-            colors_rules = self.rules_def
-        grass.run_command('r.colors', quiet=True,
-                          rules=colors_rules, map=map_name)
+        try:
+            colors_rules = self.colors_rules_dict[mkey]
+            gscript.run_command('r.colors', quiet=True,
+                                rules=colors_rules, map=map_name)
+        except KeyError:
+            # in case no specific color table is given, use GRASS default.
+            pass
         return self

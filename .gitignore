@@ -4,3 +4,5 @@
 build/
 dist/
 itzi.egg-info/
+itzi/flow.c
+itzi/swmm/swmm_c.c

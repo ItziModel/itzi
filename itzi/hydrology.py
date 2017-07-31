@@ -59,18 +59,17 @@ class Hydrology(object):
         """
         # calculate flows
         self.infiltration.step()
-        self.calculate_simple_drainage()
+        self.cap_losses()
         self.apply_hydrology()
         return self
 
-    def calculate_simple_drainage(self):
-        """This is used as an approximation of the drainage capacity of the area
-        It is done by removing a user-defined amount of water from the domain.
+    def cap_losses(self):
+        """Cap losses to water depth on the cell.
         Input and output are considered to be in mm/h
         """
         flow.inf_user(arr_h=self.dom.get('h'),
-                      arr_inf_in=self.dom.get('drain_cap'),
-                      arr_inf_out=self.dom.get('s_drain'),
+                      arr_inf_in=self.dom.get('in_losses'),
+                      arr_inf_out=self.dom.get('capped_losses'),
                       dt=self._dt)
 
     def apply_hydrology(self):
@@ -80,7 +79,7 @@ class Hydrology(object):
         flow.apply_hydrology(arr_rain=self.dom.get('rain'),
                              arr_inf=self.dom.get('inf'),
                              arr_etp=self.dom.get('etp'),
-                             arr_drain_cap=self.dom.get('s_drain'),
+                             arr_capped_losses=self.dom.get('capped_losses'),
                              arr_h=self.dom.get('h'),
                              dt=self._dt)
         return self

@@ -22,7 +22,6 @@ from libc.math cimport sqrt as c_sqrt
 from libc.math cimport fabs as c_abs
 from libc.math cimport atan2 as c_atan
 
-DTYPE = np.float32
 ctypedef np.float32_t DTYPE_t
 cdef float PI = 3.1415926535898
 
@@ -57,12 +56,12 @@ def arr_add(DTYPE_t [:, :] arr1, DTYPE_t [:, :] arr2):
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
 def apply_hydrology(DTYPE_t [:, :] arr_rain, DTYPE_t [:, :] arr_inf,
-                    DTYPE_t [:, :] arr_etp, DTYPE_t [:, :] arr_drain_cap,
+                    DTYPE_t [:, :] arr_etp, DTYPE_t [:, :] arr_capped_losses,
                     DTYPE_t [:, :] arr_h, float dt):
-    '''Apply rain, infiltration etc. for the current time-step
+    '''Add rain, infiltration etc. to the domain depth for the current time-step
     rain and inf in mm/h, deph in m, dt in seconds'''
     cdef int rmax, cmax, r, c
-    cdef float rain, etp, inf, drain_cap, dt_h, h_new
+    cdef float rain, etp, inf, capped_losses, dt_h, h_new
     rmax = arr_rain.shape[0]
     cmax = arr_rain.shape[1]
     for r in prange(rmax, nogil=True):
@@ -70,9 +69,9 @@ def apply_hydrology(DTYPE_t [:, :] arr_rain, DTYPE_t [:, :] arr_inf,
             rain = arr_rain[r, c]
             inf = arr_inf[r, c]
             etp = arr_etp[r, c]
-            drain_cap = arr_drain_cap[r, c]
+            capped_losses = arr_capped_losses[r, c]
             dt_h = dt / 3600.  # dt from sec to hours
-            h_new = max(arr_h[r, c] + (rain - inf - etp - drain_cap) * dt_h / 1000., 0.)
+            h_new = max(arr_h[r, c] + (rain - inf - etp - capped_losses) * dt_h / 1000., 0.)
             arr_h[r, c] = h_new
 
 
@@ -116,19 +115,15 @@ def solve_q(DTYPE_t [:, :] arr_dire, DTYPE_t [:, :] arr_dirs,
             DTYPE_t [:, :] arrp_qe, DTYPE_t [:, :] arrp_qs,
             DTYPE_t [:, :] arr_hfe, DTYPE_t [:, :] arr_hfs,
             DTYPE_t [:, :] arr_qe_new, DTYPE_t [:, :] arr_qs_new,
-            DTYPE_t [:, :] arr_v, DTYPE_t [:, :] arr_vdir,
-            DTYPE_t [:, :] arr_vmax,
             float dt, float dx, float dy, float g,
             float theta, float hf_min, float v_rout, float sl_thres):
-    '''Calculate hflow in m, flow in m2/s,
-    velocity magnitude in m/s and direction in degree
+    '''Calculate hflow in m, flow in m2/s
     '''
 
     cdef int rmax, cmax, r, c, rp, cp
     cdef float wse_e, wse_s, wse0, z0, ze, zs, n0, n, ne, ns
     cdef float qe_st, qs_st, qe_vect, qs_vect, qdire, qdirs
     cdef float qe_new, qs_new, hf_e, hf_s, h0, h_e, h_s
-    cdef float ve, vs, v, vdir
 
     rmax = arr_z.shape[0]
     cmax = arr_z.shape[1]
@@ -166,26 +161,21 @@ def solve_q(DTYPE_t [:, :] arr_dire, DTYPE_t [:, :] arr_dirs,
                 # flow and velocity
                 if hf_e <= 0:
                     qe_new = 0
-                    ve = 0
                 elif hf_e > hf_min:
                     qe_new = almeida2013(hf=hf_e, wse0=wse0, wse1=wse_e, n=ne,
                                          qm1=arrp_qe[rp,cp-1], q0=arrp_qe[rp,cp],
                                          qp1=arrp_qe[rp,cp+1], q_norm=qe_vect,
                                          theta=theta, g=g, dt=dt, cell_len=dx)
-                    ve = qe_new / hf_e
                 # flow going W, i.e negative
                 elif hf_e <= hf_min and qdire == 0 and wse_e > wse0:
                     qe_new = - rain_routing(h_e, wse_e, wse0,
                                             dt, dx, v_rout)
-                    ve = - v_rout
                 # flow going E, i.e positive
                 elif hf_e <= hf_min and  qdire == 1 and wse0 > wse_e:
                     qe_new = rain_routing(h0, wse0, wse_e,
                                           dt, dx, v_rout)
-                    ve = v_rout
                 else:
                     qe_new = 0
-                    ve = 0
                 # udpate array
                 arr_qe_new[r, c] = qe_new
 
@@ -211,37 +201,23 @@ def solve_q(DTYPE_t [:, :] arr_dire, DTYPE_t [:, :] arr_dirs,
                 arr_hfs[r, c] = hf_s
                 if hf_s <= 0:
                     qs_new = 0
-                    vs = 0
                 elif hf_s > hf_min:
                     qs_new = almeida2013(hf=hf_s, wse0=wse0, wse1=wse_s, n=ns,
                                          qm1=arrp_qs[rp-1,cp], q0=arrp_qs[rp,cp],
                                          qp1=arrp_qs[rp+1,cp], q_norm=qs_vect,
                                          theta=theta, g=g, dt=dt, cell_len=dy)
-                    vs = qs_new / hf_s
                 # flow going N, i.e negative
                 elif hf_s <= hf_min and qdirs == 0 and wse_s > wse0:
                     qs_new = - rain_routing(h_s, wse_s, wse0,
                                             dt, dy, v_rout)
-                    vs = - v_rout
                 # flow going S, i.e positive
                 elif hf_s <= hf_min and  qdirs == 1 and wse0 > wse_s:
                     qs_new = rain_routing(h0, wse0, wse_s,
                                           dt, dy, v_rout)
-                    vs = v_rout
                 else:
                     qs_new = 0
-                    vs = 0
                 # udpate array
                 arr_qs_new[r, c] = qs_new
-
-            # velocity magnitude and direction
-            v = c_sqrt(ve*ve + vs*vs)
-            arr_v[r, c] = v
-            arr_vmax[r, c] = max(v, arr_vmax[r, c])
-            vdir = c_atan(-vs, ve) * 180. / PI
-            if vdir < 0:
-                vdir = 360 + vdir
-            arr_vdir[r, c] = vdir
 
 
 cdef float hflow(float z0, float z1, float wse0, float wse1) nogil:
@@ -302,12 +278,18 @@ def solve_h(DTYPE_t [:, :] arr_ext,
             DTYPE_t [:, :] arr_bct, DTYPE_t [:, :] arr_bcv,
             DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_hmax,
             DTYPE_t [:, :] arr_hfix, DTYPE_t [:, :] arr_herr,
-            float dx, float dy, float dt):
+            DTYPE_t [:, :] arr_hfe, DTYPE_t [:, :] arr_hfw,
+            DTYPE_t [:, :] arr_hfn, DTYPE_t [:, :] arr_hfs,
+            DTYPE_t [:, :] arr_v, DTYPE_t [:, :] arr_vdir,
+            DTYPE_t [:, :] arr_vmax, DTYPE_t [:, :] arr_fr,
+            float dx, float dy, float dt, float g):
     '''Update the water depth and max depth
     Adjust water depth according to in-domain 'boundary' condition
+    Calculate vel. magnitude in m/s, direction in degree and Froude number.
     '''
     cdef int rmax, cmax, r, c
     cdef float qext, qe, qw, qn, qs, h, q_sum, h_new, hmax, bct, bcv
+    cdef float hfe, hfs, hfw, hfn, ve, vw, vn, vs, vx, vy, v, vdir
 
     rmax = arr_qe.shape[0]
     cmax = arr_qe.shape[1]
@@ -324,7 +306,7 @@ def solve_h(DTYPE_t [:, :] arr_ext,
             hmax = arr_hmax[r, c]
             # Sum of flows in m/s
             q_sum = (qw - qe) / dx + (qn - qs) / dy
-            # calculatre new flow depth
+            # calculate new flow depth
             h_new = h + (qext + q_sum) * dt
             if h_new < 0.:
                 # Write error. Always positive (mass creation)
@@ -339,6 +321,44 @@ def solve_h(DTYPE_t [:, :] arr_ext,
             arr_hmax[r, c] = max(h_new, hmax)
             # Update depth array
             arr_h[r, c] = h_new
+
+            ## Velocity and Froude ##
+            # Do not accept NaN
+            hfe = arr_hfe[r, c]
+            hfw = arr_hfw[r, c]
+            hfn = arr_hfn[r, c]
+            hfs = arr_hfs[r, c]
+            if hfe <= 0.:
+                ve = 0.
+            else:
+                ve = qe / hfe
+            if hfw <= 0.:
+                vw = 0.
+            else:
+                vw = qw / hfw
+            if hfs <= 0.:
+                vs = 0.
+            else:
+                vs = qs / hfs
+            if hfn <= 0.:
+                vn = 0.
+            else:
+                vn = qn / hfn
+
+            vx = .5 * (ve + vw)
+            vy = .5 * (vs + vn)
+
+            # velocity magnitude and direction
+            v = c_sqrt(vx*vx + vy*vy)
+            arr_v[r, c] = v
+            arr_vmax[r, c] = max(v, arr_vmax[r, c])
+            vdir = c_atan(-vy, vx) * 180. / PI
+            if vdir < 0:
+                vdir = 360 + vdir
+            arr_vdir[r, c] = vdir
+
+            # Froude number
+            arr_fr[r, c] = v / c_sqrt(g * h_new)
 
 
 @cython.wraparound(False)  # Disable negative index check

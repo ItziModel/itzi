@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2015  Laurent Courty
+Copyright (C) 2015-2017  Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -14,12 +14,17 @@ GNU General Public License for more details.
 """
 
 
-class NullError(Exception):
+class ItziError(Exception):
+    """General error class"""
+    pass
+
+
+class NullError(ItziError):
     """Raised when null values is detected in simulation"""
     pass
 
 
-class DtError(Exception):
+class DtError(ItziError):
     """Error related to time-step calculation
     """
     def __init__(self, msg):
@@ -29,7 +34,7 @@ class DtError(Exception):
         return repr(self.msg)
 
 
-class ItziFatal(Exception):
+class ItziFatal(ItziError):
     def __init__(self, msg):
         self.msg = msg
 

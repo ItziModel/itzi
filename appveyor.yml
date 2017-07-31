@@ -19,8 +19,6 @@ install:
   - pip install -i https://pypi.anaconda.org/carlkl/simple mingwpy
   - conda install -q --name python%PYTHON_VERSION% setuptools numpy wheel
   - pip install -q pyinstrument
-  #~ - python.exe setup.py config_fc
-  #~ - python.exe setup.py config --compiler=mingw32
   - python.exe setup.py build --compiler=mingw32
   - python.exe setup.py install
 
@@ -30,13 +28,10 @@ build: off
   #~ - nosetests
 
 after_test:
-  # This step builds your wheels.
-  - python.exe setup.py bdist_wheel
-  - python.exe setup.py bdist_wininst
+  - python.exe setup.py bdist_wheel bdist_wininst
 
 artifacts:
-  # bdist_wheel puts your built wheel in the dist directory
-  - path: dist\*.whl
+  - path: dist\*
 
 #on_success:
 #  You can use this step to upload your artifacts to a public website.
