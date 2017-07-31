@@ -8,8 +8,11 @@ simulates 2D surface flows on a regular raster grid using simplified shallow wat
 It uses GRASS GIS as a back-end for entry data and result writing.
 
 Website: http://www.itzi.org/
+
 Documentation: http://itzi.rtfd.io/
+
 Repository: https://bitbucket.org/itzi-model/itzi/
+
 
 Description
 ===========
@@ -28,10 +31,10 @@ Model description
 
 Itzï is described in details in the following open-access article:
 
-Courty, L. G., Pedrozo-Acuña, A., & Bates, P. D. (2017).
-Itzï (version 17.1): an open-source, distributed GIS model for dynamic flood simulation.
-Geoscientific Model Development, 10(4), 1835–1847.
-http://doi.org/10.5194/gmd-10-1835-2017
+    Courty, L. G., Pedrozo-Acuña, A., & Bates, P. D. (2017).
+    Itzï (version 17.1): an open-source, distributed GIS model for dynamic flood simulation.
+    Geoscientific Model Development, 10(4), 1835–1847.
+    http://doi.org/10.5194/gmd-10-1835-2017
 
 
 Usage
