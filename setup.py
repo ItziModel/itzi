@@ -60,7 +60,7 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
 DESCR = "A 2D hydrologic model using GRASS GIS as a back-end"
 
 
-REQUIRES = ['pyinstrument', 'networkx']
+REQUIRES = ['cython', 'pyinstrument', 'networkx']
 
 
 # Set arguments according to compiler
