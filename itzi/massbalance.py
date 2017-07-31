@@ -36,7 +36,7 @@ class MassBal(object):
         self.fields = ['sim_time',  # either timedelta or datetime
                        'avg_timestep', '#timesteps',
                        'boundary_vol', 'rain_vol', 'inf_vol',
-                       'inflow_vol', 'drain_cap_vol', 'drain_net_vol',
+                       'inflow_vol', 'losses_vol', 'drain_net_vol',
                        'domain_vol', 'created_vol',
                        '%error']
         # data written to file as one line
@@ -115,8 +115,8 @@ class MassBal(object):
         self.line['inf_vol'] = '{:.3f}'.format(inf_vol)
         inflow_vol = self.dom.inflow_vol(sim_time)
         self.line['inflow_vol'] = '{:.3f}'.format(inflow_vol)
-        drain_cap_vol = - self.dom.sdrain_vol(sim_time)
-        self.line['drain_cap_vol'] = '{:.3f}'.format(drain_cap_vol)
+        losses_vol = - self.dom.losses_vol(sim_time)
+        self.line['losses_vol'] = '{:.3f}'.format(losses_vol)
         drain_net_vol = self.dom.ndrain_vol(sim_time)
         self.line['drain_net_vol'] = '{:.3f}'.format(drain_net_vol)
 

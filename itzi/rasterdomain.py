@@ -172,7 +172,7 @@ class RasterDomain(object):
         self.populate_stat_array('in_q', sim_time)
         return self.asum('st_inflow') * self.cell_surf
 
-    def sdrain_vol(self, sim_time):
+    def losses_vol(self, sim_time):
         self.populate_stat_array('capped_losses', sim_time)
         return self.asum('st_losses') * self.cell_surf
 
@@ -340,9 +340,9 @@ class RasterDomain(object):
         if self.out_map_names['inflow'] is not None:
             self.populate_stat_array('in_q', sim_time)
             out_arrays['inflow'] = self.get_unmasked('st_inflow') / interval_s
-        if self.out_map_names['drainage_cap'] is not None:
+        if self.out_map_names['losses'] is not None:
             self.populate_stat_array('capped_losses', sim_time)
-            out_arrays['drainage_cap'] = self.get_unmasked('st_losses') / interval_s
+            out_arrays['losses'] = self.get_unmasked('st_losses') / interval_s
         if self.out_map_names['drainage_net'] is not None:
             self.populate_stat_array('n_drain', sim_time)
             out_arrays['drainage_net'] = self.get_unmasked('st_ndrain') / interval_s

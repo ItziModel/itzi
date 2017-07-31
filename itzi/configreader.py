@@ -45,7 +45,7 @@ class ConfigReader(object):
                              'infiltration', 'losses'] + self.ga_list
         k_output_map_names = ['h', 'wse', 'v', 'vdir', 'qx', 'qy', 'fr',
                               'boundaries', 'infiltration', 'rainfall',
-                              'inflow', 'drainage_cap', 'drainage_net',
+                              'inflow', 'losses', 'drainage_net',
                               'verror']
         k_drainage_params = ['swmm_inp', 'output']
 
@@ -109,7 +109,6 @@ class ConfigReader(object):
             if params.has_option('input', k):
                 self.input_map_names[k] = params.get('input', k)
 
-
         # drainage parameters
         for k in self.drainage_params:
             if params.has_option('drainage', k):
@@ -123,8 +122,13 @@ class ConfigReader(object):
         if params.has_option('output', 'prefix'):
             self.out_prefix = params.get('output', 'prefix')
         if params.has_option('output', 'values'):
-            self.out_values = params.get('output', 'values').split(',')
-            self.out_values = [e.strip() for e in self.out_values]
+            out_values = params.get('output', 'values').split(',')
+            self.out_values = [e.strip() for e in out_values]
+            # check for deprecated values
+            if 'drainage_cap' in self.out_values and 'losses' not in self.out_values:
+                msgr.warning(u"'drainage_cap' is deprecated. "
+                              u"Use 'losses' instead.")
+                self.out_values.append('losses')
         self.generate_output_name()
         return self
 
