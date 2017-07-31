@@ -42,7 +42,7 @@ class ConfigReader(object):
                         'hydraulic_conductivity']
         k_input_map_names = ['dem', 'friction', 'start_h', 'start_y',
                              'rain', 'inflow', 'bcval', 'bctype',
-                             'infiltration', 'drainage_capacity'] + self.ga_list
+                             'infiltration', 'losses'] + self.ga_list
         k_output_map_names = ['h', 'wse', 'v', 'vdir', 'qx', 'qy', 'fr',
                               'boundaries', 'infiltration', 'rainfall',
                               'inflow', 'drainage_cap', 'drainage_net',
@@ -99,9 +99,17 @@ class ConfigReader(object):
         for k in self.grass_params:
             if params.has_option('grass', k):
                 self.grass_params[k] = params.get('grass', k)
+        # check for deprecated input names
+        if params.has_option('input', "drainage_capacity"):
+            msgr.warning(u"'drainage_capacity' is deprecated. "
+                         u"Use 'losses' instead.")
+            self.input_map_names['losses'] = params.get('input', "drainage_capacity")
+        # search for valid inputs
         for k in self.input_map_names:
             if params.has_option('input', k):
                 self.input_map_names[k] = params.get('input', k)
+
+
         # drainage parameters
         for k in self.drainage_params:
             if params.has_option('drainage', k):

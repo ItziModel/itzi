@@ -56,12 +56,12 @@ def arr_add(DTYPE_t [:, :] arr1, DTYPE_t [:, :] arr2):
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
 def apply_hydrology(DTYPE_t [:, :] arr_rain, DTYPE_t [:, :] arr_inf,
-                    DTYPE_t [:, :] arr_etp, DTYPE_t [:, :] arr_drain_cap,
+                    DTYPE_t [:, :] arr_etp, DTYPE_t [:, :] arr_capped_losses,
                     DTYPE_t [:, :] arr_h, float dt):
     '''Add rain, infiltration etc. to the domain depth for the current time-step
     rain and inf in mm/h, deph in m, dt in seconds'''
     cdef int rmax, cmax, r, c
-    cdef float rain, etp, inf, drain_cap, dt_h, h_new
+    cdef float rain, etp, inf, capped_losses, dt_h, h_new
     rmax = arr_rain.shape[0]
     cmax = arr_rain.shape[1]
     for r in prange(rmax, nogil=True):
@@ -69,9 +69,9 @@ def apply_hydrology(DTYPE_t [:, :] arr_rain, DTYPE_t [:, :] arr_inf,
             rain = arr_rain[r, c]
             inf = arr_inf[r, c]
             etp = arr_etp[r, c]
-            drain_cap = arr_drain_cap[r, c]
+            capped_losses = arr_capped_losses[r, c]
             dt_h = dt / 3600.  # dt from sec to hours
-            h_new = max(arr_h[r, c] + (rain - inf - etp - drain_cap) * dt_h / 1000., 0.)
+            h_new = max(arr_h[r, c] + (rain - inf - etp - capped_losses) * dt_h / 1000., 0.)
             arr_h[r, c] = h_new
 
 

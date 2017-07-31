@@ -177,7 +177,7 @@ class SimulationManager(object):
             self.hydrology.step()
             # update stat array
             self.rast_domain.populate_stat_array('inf', self.sim_time)
-            self.rast_domain.populate_stat_array('s_drain', self.sim_time)
+            self.rast_domain.populate_stat_array('capped_losses', self.sim_time)
 
         # calculate drainage
         if self.sim_time == self.next_ts['drain'] and self.drainage:

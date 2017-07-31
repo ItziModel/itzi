@@ -118,7 +118,7 @@ class RasterDomain(object):
                              'pres': 'capillary_pressure',
                              'con': 'hydraulic_conductivity',
                              'in_inf': 'infiltration',
-                             'drain_cap': 'drainage_capacity',
+                             'in_losses': 'losses',
                              'rain': 'rain', 'in_q': 'inflow',
                              'bcv': 'bcval', 'bct': 'bctype'}
         # all keys that will be used for the arrays
@@ -126,12 +126,12 @@ class RasterDomain(object):
         self.k_internal = ['inf', 'hmax', 'ext', 'y', 'hfe', 'hfs',
                            'qe', 'qs', 'qe_new', 'qs_new', 'etp',
                            'ue', 'us', 'v', 'vdir', 'vmax', 'fr',
-                           'n_drain', 's_drain', 'dire', 'dirs']
+                           'n_drain', 'capped_losses', 'dire', 'dirs']
         # arrays gathering the cumulated water depth from corresponding array
         self.k_stats = ['st_bound', 'st_inf', 'st_rain', 'st_etp',
-                        'st_inflow', 'st_sdrain', 'st_ndrain', 'st_herr']
+                        'st_inflow', 'st_losses', 'st_ndrain', 'st_herr']
         self.stats_corresp = {'inf': 'st_inf', 'rain': 'st_rain',
-                              'in_q': 'st_inflow', 's_drain': 'st_sdrain',
+                              'in_q': 'st_inflow', 'capped_losses': 'st_losses',
                               'n_drain': 'st_ndrain'}
         self.k_all = self.k_input + self.k_internal + self.k_stats
         # last update of statistical map entry
@@ -173,8 +173,8 @@ class RasterDomain(object):
         return self.asum('st_inflow') * self.cell_surf
 
     def sdrain_vol(self, sim_time):
-        self.populate_stat_array('s_drain', sim_time)
-        return self.asum('st_sdrain') * self.cell_surf
+        self.populate_stat_array('capped_losses', sim_time)
+        return self.asum('st_losses') * self.cell_surf
 
     def ndrain_vol(self, sim_time):
         self.populate_stat_array('n_drain', sim_time)
@@ -286,7 +286,7 @@ class RasterDomain(object):
         sk = self.stats_corresp[k]
         update_time = self.stats_update_time[sk]
         # make sure everything is in m/s
-        if k in ['rain', 'inf', 's_drain']:
+        if k in ['rain', 'inf', 'capped_losses']:
             conv_factor = 1 / self.mmh_to_ms
         else:
             conv_factor = 1.
@@ -341,8 +341,8 @@ class RasterDomain(object):
             self.populate_stat_array('in_q', sim_time)
             out_arrays['inflow'] = self.get_unmasked('st_inflow') / interval_s
         if self.out_map_names['drainage_cap'] is not None:
-            self.populate_stat_array('s_drain', sim_time)
-            out_arrays['drainage_cap'] = self.get_unmasked('st_sdrain') / interval_s
+            self.populate_stat_array('capped_losses', sim_time)
+            out_arrays['drainage_cap'] = self.get_unmasked('st_losses') / interval_s
         if self.out_map_names['drainage_net'] is not None:
             self.populate_stat_array('n_drain', sim_time)
             out_arrays['drainage_net'] = self.get_unmasked('st_ndrain') / interval_s
@@ -356,7 +356,7 @@ class RasterDomain(object):
                                       interval_s) * self.mmh_to_ms
         # Created volume (total since last record)
         if self.out_map_names['verror'] is not None:
-            self.populate_stat_array('s_drain', sim_time)
+            self.populate_stat_array('capped_losses', sim_time)
             out_arrays['verror'] = self.get_unmasked('st_herr') * self.cell_surf
         return out_arrays
 
