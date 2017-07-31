@@ -6,6 +6,38 @@ Release Notes
 These are the major changes made in each release.
 For details of the changes please see the commit log of the git repository.
 
+Itzï 17.7
+---------
+
+*Release date: 2017-07-31*
+
+This release adds the integration of the SWMM drainage network model.
+
+**New features**
+
+- Bi-directional coupling with the SWMM model
+- Velocity is now calculated at the centre of the cells
+- It is possible to output maps of the Froude number
+- The maps of the initial state of the simulation are recorded
+
+**Changes in the configuration file**
+
+Some changes have been made to the configuration file in order to make the options clearer.
+
+- In the [input] section, *drainage_capacity* is renamed *losses*
+- In the [output] section, *drainage_cap* is renamed *losses*
+
+If Itzï is run with an older option name, the user will receive a deprecation warning.
+Those legacy options are set for deletion in a later release.
+Please update your configuration files.
+
+**Corrected bugs**
+
+- Maps are recorded at the very end of the simulation
+- Check if the domain is at least 3x3 cells before running a simulation.
+- Itzï will check if grassdata, location and mapsets exist before running a simulation.
+
+
 Itzï 17.1
 ---------
 
