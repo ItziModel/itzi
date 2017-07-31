@@ -7,6 +7,10 @@ Itzï is a dynamic, fully distributed hydrologic and hydraulic model that
 simulates 2D surface flows on a regular raster grid using simplified shallow water equations.
 It uses GRASS GIS as a back-end for entry data and result writing.
 
+Website: http://www.itzi.org/
+Documentation: http://itzi.rtfd.io/
+Repository: https://bitbucket.org/itzi-model/itzi/
+
 Description
 ===========
 
@@ -16,48 +20,24 @@ Notably, to change the resolution or the extend of the computational domain,
 the user just need to change the GRASS computational region and the raster mask, if applicable.
 This means that map export or re-sampling is not needed.
 
-Itzï uses raster time-series as entry data, allowing the uses of radar rainfall or varying friction coefficient.
-
-In Itzï, the simulation time information could be represented in two ways.
-First, the time could relative, i.e given as a number of hours, minutes and seconds, whatever the actual date is.
-Alternatively, the user can provide a start date and time, together with a duration or a end time.
-This second way is useful to simulate historical events with a known date,
-especially with input data with such time representation, for example rainfall.
-To be able to use this functionality, the time-series given as entry data should use the same temporal reference system.
-
-Superficial flow model
-======================
-
-Itzï implements a partial inertia, finite-difference numerical scheme described in:
-
-De Almeida, G. a M. et al., 2012.
-Improving the stability of a simple formulation of the shallow water equations for 2-D flood modeling.
-Water Resources Research, 48(5), pp.1–14.
-
-De Almeida, G. a M. & Bates, P., 2013.
-Applicability of the local inertial approximation of the shallow water equations to flood modeling.
-Water Resources Research, 49(8), pp.4833–4844.
-
-As well as a simple rain routing method inspired by:
-
-Sampson, C.C. et al., 2013.
-An automated routing methodology to enable direct rainfall in high resolution shallow water models.
-Hydrological Processes, 27(3), pp.467–476.
+Itzï uses raster time-series as entry data, allowing, for example, the use of radar rainfall.
 
 
-Infiltration model
-==================
+Model description
+=================
 
-Itzï can simulate the infiltration on two different ways:
-    * Green-Ampt infiltration model.
-    * User given infiltration rate in mm/h
+Itzï is described in details in the following open-access article:
+
+Courty, L. G., Pedrozo-Acuña, A., & Bates, P. D. (2017).
+Itzï (version 17.1): an open-source, distributed GIS model for dynamic flood simulation.
+Geoscientific Model Development, 10(4), 1835–1847.
+http://doi.org/10.5194/gmd-10-1835-2017
 
 
 Usage
 =====
 
-Simulations parameters are given through a file written in a style
-similar to the Microsoft Windows INI files.
+Simulations are set through a parameter file.
 
 Simulation time
 ---------------
@@ -70,7 +50,8 @@ In case start time is given, the simulation will use a absolute temporal type.
 Input data
 ----------
 
-Itzï does not support Lat-Long coordinates. A projected location should be used.
+Itzï does not support Lat-Long coordinates.
+A projected location should be used.
 The inputs maps could be given either as STRDS or single maps.
 First, the module try to load a STRDS of the given name.
 If unsuccessful, it will load the given map, and stop with an error if the name does not correspond to either a map or a STRDS.
@@ -80,44 +61,12 @@ The following raster maps are necessary:
   * Digital elevation model in meters
   * Friction, expressed as Manning's n
 
-The following space-time raster datasets are optional:
-
-  * rain map in mm/h
-  * point inflow in m/s (vertical velocity, i.e for 20 m3/s on a 10x10 cell, the velocity is 0.2 m/s)
-  * fixed infiltration rate in mm/h
-  * Green-Ampt infiltration parameters
-  * boundary condition type: an integer map (see below)
-  * boundary condition value: a map for boundary conditions using user-given value
-
-
-Boundary conditions
--------------------
-
-  The boundary type is defined by the following cell values:
-
-  1. closed: flow = 0
-  2. open: velocity at the boundary is equal to the velocity inside the domain
-  3. fixed-depth: not implemented yet
-  4. user-defined water depth inside the domain
-
-  The boundary value map is used in the case of types 3 and 4 boundary condition.
-  The open boundary condition is experimental and not well tested.
+The other space-time raster datasets are optionals.
 
 Output data
 -----------
 
-The user can choose to output the following:
-
-  * water depth
-  * water surface elevation (depth + DEM)
-  * velocity magnitude in m/s and direction in degrees
-  * x and y flows in m3/s
-  * statistical maps of boundaries, infiltration, rainfall and/or point inflow
-
-A raster space-time dataset is created for each selected output.
-Maps are written using the STRDS name as a prefix.
-Flows values are the values at E and S boundaries of the given cell, respectively.
-Values of statistical maps corresponds to the average value during the last record interval.
+A space-time raster dataset is created for each selected output.
 
 
 ============
