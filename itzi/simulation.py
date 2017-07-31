@@ -82,15 +82,19 @@ class SimulationManager(object):
         self.gis.read(self.in_map_names)
 
         # instantiate simulation objects
+        msgr.verbose(u"Setting up models...")
         self.__set_models()
+        msgr.verbose(u"Models set up")
 
     def __set_models(self):
         """Instantiate models objects
         """
         # RasterDomain
+        msgr.debug(u"Setting up raster domain...")
         self.rast_domain = RasterDomain(self.dtype, self.gis,
                                         self.in_map_names, self.out_map_names)
         # Infiltration
+        msgr.debug(u"Setting up raster infiltration...")
         inf_class = {'constant': infiltration.InfConstantRate,
                      'green-ampt': infiltration.InfGreenAmpt,
                      'null': infiltration.InfNull}
@@ -100,13 +104,16 @@ class SimulationManager(object):
         except KeyError:
             assert False, u"Unknow infiltration model: {}".format(self.inf_model)
         # Hydrology
+        msgr.debug(u"Setting up hydrologic model...")
         self.hydrology = hydrology.Hydrology(self.rast_domain, self.dtinf,
                                              self.infiltration)
         # Surface flows simulation
+        msgr.debug(u"Setting up surface model...")
         self.surf_sim = SurfaceFlowSimulation(self.rast_domain,
                                               self.sim_param)
         # Instantiate Massbal object
         if self.stats_file:
+            msgr.debug(u"Setting up mass balance object...")
             self.massbal = MassBal(self.stats_file, self.rast_domain,
                                    self.start_time, self.temporal_type)
         else:
@@ -114,6 +121,7 @@ class SimulationManager(object):
 
         # Drainage
         if self.drainage_params['swmm_inp']:
+            msgr.debug(u"Setting up drainage model...")
             self.drainage = DrainageSimulation(self.rast_domain,
                                                self.drainage_params['swmm_inp'],
                                                self.gis, self.sim_param['g'])
@@ -121,6 +129,7 @@ class SimulationManager(object):
             self.drainage = None
 
         # reporting object
+        msgr.debug(u"Setting up reporting object...")
         self.report = Report(self.gis, self.temporal_type,
                              self.sim_param['hmin'], self.massbal,
                              self.rast_domain,
