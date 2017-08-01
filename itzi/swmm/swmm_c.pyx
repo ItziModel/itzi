@@ -317,13 +317,13 @@ cdef int get_linkage_type(float wse, float crest_elev,
 
     if wse <= crest_elev and node_head <= crest_elev:
         linkage_type = linkage_types.NO_LINKAGE
-    elif wse > crest_elev > node_head or wse <= crest_elev < node_head:
+    elif ((node_head > wse) or (wse - crest_elev) >= (overflow_area / weir_width)):
+        linkage_type = linkage_types.ORIFICE
+    elif wse > crest_elev > node_head:
         linkage_type = linkage_types.FREE_WEIR
     elif (node_head >= crest_elev and wse > crest_elev and
           ((wse - crest_elev) < (overflow_area / weir_width))):
         linkage_type = linkage_types.SUBMERGED_WEIR
-    elif (wse - crest_elev) >= (overflow_area / weir_width):
-        linkage_type = linkage_types.ORIFICE
     return linkage_type
 
 
