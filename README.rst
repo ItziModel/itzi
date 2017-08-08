@@ -4,7 +4,7 @@ Itzï
 ====
 
 Itzï is a dynamic, fully distributed hydrologic and hydraulic model that
-simulates 2D surface flows on a regular raster grid using simplified shallow water equations.
+simulates 2D surface flows on a regular raster grid and drainage flows through the SWMM model.
 It uses GRASS GIS as a back-end for entry data and result writing.
 
 Website: http://www.itzi.org/

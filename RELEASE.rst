@@ -6,6 +6,25 @@ Release Notes
 These are the major changes made in each release.
 For details of the changes please see the commit log of the git repository.
 
+Itzï 17.8
+---------
+
+*Release date: 2017-08-08*
+
+This is principally a bugfix release.
+
+**New features**
+
+- Flows interchanges when water is leaving the drainage network are always modelled with an orifice equation.
+  This is in accordance with [1], from where the coefficients are taken.
+
+**Corrected bugs**
+
+- Fix the pip installation process. Remove the cython dependency.
+
+[1] Rubinato et al. 2017. doi:10.1016/j.jhydrol.2017.06.024
+
+
 Itzï 17.7
 ---------
 
