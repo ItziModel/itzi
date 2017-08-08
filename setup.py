@@ -8,7 +8,6 @@ from setuptools import setup, find_packages
 from setuptools.extension import Extension
 from setuptools.dist import Distribution
 from setuptools.command.build_ext import build_ext
-from Cython.Build import cythonize
 try:
     import numpy as np
 except ImportError:
@@ -57,10 +56,10 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
                "Topic :: Scientific/Engineering"]
 
 
-DESCR = "A 2D hydrologic model using GRASS GIS as a back-end"
+DESCR = "A 2D flood model using GRASS GIS as a back-end"
 
 
-REQUIRES = ['cython', 'pyinstrument', 'networkx']
+REQUIRES = ['pyinstrument', 'networkx']
 
 
 # Set arguments according to compiler
@@ -85,11 +84,11 @@ class build_ext_compiler_check(build_ext):
         build_ext.build_extensions(self)
 
 
-ext_flow = Extension('itzi.flow', sources=['itzi/flow.pyx'],
+ext_flow = Extension('itzi.flow', sources=['itzi/flow.c'],
                      include_dirs=[np.get_include()])
 
 # swmm Cython interface
-ext_iswmm = Extension('itzi.swmm.swmm_c', sources=['itzi/swmm/swmm_c.pyx'] + swmm_get_source(),
+ext_iswmm = Extension('itzi.swmm.swmm_c', sources=['itzi/swmm/swmm_c.c'] + swmm_get_source(),
                       include_dirs=[np.get_include()] + swmm_get_source(),
                       library_dirs=[SWMM_SOURCE])
 
@@ -108,7 +107,7 @@ metadata = dict(name='itzi',
                 install_requires=REQUIRES,
                 include_package_data=True,
                 entry_points=ENTRY_POINTS,
-                ext_modules=cythonize([ext_iswmm, ext_flow]),
+                ext_modules=[ext_flow, ext_iswmm],
                 cmdclass={'build_ext': build_ext_compiler_check},
                 )
 
