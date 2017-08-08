@@ -10,6 +10,7 @@ pipelines:
             - apt-get -y install python-numpy python-pip cython
             - pip install --disable-pip-version-check --upgrade pip
             - pip install pyinstrument twine
+            - cython itzi/swmm/swmm_c.pyx itzi/flow.pyx
             - python setup.py sdist
             - twine upload -u $PYPI_USER -p $PYPI_PWD dist/*
 
