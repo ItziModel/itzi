@@ -176,10 +176,10 @@ class SimulationManager(object):
         return self
 
     def step(self):
-        """Step each of the model if needed
+        """Step each of the models if needed
         """
 
-        # hydrology
+        # hydrology #
         if self.sim_time == self.next_ts['hyd']:
             self.hydrology.solve_dt()
             # calculate when will happen the next time-step
@@ -189,7 +189,7 @@ class SimulationManager(object):
             self.rast_domain.populate_stat_array('inf', self.sim_time)
             self.rast_domain.populate_stat_array('capped_losses', self.sim_time)
 
-        # calculate drainage
+        # drainage #
         if self.sim_time == self.next_ts['drain'] and self.drainage:
             self.drainage.solve_dt()
             # calculate when will happen the next time-step
@@ -202,7 +202,7 @@ class SimulationManager(object):
         else:
             self.rast_domain.isnew['n_drain'] = False
 
-        # calculate surface flow #
+        # surface flow #
         # update arrays of infiltration, rainfall etc.
         self.rast_domain.update_ext_array()
         # force time-step to be the general time-step
@@ -223,9 +223,10 @@ class SimulationManager(object):
         # send current time-step duration to mass balance object
         if self.massbal:
             self.massbal.add_value('tstep', self.dt.total_seconds())
-        # write simulation results
+
+        # Reporting #
         if self.sim_time >= self.next_ts['rec']:
-            msgr.verbose(u"{}: Writting output maps...".format(self.sim_time))
+            msgr.verbose(u"{}: Writing output maps...".format(self.sim_time))
             self.report.step(self.sim_time)
             self.next_ts['rec'] += self.record_step
             # reset statistic maps
@@ -233,6 +234,7 @@ class SimulationManager(object):
 
         # find next step
         self.nextstep = min(self.next_ts.values())
+        # force the surface time-step to the lowest time-step
         self.next_ts['surf'] = self.nextstep
         self.dt = self.nextstep - self.sim_time
         return self
