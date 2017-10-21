@@ -105,7 +105,7 @@ class SimulationRunner(object):
         mapset = self.conf.grass_params['mapset']
 
         # check if the given parameters exist and can be accessed
-        error_msg = u"'{}' does not exist or do not have adequate permissions"
+        error_msg = u"'{}' does not exist or does not have adequate permissions"
         if not os.access(gisdb, os.R_OK):
             msgr.fatal(error_msg.format(gisdb))
         elif not os.access(os.path.join(gisdb, location), os.R_OK):
