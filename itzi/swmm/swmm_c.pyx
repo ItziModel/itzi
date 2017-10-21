@@ -287,7 +287,7 @@ def apply_linkage_flow(node_struct[:] arr_node,
                                             crest_elev, linkage_type,
                                             overflow_area, g)
 
-        ## flow limiter ###
+        ## flow limiter ##
         # flow leaving the 2D domain can't drain the corresponding cell
         if new_linkage_flow < 0:
             dh = wse - max(crest_elev, node.head)
@@ -299,8 +299,8 @@ def apply_linkage_flow(node_struct[:] arr_node,
             maxflow = dh * overflow_area * dt1d
             new_linkage_flow = min(new_linkage_flow, maxflow)
 
-        # apply flow to 2D model and drainage model
-        arr_qdrain[row, col] = new_linkage_flow
+        # apply flow to 2D model (m/s) and drainage model (cfs)
+        arr_qdrain[row, col] = new_linkage_flow / cell_surf
         swmm_addNodeInflow(node.idx, - new_linkage_flow / FOOT ** 3)
         # update node array
         node.linkage_type = linkage_type
