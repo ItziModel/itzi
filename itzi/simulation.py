@@ -267,7 +267,7 @@ class Report(object):
         self.write_results_to_gis(sim_time)
         if self.massbal:
             self.write_mass_balance(sim_time)
-        if self.drainage_sim:
+        if self.drainage_sim and self.drainage_out:
             self.save_drainage_values(sim_time)
         self.record_counter += 1
         self.last_step = copy.copy(sim_time)
@@ -355,7 +355,7 @@ class Report(object):
             self.gis.register_maps_in_stds(mkey, strds_name, lst, 'strds',
                                            self.temporal_type)
         # vector
-        if self.drainage_sim:
+        if self.drainage_sim and self.drainage_out:
             self.gis.register_maps_in_stds("Itzï drainage results",
                                            self.drainage_out,
                                            self.vector_drainage_maplist,
