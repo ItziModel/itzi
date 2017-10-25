@@ -335,25 +335,26 @@ class RasterDomain(object):
         if self.out_map_names['qy'] is not None:
             out_arrays['qy'] = self.get_unmasked('qs_new') * self.dx
         # statistics (average of last interval)
-        if self.out_map_names['boundaries'] is not None:
-            out_arrays['boundaries'] = self.get_unmasked('st_bound') / interval_s
-        if self.out_map_names['inflow'] is not None:
-            self.populate_stat_array('in_q', sim_time)
-            out_arrays['inflow'] = self.get_unmasked('st_inflow') / interval_s
-        if self.out_map_names['losses'] is not None:
-            self.populate_stat_array('capped_losses', sim_time)
-            out_arrays['losses'] = self.get_unmasked('st_losses') / interval_s
-        if self.out_map_names['drainage_stats'] is not None:
-            self.populate_stat_array('n_drain', sim_time)
-            out_arrays['drainage_stats'] = self.get_unmasked('st_ndrain') / interval_s
-        if self.out_map_names['infiltration'] is not None:
-            self.populate_stat_array('inf', sim_time)
-            out_arrays['infiltration'] = (self.get_unmasked('st_inf') /
+        if interval_s:
+            if self.out_map_names['boundaries'] is not None:
+                out_arrays['boundaries'] = self.get_unmasked('st_bound') / interval_s
+            if self.out_map_names['inflow'] is not None:
+                self.populate_stat_array('in_q', sim_time)
+                out_arrays['inflow'] = self.get_unmasked('st_inflow') / interval_s
+            if self.out_map_names['losses'] is not None:
+                self.populate_stat_array('capped_losses', sim_time)
+                out_arrays['losses'] = self.get_unmasked('st_losses') / interval_s
+            if self.out_map_names['drainage_stats'] is not None:
+                self.populate_stat_array('n_drain', sim_time)
+                out_arrays['drainage_stats'] = self.get_unmasked('st_ndrain') / interval_s
+            if self.out_map_names['infiltration'] is not None:
+                self.populate_stat_array('inf', sim_time)
+                out_arrays['infiltration'] = (self.get_unmasked('st_inf') /
+                                              interval_s) * self.mmh_to_ms
+            if self.out_map_names['rainfall'] is not None:
+                self.populate_stat_array('rain', sim_time)
+                out_arrays['rainfall'] = (self.get_unmasked('st_rain') /
                                           interval_s) * self.mmh_to_ms
-        if self.out_map_names['rainfall'] is not None:
-            self.populate_stat_array('rain', sim_time)
-            out_arrays['rainfall'] = (self.get_unmasked('st_rain') /
-                                      interval_s) * self.mmh_to_ms
         # Created volume (total since last record)
         if self.out_map_names['verror'] is not None:
             self.populate_stat_array('capped_losses', sim_time)
