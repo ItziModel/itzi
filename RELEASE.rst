@@ -6,6 +6,18 @@ Release Notes
 These are the major changes made in each release.
 For details of the changes please see the commit log of the git repository.
 
+Itzï 17.10
+---------
+
+*Release date: 2017-10-27*
+
+**Corrected bugs**
+
+- Fix problems of unit conversion in the interchange between the surface and the drainage model.
+- Do not write the output vector maps if not wanted by the user.
+- Fix a division by zero error appearing at the beginning of the simulation.
+
+
 Itzï 17.8
 ---------
 
