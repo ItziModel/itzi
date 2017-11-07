@@ -246,13 +246,13 @@ class SwmmLink(object):
 
 class SwmmNode(object):
     '''Define a SWMM node object
-    should be defined by a swmm simulation object and a node ID
+    should be defined by a SwmmNetwork object and a node ID
     '''
     sql_columns_def = [(u'cat', 'INTEGER PRIMARY KEY'),
                        (u'node_id', 'TEXT'),
                        (u'type', 'TEXT'),
                        (u'linkage_type', 'TEXT'),
-                       (u'linkage_outflow', 'REAL'),
+                       (u'linkage_flow', 'REAL'),
                        (u'inflow', 'REAL'),
                        (u'outflow', 'REAL'),
                        (u'latFlow', 'REAL'),
