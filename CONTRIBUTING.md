@@ -33,9 +33,5 @@ If above that threshold, break the line.
 
 ### Code
 
-Itzï is written in Python and [Cython](http://cython.org/).
-We do our best to keep Itzï [PEP8-compliant](https://www.python.org/dev/peps/pep-0008/).
-Please use the [pycodestyle](https://pypi.python.org/pypi/pycodestyle/) utility to check your code for compliance.
-Sometimes it is difficult to keep the line length under 72 characters.
-The line length could be extended to 90 characters in those cases.
+Please have a look at the [programer's manual](http://itzi.readthedocs.io/en/latest/prog_manual.html).
 
