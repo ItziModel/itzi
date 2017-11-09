@@ -357,7 +357,7 @@ class RasterDomain(object):
                                           interval_s) * self.mmh_to_ms
         # Created volume (total since last record)
         if self.out_map_names['verror'] is not None:
-            self.populate_stat_array('capped_losses', sim_time)
+            self.populate_stat_array('capped_losses', sim_time)  # why is 'capped_losses' here?
             out_arrays['verror'] = self.get_unmasked('st_herr') * self.cell_surf
         return out_arrays
 

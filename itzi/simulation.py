@@ -13,7 +13,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 from __future__ import division
-from __future__ import print_function
 import warnings
 from datetime import datetime, timedelta
 import numpy as np

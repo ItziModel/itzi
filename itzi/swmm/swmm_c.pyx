@@ -314,13 +314,16 @@ cdef int get_linkage_type(float wse, float crest_elev,
     """
     """
     cdef int linkage_type
-
+    # No linkage if water is below crest elevation
     if wse <= crest_elev and node_head <= crest_elev:
         linkage_type = linkage_types.NO_LINKAGE
+    # Orifice if the drainage is overflowing or 2d level above a threshold
     elif ((node_head > wse) or (wse - crest_elev) >= (overflow_area / weir_width)):
         linkage_type = linkage_types.ORIFICE
+    # Free weir
     elif wse > crest_elev > node_head:
         linkage_type = linkage_types.FREE_WEIR
+    # Submerged weir
     elif (node_head >= crest_elev and wse > crest_elev and
           ((wse - crest_elev) < (overflow_area / weir_width))):
         linkage_type = linkage_types.SUBMERGED_WEIR

@@ -45,8 +45,7 @@ def percent(start_time, end_time, sim_time, sim_start_time):
         print(u"{:.1%}".format(advance_perc), file=OUTPUT, end='\r')
 
     elif verbosity() >= MESSAGE:
-        now = datetime.now()
-        elapsed_s = (now - sim_start_time).total_seconds()
+        elapsed_s = (datetime.now() - sim_start_time).total_seconds()
         try:
             rate = elapsed_s / sim_time_s
         except ZeroDivisionError:
