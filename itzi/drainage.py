@@ -32,12 +32,12 @@ class DrainageSimulation(object):
     LayerDescr = namedtuple('LayerDescr', ['table_suffix', 'cols', 'layer_number'])
     GridCoords = namedtuple('GridCoords', ['row', 'col'])
 
-    def __init__(self, domain, inp, igis, g):
+    def __init__(self, domain, drainage_params, igis, g):
         self.dom = domain
         self.g = g
         # create swmm object, open files and start simulation
         self.swmm5 = swmm.Swmm5()
-        self.swmm5.swmm_open(input_file=inp,
+        self.swmm5.swmm_open(input_file=drainage_params['swmm_inp'],
                              report_file=os.devnull,
                              output_file='')
         self.swmm5.swmm_start()
@@ -57,16 +57,19 @@ class DrainageSimulation(object):
                                                          cols=link_col_def,
                                                          layer_number=2)}
 
-        swmm_inp = swmm.SwmmInputParser(inp)
+        swmm_inp = swmm.SwmmInputParser(drainage_params['swmm_inp'])
         node_id_dict = swmm_inp.get_nodes_id_as_dict()
         link_id_dict = swmm_inp.get_links_id_as_dict()
         # create SwmmNetwork object
-        self.swmm_net = swmm.SwmmNetwork(node_id_dict, link_id_dict, self.gis, self.g)
+        self.swmm_net = swmm.SwmmNetwork(node_id_dict, link_id_dict,
+                                         self.gis, self.g, self.cell_surf,
+                                         drainage_params['orifice_coeff'],
+                                         drainage_params['free_weir_coeff'],
+                                         drainage_params['submerged_weir_coeff'])
         # create a graph made of drainage nodes and links objects
         node_obj_dict = self.get_node_object_dict(node_id_dict)
         link_obj_list = self.get_link_object_list(link_id_dict)
         self.create_drainage_network_graph(node_obj_dict, link_obj_list)
-
 
     def __del__(self):
         """Make sure the swmm simulation is ended and closed properly.
@@ -145,7 +148,5 @@ class DrainageSimulation(object):
         arr_h = self.dom.get('h')
         arr_z = self.dom.get('z')
         arr_qd = self.dom.get('n_drain')
-        self.swmm_net.apply_linkage(arr_h, arr_z, arr_qd, self.cell_surf,
-                                    dt2d, self._dt)
-
+        self.swmm_net.apply_linkage(arr_h, arr_z, arr_qd, dt2d, self._dt)
         return self

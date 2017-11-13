@@ -47,7 +47,10 @@ class ConfigReader(object):
                               'boundaries', 'infiltration', 'rainfall',
                               'inflow', 'losses', 'drainage_stats',
                               'verror']
-        k_drainage_params = ['swmm_inp', 'output']
+        self.drainage_params = {'swmm_inp': None, 'output': None,
+                                'orifice_coeff': ORIFICE_COEFF,
+                                'free_weir_coeff': FREE_WEIR_COEFF,
+                                'submerged_weir_coeff': SUBMERGED_WEIR_COEFF}
         self.sim_param = {'hmin': HFMIN, 'cfl': CFL, 'theta': THETA,
                           'g': G, 'vrouting': VROUTING, 'dtmax': DTMAX,
                           'slmax': SLMAX, 'dtinf': DTINF, 'inf_model': None}
@@ -55,7 +58,6 @@ class ConfigReader(object):
         self.raw_input_times = dict.fromkeys(k_raw_input_times)
         self.output_map_names = dict.fromkeys(k_output_map_names)
         self.input_map_names = dict.fromkeys(k_input_map_names)
-        self.drainage_params = dict.fromkeys(k_drainage_params)
         self.grass_params = dict.fromkeys(k_grass_params)
         self.out_prefix = 'itzi_results_{}'.format(datetime.now().strftime('%Y%m%dT%H%M%S'))
         self.stats_file = None
@@ -111,7 +113,10 @@ class ConfigReader(object):
         # drainage parameters
         for k in self.drainage_params:
             if params.has_option('drainage', k):
-                self.drainage_params[k] = params.get('drainage', k)
+                if k in ['swmm_inp', 'output']:
+                    self.drainage_params[k] = params.get('drainage', k)
+                else:
+                    self.drainage_params[k] = params.getfloat('drainage', k)
         # statistic file
         if params.has_option('statistics', 'stats_file'):
             self.stats_file = params.get('statistics', 'stats_file')

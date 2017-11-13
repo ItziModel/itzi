@@ -34,6 +34,11 @@ DTINF = 60.
 # maximum Froude number. Not used.
 FRMAX = 1.
 
+# coefficients taken from Rubinato et al. (2017)
+# http://doi.org/10.1016/j.jhydrol.2017.06.024
+ORIFICE_COEFF = 0.167
+FREE_WEIR_COEFF = 0.54
+SUBMERGED_WEIR_COEFF = 0.056
 
 # Verbosity levels #
 SUPER_QUIET = 0

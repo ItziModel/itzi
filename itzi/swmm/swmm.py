@@ -463,9 +463,13 @@ class SwmmNetwork(object):
                     ('offset1', np.float32), ('offset2', np.float32),
                     ('full_depth', np.float32), ('froude', np.float32)]
 
-    def __init__(self, nodes_dict, links_dict,
-                 igis, g):
+    def __init__(self, nodes_dict, links_dict, igis, g, cell_surf,
+                 orifice_coeff, free_weir_coeff, submerged_weir_coeff):
         self.g = g
+        self.cell_surf = cell_surf
+        self.orifice_coeff = orifice_coeff
+        self.free_weir_coeff = free_weir_coeff
+        self.submerged_weir_coeff = submerged_weir_coeff
         # GIS interface
         self.gis = igis
         # field names
@@ -568,11 +572,14 @@ class SwmmNetwork(object):
             node_values[val_k] = np.asscalar(self.nodes[node_idx][val_k])
         return node_values
 
-    def apply_linkage(self, arr_h, arr_z, arr_qdrain, cell_surf, dt2d, dt1d):
+    def apply_linkage(self, arr_h, arr_z, arr_qdrain, dt2d, dt1d):
         """
         """
         # update values from swmm
         self.update_nodes()
-        swmm_c.apply_linkage_flow(arr_node=self.nodes,
-                                  arr_h=arr_h, arr_z=arr_z, arr_qdrain=arr_qdrain,
-                                  cell_surf=cell_surf, dt2d=dt2d, dt1d=dt1d, g=self.g)
+        swmm_c.apply_linkage_flow(arr_node=self.nodes, arr_h=arr_h, arr_z=arr_z,
+                                  arr_qdrain=arr_qdrain, cell_surf=self.cell_surf,
+                                  dt2d=dt2d, dt1d=dt1d, g=self.g,
+                                  orifice_coeff=self.orifice_coeff,
+                                  free_weir_coeff=self.free_weir_coeff,
+                                  submerged_weir_coeff=self.submerged_weir_coeff)

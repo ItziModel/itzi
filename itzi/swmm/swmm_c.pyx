@@ -27,12 +27,6 @@ from libc.math cimport copysign as c_copysign
 cdef float PI = 3.1415926535898
 cdef float FOOT = 0.3048
 
-# coefficients taken from Rubinato et al. (2017)
-# http://doi.org/10.1016/j.jhydrol.2017.06.024
-cdef float ORIFICE_COEFF = 0.167
-cdef float FREE_WEIR_COEFF = 0.54
-cdef float SUBMERGED_WEIR_COEFF = 0.056
-
 ctypedef np.float32_t F32_t
 ctypedef np.int32_t I32_t
 
@@ -235,7 +229,8 @@ def update_nodes(node_struct[:] arr_node):
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
 def apply_linkage_flow(node_struct[:] arr_node,
                        F32_t[:,:] arr_h, F32_t[:,:] arr_z, F32_t[:,:] arr_qdrain,
-                       float cell_surf, float dt2d, float dt1d, float g):
+                       float cell_surf, float dt2d, float dt1d, float g,
+                       float orifice_coeff, float free_weir_coeff, float submerged_weir_coeff):
     '''select the linkage type then calculate the flow between
     surface and drainage models (Chen et al. 2007)
     flow sign is :
@@ -286,7 +281,8 @@ def apply_linkage_flow(node_struct[:] arr_node,
         ## linkage flow ##
         new_linkage_flow = get_linkage_flow(wse, node.head, weir_width,
                                             crest_elev, linkage_type,
-                                            overflow_area, g)
+                                            overflow_area, g, orifice_coeff,
+                                            free_weir_coeff, submerged_weir_coeff)
 
         ## flow limiter ##
         # flow leaving the 2D domain can't drain the corresponding cell
@@ -331,16 +327,16 @@ cdef int get_linkage_type(float wse, float crest_elev,
     return linkage_type
 
 
-cdef float get_linkage_flow(float wse, float node_head,
-                            float weir_width, float crest_elev,
-                            int linkage_type, float overflow_area,
-                            float g):
+cdef float get_linkage_flow(float wse, float node_head, float weir_width,
+                            float crest_elev, int linkage_type, float overflow_area,
+                            float g, float orifice_coeff, float free_weir_coeff,
+                            float submerged_weir_coeff):
     """flow sign is :
             - negative when entering the drainage (leaving the 2D model)
             - positive when leaving the drainage (entering the 2D model)
     """
     cdef float head_up, head_down, head_diff
-    cdef float weir_coeff, orifice_coeff, upstream_depth, unsigned_q
+    cdef float upstream_depth, unsigned_q
 
     head_up = max(wse, node_head)
     head_down = min(wse, node_head)
@@ -352,16 +348,16 @@ cdef float get_linkage_flow(float wse, float node_head,
         unsigned_q = 0.
 
     elif linkage_type == linkage_types.FREE_WEIR:
-        unsigned_q = ((2./3.) * FREE_WEIR_COEFF * weir_width *
+        unsigned_q = ((2./3.) * free_weir_coeff * weir_width *
                       c_pow(upstream_depth, 3/2.) *
                       c_sqrt(2. * g))
 
     elif linkage_type == linkage_types.SUBMERGED_WEIR:
-        unsigned_q = (SUBMERGED_WEIR_COEFF * weir_width * upstream_depth *
+        unsigned_q = (submerged_weir_coeff * weir_width * upstream_depth *
                       c_sqrt(2. * g * head_diff))
 
     elif linkage_type == linkage_types.ORIFICE:
-        unsigned_q = ORIFICE_COEFF * overflow_area * c_sqrt(2. * g * head_diff)
+        unsigned_q = orifice_coeff * overflow_area * c_sqrt(2. * g * head_diff)
 
     # assign flow sign
     return c_copysign(unsigned_q, node_head - wse)
