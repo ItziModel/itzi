@@ -269,7 +269,7 @@ def apply_linkage_flow(node_struct[:] arr_node,
         # the actual crest elevation should be equal to DEM
         if node.crest_elev != z:
             full_depth = z - node.invert_elev
-            # Set value in feet
+            # Set value in feet. This func updates the fullVolume too
             swmm_setNodeFullDepth(node.idx, full_depth / FOOT)
             crest_elev = z
         else:

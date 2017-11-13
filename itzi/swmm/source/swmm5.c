@@ -804,10 +804,12 @@ int DLLEXPORT   swmm_getLinkData(int index, linkData* data)
 //=============================================================================
 
 int DLLEXPORT   swmm_setNodeFullDepth(int index, double depth)
+// Set the max depth of a node and update its max volume
 {
 	if ( IsOpenFlag )
 	{
 		Node[index].fullDepth = depth;
+        Node[index].fullVolume = node_getVolume(index, depth);
 		return ERR_NONE;
 	}
 	return ERR_NOT_OPEN;
