@@ -54,7 +54,8 @@ class ConfigReader(object):
         self.sim_param = {'hmin': HFMIN, 'cfl': CFL, 'theta': THETA,
                           'g': G, 'vrouting': VROUTING, 'dtmax': DTMAX,
                           'slmax': SLMAX, 'dtinf': DTINF, 'inf_model': None}
-        k_grass_params = ['grass_bin', 'grassdata', 'location', 'mapset']
+        self.grass_mandatory = ['grass_bin', 'grassdata', 'location', 'mapset']
+        k_grass_params = self.grass_mandatory + ['region', 'mask']
         self.raw_input_times = dict.fromkeys(k_raw_input_times)
         self.output_map_names = dict.fromkeys(k_output_map_names)
         self.input_map_names = dict.fromkeys(k_input_map_names)
@@ -178,10 +179,10 @@ class ConfigReader(object):
     def check_grass_params(self):
         """Check if all grass params are presents if one is given
         """
-        grass_any = any(self.grass_params.values())
-        grass_all = all(self.grass_params.values())
+        grass_any = any(self.grass_params[i] for i in self.grass_mandatory)
+        grass_all = all(self.grass_params[i] for i in self.grass_mandatory)
         if grass_any and not grass_all:
-            msgr.fatal(u"Missing GRASS parameter(s)")
+            msgr.fatal(u"{} are mutualy inclusive".format(self.grass_mandatory))
         return self
 
     def check_inf_maps(self):
