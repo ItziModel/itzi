@@ -90,8 +90,11 @@ class SimulationManager(object):
         """
         # RasterDomain
         msgr.debug(u"Setting up raster domain...")
-        self.rast_domain = RasterDomain(self.dtype, self.gis,
-                                        self.in_map_names, self.out_map_names)
+        try:
+            self.rast_domain = RasterDomain(self.dtype, self.gis,
+                                            self.in_map_names, self.out_map_names)
+        except MemoryError:
+            msgr.fatal(u"Out of memory.")
         # Infiltration
         msgr.debug(u"Setting up raster infiltration...")
         inf_class = {'constant': infiltration.InfConstantRate,
