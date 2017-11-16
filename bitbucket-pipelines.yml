@@ -3,15 +3,25 @@ image: ubuntu:17.04
 pipelines:
   default:
     - step:
-        name: install and test with pylint
+        name: install
         script:
           - apt-get update
-          - apt-get -y install pylint python-numpy python-pip cython
+          - apt-get -y install python-numpy python-pip cython
           - pip install --disable-pip-version-check --upgrade pip
           - pip install pyinstrument
           - cython itzi/swmm/swmm_c.pyx itzi/flow.pyx
           - pip install .
-          - pylint itzi --extension-pkg-whitelist=numpy,itzi.flow,itzi.swmm.swmm_c > pylint_results.txt
+          #~ - pylint itzi --extension-pkg-whitelist=numpy,itzi.flow,itzi.swmm.swmm_c > pylint_results.txt
+  default:
+    - step:
+        name: install with python3
+        script:
+          - apt-get update
+          - apt-get -y install python3-numpy python3-pip cython3
+          - pip3 install --disable-pip-version-check --upgrade pip
+          - pip3 install pyinstrument
+          - cython3 itzi/swmm/swmm_c.pyx itzi/flow.pyx
+          - pip3 install .
 
   custom:  # done manually
     push_to_pypi:
