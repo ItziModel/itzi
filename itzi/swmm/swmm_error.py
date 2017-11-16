@@ -1,4 +1,3 @@
-#  ! /usr/bin/python
 #   coding=utf8
 
 class SwmmError(Exception):
@@ -77,7 +76,7 @@ class SwmmError(Exception):
     ERR217 = "ERROR 217: control rule clause invalid or out of sequence "  # (5.1.008)
     ERR219 = "ERROR 219: data provided for unidentified transect "
     ERR221 = "ERROR 221: transect station out of sequence "
-    ERR223 = "ERROR 223: Transect %s has too few stations." 
+    ERR223 = "ERROR 223: Transect %s has too few stations."
     ERR225 = "ERROR 225: Transect %s has too many stations."
     ERR227 = "ERROR 227: Transect %s has no Manning's N."
     ERR229 = "ERROR 229: Transect %s has invalid overbank locations."
@@ -132,20 +131,19 @@ class SwmmError(Exception):
     ERR405 = ("ERROR 405: amount of output produced will exceed maximum file size; "
               "either reduce Ending Date or increase Reporting Time Step.")
 
-    ErrorMsgs = [
-    "",     ERR101, ERR103, ERR105, ERR107, ERR108, ERR109, ERR110, ERR111,
-    ERR112, ERR113, ERR114, ERR115, ERR117, ERR119, ERR121, ERR122, ERR131,
-    ERR133, ERR134, ERR135, ERR136, ERR137, ERR138, ERR139, ERR141, ERR143,
-    ERR145, ERR151, ERR153, ERR155, ERR156, ERR157, ERR158, ERR159, ERR161,
-    ERR171, ERR173, ERR181, ERR182, ERR183, ERR184, ERR185, ERR186, ERR187,
-    ERR188, ERR191, ERR193, ERR195, ERR200, ERR201, ERR203, ERR205, ERR207,
-    ERR209, ERR211, ERR213, ERR217, ERR219, ERR221, ERR223, ERR225, ERR227,
-    ERR229, ERR231, ERR233, ERR301, ERR303, ERR305, ERR307, ERR309, ERR311,
-    ERR313, ERR315, ERR317, ERR318, ERR319, ERR320, ERR321, ERR323, ERR325,
-    ERR327, ERR329, ERR330, ERR331, ERR333, ERR335, ERR336, ERR337, ERR338,
-    ERR339, ERR341, ERR343, ERR345, ERR351, ERR353, ERR355, ERR357, ERR361,
-    ERR363, ERR401, ERR402, ERR403, ERR405]
-    
+    ErrorMsgs = ["", ERR101, ERR103, ERR105, ERR107, ERR108, ERR109, ERR110, ERR111,
+                 ERR112, ERR113, ERR114, ERR115, ERR117, ERR119, ERR121, ERR122, ERR131,
+                 ERR133, ERR134, ERR135, ERR136, ERR137, ERR138, ERR139, ERR141, ERR143,
+                 ERR145, ERR151, ERR153, ERR155, ERR156, ERR157, ERR158, ERR159, ERR161,
+                 ERR171, ERR173, ERR181, ERR182, ERR183, ERR184, ERR185, ERR186, ERR187,
+                 ERR188, ERR191, ERR193, ERR195, ERR200, ERR201, ERR203, ERR205, ERR207,
+                 ERR209, ERR211, ERR213, ERR217, ERR219, ERR221, ERR223, ERR225, ERR227,
+                 ERR229, ERR231, ERR233, ERR301, ERR303, ERR305, ERR307, ERR309, ERR311,
+                 ERR313, ERR315, ERR317, ERR318, ERR319, ERR320, ERR321, ERR323, ERR325,
+                 ERR327, ERR329, ERR330, ERR331, ERR333, ERR335, ERR336, ERR337, ERR338,
+                 ERR339, ERR341, ERR343, ERR345, ERR351, ERR353, ERR355, ERR357, ERR361,
+                 ERR363, ERR401, ERR402, ERR403, ERR405]
+
     def __init__(self, errcode):
         self.msg = SwmmError.ErrorMsgs[errcode]
     def __str__(self):

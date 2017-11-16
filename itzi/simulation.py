@@ -13,21 +13,21 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 from __future__ import division
+from __future__ import absolute_import
 import warnings
 from datetime import datetime, timedelta
 import numpy as np
 import copy
 
-from surfaceflow import SurfaceFlowSimulation
-from rasterdomain import RasterDomain
-from massbalance import MassBal
-from drainage import DrainageSimulation
-import messenger as msgr
-import gis
-import flow
-import infiltration
-import hydrology
-from itzi_error import NullError
+from itzi.surfaceflow import SurfaceFlowSimulation
+from itzi.rasterdomain import RasterDomain
+from itzi.massbalance import MassBal
+from itzi.drainage import DrainageSimulation
+import itzi.messenger as msgr
+import itzi.gis as gis
+import itzi.infiltration as infiltration
+import itzi.hydrology as hydrology
+from itzi.itzi_error import NullError
 
 
 class SimulationManager(object):

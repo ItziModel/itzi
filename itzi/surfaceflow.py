@@ -13,13 +13,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 from __future__ import division
+from __future__ import absolute_import
 import math
+import time
 from datetime import timedelta
 import numpy as np
 
-import flow
-import time
-from itzi_error import NullError, DtError
+import itzi.flow as flow
+from itzi.itzi_error import NullError, DtError
 
 
 class SurfaceFlowSimulation(object):

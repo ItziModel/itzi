@@ -15,12 +15,13 @@ GNU General Public License for more details.
 
 from __future__ import division
 from __future__ import print_function
+from __future__ import absolute_import
 import sys
 import os
 from datetime import timedelta, datetime
 
-from itzi_error import ItziFatal
-from const import *
+from itzi.itzi_error import ItziFatal
+from itzi.const import VerbosityLevel
 
 OUTPUT = sys.stderr
 FATAL = "ERROR: "
@@ -31,6 +32,8 @@ raise_on_error = False
 
 
 def verbosity():
+    """Return the current verbosity as integer
+    """
     return int(os.environ.get('ITZI_VERBOSE'))
 
 
@@ -41,10 +44,10 @@ def percent(start_time, end_time, sim_time, sim_start_time):
     duration_s = (end_time-start_time).total_seconds()
     advance_perc = sim_time_s / duration_s
 
-    if verbosity() == QUIET:
+    if verbosity() == VerbosityLevel.QUIET:
         print(u"{:.1%}".format(advance_perc), file=OUTPUT, end='\r')
 
-    elif verbosity() >= MESSAGE:
+    elif verbosity() >= VerbosityLevel.MESSAGE:
         elapsed_s = (datetime.now() - sim_start_time).total_seconds()
         try:
             rate = elapsed_s / sim_time_s
@@ -59,26 +62,36 @@ def percent(start_time, end_time, sim_time, sim_start_time):
 
 
 def message(msg):
-    if verbosity() >= MESSAGE:
+    """Display a normal message
+    """
+    if verbosity() >= VerbosityLevel.MESSAGE:
         print(msg + PAD, file=OUTPUT)
 
 
 def verbose(msg):
-    if verbosity() >= VERBOSE:
+    """Display a verbose message
+    """
+    if verbosity() >= VerbosityLevel.VERBOSE:
         print(msg + PAD, file=OUTPUT)
 
 
 def debug(msg):
-    if verbosity() >= DEBUG:
+    """Display a debug message
+    """
+    if verbosity() >= VerbosityLevel.DEBUG:
         print(msg + PAD, file=OUTPUT)
 
 
 def warning(msg):
-    if verbosity() >= SUPER_QUIET:
+    """Display a warning message
+    """
+    if verbosity() >= VerbosityLevel.SUPER_QUIET:
         print(WARNING + msg + PAD, file=OUTPUT)
 
 
 def fatal(msg):
+    """Display a fatal error and (exit or raise)
+    """
     if raise_on_error:
         raise ItziFatal(msg)
     else:

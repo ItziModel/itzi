@@ -1,7 +1,6 @@
-#! /usr/bin/python
 # coding=utf8
 
-class ObjectType:
+class ObjectType(object):
     GAGE = 0         # rain gage
     SUBCATCH = 1     # subcatchment
     NODE = 2         # conveyance system node
@@ -20,14 +19,14 @@ class ObjectType:
     LID = 15         # LID treatment units
 
 
-class NodeType:
+class NodeType(object):
     JUNCTION = 0
     OUTFALL = 1
     STORAGE = 2
     DIVIDER = 3
 
 
-class LinkType:
+class LinkType(object):
     CONDUIT = 0
     PUMP = 1
     ORIFICE = 2
@@ -54,7 +53,7 @@ ROUTING_MODELS = {0: 'NO_ROUTING',  # no routing
                   4: 'DW'}  # Dynamic wave
 
 LINKAGE_TYPES = {0: "not linked",
-                1: 'linked, no flow',
-                2: 'free weir',
-                3: 'submerged weir',
-                4: 'orifice'}
+                 1: 'linked, no flow',
+                 2: 'free weir',
+                 3: 'submerged weir',
+                 4: 'orifice'}

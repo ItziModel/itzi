@@ -14,12 +14,12 @@ GNU General Public License for more details.
 """
 
 from __future__ import division
+from __future__ import absolute_import
 import numpy as np
 from datetime import timedelta
 
-import flow
-import infiltration
-from itzi_error import DtError
+import itzi.flow as flow
+from itzi.itzi_error import DtError
 
 
 class Hydrology(object):

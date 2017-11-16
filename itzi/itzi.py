@@ -27,21 +27,22 @@ COPYRIGHT: (C) 2015-2017 by Laurent Courty
 
 
 from __future__ import print_function, division
+from __future__ import absolute_import
 import sys
 import os
 import argparse
 import time
 import subprocess
 import traceback
-import numpy as np
 from multiprocessing import Process
-from pyinstrument import Profiler
 from datetime import timedelta
+from pyinstrument import Profiler
+import numpy as np
 
-from configreader import ConfigReader
-import itzi_error
-import messenger as msgr
-from const import *
+from itzi.configreader import ConfigReader
+import itzi.itzi_error as itzi_error
+import itzi.messenger as msgr
+from itzi.const import VerbosityLevel
 
 def main():
     args = parser.parse_args()
@@ -68,7 +69,7 @@ class SimulationRunner(object):
         # If run outside of grass, set it
         if self.grass_use_file:
             self.set_grass_session()
-        import gis
+        import itzi.gis as gis
         msgr.debug('GRASS session set')
         # return error if output files exist
         # (should be done once GRASS set up)
@@ -85,7 +86,7 @@ class SimulationRunner(object):
         if self.conf.grass_params['mask']:
             gis.set_temp_mask(self.conf.grass_params['mask'])
         # Run simulation (SimulationManager needs GRASS, so imported now)
-        from simulation import SimulationManager
+        from itzi.simulation import SimulationManager
         sim = SimulationManager(sim_times=self.conf.sim_times,
                                 stats_file=self.conf.stats_file,
                                 dtype=np.float32,
@@ -213,7 +214,7 @@ def sim_runner_worker(conf, grass_use_file, grassbin):
 def itzi_run(args):
     # Check if being run within GRASS session
     try:
-        import grass.script as gscript
+        import grass.script
     except ImportError:
         grass_use_file = True
     else:
@@ -226,15 +227,15 @@ def itzi_run(args):
         os.environ['GRASS_OVERWRITE'] = '0'
     # verbosity
     if args.q == 2:
-        os.environ['ITZI_VERBOSE'] = str(SUPER_QUIET)
+        os.environ['ITZI_VERBOSE'] = str(VerbosityLevel.SUPER_QUIET)
     elif args.q == 1:
-        os.environ['ITZI_VERBOSE'] = str(QUIET)
+        os.environ['ITZI_VERBOSE'] = str(VerbosityLevel.QUIET)
     elif args.v == 1:
-        os.environ['ITZI_VERBOSE'] = str(VERBOSE)
+        os.environ['ITZI_VERBOSE'] = str(VerbosityLevel.VERBOSE)
     elif args.v >= 2:
-        os.environ['ITZI_VERBOSE'] = str(DEBUG)
+        os.environ['ITZI_VERBOSE'] = str(VerbosityLevel.DEBUG)
     else:
-        os.environ['ITZI_VERBOSE'] = str(MESSAGE)
+        os.environ['ITZI_VERBOSE'] = str(VerbosityLevel.MESSAGE)
 
     # setting GRASS verbosity (especially for maps registration)
     if args.q >= 1:

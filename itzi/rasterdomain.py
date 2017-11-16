@@ -14,14 +14,15 @@ GNU General Public License for more details.
 """
 
 from __future__ import division
+from __future__ import absolute_import
 from datetime import datetime, timedelta
-import numpy as np
 import csv
 import copy
+import numpy as np
 
-import gis
-import flow
-import messenger as msgr
+import itzi.gis as gis
+import itzi.flow as flow
+import itzi.messenger as msgr
 
 
 class TimedArray(object):
@@ -56,10 +57,7 @@ class TimedArray(object):
         return True
         If not return False
         """
-        if self.a_start <= sim_time <= self.a_end:
-            return True
-        else:
-            return False
+        return bool(self.a_start <= sim_time <= self.a_end)
 
     def update_values_from_gis(self, sim_time):
         """Update array, start_time and end_time from GIS
@@ -204,7 +202,7 @@ class RasterDomain(object):
     def create_timed_arrays(self):
         """Create TimedArray objects and store them in the input dict
         """
-        for k, arr in self.tarr.iteritems():
+        for k in self.tarr.keys():
             self.tarr[k] = TimedArray(self.in_k_corresp[k],
                                       self.gis, self.zeros_array)
         return self
@@ -213,7 +211,7 @@ class RasterDomain(object):
         """Instantiate masked arrays and padded arrays
         the unpadded arrays are a slice of the padded ones
         """
-        for k, arr in self.arr.iteritems():
+        for k in self.arr.keys():
             self.arr[k], self.arrp[k] = self.pad_array(self.zeros_array())
         return self
 
@@ -292,7 +290,7 @@ class RasterDomain(object):
             conv_factor = 1.
 
         if self.stats_update_time[sk] is None:
-                self.stats_update_time[sk] = sim_time
+            self.stats_update_time[sk] = sim_time
         else:
             msgr.debug(u"{}: Populating array <{}>".format(sim_time, sk))
             time_diff = (sim_time - update_time).total_seconds()

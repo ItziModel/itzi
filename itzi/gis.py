@@ -13,14 +13,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 from __future__ import division
-import numpy as np
-from datetime import datetime, timedelta
-from collections import namedtuple
+from __future__ import absolute_import
 import os
 import atexit
+from collections import namedtuple
+import numpy as np
+from datetime import datetime, timedelta
 
-import messenger as msgr
-import itzi_error
+import itzi.messenger as msgr
 
 import grass.script as gscript
 import grass.temporal as tgis
@@ -31,7 +31,6 @@ from grass.pygrass.vector import VectorTopo
 from grass.pygrass.vector.geometry import Point, Line
 from grass.pygrass.vector.basic import Cats
 from grass.pygrass.vector.table import Link
-from grass.exceptions import FatalError
 
 
 def is_latlon():
@@ -89,7 +88,7 @@ def file_exists(name):
         return False
     else:
         _id = Igis.format_id(name)
-        return Igis.name_is_map(_id) or igis.name_is_stds(_id)
+        return Igis.name_is_map(_id) or Igis.name_is_stds(_id)
 
 
 def check_output_files(file_list):
@@ -206,10 +205,7 @@ class Igis(object):
         """
         bool_x = (self.reg_bbox['w'] < x < self.reg_bbox['e'])
         bool_y = (self.reg_bbox['s'] < y < self.reg_bbox['n'])
-        if bool_x and bool_y:
-            return True
-        else:
-            return False
+        return bool(bool_x and bool_y)
 
     @staticmethod
     def format_id(name):
@@ -228,20 +224,14 @@ class Igis(object):
         """
         # make sure temporal module is initialized
         tgis.init()
-        if tgis.SpaceTimeRasterDataset(name).is_in_db():
-            return True
-        else:
-            return False
+        return bool(tgis.SpaceTimeRasterDataset(name).is_in_db())
 
     @staticmethod
     def name_is_map(map_id):
         """return True if the given name is a map in the grass database
         False if not
         """
-        if gscript.find_file(name=map_id, element='cell').get('file'):
-            return True
-        else:
-            return False
+        return bool(gscript.find_file(name=map_id, element='cell').get('file'))
 
     def get_sim_extend_in_stds_unit(self, strds):
         """Take a strds object as input
@@ -347,7 +337,7 @@ class Igis(object):
         if strds.get_temporal_type() == 'relative':
             rel_unit = strds.get_relative_time_unit().encode('ascii', 'ignore')
             maplist = [(i[0], self.to_datetime(rel_unit, i[1]),
-                       self.to_datetime(rel_unit, i[2])) for i in maplist]
+                        self.to_datetime(rel_unit, i[2])) for i in maplist]
         return [self.MapData(*i) for i in maplist]
 
     def read_raster_map(self, rast_name):
@@ -394,8 +384,6 @@ class Igis(object):
         """Write a vector map to GRASS GIS using
         drainage_network is a networkx object
         """
-        node_cat = {}
-        link_cat = {}
         with VectorTopo(map_name, mode='w', overwrite=self.overwrite) as vect_map:
             # create db links and tables
             dblinks = self.create_db_links(vect_map, linking_elem)
@@ -432,7 +420,8 @@ class Igis(object):
                                        + [out_node_coor])
                     # set category and layer link
                     map_layer, dbtable = dblinks['link']
-                    self.write_vector_geometry(vect_map, line_object, cat_num, map_layer)
+                    self.write_vector_geometry(vect_map, line_object,
+                                               cat_num, map_layer)
                     # keep DB info
                     attrs = tuple([cat_num] + link.get_attrs())
                     db_info['link'].append(attrs)
@@ -474,7 +463,7 @@ class Igis(object):
                     return arr, m.start_time, m.end_time
             else:
                 assert None, "No map found for {k} at time {t}".format(
-                                            k=mkey, t=sim_time)
+                    k=mkey, t=sim_time)
 
     def register_maps_in_stds(self, stds_title, stds_name, map_list, stds_type, t_type):
         """Create a STDS, create one mapdataset for each map and

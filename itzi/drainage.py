@@ -13,14 +13,15 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 from __future__ import division
+from __future__ import absolute_import
 import os
 from datetime import datetime, timedelta
 from collections import namedtuple
 import numpy as np
 import networkx as nx
 
-from swmm import swmm
-from itzi_error import DtError
+from itzi.swmm import swmm
+from itzi.itzi_error import DtError
 
 
 class DrainageSimulation(object):

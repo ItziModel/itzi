@@ -14,11 +14,12 @@ GNU General Public License for more details.
 """
 
 from __future__ import division
-import numpy as np
+from __future__ import absolute_import
 from datetime import timedelta
+import numpy as np
 
-import flow
-from itzi_error import DtError
+import itzi.flow as flow
+from itzi.itzi_error import DtError
 
 
 class Infiltration(object):
@@ -28,6 +29,7 @@ class Infiltration(object):
     def __init__(self, raster_domain, dt_inf):
         self.dom = raster_domain
         self.def_dt = dt_inf
+        self._dt = self.def_dt
 
     def solve_dt(self):
         """time-step is by default equal to the default time-step
@@ -37,6 +39,8 @@ class Infiltration(object):
 
     @property
     def dt(self):
+        """return the time-step as a timedelta
+        """
         return timedelta(seconds=self._dt)
 
     @dt.setter
@@ -95,5 +99,6 @@ class InfNull(Infiltration):
     """Dummy class for cases where no inflitration is calculated
     """
     def step(self):
-        pass
+        """dummy time-step
+        """
         return self

@@ -14,7 +14,7 @@ GNU General Public License for more details.
 """
 
 from __future__ import division
-from datetime import datetime, timedelta
+from datetime import datetime
 import csv
 import copy
 

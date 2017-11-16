@@ -15,14 +15,15 @@ GNU General Public License for more details.
 """
 
 from __future__ import division
+from __future__ import absolute_import
 import os
 import ctypes as c
-from structs import *
-import math
 import collections
-import swmm_error
 import numpy as np
-import swmm_c
+
+from itzi.swmm.structs import ObjectType, LINK_TYPES, NODE_TYPES, ROUTING_MODELS, LINKAGE_TYPES
+import itzi.swmm.swmm_error as swmm_error
+import itzi.swmm.swmm_c as swmm_c
 
 SO_SUBDIR = 'swmm_c.so'
 
@@ -68,7 +69,7 @@ class Swmm5(object):
         self.is_open = False
         return 0
 
-    def swmm_start(self, save_results = 1):
+    def swmm_start(self, save_results=1):
         '''Starts a swmm simulation
         '''
         if not self.is_open:
@@ -238,9 +239,9 @@ class SwmmLink(object):
         values = self.swmm_net.get_link_values(self.link_id)
         link_type = LINK_TYPES[values['link_type']]
         attrs = [self.link_id, link_type, values['flow'], values['depth'],
-                values['velocity'], values['volume'],
-                values['offset1'], values['offset2'],
-                values['full_depth'], values['froude']]
+                 values['velocity'], values['volume'],
+                 values['offset1'], values['offset2'],
+                 values['full_depth'], values['froude']]
         return attrs
 
 
@@ -313,7 +314,7 @@ class SwmmInputParser(object):
                     "xsection",  # conduit, orifice, and weir cross-section geometry
                     'coordinate',  # coordinates of drainage system nodes
                     'vertice',  # coordinates of interior vertex points of links
-                    ]
+                   ]
 
     link_types = ['conduit', 'pump', 'orifice', 'weir', 'outlet']
 
@@ -369,12 +370,12 @@ class SwmmInputParser(object):
         """
         d = {}
         values = []
-        for c in self.inp['coordinate']:
+        for coor in self.inp['coordinate']:
             for j in self.inp['junction']:
                 name = j[0]
-                if c[0] == name:
+                if coor[0] == name:
                     j_val = [float(v) for v in j[1:]]
-                    values = [float(c[1]), float(c[2])] + j_val
+                    values = [float(coor[1]), float(coor[2])] + j_val
                     d[name] = self.Junction._make(values)
         return d
 

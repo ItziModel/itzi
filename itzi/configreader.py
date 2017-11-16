@@ -15,13 +15,14 @@ GNU General Public License for more details.
 
 
 from __future__ import division
+from __future__ import absolute_import
 import os
 import ConfigParser
 from datetime import datetime, timedelta
 import numpy as np
 
-import messenger as msgr
-from const import *
+import itzi.messenger as msgr
+from itzi.const import DefaultValues
 
 
 class ConfigReader(object):
@@ -48,12 +49,14 @@ class ConfigReader(object):
                               'inflow', 'losses', 'drainage_stats',
                               'verror']
         self.drainage_params = {'swmm_inp': None, 'output': None,
-                                'orifice_coeff': ORIFICE_COEFF,
-                                'free_weir_coeff': FREE_WEIR_COEFF,
-                                'submerged_weir_coeff': SUBMERGED_WEIR_COEFF}
-        self.sim_param = {'hmin': HFMIN, 'cfl': CFL, 'theta': THETA,
-                          'g': G, 'vrouting': VROUTING, 'dtmax': DTMAX,
-                          'slmax': SLMAX, 'dtinf': DTINF, 'inf_model': None}
+                                'orifice_coeff': DefaultValues.ORIFICE_COEFF,
+                                'free_weir_coeff': DefaultValues.FREE_WEIR_COEFF,
+                                'submerged_weir_coeff': DefaultValues.SUBMERGED_WEIR_COEFF}
+        self.sim_param = {'hmin': DefaultValues.HFMIN, 'cfl': DefaultValues.CFL,
+                          'theta': DefaultValues.THETA, 'g': DefaultValues.G,
+                          'vrouting': DefaultValues.VROUTING, 'dtmax': DefaultValues.DTMAX,
+                          'slmax': DefaultValues.SLMAX, 'dtinf': DefaultValues.DTINF,
+                          'inf_model': None}
         self.grass_mandatory = ['grass_bin', 'grassdata', 'location', 'mapset']
         k_grass_params = self.grass_mandatory + ['region', 'mask']
         self.raw_input_times = dict.fromkeys(k_raw_input_times)
@@ -132,7 +135,7 @@ class ConfigReader(object):
             # check for deprecated values
             if 'drainage_cap' in self.out_values and 'losses' not in self.out_values:
                 msgr.warning(u"'drainage_cap' is deprecated. "
-                              u"Use 'losses' instead.")
+                             u"Use 'losses' instead.")
                 self.out_values.append('losses')
         self.generate_output_name()
         return self
@@ -194,8 +197,8 @@ class ConfigReader(object):
         """check if mandatory parameters are present
         """
         if not all([self.input_map_names['dem'],
-                   self.input_map_names['friction'],
-                   self.sim_times.record_step]):
+                    self.input_map_names['friction'],
+                    self.sim_times.record_step]):
             msgr.fatal(u"inputs <dem>, <friction> and "
                        u"<record_step> are mandatory")
 
