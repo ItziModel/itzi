@@ -17,6 +17,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from collections import namedtuple
 import os
+import atexit
 
 import messenger as msgr
 import itzi_error
@@ -31,6 +32,72 @@ from grass.pygrass.vector.geometry import Point, Line
 from grass.pygrass.vector.basic import Cats
 from grass.pygrass.vector.table import Link
 from grass.exceptions import FatalError
+
+
+def is_latlon():
+    """Return True if the location is latlon
+    """
+    return gscript.locn_is_latlong()
+
+
+def set_temp_region(region_id):
+    """Set a temporary GRASS region
+    """
+    gscript.use_temp_region()
+    gscript.run_command("g.region", region=region_id)
+
+
+def del_temp_region():
+    """Remove a temporary GRASS region
+    """
+    gscript.del_temp_region()
+
+
+def set_temp_mask(raster_for_mask):
+    """If a mask is already set, keep it for later.
+    Set a new mask.
+    """
+    has_old_mask = bool(gscript.read_command("g.list", type="raster",
+                                             pattern="MASK"))
+    if has_old_mask:
+        # Save the current MASK under a temp name
+        old_mask_name = "itzi_old_MASK_{}".format(os.getpid())
+        gscript.run_command("g.rename", quiet=True, overwrite=True,
+                            raster="MASK,{}".format(old_mask_name))
+        os.environ['ITZI_OLD_MASK'] = old_mask_name
+    gscript.run_command("r.mask", quiet=True, raster=raster_for_mask)
+    # make sure to remove the mask in case of early exit
+    atexit.register(del_temp_mask)
+
+
+def del_temp_mask():
+    """Reset the old mask, remove if there was not.
+    """
+    try:
+        old_mask_name = os.environ.pop('ITZI_OLD_MASK')
+    except KeyError:
+        gscript.run_command("r.mask", quiet=True, flags='r')
+    else:
+        gscript.run_command("g.rename", quiet=True, overwrite=True,
+                            raster="{},MASK".format(old_mask_name))
+
+
+def file_exists(name):
+    """Return True if name is an existing map or stds, False otherwise
+    """
+    if not name:
+        return False
+    else:
+        _id = Igis.format_id(name)
+        return Igis.name_is_map(_id) or igis.name_is_stds(_id)
+
+
+def check_output_files(file_list):
+    """Check if the output files exist
+    """
+    for map_name in file_list:
+        if file_exists(map_name) and not gscript.overwrite():
+            msgr.fatal(u"File {} exists and will not be overwritten".format(map_name))
 
 
 class Igis(object):

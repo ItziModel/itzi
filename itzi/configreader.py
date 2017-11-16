@@ -145,24 +145,6 @@ class ConfigReader(object):
                 self.output_map_names[v] = '{}_{}'.format(self.out_prefix, v)
         return self
 
-    def file_exist(self, name, igis):
-        """Return True if name is an existing map or stds, False otherwise
-        """
-        if not name:
-            return False
-        else:
-            _id = igis.format_id(name)
-            return igis.name_is_map(_id) or igis.name_is_stds(_id)
-
-    def check_output_files(self):
-        """Check if the output files do not exist
-        """
-        import gis
-        import grass.script as gscript
-        for v in self.output_map_names.itervalues():
-            if self.file_exist(v, gis.Igis) and not gscript.overwrite():
-                msgr.fatal(u"File {} exists and will not be overwritten".format(v))
-
     def check_sim_params(self):
         """Check if the simulations parameters are positives and valid
         """

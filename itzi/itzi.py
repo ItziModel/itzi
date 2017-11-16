@@ -29,7 +29,6 @@ COPYRIGHT: (C) 2015-2017 by Laurent Courty
 from __future__ import print_function, division
 import sys
 import os
-import atexit
 import argparse
 import time
 import subprocess
@@ -60,10 +59,6 @@ class SimulationRunner(object):
             self.prof = Profiler()
         else:
             self.prof = None
-        # some runtime state variable
-        self.old_mask =  None
-        self.has_old_mask = False
-        self.has_temp_mask = False
 
     def run(self):
         """prepare the simulation, run it and clean up
@@ -73,24 +68,22 @@ class SimulationRunner(object):
         # If run outside of grass, set it
         if self.grass_use_file:
             self.set_grass_session()
-        import grass.script as gscript
-        msgr.debug('gscript done')
+        import gis
+        msgr.debug('GRASS session set')
         # return error if output files exist
         # (should be done once GRASS set up)
-        self.conf.check_output_files()
+        gis.check_output_files(self.conf.output_map_names.itervalues())
         msgr.debug('Output files OK')
         # stop program if location is latlong
-        if gscript.locn_is_latlong():
+        if gis.is_latlon():
             msgr.fatal(u"latlong location is not supported. "
                        u"Please use a projected location")
         # set region
         if self.conf.grass_params['region']:
-            gscript.use_temp_region()
-            gscript.run_command("g.region",
-                                region=self.conf.grass_params['region'])
+            gis.set_temp_region(self.conf.grass_params['region'])
         # set mask
         if self.conf.grass_params['mask']:
-            self.set_temp_mask(self.conf.grass_params['mask'])
+            gis.set_temp_mask(self.conf.grass_params['mask'])
         # Run simulation (SimulationManager needs GRASS, so imported now)
         from simulation import SimulationManager
         sim = SimulationManager(sim_times=self.conf.sim_times,
@@ -103,9 +96,9 @@ class SimulationRunner(object):
         sim.run()
         # return to previous region and mask
         if self.conf.grass_params['region']:
-            gscript.del_temp_region()
+            gis.del_temp_region()
         if self.conf.grass_params['mask']:
-            self.del_temp_mask()
+            gis.del_temp_mask()
         # Delete the rcfile
         if self.grass_use_file:
             os.remove(self.rcfile)
@@ -144,33 +137,6 @@ class SimulationRunner(object):
         # launch session
         import grass.script.setup as gsetup
         self.rcfile = gsetup.init(gisbase, gisdb, location, mapset)
-        return self
-
-    def set_temp_mask(self, new_mask_name):
-        """Set a new mask, and keep the old one, if exists, for later.
-        """
-        import grass.script as gscript
-        self.has_old_mask = bool(gscript.read_command("g.list", type="raster",
-                                                      pattern="MASK"))
-        if self.has_old_mask:
-            # Save the current MASK under a temp name
-            self.old_mask = "itzi_old_MASK_{}".format(os.getpid())
-            gscript.run_command("g.rename", quiet=True, overwrite=True,
-                                raster="MASK,{}".format(self.old_mask))
-        gscript.run_command("r.mask", quiet=True, raster=new_mask_name)
-        # make sure to remove the mask in case of early exit
-        atexit.register(self.del_temp_mask)
-        return self
-
-    def del_temp_mask(self):
-        """Reset the old mask, remove if there was not.
-        """
-        import grass.script as gscript
-        if self.has_old_mask:
-            gscript.run_command("g.rename", quiet=True, overwrite=True,
-                                raster="{},MASK".format(self.old_mask))
-        else:
-            gscript.run_command("r.mask", quiet=True, flags='r')
         return self
 
 
