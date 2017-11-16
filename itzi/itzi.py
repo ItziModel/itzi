@@ -133,7 +133,8 @@ class SimulationRunner(object):
         os.environ['GISBASE'] = gisbase
 
         # define GRASS Python environment
-        sys.path.append(os.path.join(gisbase, "etc", "python"))
+        grass_python = os.path.join(gisbase, u"etc", u"python")
+        sys.path.append(grass_python)
 
         # launch session
         import grass.script.setup as gsetup
@@ -156,7 +157,7 @@ def get_gisbase(grassbin):
     if p.returncode != 0:
         msgr.fatal("Error while running GRASS GIS start-up script"
                    " '{cmd}': {error}".format(cmd=' '.join(startcmd), error=stderr))
-    return stdout.strip(os.linesep)
+    return stdout.strip().decode(encoding='UTF-8')
 
 
 def set_ldpath(gisbase):
@@ -175,7 +176,7 @@ def set_ldpath(gisbase):
     else:
         msgr.fatal("Platform not configured: {}".format(sys.platform))
 
-    ld_base = os.path.join(gisbase, "lib")
+    ld_base = os.path.join(gisbase, u"lib")
     if not os.environ.get(ldvar):
         # if the path variable is not set
         msgr.debug("{} not set. Setting and restart".format(ldvar))
@@ -194,7 +195,7 @@ def reexec():
     args = [sys.executable] + sys.argv
     try:
         os.execv(sys.executable, args)
-    except Exception, exc:
+    except Exception as exc:
         msgr.fatal(u"Failed to re-execute: {}".format(exc))
 
 
@@ -226,22 +227,22 @@ def itzi_run(args):
     else:
         os.environ['GRASS_OVERWRITE'] = '0'
     # verbosity
-    if args.q == 2:
+    if args.q and args.q == 2:
         os.environ['ITZI_VERBOSE'] = str(VerbosityLevel.SUPER_QUIET)
     elif args.q == 1:
         os.environ['ITZI_VERBOSE'] = str(VerbosityLevel.QUIET)
     elif args.v == 1:
         os.environ['ITZI_VERBOSE'] = str(VerbosityLevel.VERBOSE)
-    elif args.v >= 2:
+    elif args.v and args.v >= 2:
         os.environ['ITZI_VERBOSE'] = str(VerbosityLevel.DEBUG)
     else:
         os.environ['ITZI_VERBOSE'] = str(VerbosityLevel.MESSAGE)
 
     # setting GRASS verbosity (especially for maps registration)
-    if args.q >= 1:
+    if args.q and args.q >= 1:
         # no warnings
         os.environ['GRASS_VERBOSE'] = '-1'
-    elif args.v >= 1:
+    elif args.v and args.v >= 1:
         # normal
         os.environ['GRASS_VERBOSE'] = '2'
     else:
@@ -282,7 +283,7 @@ def itzi_run(args):
     total_elapsed_time = timedelta(seconds=int(time.time() - total_sim_start))
     # display total computation duration
     msgr.message(u"Simulations complete. Elapsed times:")
-    for f, t in times_dict.iteritems():
+    for f, t in times_dict.items():
         msgr.message(u"{}: {}".format(f, t))
     msgr.message(u"Total: {}".format(total_elapsed_time))
     avg_time_s = int(total_elapsed_time.total_seconds() / len(times_dict))

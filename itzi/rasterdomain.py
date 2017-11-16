@@ -31,8 +31,8 @@ class TimedArray(object):
     array is accessed via get()
     """
     def __init__(self, mkey, igis, f_arr_def):
-        assert isinstance(mkey, basestring), "not a string!"
-        assert hasattr(f_arr_def, '__call__'), "not a function!"
+        assert isinstance(mkey, str), u"not a string!"
+        assert hasattr(f_arr_def, '__call__'), u"not a function!"
         self.mkey = mkey
         self.igis = igis  # GIS interface
         # A function to generate a default array

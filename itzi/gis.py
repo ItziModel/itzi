@@ -24,9 +24,9 @@ import itzi.messenger as msgr
 
 import grass.script as gscript
 import grass.temporal as tgis
-from grass.pygrass import raster
-from grass.pygrass.gis.region import Region
 import grass.pygrass.utils as gutils
+from grass.pygrass.gis.region import Region
+from grass.pygrass import raster
 from grass.pygrass.vector import VectorTopo
 from grass.pygrass.vector.geometry import Point, Line
 from grass.pygrass.vector.basic import Cats
@@ -177,13 +177,13 @@ class Igis(object):
     def to_s(self, unit, time):
         """Change an input time into seconds
         """
-        assert isinstance(unit, basestring), "{} Not a string".format(unit)
+        assert isinstance(unit, str), u"{} Not a string".format(unit)
         return self.t_unit_conv[unit] * time
 
     def from_s(self, unit, time):
         """Change an input time from seconds to another unit
         """
-        assert isinstance(unit, basestring), "{} Not a string".format(unit)
+        assert isinstance(unit, str), u"{} Not a string".format(unit)
         return int(time) / self.t_unit_conv[unit]
 
     def to_datetime(self, unit, time):
@@ -315,7 +315,7 @@ class Igis(object):
         for all the simulation duration
         Each map data is stored as a MapData namedtuple
         """
-        assert isinstance(strds_name, basestring), "expect a string"
+        assert isinstance(strds_name, str), u"expect a string"
 
         # transform simulation start and end time in strds unit
         strds = tgis.open_stds.open_old_stds(strds_name, 'strds')
@@ -350,8 +350,8 @@ class Igis(object):
     def write_raster_map(self, arr, rast_name, mkey):
         """Take a numpy array and write it to GRASS DB
         """
-        assert isinstance(arr, np.ndarray), "arr not a np array!"
-        assert isinstance(rast_name, basestring), "not a string!"
+        assert isinstance(arr, np.ndarray), u"arr not a np array!"
+        assert isinstance(rast_name, str), u"not a string!"
         mtype = self.grass_dtype(arr.dtype)
         with raster.RasterRow(rast_name, mode='w', mtype=mtype,
                               overwrite=self.overwrite) as newraster:
@@ -451,9 +451,9 @@ class Igis(object):
         if no map is found, return None instead of an array
         and the start_time and end_time of the simulation
         """
-        assert isinstance(mkey, basestring), "not a string!"
-        assert isinstance(sim_time, datetime), "not a datetime object!"
-        assert mkey in self.maps.keys(), "unknown map key!"
+        assert isinstance(mkey, str), u"not a string!"
+        assert isinstance(sim_time, datetime), u"not a datetime object!"
+        assert mkey in self.maps.keys(), u"unknown map key!"
         if self.maps[mkey] is None:
             return None, self.start_time, self.end_time
         else:
@@ -469,9 +469,9 @@ class Igis(object):
         """Create a STDS, create one mapdataset for each map and
         register them in the temporal database
         """
-        assert isinstance(stds_title, basestring), "not a string!"
-        assert isinstance(stds_name, basestring), "not a string!"
-        assert isinstance(t_type, basestring), "not a string!"
+        assert isinstance(stds_title, str), u"not a string!"
+        assert isinstance(stds_name, str), u"not a string!"
+        assert isinstance(t_type, str), u"not a string!"
         # Print message in case of decreased GRASS verbosity
         if msgr.verbosity() <= 2:
             msgr.message(u"Registering maps in temporal framework...")

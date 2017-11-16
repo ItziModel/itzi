@@ -17,7 +17,7 @@ GNU General Public License for more details.
 from __future__ import division
 from __future__ import absolute_import
 import os
-import ConfigParser
+from six.moves.configparser import ConfigParser
 from datetime import datetime, timedelta
 import numpy as np
 
@@ -89,7 +89,7 @@ class ConfigReader(object):
         """
         self.out_values = []
         # read the file
-        params = ConfigParser.SafeConfigParser(allow_no_value=True)
+        params = ConfigParser(allow_no_value=True)
         f = params.read(self.config_file)
         if not f:
             msgr.fatal(u"File <{}> not found".format(self.config_file))
@@ -151,7 +151,7 @@ class ConfigReader(object):
     def check_sim_params(self):
         """Check if the simulations parameters are positives and valid
         """
-        for k, v in self.sim_param.iteritems():
+        for k, v in self.sim_param.items():
             if k == 'theta':
                 if not 0 <= v <= 1:
                     msgr.fatal(u"{} value must be between 0 and 1".format(k))
@@ -205,18 +205,19 @@ class ConfigReader(object):
     def display_sim_param(self):
         """Display simulation parameters if verbose
         """
-        inter_txt = '#'*50
-        txt_template = u"{:<24} {:<}"
+        inter_txt = u"#"*50
+        txt_template = u"{:<24s} {}"
+        msgr.verbose(u"{}".format(inter_txt))
         msgr.verbose(u"Input maps:")
-        for k, v in self.input_map_names.iteritems():
+        for k, v in self.input_map_names.items():
             msgr.verbose(txt_template.format(k, v))
         msgr.verbose(u"{}".format(inter_txt))
         msgr.verbose(u"Output maps:")
-        for k, v in self.output_map_names.iteritems():
+        for k, v in self.output_map_names.items():
             msgr.verbose(txt_template.format(k, v))
         msgr.verbose(u"{}".format(inter_txt))
         msgr.verbose(u"Simulation parameters:")
-        for k, v in self.sim_param.iteritems():
+        for k, v in self.sim_param.items():
             msgr.verbose(txt_template.format(k, v))
         # simulation times
         msgr.verbose(u"{}".format(inter_txt))
