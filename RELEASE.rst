@@ -6,6 +6,29 @@ Release Notes
 These are the major changes made in each release.
 For details of the changes please see the commit log of the git repository.
 
+
+Itzï 17.11
+---------
+
+*Release date: 2017-11-24*
+
+**New features**
+
+- Drainage coupling: Add the possibility to set the orifice and weir coefficients in the configuration file.
+- Allow to set the raster mask and region from the input file.
+- Now print an out-of-memory error message instead of a blank crash if the domain does not fit in the RAM.
+
+**Corrected bugs**
+
+- Drainage coupling: fix unit conversion problem in setting node fullDepth, set fullVolume at the same time.
+
+**Code organization**
+
+- Improve coding standard with pylint.
+- Advance Python 3 support. Still limited by GRASS own incompatibility.
+- Move more GRASS functions to gis.py.
+
+
 Itzï 17.10
 ---------
 
