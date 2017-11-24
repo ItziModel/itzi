@@ -767,7 +767,7 @@ int DLLEXPORT   swmm_addNodeInflow(int index, double inflow)
 {
 	if ( IsOpenFlag )
 	{
-		Node[index].dllInflow += inflow;
+		Node[index].dllInflow += inflow;    // dllInflow is added to other inflows in addExternalInflows()
 		return ERR_NONE;
 	}
 	return ERR_NOT_OPEN;
