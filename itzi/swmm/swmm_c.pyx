@@ -259,7 +259,8 @@ def apply_linkage_flow(node_struct[:] arr_node,
         col = node.col
         # values on the surface
         z = arr_z[row, col]
-        wse = z + arr_h[row, col]
+        h = arr_h[row, col]
+        wse = z + h
 
         # the actual crest elevation should be equal to DEM
         if node.crest_elev != z:
@@ -287,8 +288,7 @@ def apply_linkage_flow(node_struct[:] arr_node,
         ## flow limiter ##
         # flow leaving the 2D domain can't drain the corresponding cell
         if new_linkage_flow < 0:
-            dh = wse - max(crest_elev, node.head)
-            maxflow = (dh * cell_surf) / dt2d
+            maxflow = (h * cell_surf) / dt2d
             new_linkage_flow = max(new_linkage_flow, -maxflow)
         # flow leaving the drainage can't be higher than the water column above wse
         elif new_linkage_flow > 0:
