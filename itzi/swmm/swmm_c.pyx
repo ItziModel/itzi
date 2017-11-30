@@ -248,7 +248,6 @@ def apply_linkage_flow(node_struct[:] arr_node,
     cdef node_struct node
 
     imax = arr_node.shape[0]
-#~     for i in prange(imax, nogil=True):
     for i in range(imax,):
         node = arr_node[i]
         # don't do anything if the node is not linked
@@ -315,22 +314,42 @@ cdef int get_linkage_type(float wse, float crest_elev,
                           float overflow_area) nogil:
     """
     """
+    cdef float depth_2d, weir_ratio
+    cdef bint overflow, drainage
+    cdef bint overflow_orifice, drainage_orifice, submerged_weir, free_weir
     cdef int new_linkage_type
-    cdef bint node_overflow, drainage_orifice, submerged_weir, free_weir
+
+    depth_2d = wse - crest_elev
+    weir_ratio = overflow_area / weir_width
+    overflow = node_head > wse
+    drainage = node_head < wse
 
     ########
     # Only orifice and submerged weir
-    #Chen, Albert S., Jorge Leandro, and Slobodan Djordjević. 2015.
-    #“Modelling Sewer Discharge via Displacement of Manhole Covers during Flood Events
-    #Using 1D/2D SIPSON/P-DWave Dual Drainage Simulations.”
-    #https://doi.org/10.1080/1573062X.2015.1041991
-    node_overflow = node_head > wse
-    drainage_orifice = (wse > node_head) and (node_head > crest_elev)
-    submerged_weir = (wse > crest_elev) and (node_head < crest_elev)
+    # Albert S. Chen et al. (2015)
+    # “Modelling Sewer Discharge via Displacement of Manhole Covers during Flood Events
+    # Using 1D/2D SIPSON/P-DWave Dual Drainage Simulations.”
+    # https://doi.org/10.1080/1573062X.2015.1041991
+    overflow_orifice = overflow
+#~     drainage_orifice = (wse > node_head) and (node_head > crest_elev)
+#~     submerged_weir = (wse > crest_elev) and (node_head < crest_elev)
+
+    ########
+    # orifice, free- and submerged-weir
+    # M. Rubinato et al. (2017)
+    # “Experimental Calibration and Validation of Sewer/surface Flow Exchange Equations
+    # in Steady and Unsteady Flow Conditions.”
+    # https://doi.org/10.1016/j.jhydrol.2017.06.024.
+    free_weir = drainage and (node_head < crest_elev)
+    submerged_weir = drainage and (node_head > crest_elev) and (depth_2d < weir_ratio)
+    drainage_orifice = drainage and (node_head > crest_elev) and (depth_2d > weir_ratio)
     ########
 
-    if node_overflow or drainage_orifice:
+    if overflow_orifice or drainage_orifice:
         new_linkage_type = linkage_types.ORIFICE
+    # drainage free weir
+    elif free_weir:
+        new_linkage_type = linkage_types.FREE_WEIR
     # drainage submerged weir
     elif submerged_weir:
         new_linkage_type = linkage_types.SUBMERGED_WEIR
@@ -358,17 +377,15 @@ cdef float get_linkage_flow(float wse, float node_head, float weir_width,
     # calculate the flow
     if linkage_type == linkage_types.NO_LINKAGE:
         unsigned_q = 0.
-
-#~     elif linkage_type == linkage_types.FREE_WEIR:
-#~         unsigned_q = ((2./3.) * free_weir_coeff * weir_width *
-#~                       c_pow(upstream_depth, 3/2.) *
-#~                       c_sqrt(2. * g))
-
+    elif linkage_type == linkage_types.ORIFICE:
+        unsigned_q = orifice_coeff * overflow_area * c_sqrt(2. * g * head_diff)
+    elif linkage_type == linkage_types.FREE_WEIR:
+        unsigned_q = ((2./3.) * free_weir_coeff * weir_width *
+                      c_pow(upstream_depth, 3/2.) *
+                      c_sqrt(2. * g))
     elif linkage_type == linkage_types.SUBMERGED_WEIR:
         unsigned_q = (submerged_weir_coeff * weir_width * upstream_depth *
                       c_sqrt(2. * g * upstream_depth))
-    elif linkage_type == linkage_types.ORIFICE:
-        unsigned_q = orifice_coeff * overflow_area * c_sqrt(2. * g * head_diff)
 
     # assign flow sign
     return c_copysign(unsigned_q, node_head - wse)
