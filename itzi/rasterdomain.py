@@ -52,7 +52,7 @@ class TimedArray(object):
         return self.arr
 
     def is_valid(self, sim_time):
-        """input being a time in timedelta
+        """input being a time in datetime
         If the current stored array is within the range of the map,
         return True
         If not return False
