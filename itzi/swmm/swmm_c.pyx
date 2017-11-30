@@ -241,6 +241,7 @@ def apply_linkage_flow(node_struct[:] arr_node,
     dt1d: time-step of the drainage model in seconds
     '''
     cdef int i, imax, linkage_type, row, col
+    cdef bint overflow_to_drainage, drainage_to_overflow
     cdef float crest_elev, weir_width, overflow_area
     cdef float dh, new_linkage_flow, maxflow
     cdef float wse, z, qdrain
@@ -288,13 +289,17 @@ def apply_linkage_flow(node_struct[:] arr_node,
         ## flow limiter ##
         # flow leaving the 2D domain can't drain the corresponding cell
         if new_linkage_flow < 0:
-            maxflow = (h * cell_surf) / dt2d
+            maxflow = (h * cell_surf) / dt1d
             new_linkage_flow = max(new_linkage_flow, -maxflow)
-        # flow leaving the drainage can't be higher than the water column above wse
-        elif new_linkage_flow > 0:
-            dh = node.head - wse
-            maxflow = (dh * overflow_area) / dt1d
-            new_linkage_flow = min(new_linkage_flow, maxflow)
+
+        ## force flow to zero in case of flow inversion ##
+        overflow_to_drainage = node.linkage_flow > 0 and new_linkage_flow < 0
+        drainage_to_overflow = node.linkage_flow < 0 and new_linkage_flow > 0
+        if overflow_to_drainage or drainage_to_overflow:
+            linkage_type = linkage_types.NO_LINKAGE
+            new_linkage_flow = 0.
+
+#~         print(wse, node.head, linkage_type, new_linkage_flow)
 
         # apply flow to 2D model (m/s) and drainage model (cfs)
         arr_qdrain[row, col] = new_linkage_flow / cell_surf
@@ -310,21 +315,28 @@ cdef int get_linkage_type(float wse, float crest_elev,
                           float overflow_area) nogil:
     """
     """
-    cdef int linkage_type
-    # No linkage if water is below crest elevation
-    if wse <= crest_elev and node_head <= crest_elev:
-        linkage_type = linkage_types.NO_LINKAGE
-    # Orifice if the drainage is overflowing or 2d level above a threshold
-    elif ((node_head > wse) or (wse - crest_elev) >= (overflow_area / weir_width)):
-        linkage_type = linkage_types.ORIFICE
-    # Free weir
-    elif wse > crest_elev > node_head:
-        linkage_type = linkage_types.FREE_WEIR
-    # Submerged weir
-    elif (node_head >= crest_elev and wse > crest_elev and
-          ((wse - crest_elev) < (overflow_area / weir_width))):
-        linkage_type = linkage_types.SUBMERGED_WEIR
-    return linkage_type
+    cdef int new_linkage_type
+    cdef bint node_overflow, drainage_orifice, submerged_weir, free_weir
+
+    ########
+    # Only orifice and submerged weir
+    #Chen, Albert S., Jorge Leandro, and Slobodan Djordjević. 2015.
+    #“Modelling Sewer Discharge via Displacement of Manhole Covers during Flood Events
+    #Using 1D/2D SIPSON/P-DWave Dual Drainage Simulations.”
+    #https://doi.org/10.1080/1573062X.2015.1041991
+    node_overflow = node_head > wse
+    drainage_orifice = (wse > node_head) and (node_head > crest_elev)
+    submerged_weir = (wse > crest_elev) and (node_head < crest_elev)
+    ########
+
+    if node_overflow or drainage_orifice:
+        new_linkage_type = linkage_types.ORIFICE
+    # drainage submerged weir
+    elif submerged_weir:
+        new_linkage_type = linkage_types.SUBMERGED_WEIR
+    else:
+        new_linkage_type = linkage_types.NO_LINKAGE
+    return new_linkage_type
 
 
 cdef float get_linkage_flow(float wse, float node_head, float weir_width,
@@ -347,15 +359,14 @@ cdef float get_linkage_flow(float wse, float node_head, float weir_width,
     if linkage_type == linkage_types.NO_LINKAGE:
         unsigned_q = 0.
 
-    elif linkage_type == linkage_types.FREE_WEIR:
-        unsigned_q = ((2./3.) * free_weir_coeff * weir_width *
-                      c_pow(upstream_depth, 3/2.) *
-                      c_sqrt(2. * g))
+#~     elif linkage_type == linkage_types.FREE_WEIR:
+#~         unsigned_q = ((2./3.) * free_weir_coeff * weir_width *
+#~                       c_pow(upstream_depth, 3/2.) *
+#~                       c_sqrt(2. * g))
 
     elif linkage_type == linkage_types.SUBMERGED_WEIR:
         unsigned_q = (submerged_weir_coeff * weir_width * upstream_depth *
-                      c_sqrt(2. * g * head_diff))
-
+                      c_sqrt(2. * g * upstream_depth))
     elif linkage_type == linkage_types.ORIFICE:
         unsigned_q = orifice_coeff * overflow_area * c_sqrt(2. * g * head_diff)
 
