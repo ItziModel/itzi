@@ -17,8 +17,9 @@ install:
   - activate python%PYTHON_VERSION%
   - pip install --disable-pip-version-check --user --upgrade pip
   - pip install -i https://pypi.anaconda.org/carlkl/simple mingwpy
-  - conda install -q --name python%PYTHON_VERSION% setuptools numpy wheel
+  - conda install -q --name python%PYTHON_VERSION% setuptools numpy wheel cython
   - pip install -q pyinstrument
+  - cython.exe itzi/swmm/swmm_c.pyx itzi/flow.pyx
   - python.exe setup.py build --compiler=mingw32
   - python.exe setup.py install
 
