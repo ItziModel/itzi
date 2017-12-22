@@ -30,7 +30,6 @@ from __future__ import print_function, division
 from __future__ import absolute_import
 import sys
 import os
-import argparse
 import time
 import subprocess
 import traceback
@@ -43,9 +42,14 @@ from itzi.configreader import ConfigReader
 import itzi.itzi_error as itzi_error
 import itzi.messenger as msgr
 from itzi.const import VerbosityLevel
+from itzi import parser
 
 def main():
-    args = parser.parse_args()
+    # default functions for subparsers
+    parser.run_parser.set_defaults(func=itzi_run)
+    parser.version_parser.set_defaults(func=itzi_version)
+    # get parsed arguments
+    args = parser.arg_parser.parse_args()
     args.func(args)
 
 
@@ -297,34 +301,6 @@ def itzi_version(args):
     F_VERSION = os.path.join(ROOT, 'data', 'VERSION')
     with open(F_VERSION, 'r') as f:
         print(f.readline().strip())
-
-
-########################
-# Parsing command line #
-########################
-
-DESCR = (u"A dynamic, fully distributed hydraulic and hydrologic model.")
-
-parser = argparse.ArgumentParser(description=DESCR)
-subparsers = parser.add_subparsers()
-
-# running a simulation
-run_parser = subparsers.add_parser("run", help=u"run a simulation",
-                                   description="run a simulation")
-run_parser.add_argument("config_file", nargs='+',
-                        help=(u"an Itzï configuration file "
-                              u"(if several given, run in batch mode)"))
-run_parser.add_argument("-o", action='store_true', help=u"overwrite files if exist")
-run_parser.add_argument("-p", action='store_true', help=u"activate profiler")
-verbosity_parser = run_parser.add_mutually_exclusive_group()
-verbosity_parser.add_argument("-v", action='count', help=u"increase verbosity")
-verbosity_parser.add_argument("-q", action='count', help=u"decrease verbosity")
-run_parser.set_defaults(func=itzi_run)
-
-# display version
-version_parser = subparsers.add_parser("version",
-                                       help=u"display software version number")
-version_parser.set_defaults(func=itzi_version)
 
 
 if __name__ == "__main__":
