@@ -10,6 +10,8 @@ For more details please see the commit log of the git repository.
 Itzï 18.2
 ---------
 
+*Release date: 2018-02-19*
+
 This new version of Itzï improves the stability of the surface-drainage coupling.
 The part of the code calculating the coupling has been mostly rewritten.
 The coupling flow between the surface and the drainage is calculated as follows:
