@@ -4,11 +4,27 @@ Release Notes
 =============
 
 These are the major changes made in each release.
-For details of the changes please see the commit log of the git repository.
+For more details please see the commit log of the git repository.
+
+
+Itzï 18.2
+---------
+
+This new version of Itzï improves the stability of the surface-drainage coupling.
+The part of the code calculating the coupling has been mostly rewritten.
+The coupling flow between the surface and the drainage is calculated as follows:
+
+- In case of drainage overflow, the orifice equation is used
+- In case of surface to drainage flow, the coupling flow is calculated by using either the orifice,
+free weir or submerged weir equation.
+The equation is chosen according to the relative water surface elevations in the surface and the drainage, and the node crest elevation.
+- If the water is entering the drainage network, the flow is limited to prevent negative depth in the surface model.
+- The coupling flow cannot invert in one time-step. It must spend one time-step at zero.
+This reduces the oscillations that could occur when the water elevations in both the drainage network and the surface are similar.
 
 
 Itzï 17.11
----------
+----------
 
 *Release date: 2017-11-24*
 
@@ -30,7 +46,7 @@ Itzï 17.11
 
 
 Itzï 17.10
----------
+----------
 
 *Release date: 2017-10-27*
 
