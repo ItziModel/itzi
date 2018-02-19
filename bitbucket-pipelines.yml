@@ -1,4 +1,4 @@
-image: ubuntu:17.04
+image: ubuntu:17.10
 
 pipelines:
   default:
