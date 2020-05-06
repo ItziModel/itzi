@@ -100,7 +100,7 @@ class DrainageSimulation(object):
         """create dict id:SwmmNode object
         """
         drain_nodes = {}
-        for k, coords in n_dict.iteritems():
+        for k, coords in n_dict.items():
             # create Node object
             node = swmm.SwmmNode(swmm_network=self.swmm_net, node_id=k,
                                  coordinates=coords)
@@ -113,7 +113,7 @@ class DrainageSimulation(object):
         Return a list of SwmmLink objects
         """
         drain_links = []
-        for k, values in lnk_dict.iteritems():
+        for k, values in lnk_dict.items():
             drain_link = swmm.SwmmLink(swmm_network=self.swmm_net, link_id=k)
             drain_link.vertices = values.vertices
             drain_link.start_node_id = values.in_node

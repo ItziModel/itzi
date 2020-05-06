@@ -241,7 +241,7 @@ class Igis(object):
         if strds.get_temporal_type() == 'relative':
             # get start time and end time in seconds
             rel_end_time = (self.end_time - self.start_time).total_seconds()
-            rel_unit = strds.get_relative_time_unit().encode('ascii', 'ignore')
+            rel_unit = strds.get_relative_time_unit()
             start_time_in_stds_unit = 0
             end_time_in_stds_unit = self.from_s(rel_unit, rel_end_time)
         elif strds.get_temporal_type() == 'absolute':
@@ -263,7 +263,7 @@ class Igis(object):
         each map is stored as a MapData namedtuple
         store result in instance's dictionary
         """
-        for k, map_name in map_names.iteritems():
+        for k, map_name in map_names.items():
             if not map_name:
                 map_list = None
                 continue
@@ -335,7 +335,7 @@ class Igis(object):
             msgr.fatal(err_msg.format(strds_name, str_lst))
         # change time data to datetime format
         if strds.get_temporal_type() == 'relative':
-            rel_unit = strds.get_relative_time_unit().encode('ascii', 'ignore')
+            rel_unit = strds.get_relative_time_unit()
             maplist = [(i[0], self.to_datetime(rel_unit, i[1]),
                         self.to_datetime(rel_unit, i[2])) for i in maplist]
         return [self.MapData(*i) for i in maplist]
@@ -367,7 +367,7 @@ class Igis(object):
         """vect_map an open vector map
         """
         dblinks = {}
-        for layer_name, layer_dscr in linking_elem.iteritems():
+        for layer_name, layer_dscr in linking_elem.items():
             # Create DB links
             dblink = Link(layer=layer_dscr.layer_number, name=layer_name,
                           table=vect_map.name + layer_dscr.table_suffix, key='cat')
@@ -429,7 +429,7 @@ class Igis(object):
                     cat_num += 1
 
         # write DB
-        for geom_type, attrs in db_info.iteritems():
+        for geom_type, attrs in db_info.items():
             map_layer, dbtable = dblinks[geom_type]
             for attr in attrs:
                 dbtable.insert(attr)

@@ -303,7 +303,7 @@ class Report(object):
         """Format the name of each maps using the record number as suffix
         Send a tuple (array, name, key) to the GIS writing function.
         """
-        for k, arr in self.output_arrays.iteritems():
+        for k, arr in self.output_arrays.items():
             if isinstance(arr, np.ndarray):
                 suffix = str(self.record_counter).zfill(4)
                 map_name = "{}_{}".format(self.out_map_names[k], suffix)
@@ -352,7 +352,7 @@ class Report(object):
         and register the corresponding listed maps
         """
         # rasters
-        for mkey, lst in self.output_maplist.iteritems():
+        for mkey, lst in self.output_maplist.items():
             strds_name = self.out_map_names[mkey]
             if strds_name is None:
                 continue

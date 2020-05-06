@@ -77,7 +77,7 @@ class SimulationRunner(object):
         msgr.debug('GRASS session set')
         # return error if output files exist
         # (should be done once GRASS set up)
-        gis.check_output_files(self.conf.output_map_names.itervalues())
+        gis.check_output_files(self.conf.output_map_names.values())
         msgr.debug('Output files OK')
         # stop program if location is latlong
         if gis.is_latlon():

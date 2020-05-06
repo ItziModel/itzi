@@ -120,7 +120,7 @@ class RasterDomain(object):
                              'rain': 'rain', 'in_q': 'inflow',
                              'bcv': 'bcval', 'bct': 'bctype'}
         # all keys that will be used for the arrays
-        self.k_input = self.in_k_corresp.keys()
+        self.k_input = list(self.in_k_corresp.keys())
         self.k_internal = ['inf', 'hmax', 'ext', 'y', 'hfe', 'hfs',
                            'qe', 'qs', 'qe_new', 'qs_new', 'etp',
                            'ue', 'us', 'v', 'vdir', 'vmax', 'fr',
@@ -250,7 +250,7 @@ class RasterDomain(object):
             self.mask_array(self.arr['z'], np.finfo(self.dtype).max)
 
         # loop through the arrays
-        for k, ta in self.tarr.iteritems():
+        for k, ta in self.tarr.items():
             if not ta.is_valid(sim_time):
                 # z is done before
                 if k == 'z':
