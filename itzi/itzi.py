@@ -12,7 +12,7 @@ PURPOSE:   A distributed GIS computer model for flood simulation. See:
            Geoscientific Model Development, 10(4), 1835–1847.
            https://doi.org/10.5194/gmd-10-1835-2017
 
-COPYRIGHT: (C) 2015-2017 by Laurent Courty
+COPYRIGHT: (C) 2015-2020 by Laurent Courty
 
             This program is free software; you can redistribute it and/or
             modify it under the terms of the GNU General Public License

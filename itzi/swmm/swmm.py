@@ -1,7 +1,7 @@
 # coding=utf8
 
 """
-Copyright (C) 2015-2017  Laurent Courty
+Copyright (C) 2015-2020  Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -49,9 +49,9 @@ class Swmm5(object):
     def swmm_open(self, input_file, report_file, output_file):
         '''Opens a swmm project
         '''
-        err = self.c_swmm5.swmm_open(c.c_char_p(input_file),
-                                     c.c_char_p(report_file),
-                                     c.c_char_p(output_file))
+        err = self.c_swmm5.swmm_open(c.c_char_p(input_file.encode('utf-8')),
+                                     c.c_char_p(report_file.encode('utf-8')),
+                                     c.c_char_p(output_file.encode('utf-8')))
         if err != 0:
             raise swmm_error.SwmmError(err)
         else:
@@ -480,11 +480,11 @@ class SwmmNetwork(object):
         # create dicts relating index (int) to ID (str) {idx: id}
         self.links_id = {}
         for link_id in links_dict:
-            link_idx = swmm_c.get_object_index(ObjectType.LINK, link_id)
+            link_idx = swmm_c.get_object_index(ObjectType.LINK, link_id.encode('utf-8'))
             self.links_id[link_idx] = link_id
         self.nodes_id = {}
         for node_id in nodes_dict:
-            node_idx = swmm_c.get_object_index(ObjectType.NODE, node_id)
+            node_idx = swmm_c.get_object_index(ObjectType.NODE, node_id.encode('utf-8'))
             self.nodes_id[node_idx] = node_id
 
         # set arrays
@@ -511,8 +511,8 @@ class SwmmNetwork(object):
         self.links = np.zeros([links_len], dtype=self.LINKS_DTYPES)
 
         # fill indices
-        self.nodes['idx'][:] = np.array(self.nodes_id.keys())
-        self.links['idx'][:] = np.array(self.links_id.keys())
+        self.nodes['idx'][:] = np.array(list(self.nodes_id.keys()))
+        self.links['idx'][:] = np.array(list(self.links_id.keys()))
         return self
 
     def _set_linkable(self, nodes_dict):
