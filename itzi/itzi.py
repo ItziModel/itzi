@@ -50,7 +50,10 @@ def main():
     parser.version_parser.set_defaults(func=itzi_version)
     # get parsed arguments
     args = parser.arg_parser.parse_args()
-    args.func(args)
+    try:
+        args.func(args)
+    except AttributeError:
+        parser.arg_parser.print_usage()
 
 
 class SimulationRunner(object):
