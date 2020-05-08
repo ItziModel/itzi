@@ -138,10 +138,8 @@ class SimulationManager(object):
                              self.drainage, self.drainage_params['output'])
         return self
 
-    def run(self):
-        """Perform a full simulation
-        including infiltration, surface flow etc.,
-        recording of data and mass_balance calculation
+    def initialize(self):
+        """Set-up the simulation.
         """
         # dict of next time-step (datetime object)
         self.next_ts = {'end': self.end_time,
@@ -157,22 +155,26 @@ class SimulationManager(object):
         self.rast_domain.update_input_arrays(self.sim_time)
         self.report.step(self.sim_time)
         self.rast_domain.reset_stats(self.sim_time)
+        return self
 
+    def run(self):
+        """Perform a full simulation
+        including infiltration, surface flow etc.,
+        recording of data and mass_balance calculation
+        """
         sim_start_time = datetime.now()
         msgr.verbose(u"Starting time-stepping...")
         while self.sim_time < self.end_time:
             # display advance of simulation
             msgr.percent(self.start_time, self.end_time,
                          self.sim_time, sim_start_time)
-            # update input arrays
-            self.rast_domain.update_input_arrays(self.sim_time)
-            # recalculate the flow direction if DEM changed
-            if self.rast_domain.isnew['z']:
-                self.surf_sim.update_flow_dir()
             # step models
             self.step()
-            # update simulation time
-            self.sim_time += self.dt
+        return self
+
+    def finalize(self):
+        """Perform all operations after time stepping.
+        """
         # write final report
         self.report.end(self.sim_time)
         return self
@@ -180,6 +182,11 @@ class SimulationManager(object):
     def step(self):
         """Step each of the models if needed
         """
+        # update input arrays
+        self.rast_domain.update_input_arrays(self.sim_time)
+        # recalculate the flow direction if DEM changed
+        if self.rast_domain.isnew['z']:
+            self.surf_sim.update_flow_dir()
 
         # hydrology #
         if self.sim_time == self.next_ts['hyd']:
@@ -239,6 +246,8 @@ class SimulationManager(object):
         # force the surface time-step to the lowest time-step
         self.next_ts['surf'] = self.nextstep
         self.dt = self.nextstep - self.sim_time
+        # update simulation time
+        self.sim_time += self.dt
         return self
 
 

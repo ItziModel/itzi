@@ -68,11 +68,9 @@ class SimulationRunner(object):
         else:
             self.prof = None
 
-    def run(self):
-        """prepare the simulation, run it and clean up
+    def initialize(self):
+        """Prepare the simulation.
         """
-        if self.prof:
-            self.prof.start()
         # If run outside of grass, set it
         if self.grass_use_file:
             self.set_grass_session()
@@ -92,16 +90,28 @@ class SimulationRunner(object):
         # set mask
         if self.conf.grass_params['mask']:
             gis.set_temp_mask(self.conf.grass_params['mask'])
-        # Run simulation (SimulationManager needs GRASS, so imported now)
+        # Set-up the simulation (SimulationManager needs GRASS, so imported now)
         from itzi.simulation import SimulationManager
-        sim = SimulationManager(sim_times=self.conf.sim_times,
+        self.sim = SimulationManager(sim_times=self.conf.sim_times,
                                 stats_file=self.conf.stats_file,
                                 dtype=np.float32,
                                 input_maps=self.conf.input_map_names,
                                 output_maps=self.conf.output_map_names,
                                 sim_param=self.conf.sim_param,
                                 drainage_params=self.conf.drainage_params)
-        sim.run()
+        self.sim.initialize()
+        return self
+
+    def run(self):
+        """Run a full simulation
+        """
+        self.sim.run()
+        return self
+
+    def finalize(self):
+        """Tear down the simulation and return to previous state.
+        """
+        self.sim.finalize()
         # return to previous region and mask
         if self.conf.grass_params['region']:
             gis.del_temp_region()
@@ -110,10 +120,6 @@ class SimulationRunner(object):
         # Delete the rcfile
         if self.grass_use_file:
             os.remove(self.rcfile)
-        # end profiling and print results
-        if self.prof:
-            self.prof.stop()
-            print(self.prof.output_text(unicode=True, color=True))
         return self
 
     def set_grass_session(self):
@@ -210,7 +216,16 @@ def sim_runner_worker(conf, grass_use_file, grassbin):
     msgr.raise_on_error = True
     try:
         sim_runner = SimulationRunner(conf, grass_use_file, grassbin)
+        # Start the profiler if requested
+        if sim_runner.prof:
+            sim_runner.prof.start()
+        sim_runner.initialize()
         sim_runner.run()
+        sim_runner.finalize()
+        # end profiling and print results
+        if sim_runner.prof:
+            sim_runner.prof.stop()
+            print(sim_runner.prof.output_text(unicode=True, color=True))
     except itzi_error.ItziError:
         # if an Itzï error, only print the last line of the traceback
         traceback_lines = traceback.format_exc().splitlines()
@@ -220,6 +235,8 @@ def sim_runner_worker(conf, grass_use_file, grassbin):
 
 
 def itzi_run(args):
+    """Run one or multiple simulations from the command line.
+    """
     # Check if being run within GRASS session
     try:
         import grass.script
