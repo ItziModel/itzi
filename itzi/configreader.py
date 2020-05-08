@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2015-2017 Laurent Courty
+Copyright (C) 2015-2020 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -39,7 +39,7 @@ class ConfigReader(object):
         """Set dictionaries of default values to be passed to simulation"""
         k_raw_input_times = ['start_time', 'end_time',
                              'duration', 'record_step']
-        self.ga_list = ['effective_pororosity', 'capillary_pressure',
+        self.ga_list = ['effective_porosity', 'capillary_pressure',
                         'hydraulic_conductivity']
         k_input_map_names = ['dem', 'friction', 'start_h', 'start_y',
                              'rain', 'inflow', 'bcval', 'bctype',
@@ -109,6 +109,10 @@ class ConfigReader(object):
             msgr.warning(u"'drainage_capacity' is deprecated. "
                          u"Use 'losses' instead.")
             self.input_map_names['losses'] = params.get('input', "drainage_capacity")
+        if params.has_option('input', "effective_pororosity"):
+            msgr.warning(u"'effective_pororosity' is deprecated. "
+                         u"Use 'effective_porosity' instead.")
+            self.input_map_names['effective_porosity'] = params.get('input', "effective_pororosity")
         # search for valid inputs
         for k in self.input_map_names:
             if params.has_option('input', k):

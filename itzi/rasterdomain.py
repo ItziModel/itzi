@@ -112,7 +112,7 @@ class RasterDomain(object):
         # correspondance between input map names and the arrays
         self.in_k_corresp = {'z': 'dem', 'n': 'friction', 'h': 'start_h',
                              'y': 'start_y',
-                             'por': 'effective_pororosity',
+                             'por': 'effective_porosity',
                              'pres': 'capillary_pressure',
                              'con': 'hydraulic_conductivity',
                              'in_inf': 'infiltration',
