@@ -57,8 +57,8 @@ class ConfigReader(object):
                           'vrouting': DefaultValues.VROUTING, 'dtmax': DefaultValues.DTMAX,
                           'slmax': DefaultValues.SLMAX, 'dtinf': DefaultValues.DTINF,
                           'inf_model': None}
-        self.grass_mandatory = ['grass_bin', 'grassdata', 'location', 'mapset']
-        k_grass_params = self.grass_mandatory + ['region', 'mask']
+        self.grass_mandatory = ['grassdata', 'location', 'mapset']
+        k_grass_params = self.grass_mandatory + ['region', 'mask', 'grass_bin']
         self.raw_input_times = dict.fromkeys(k_raw_input_times)
         self.output_map_names = dict.fromkeys(k_output_map_names)
         self.input_map_names = dict.fromkeys(k_input_map_names)

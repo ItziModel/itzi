@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import sys
@@ -52,14 +52,14 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
                "Operating System :: OS Independent",
                "Programming Language :: Cython",
                "Programming Language :: Python",
-               "Programming Language :: Python :: 2.7",
+               "Programming Language :: Python :: 3.7",
                "Topic :: Scientific/Engineering"]
 
 
 DESCR = "A 2D flood model using GRASS GIS as a back-end"
 
 
-REQUIRES = ['pyinstrument', 'networkx == 1.11', 'six']
+REQUIRES = ['pyinstrument', 'networkx == 1.11', 'six', 'grass-session']
 
 
 # Set arguments according to compiler
