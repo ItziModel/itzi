@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2015-2017 Laurent Courty
+Copyright (C) 2015-2020 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -34,7 +34,10 @@ raise_on_error = False
 def verbosity():
     """Return the current verbosity as integer
     """
-    return int(os.environ.get('ITZI_VERBOSE'))
+    try:
+        return int(os.environ.get('ITZI_VERBOSE'))
+    except TypeError:
+        return VerbosityLevel.QUIET
 
 
 def percent(start_time, end_time, sim_time, sim_start_time):
