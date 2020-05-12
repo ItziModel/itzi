@@ -59,7 +59,7 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
 DESCR = "A 2D flood model using GRASS GIS as a back-end"
 
 
-REQUIRES = ['pyinstrument', 'networkx == 1.11', 'six', 'grass-session']
+REQUIRES = ['pyinstrument', 'networkx == 1.11', 'grass-session']
 
 
 # Set arguments according to compiler
