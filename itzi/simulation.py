@@ -182,8 +182,6 @@ class SimulationManager(object):
     def step(self):
         """Step each of the models if needed
         """
-        # update input arrays
-        self.rast_domain.update_input_arrays(self.sim_time)
         # recalculate the flow direction if DEM changed
         if self.rast_domain.isnew['z']:
             self.surf_sim.update_flow_dir()
@@ -241,6 +239,8 @@ class SimulationManager(object):
             # reset statistic maps
             self.rast_domain.reset_stats(self.sim_time)
 
+        # update input arrays. This is done at initialization as well.
+        self.rast_domain.update_input_arrays(self.sim_time)
         # find next step
         self.nextstep = min(self.next_ts.values())
         # force the surface time-step to the lowest time-step
