@@ -22,18 +22,23 @@ steps:
   displayName: 'Use Python $(python.version)'
 
 - script: |
+    sudo add-apt-repository ppa:ubuntugis/ppa
     sudo apt-get update
     sudo apt-get -y install grass-core grass-dev
+  displayName: 'Install GRASS'
+
+- script: |
     python -m pip install --upgrade pip
     python -m pip install numpy setuptools cython
   displayName: 'Install dependencies'
 
 - script: |
-    cython3 itzi/swmm/swmm_c.pyx itzi/flow.pyx
+    cython -3 itzi/swmm/swmm_c.pyx itzi/flow.pyx
     python -m pip install .
   displayName: 'Cythonize, build and install'
 
 - script: |
-    pip3 install pytest pytest-cov pytest-xdist pytest-azurepipelines
-    pytest --cov=itzi --forked -v
+    pip3 install pandas requests pytest pytest-cov pytest-xdist pytest-azurepipelines
+    # pytest tests --doctest-modules --junitxml=junit/test-results.xml --cov=. 
+    pytest --cov=itzi --forked -v --junitxml=junit/test-results.xml --cov-report=xml --cov-report=html
   displayName: 'pytest'
