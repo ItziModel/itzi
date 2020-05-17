@@ -1,5 +1,6 @@
 *.py[cod]
 *.so
+*.zip
 .~*
 build/
 dist/
