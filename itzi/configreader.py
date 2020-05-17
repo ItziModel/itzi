@@ -17,7 +17,7 @@ GNU General Public License for more details.
 from __future__ import division
 from __future__ import absolute_import
 import os
-from six.moves.configparser import ConfigParser
+from configparser import ConfigParser
 from datetime import datetime, timedelta
 import numpy as np
 
