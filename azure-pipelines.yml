@@ -39,6 +39,5 @@ steps:
 
 - script: |
     pip3 install pandas requests pytest pytest-cov pytest-xdist pytest-azurepipelines
-    # pytest tests --doctest-modules --junitxml=junit/test-results.xml --cov=. 
     pytest --cov=itzi --forked -v --junitxml=junit/test-results.xml --cov-report=xml --cov-report=html
   displayName: 'pytest'
