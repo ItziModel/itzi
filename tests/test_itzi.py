@@ -49,7 +49,7 @@ def test_mcdo_rain(grass_mcdo_rain_sim, mcdo_rain_reference):
     assert mae < 0.04
 
 
-def test_ea(ea_test8a_reference, ea_test8a_sim):
+def test_ea8a(ea_test8a_reference, ea_test8a_sim):
     current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
     assert current_mapset == 'ea8a'
     # Extract results at output points
