@@ -67,7 +67,7 @@ The following inputs are mandatory:
 +-------------------------+-----------------------------------------+--------------+
 | infiltration            | Fixed infiltration rate in mm/h         | map or strds |
 +-------------------------+-----------------------------------------+--------------+
-| effective\_pororosity   | Effective porosity in mm/mm             | map or strds |
+| effective\_porosity     | Effective porosity in mm/mm             | map or strds |
 +-------------------------+-----------------------------------------+--------------+
 | capillary\_pressure     | Wetting front capillary pressure head   | map or strds |
 |                         | in mm                                   |              |
@@ -80,6 +80,9 @@ The following inputs are mandatory:
 
 .. deprecated:: 17.7
     *drainage\_capacity* is renamed to *losses*
+
+.. deprecated:: 20.5
+    *effective\_pororosity* is renamed to *effective\_porosity*
 
 .. warning:: If the selected input are located in another GRASS mapset than the current one (or the one specified in the [grass] section),
     you must define the full map ID (map\@mapset) and add those mapsets to the GRASS search path with *g.mapsets*.

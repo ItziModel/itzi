@@ -5,8 +5,7 @@ Programer's manual
 Itzï is written principaly in Python.
 The computationally intensive parts of the code and some C bindings are written in Cython.
 Itzï includes the SWMM source code, which is written in C.
-Due to incomplete compatibility of GRASS GIS with Python 3, Itzï is meant to be used with Python 2.7 only.
-However, the goal is to not use any idiom that is incompatible with Python 3.
+As of version 20.5, itzi only supports Python 3.
 
 We do our best to keep Itzï `PEP8-compliant <https://www.python.org/dev/peps/pep-0008/>`__.
 Please use the `pycodestyle <https://pypi.python.org/pypi/pycodestyle/>`__ utility to check your code for compliance.
@@ -25,19 +24,17 @@ The repository have two branches:
 - *dev* where the main development takes place.
 
 The code should be tested in *dev* before being merged to master for release.
-No formal test suite exists for now.
 
 Development environment
 -----------------------
 
 We recommend to create a virtual environment to work on the source code.
-This will prevent to mess with another installed verion of Itzï.
 
 .. code:: sh
 
-    $ virtualenv itzi_dev
+    $ python3 -m venv itzi_dev
 
-Then you can activate the virtualenv and install the dev version of Itzï.
+Then you can activate the virtual env and install the dev version of Itzï.
 
 .. code:: sh
 
@@ -47,7 +44,7 @@ Then you can activate the virtualenv and install the dev version of Itzï.
     $ pip install -e .
 
 Now, every change you make to the Python code will be directly reflected when running *itzi* from the command line.
-To leave the virtualenv:
+To leave the virtual env:
 
 .. code:: sh
 
@@ -60,9 +57,34 @@ After modifying the Cython code, you should first compile it to C, then compile 
 
 .. code:: sh
 
-    $ cython itzi/flow.pyx
+    $ cython -3 itzi/swmm/swmm_c.pyx itzi/flow.pyx
     $ rm -rf build/
     $ pip install -e .
+
+
+Testing
+-------
+
+Testing is done through pytest. Running the tests require the following additional requirements:
+
+- pytest
+- pytest-cov
+- pytest-xdist
+- pandas
+- requests
+
+pytest-xdist allows to run each test in a separate process.
+To do so, run the following command:
+
+.. code:: sh
+
+    $ pytest --forked -v
+
+To estimate the test coverage:
+
+.. code:: sh
+
+    $ pytest --cov=itzi --forked -v
 
 
 Packaging
