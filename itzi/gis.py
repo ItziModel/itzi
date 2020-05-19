@@ -19,6 +19,9 @@ import atexit
 from collections import namedtuple
 import numpy as np
 from datetime import datetime, timedelta
+# from multiprocessing import Process, JoinableQueue
+from threading import Thread
+from queue import Queue
 
 import itzi.messenger as msgr
 
@@ -32,6 +35,19 @@ from grass.pygrass.vector.geometry import Point, Line
 from grass.pygrass.vector.basic import Cats
 from grass.pygrass.vector.table import Link
 
+# colour rules
+_ROOT = os.path.dirname(__file__)
+_DIR = os.path.join(_ROOT, 'data', 'colortable')
+rules_h = os.path.join(_DIR, 'depth.txt')
+rules_v = os.path.join(_DIR, 'velocity.txt')
+rules_vdir = os.path.join(_DIR, 'vdir.txt')
+rules_fr = os.path.join(_DIR, 'froude.txt')
+rules_def = os.path.join(_DIR, 'default.txt')
+colors_rules_dict = {'h': rules_h, 'v': rules_v, 'vdir': rules_vdir,
+                     'fr': rules_fr}
+
+for f in colors_rules_dict.values():
+    assert os.path.isfile(f)
 
 def is_latlon():
     """Return True if the location is latlon
@@ -99,6 +115,39 @@ def check_output_files(file_list):
             msgr.fatal(u"File {} exists and will not be overwritten".format(map_name))
 
 
+def apply_color_table(map_name, mkey):
+    '''Apply a color table determined by mkey to the given map
+    '''
+    try:
+        colors_rules = colors_rules_dict[mkey]
+        gscript.run_command('r.colors', quiet=True,
+                            rules=colors_rules, map=map_name)
+    except KeyError:
+        # in case no specific color table is given, use GRASS default.
+        pass
+    return None
+
+
+def raster_writer(q):
+    """Write a raster map in GRASS and set the color table
+    """
+    while True:
+        # Get values from the queue
+        arr, rast_name, mtype, mkey, overwrite = q.get()
+        # Write raster
+        with raster.RasterRow(rast_name, mode='w', mtype=mtype,
+                              overwrite=overwrite) as newraster:
+            newrow = raster.Buffer((arr.shape[1],), mtype=mtype)
+            for row in arr:
+                newrow[:] = row[:]
+                newraster.put_row(newrow)
+        # Apply colour table
+        apply_color_table(rast_name, mkey)
+        # Signal end of jod
+        q.task_done()
+
+
+
 class Igis(object):
     """
     A class providing an access to GRASS GIS Python interfaces:
@@ -115,17 +164,6 @@ class Igis(object):
                   'CELL': ('bool_', 'int_', 'intc', 'intp',
                            'int8', 'int16', 'int32', 'int64',
                            'uint8', 'uint16', 'uint32', 'uint64')}
-
-    # colour rules
-    _ROOT = os.path.dirname(__file__)
-    _DIR = os.path.join(_ROOT, 'data', 'colortable')
-    rules_h = os.path.join(_DIR, 'depth.txt')
-    rules_v = os.path.join(_DIR, 'velocity.txt')
-    rules_vdir = os.path.join(_DIR, 'vdir.txt')
-    rules_fr = os.path.join(_DIR, 'froude.txt')
-    rules_def = os.path.join(_DIR, 'default.txt')
-    colors_rules_dict = {'h': rules_h, 'v': rules_v, 'vdir': rules_vdir,
-                         'fr': rules_fr}
 
     # define used namedtuples
     strds_cols = ['id', 'start_time', 'end_time']
@@ -158,10 +196,12 @@ class Igis(object):
         self.maps = dict.fromkeys(mkeys)
         # init temporal module
         tgis.init()
-
-        assert os.path.isfile(self.rules_h)
-        assert os.path.isfile(self.rules_v)
-        assert os.path.isfile(self.rules_def)
+        # Create thread and queue for raster write
+        self.raster_writer_queue = Queue(maxsize = 15)
+        self.raster_writer_thread = Thread(name="RasterWriter",
+                                            target=raster_writer,
+                                            args=(self.raster_writer_queue,))
+        self.raster_writer_thread.start()
 
     def grass_dtype(self, dtype):
         if dtype in self.dtype_conv['DCELL']:
@@ -352,6 +392,17 @@ class Igis(object):
         """
         assert isinstance(arr, np.ndarray), u"arr not a np array!"
         assert isinstance(rast_name, str), u"not a string!"
+        # self.write_raster_map_blocking(arr, rast_name, mkey)
+        self.write_raster_map_nonblocking(arr, rast_name, mkey)
+        return self
+
+    def write_raster_map_nonblocking(self, arr, rast_name, mkey):
+        mtype = self.grass_dtype(arr.dtype)
+        q_obj = (arr.copy(), rast_name, mtype, mkey, self.overwrite)
+        self.raster_writer_queue.put(q_obj)
+        return self
+
+    def write_raster_map_blocking(self, arr, rast_name, mkey):
         mtype = self.grass_dtype(arr.dtype)
         with raster.RasterRow(rast_name, mode='w', mtype=mtype,
                               overwrite=self.overwrite) as newraster:
@@ -360,7 +411,7 @@ class Igis(object):
                 newrow[:] = row[:]
                 newraster.put_row(newrow)
         # apply color table
-        self.apply_color_table(rast_name, mkey)
+        apply_color_table(rast_name, mkey)
         return self
 
     def create_db_links(self, vect_map, linking_elem):
@@ -511,16 +562,4 @@ class Igis(object):
                                                map_dts_lst, stds,
                                                delete_empty=del_empty[stds_type],
                                                unit=t_unit[t_type])
-        return self
-
-    def apply_color_table(self, map_name, mkey):
-        '''apply a color table determined by mkey to the given map
-        '''
-        try:
-            colors_rules = self.colors_rules_dict[mkey]
-            gscript.run_command('r.colors', quiet=True,
-                                rules=colors_rules, map=map_name)
-        except KeyError:
-            # in case no specific color table is given, use GRASS default.
-            pass
         return self

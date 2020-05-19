@@ -177,6 +177,7 @@ class SimulationManager(object):
         """
         # write final report
         self.report.end(self.sim_time)
+        self.gis.raster_writer_queue.join()
         return self
 
     def step(self):
