@@ -204,7 +204,7 @@ def grass_5by5(grass_xy_session):
     assert float(univar_n['max']) == 0.005
     # Start depth 10cm
     gscript.write_command('v.in.ascii', input='-',
-                          stdin='2.5|2.5',
+                          stdin='25|25',
                           output='start_h')
     gscript.run_command('v.to.rast', input='start_h',
                         output='start_h', type='point',
