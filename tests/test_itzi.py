@@ -38,6 +38,20 @@ def test_mcdo_norain(grass_mcdo_norain_sim, mcdo_norain_reference):
     assert mae < 0.03
 
 
+def test_flow_is_unidimensional(grass_mcdo_norain_sim):
+    """In the MacDonald 1D test, flow should be unidimensional in x dimension
+    """
+    current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
+    assert current_mapset == 'mcdo_norain'
+
+    map_list = gscript.list_grouped('raster', pattern='out_mcdo_norain_qy*')[current_mapset]
+    for raster in map_list:
+        print(raster)
+        univar = gscript.parse_command('r.univar', map=raster, flags='g')
+        assert float(univar['min']) == 0
+        assert float(univar['max']) == 0
+
+
 def test_mcdo_rain(grass_mcdo_rain_sim, mcdo_rain_reference):
     current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
     assert current_mapset == 'mcdo_rain'
@@ -63,7 +77,9 @@ def test_ea8a(ea_test8a_reference, ea_test8a_sim):
     df_itzi.index = pd.to_numeric(df_itzi.index)
     df_itzi.index /= 60.
     del df_itzi['Time (min)']
+    # Compute the absolute error
     abs_error = np.abs(df_itzi - ea_test8a_reference)
+    # Compute MAE for each point
     points_values = []
     for pt_idx in range(1,9):
         col_idx = [ea_test8a_reference[pt_idx],
@@ -75,6 +91,7 @@ def test_ea8a(ea_test8a_reference, ea_test8a_sim):
         # Keep only non null values
         new_df = new_df[new_df.itzi.notnull()]
         points_values.append(new_df)
+    # Check if MAE is below threshold
     for df_err in points_values:
         mae = np.mean(df_err['absolute error'])
         assert mae <= 0.04
