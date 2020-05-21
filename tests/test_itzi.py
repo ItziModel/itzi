@@ -3,6 +3,7 @@
 
 """
 """
+import os
 from io import StringIO
 
 import pytest
@@ -25,12 +26,36 @@ def test_number_of_output(grass_5by5_sim):
     assert len(v_map_list) == 4
 
 
+def test_region_mask(grass_5by5, test_data_path):
+    """Check if temporary mask and region are set and teared down.
+    """
+    current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
+    assert current_mapset == '5by5'
+    # Get data from initial region and mask
+    init_ncells = int(gscript.parse_command('g.region', flags='pg')['cells'])
+    init_nulls = int(gscript.parse_command('r.univar', map='z', flags='g')['null_cells'])
+    # Set simulation (should set region and mask)
+    config_file = os.path.join(test_data_path, '5by5', '5by5_mask.ini')
+    sim_runner = SimulationRunner(need_grass_session=False)
+    assert isinstance(sim_runner, SimulationRunner)
+    sim_runner.initialize(config_file)
+    # Run simulation
+    sim_runner.run().finalize()
+    # Check temporary mask and region
+    assert int(gscript.parse_command('r.univar', map='out_5by5_v_max', flags='g')['n']) == 9
+    # Check tear down
+    assert int(gscript.parse_command('g.region', flags='pg')['cells']) == init_ncells
+    assert int(gscript.parse_command('r.univar', map='z', flags='g')['null_cells']) == init_nulls
+    return sim_runner
+
+
 def test_mcdo_norain(grass_mcdo_norain_sim, mcdo_norain_reference):
     current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
     assert current_mapset == 'mcdo_norain'
 
     map_list = gscript.list_grouped('raster', pattern='out_mcdo_norain_wse*')[current_mapset]
-    wse = gscript.read_command('v.what.rast', map='axis_points', raster='out_mcdo_norain_wse_0004', flags='p')
+    wse = gscript.read_command('v.what.rast', map='axis_points',
+                               raster='out_mcdo_norain_wse_0004', flags='p')
     df_wse = pd.read_csv(StringIO(wse), sep='|', names=['wse_model'], usecols=[1])
     df_results = mcdo_norain_reference.join(df_wse)
     df_results['abs_error'] = np.abs(df_results['wse_model'] - df_results['wse'])
@@ -46,7 +71,6 @@ def test_flow_is_unidimensional(grass_mcdo_norain_sim):
 
     map_list = gscript.list_grouped('raster', pattern='out_mcdo_norain_qy*')[current_mapset]
     for raster in map_list:
-        print(raster)
         univar = gscript.parse_command('r.univar', map=raster, flags='g')
         assert float(univar['min']) == 0
         assert float(univar['max']) == 0

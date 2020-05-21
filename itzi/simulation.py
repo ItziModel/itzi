@@ -38,7 +38,7 @@ class SimulationManager(object):
     """
 
     def __init__(self, sim_times, input_maps, output_maps, sim_param,
-                 drainage_params,
+                 drainage_params, grass_params,
                  dtype=np.float32,
                  dtmin=timedelta(seconds=0.01),
                  stats_file=None):
@@ -56,6 +56,10 @@ class SimulationManager(object):
         self.dt = dtmin  # Global time-step
         self.dtinf = sim_param['dtinf']
 
+        # Temp region and mask
+        self.region_id = grass_params['region']
+        self.raster_mask_id = grass_params['mask']
+
         # dictionaries of map names
         self.in_map_names = input_maps
         self.out_map_names = output_maps
@@ -72,26 +76,13 @@ class SimulationManager(object):
         # statistic file name
         self.stats_file = stats_file
 
-        # instantiate a Igis object
-        self.gis = gis.Igis(start_time=self.start_time,
-                            end_time=self.end_time,
-                            dtype=self.dtype,
-                            mkeys=self.in_map_names.keys())
-        msgr.verbose(u"Reading maps information from GIS...")
-        self.gis.read(self.in_map_names)
-
-        # instantiate simulation objects
-        msgr.verbose(u"Setting up models...")
-        self.__set_models()
-        msgr.verbose(u"Models set up")
-
-    def __set_models(self):
+    def __set_models(self, igis):
         """Instantiate models objects
         """
         # RasterDomain
         msgr.debug(u"Setting up raster domain...")
         try:
-            self.rast_domain = RasterDomain(self.dtype, self.gis,
+            self.rast_domain = RasterDomain(self.dtype, igis,
                                             self.in_map_names, self.out_map_names)
         except MemoryError:
             msgr.fatal(u"Out of memory.")
@@ -126,13 +117,13 @@ class SimulationManager(object):
             msgr.debug(u"Setting up drainage model...")
             self.drainage = DrainageSimulation(self.rast_domain,
                                                self.drainage_params,
-                                               self.gis, self.sim_param['g'])
+                                               igis, self.sim_param['g'])
         else:
             self.drainage = None
 
         # reporting object
         msgr.debug(u"Setting up reporting object...")
-        self.report = Report(self.gis, self.temporal_type,
+        self.report = Report(igis, self.temporal_type,
                              self.sim_param['hmin'], self.massbal,
                              self.rast_domain,
                              self.drainage, self.drainage_params['output'])
@@ -141,6 +132,20 @@ class SimulationManager(object):
     def initialize(self):
         """Set-up the simulation.
         """
+        # instantiate simulation objects
+        gis_kwargs = dict(start_time=self.start_time,
+                          end_time=self.end_time,
+                          dtype=self.dtype,
+                          mkeys=self.in_map_names.keys(),
+                          region_id=self.region_id,
+                          raster_mask_id=self.raster_mask_id)
+        self.igis = gis.Igis(**gis_kwargs)
+        msgr.verbose(u"Setting up models...")
+        self.__set_models(self.igis)
+        msgr.verbose(u"Models set up")
+        msgr.verbose(u"Reading maps information from GIS...")
+        self.igis.read(self.in_map_names)
+
         # dict of next time-step (datetime object)
         self.next_ts = {'end': self.end_time,
                         'rec': self.start_time + self.record_step}
@@ -177,7 +182,7 @@ class SimulationManager(object):
         """
         # write final report
         self.report.end(self.sim_time)
-        self.gis.raster_writer_queue.join()
+        self.igis.cleanup()
         return self
 
     def step(self):
@@ -295,6 +300,7 @@ class Report(object):
         assert isinstance(sim_time, datetime)
         # do the last step
         self.step(sim_time)
+        self.gis.finalize()  # Make sure all maps are written
         # register maps and write max maps
         self.register_results_in_gis()
         if self.out_map_names['h']:

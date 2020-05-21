@@ -142,9 +142,8 @@ class RasterDomain(object):
         self.isnew = dict.fromkeys(self.k_all, True)
         self.isnew['n_drain'] = False
 
-        # create an array mask
-        self.mask = np.full(shape=self.shape,
-                            fill_value=False, dtype=np.bool_)
+        # Create an array mask. True is not computed.
+        self.mask = self.gis.get_npmask()
 
         # Instantiate arrays and padded arrays filled with zeros
         self.arr = dict.fromkeys(self.k_all)
@@ -218,7 +217,8 @@ class RasterDomain(object):
     def update_mask(self, arr):
         '''Create a mask array by marking NULL values from arr as True.
         '''
-        self.mask[:] = np.isnan(arr)
+        pass
+        # self.mask[:] = np.isnan(arr)
         return self
 
     def mask_array(self, arr, default_value):

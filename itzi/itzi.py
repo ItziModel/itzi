@@ -66,7 +66,7 @@ class SimulationRunner(object):
         self.need_grass_session = need_grass_session
 
     def initialize(self, conf_file):
-        """Parese the configuration file, set GRASS,
+        """Parse the configuration file, set GRASS,
         and initialize the simulation.
         """
         # parsing configuration file
@@ -79,31 +79,22 @@ class SimulationRunner(object):
         # If run outside of grass, set it
         if self.need_grass_session:
             self.set_grass_session()
-        # GRASS lib can now be safely imported
+        # GRASS libs can now be safely imported
         import itzi.gis as gis
+        from itzi.simulation import SimulationManager
         msgr.debug('GRASS session set')
         # return error if output files exist
         gis.check_output_files(self.conf.output_map_names.values())
         msgr.debug('Output files OK')
-        # stop program if location is latlong
-        if gis.is_latlon():
-            msgr.fatal(u"latlong location is not supported. "
-                       u"Please use a projected location")
-        # set region
-        if self.conf.grass_params['region']:
-            gis.set_temp_region(self.conf.grass_params['region'])
-        # set mask
-        if self.conf.grass_params['mask']:
-            gis.set_temp_mask(self.conf.grass_params['mask'])
-        # SimulationManager needs GRASS, so imported now
-        from itzi.simulation import SimulationManager
+        # Instantiate Simulation object and initialize it
         self.sim = SimulationManager(sim_times=self.conf.sim_times,
                                      stats_file=self.conf.stats_file,
                                      dtype=np.float32,
                                      input_maps=self.conf.input_map_names,
                                      output_maps=self.conf.output_map_names,
                                      sim_param=self.conf.sim_param,
-                                     drainage_params=self.conf.drainage_params)
+                                     drainage_params=self.conf.drainage_params,
+                                     grass_params=self.conf.grass_params)
         self.sim.initialize()
         return self
 
@@ -117,11 +108,6 @@ class SimulationRunner(object):
         """Tear down the simulation and return to previous state.
         """
         self.sim.finalize()
-        # return to previous region and mask
-        if self.conf.grass_params['region']:
-            gis.del_temp_region()
-        if self.conf.grass_params['mask']:
-            gis.del_temp_mask()
         # Close GRASS session
         if self.need_grass_session:
             self.grass_session.close()

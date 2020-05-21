@@ -187,21 +187,29 @@ def grass_5by5(grass_xy_session):
     """
     # Create new mapset
     gscript.run_command('g.mapset', mapset='5by5', flags='c')
-
+    # Create 3by5 named region
+    gscript.run_command('g.region', res=10, s=10, n=40, w=0, e=50, save='3by5')
+    region = gscript.parse_command('g.region', flags='pg')
+    assert int(region["cells"]) == 15
+    # Create raster for mask (do not apply mask)
+    gscript.run_command('g.region', res=10, s=0, n=50, w=10, e=40)
+    region = gscript.parse_command('g.region', flags='pg')
+    assert int(region["cells"]) == 15
+    gscript.mapcalc('5by3=1')
     # Set a 5x5 region
     gscript.run_command('g.region', res=10, s=0, w=0, e=50, n=50)
     region = gscript.parse_command('g.region', flags='pg')
-    assert region["cells"] == '25'
+    assert int(region["cells"]) == 25
     # DEM
     gscript.mapcalc('z=0')
     univar_z = gscript.parse_command('r.univar', map='z', flags='g')
     assert int(univar_z['min']) == 0
     assert int(univar_z['max']) == 0
     # Manning
-    gscript.mapcalc('n=0.005')
+    gscript.mapcalc('n=0.05')
     univar_n = gscript.parse_command('r.univar', map='n', flags='g')
-    assert float(univar_n['min']) == 0.005
-    assert float(univar_n['max']) == 0.005
+    assert float(univar_n['min']) == 0.05
+    assert float(univar_n['max']) == 0.05
     # Start depth 10cm
     gscript.write_command('v.in.ascii', input='-',
                           stdin='25|25',
@@ -222,7 +230,7 @@ def grass_5by5_sim(grass_5by5, test_data_path):
     """
     current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
     assert current_mapset == '5by5'
-    config_file = os.path.join(test_data_path, '5by5.ini')
+    config_file = os.path.join(test_data_path, '5by5', '5by5.ini')
     sim_runner = SimulationRunner(need_grass_session=False)
     assert isinstance(sim_runner, SimulationRunner)
     sim_runner.initialize(config_file)
