@@ -18,12 +18,33 @@ def test_number_of_output(grass_5by5_sim):
     current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
     assert current_mapset == '5by5'
     # map_list = gscript.list_grouped('raster', pattern='*out_5by5*')[current_mapset]
-    # fr_map_list = gscript.list_grouped('raster', pattern='*out_5by5_fr_*')[current_mapset]
-    # assert len(fr_map_list) == 3
     h_map_list = gscript.list_grouped('raster', pattern='*out_5by5_h_*')[current_mapset]
     assert len(h_map_list) == 4
+    wse_map_list = gscript.list_grouped('raster', pattern='*out_5by5_wse_*')[current_mapset]
+    assert len(wse_map_list) == 3
+    fr_map_list = gscript.list_grouped('raster', pattern='*out_5by5_fr_*')[current_mapset]
+    assert len(fr_map_list) == 3
     v_map_list = gscript.list_grouped('raster', pattern='*out_5by5_v_*')[current_mapset]
     assert len(v_map_list) == 4
+    vdir_map_list = gscript.list_grouped('raster', pattern='*out_5by5_vdir_*')[current_mapset]
+    assert len(vdir_map_list) == 3
+    qx_map_list = gscript.list_grouped('raster', pattern='*out_5by5_qx_*')[current_mapset]
+    assert len(qx_map_list) == 3
+    qy_map_list = gscript.list_grouped('raster', pattern='*out_5by5_qy_*')[current_mapset]
+    assert len(qy_map_list) == 3
+    verr_map_list = gscript.list_grouped('raster', pattern='*out_5by5_verror_*')[current_mapset]
+    assert len(verr_map_list) == 3
+
+
+
+def test_flow_symmetry(grass_5by5_sim):
+    current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
+    assert current_mapset == '5by5'
+    h_values = gscript.read_command('v.what.rast', map='control_points', flags='p', raster='out_5by5_h_0001')
+    s_h = pd.read_csv(StringIO(h_values), sep='|', names=['h'], usecols=[1], squeeze=True)
+    print(s_h)
+    print(np.isclose(s_h[:-1], s_h[1:]))
+    assert np.all(np.isclose(s_h[:-1], s_h[1:]))
 
 
 def test_region_mask(grass_5by5, test_data_path):

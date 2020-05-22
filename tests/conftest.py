@@ -182,7 +182,7 @@ def ea_test8a_sim(ea_test8a, test_data_path):
 
 
 @pytest.fixture(scope="session")
-def grass_5by5(grass_xy_session):
+def grass_5by5(grass_xy_session, test_data_path):
     """Create a square, 5 by 5 domain.
     """
     # Create new mapset
@@ -210,7 +210,7 @@ def grass_5by5(grass_xy_session):
     univar_n = gscript.parse_command('r.univar', map='n', flags='g')
     assert float(univar_n['min']) == 0.05
     assert float(univar_n['max']) == 0.05
-    # Start depth 10cm
+    # Start depth
     gscript.write_command('v.in.ascii', input='-',
                           stdin='25|25',
                           output='start_h')
@@ -221,6 +221,11 @@ def grass_5by5(grass_xy_session):
     univar_start_h = gscript.parse_command('r.univar', map='start_h', flags='g')
     assert float(univar_start_h['min']) == 0
     assert float(univar_start_h['max']) == 0.2
+    # Symmetry control points
+    control_points = os.path.join(test_data_path, '5by5', 'control_points.csv')
+    gscript.run_command('v.in.ascii', input=control_points,
+                        output='control_points',
+                        separator='comma')
     return None
 
 
