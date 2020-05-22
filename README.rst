@@ -11,7 +11,7 @@ Website: http://www.itzi.org/
 
 Documentation: http://itzi.rtfd.io/
 
-Repository: https://bitbucket.org/itzi-model/itzi/
+Repository: https://github.com/ItziModel/itzi
 
 
 Description
