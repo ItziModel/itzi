@@ -122,13 +122,13 @@ def solve_q(DTYPE_t [:, :] arr_dire, DTYPE_t [:, :] arr_dirs,
 
     cdef int rmax, cmax, r, c, rp, cp
     cdef float wse_e, wse_s, wse0, z0, ze, zs, n0, n, ne, ns
-    cdef float qe_st, qs_st, qe_vect, qs_vect, qdire, qdirs
+    cdef float qe_st, qs_st, qe, qs, qe_vect, qs_vect, qdire, qdirs
     cdef float qe_new, qs_new, hf_e, hf_s, h0, h_e, h_s
 
     rmax = arr_z.shape[0]
     cmax = arr_z.shape[1]
     for r in prange(rmax, nogil=True):
-        for c in xrange(cmax):
+        for c in range(cmax):
             rp = r + 1
             cp = c + 1
             # values at the current cell
@@ -136,6 +136,8 @@ def solve_q(DTYPE_t [:, :] arr_dire, DTYPE_t [:, :] arr_dirs,
             h0 = arr_h[r, c]
             wse0 = z0 + h0
             n0 = arr_n[r,c]
+            qe = arrp_qe[rp,cp]
+            qs = arrp_qs[rp,cp]
 
             # x dimension, flow at E cell boundary
             # prevent calculation of domain boundary
@@ -149,12 +151,11 @@ def solve_q(DTYPE_t [:, :] arr_dire, DTYPE_t [:, :] arr_dirs,
                 wse_e = ze + h_e
                 # average friction
                 ne = 0.5 * (n0 + arr_n[r,c+1])
-                # qnorm
                 # calculate average flow from stencil
-                qe_st = .25 * (arrp_qs[rp,cp] + arrp_qs[rp,cp+1] +
-                               arrp_qs[rp-1,cp+1] + arrp_qs[rp-1,cp+1])
+                qe_st = .25 * (qs + arrp_qs[rp-1,cp] +
+                               arrp_qs[rp-1,cp+1] + arrp_qs[rp,cp+1])
                 # calculate qnorm
-                qe_vect = c_sqrt(arrp_qe[rp,cp] * arrp_qe[rp,cp] + qe_st * qe_st)
+                qe_vect = c_sqrt(qe*qe + qe_st*qe_st)
                 # hflow
                 hf_e = hflow(z0=z0, z1=ze, wse0=wse0, wse1=wse_e)
                 arr_hfe[r, c] = hf_e
@@ -163,14 +164,14 @@ def solve_q(DTYPE_t [:, :] arr_dire, DTYPE_t [:, :] arr_dirs,
                     qe_new = 0
                 elif hf_e > hf_min:
                     qe_new = almeida2013(hf=hf_e, wse0=wse0, wse1=wse_e, n=ne,
-                                         qm1=arrp_qe[rp,cp-1], q0=arrp_qe[rp,cp],
+                                         qm1=arrp_qe[rp,cp-1], q0=qe,
                                          qp1=arrp_qe[rp,cp+1], q_norm=qe_vect,
                                          theta=theta, g=g, dt=dt, cell_len=dx)
-                # flow going W, i.e negative
+                # flow routing going W, i.e negative
                 elif hf_e <= hf_min and qdire == 0 and wse_e > wse0:
                     qe_new = - rain_routing(h_e, wse_e, wse0,
                                             dt, dx, v_rout)
-                # flow going E, i.e positive
+                # flow routing going E, i.e positive
                 elif hf_e <= hf_min and  qdire == 1 and wse0 > wse_e:
                     qe_new = rain_routing(h0, wse0, wse_e,
                                           dt, dx, v_rout)
@@ -189,13 +190,11 @@ def solve_q(DTYPE_t [:, :] arr_dire, DTYPE_t [:, :] arr_dirs,
                 wse_s = zs + h_s
                 # average friction
                 ns = 0.5 * (n0 + arr_n[r+1,c])
-                # qnorm
                 # calculate average flow from stencil
-                qs_st = .25 * (arrp_qe[rp,cp] + arrp_qe[r,cp-1] +
-                               arrp_qe[rp+1,cp] + arrp_qe[rp+1,cp-1])
+                qs_st = .25 * (qe + arrp_qe[rp+1,cp] +
+                               arrp_qe[rp+1,cp-1] + arrp_qe[rp,cp-1])
                 # calculate qnorm
-                qs_vect = c_sqrt(arrp_qs[rp,cp] * arrp_qs[rp,cp] +
-                                 qs_st * qs_st)
+                qs_vect = c_sqrt(qs*qs + qs_st*qs_st)
                 # hflow
                 hf_s = hflow(z0=z0, z1=zs, wse0=wse0, wse1=wse_s)
                 arr_hfs[r, c] = hf_s
@@ -203,14 +202,14 @@ def solve_q(DTYPE_t [:, :] arr_dire, DTYPE_t [:, :] arr_dirs,
                     qs_new = 0
                 elif hf_s > hf_min:
                     qs_new = almeida2013(hf=hf_s, wse0=wse0, wse1=wse_s, n=ns,
-                                         qm1=arrp_qs[rp-1,cp], q0=arrp_qs[rp,cp],
+                                         qm1=arrp_qs[rp-1,cp], q0=qs,
                                          qp1=arrp_qs[rp+1,cp], q_norm=qs_vect,
                                          theta=theta, g=g, dt=dt, cell_len=dy)
-                # flow going N, i.e negative
+                # flow routing going N, i.e negative
                 elif hf_s <= hf_min and qdirs == 0 and wse_s > wse0:
                     qs_new = - rain_routing(h_s, wse_s, wse0,
                                             dt, dy, v_rout)
-                # flow going S, i.e positive
+                # flow routing going S, i.e positive
                 elif hf_s <= hf_min and  qdirs == 1 and wse0 > wse_s:
                     qs_new = rain_routing(h0, wse0, wse_s,
                                           dt, dy, v_rout)
