@@ -230,23 +230,24 @@ def itzi_run(cli_args):
     # start total time counter
     total_sim_start = time.time()
     # dictionary to store computation times
-    times_dict = {}
+    times_list = []
     for conf_file in cli_args.config_file:
         sim_start = time.time()
         # Run the simulation
         itzi_run_one(need_grass_session, conf_file, profile)
         # store computational time
         comp_time = timedelta(seconds=int(time.time() - sim_start))
-        times_dict[os.path.basename(conf_file)] = comp_time
+        list_elem = (os.path.basename(conf_file), comp_time)
+        times_list.append(list_elem)
 
     # stop total time counter
     total_elapsed_time = timedelta(seconds=int(time.time() - total_sim_start))
     # display total computation duration
     msgr.message(u"Simulation(s) complete. Elapsed times:")
-    for f, t in times_dict.items():
+    for f, t in times_list:
         msgr.message(u"{}: {}".format(f, t))
     msgr.message(u"Total: {}".format(total_elapsed_time))
-    avg_time_s = int(total_elapsed_time.total_seconds() / len(times_dict))
+    avg_time_s = int(total_elapsed_time.total_seconds() / len(times_list))
     msgr.message(u"Average: {}".format(timedelta(seconds=avg_time_s)))
 
 
