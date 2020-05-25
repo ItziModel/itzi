@@ -88,7 +88,9 @@ def raster_writer(q, lock):
     """
     while True:
         # Get values from the queue
-        arr, rast_name, mtype, mkey, overwrite = q.get()
+        next_object = q.get()
+        if next_object is None: break
+        arr, rast_name, mtype, mkey, overwrite = next_object
         # Write raster
         lock.acquire()
         with raster.RasterRow(rast_name, mode='w', mtype=mtype,
@@ -199,6 +201,8 @@ class Igis(object):
         if self.region_id:
             msgr.debug("Remove temp region...")
             gscript.del_temp_region()
+        self.raster_writer_queue.put(None)
+        self.raster_writer_thread.join()
 
     def grass_dtype(self, dtype):
         if dtype in self.dtype_conv['DCELL']:
