@@ -3,6 +3,8 @@
 Itzï
 ====
 
+|Azure| |pypi| |rtfd|
+
 Itzï is a dynamic, fully distributed hydrologic and hydraulic model that
 simulates 2D surface flows on a regular raster grid and drainage flows through the SWMM model.
 It uses GRASS GIS as a back-end for entry data and result writing.
@@ -12,6 +14,18 @@ Website: http://www.itzi.org/
 Documentation: http://itzi.rtfd.io/
 
 Repository: https://github.com/ItziModel/itzi
+
+.. |Azure| image:: https://dev.azure.com/laurentcourty/laurentcourty/_apis/build/status/ItziModel.itzi?branchName=dev
+   :target: https://dev.azure.com/laurentcourty/laurentcourty/_build/latest?definitionId=1&branchName=dev
+   :alt: Azure Pipeline status
+
+.. |pypi| image:: https://badge.fury.io/py/itzi.svg
+    :target: https://badge.fury.io/py/itzi
+    :alt: Pypi package version
+
+.. |rtfd| image:: https://readthedocs.org/projects/itzi/badge/?version=latest
+    :target: https://itzi.readthedocs.io/en/latest/?badge=latest
+    :alt: Documentation Status
 
 
 Description
