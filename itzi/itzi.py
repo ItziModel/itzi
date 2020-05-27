@@ -58,12 +58,15 @@ def main():
         parser.arg_parser.print_usage()
 
 
-class SimulationRunner(object):
+class SimulationRunner():
     """provide the necessary tools to run one simulation,
     including setting-up and tearing down GRASS session.
     """
     def __init__(self, need_grass_session):
         self.need_grass_session = need_grass_session
+        self.conf = None
+        self.sim = None
+        self.grass_session = None
 
     def initialize(self, conf_file):
         """Parse the configuration file, set GRASS,
@@ -109,7 +112,7 @@ class SimulationRunner(object):
         """
         self.sim.finalize()
         # Close GRASS session
-        if self.need_grass_session:
+        if self.grass_session is not None:
             self.grass_session.close()
         return self
 
@@ -181,7 +184,7 @@ def itzi_run_one(need_grass_session, conf_file, profile):
     p.join()
     if p.exitcode != 0:
         msgr.warning(("Execution of {} "
-                      "ended with an error").format(file_name))
+                      "ended with an error").format(conf_file))
 
 
 def itzi_run(cli_args):
@@ -189,7 +192,7 @@ def itzi_run(cli_args):
     """
     # Check if being run within GRASS session
     try:
-       import grass.temporal as tgis
+        import grass.temporal as tgis
     except ImportError:
         need_grass_session = True
     else:
@@ -254,9 +257,9 @@ def itzi_run(cli_args):
 def itzi_version(cli_args):
     """Display the software version number from a file
     """
-    ROOT = os.path.dirname(__file__)
-    F_VERSION = os.path.join(ROOT, 'data', 'VERSION')
-    with open(F_VERSION, 'r') as f:
+    root = os.path.dirname(__file__)
+    f_version = os.path.join(root, 'data', 'VERSION')
+    with open(f_version, 'r') as f:
         print(f.readline().strip())
 
 

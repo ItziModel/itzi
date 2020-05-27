@@ -13,7 +13,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-class DefaultValues(object):
+class DefaultValues():
     """Default config values
     """
     # Threshold for determining the flow equation (m)
@@ -41,7 +41,7 @@ class DefaultValues(object):
     SUBMERGED_WEIR_COEFF = 0.056
 
 
-class VerbosityLevel(object):
+class VerbosityLevel():
     """Messenger verbosity levels
     """
     SUPER_QUIET = 0

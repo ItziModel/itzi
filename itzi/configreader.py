@@ -16,16 +16,14 @@ GNU General Public License for more details.
 
 from __future__ import division
 from __future__ import absolute_import
-import os
 from configparser import ConfigParser
 from datetime import datetime, timedelta
-import numpy as np
 
 import itzi.messenger as msgr
 from itzi.const import DefaultValues
 
 
-class ConfigReader(object):
+class ConfigReader():
     """Parse the configuration file and check validity of given options
     """
     def __init__(self, filename):
@@ -63,7 +61,7 @@ class ConfigReader(object):
         self.output_map_names = dict.fromkeys(k_output_map_names)
         self.input_map_names = dict.fromkeys(k_input_map_names)
         self.grass_params = dict.fromkeys(k_grass_params)
-        self.out_prefix = 'itzi_results_{}'.format(datetime.now().strftime('%Y%m%dT%H%M%S'))
+        self.out_prefix = f"itzi_results_{datetime.now().strftime('%Y%m%dT%H%M%S')}"
         self.stats_file = None
         return self
 
@@ -235,7 +233,7 @@ class ConfigReader(object):
         msgr.verbose(u"{}".format(inter_txt))
 
 
-class SimulationTimes(object):
+class SimulationTimes():
     """Store the information about simulation start & end time and duration
     """
     def __init__(self, raw_input_times):

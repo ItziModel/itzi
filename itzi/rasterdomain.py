@@ -15,17 +15,14 @@ GNU General Public License for more details.
 
 from __future__ import division
 from __future__ import absolute_import
-from datetime import datetime, timedelta
-import csv
-import copy
+from datetime import datetime
 import numpy as np
 
-import itzi.gis as gis
 import itzi.flow as flow
 import itzi.messenger as msgr
 
 
-class TimedArray(object):
+class TimedArray():
     """A container for np.ndarray with time informations.
     Update the array value according to the simulation time.
     array is accessed via get()
@@ -79,7 +76,7 @@ class TimedArray(object):
         return self
 
 
-class RasterDomain(object):
+class RasterDomain():
     """Group all rasters for the raster domain.
     Store them as np.ndarray with validity information (TimedArray)
     Include tools to update arrays from and write results to GIS,
@@ -355,7 +352,7 @@ class RasterDomain(object):
                                           interval_s) * self.mmh_to_ms
         # Created volume (total since last record)
         if self.out_map_names['verror'] is not None:
-            self.populate_stat_array('capped_losses', sim_time)  # why is 'capped_losses' here?
+            self.populate_stat_array('capped_losses', sim_time)  # This is weird
             out_arrays['verror'] = self.get_unmasked('st_herr') * self.cell_surf
         return out_arrays
 

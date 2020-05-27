@@ -16,8 +16,8 @@ from __future__ import division
 from __future__ import absolute_import
 import warnings
 from datetime import datetime, timedelta
-import numpy as np
 import copy
+import numpy as np
 
 from itzi.surfaceflow import SurfaceFlowSimulation
 from itzi.rasterdomain import RasterDomain
@@ -30,7 +30,7 @@ import itzi.hydrology as hydrology
 from itzi.itzi_error import NullError
 
 
-class SimulationManager(object):
+class SimulationManager():
     """Manage the general simulation:
     - update input values for each time-step
     - trigger the writing of results and statistics
@@ -257,7 +257,7 @@ class SimulationManager(object):
         return self
 
 
-class Report(object):
+class Report():
     """In charge of results reporting and writing
     """
     def __init__(self, igis, temporal_type, hmin, massbal, rast_dom,

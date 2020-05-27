@@ -20,7 +20,7 @@ import csv
 import copy
 
 
-class MassBal(object):
+class MassBal():
     """Follow-up the mass balance during the simulation run
     Intended use:
     at each record time, using write_values():

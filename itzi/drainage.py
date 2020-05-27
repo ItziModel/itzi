@@ -15,16 +15,15 @@ GNU General Public License for more details.
 from __future__ import division
 from __future__ import absolute_import
 import os
-from datetime import datetime, timedelta
+from datetime import timedelta
 from collections import namedtuple
-import numpy as np
 import networkx as nx
 
 from itzi.swmm import swmm
 from itzi.itzi_error import DtError
 
 
-class DrainageSimulation(object):
+class DrainageSimulation():
     """manage simulation of the pipe network
     write results to RasterDomain object
     """

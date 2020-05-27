@@ -22,7 +22,7 @@ import itzi.flow as flow
 from itzi.itzi_error import DtError
 
 
-class Infiltration(object):
+class Infiltration():
     """Base class for Infiltration
     infiltration is calculated in mm/h
     """

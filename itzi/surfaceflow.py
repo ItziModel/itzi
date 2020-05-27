@@ -23,7 +23,7 @@ import itzi.flow as flow
 from itzi.itzi_error import NullError, DtError
 
 
-class SurfaceFlowSimulation(object):
+class SurfaceFlowSimulation():
     """Surface flow simulation on staggered raster grid
     Accessed through step() methods
     By convention the flow is:

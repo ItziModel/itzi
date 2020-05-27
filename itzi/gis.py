@@ -17,12 +17,13 @@ from __future__ import absolute_import
 import os
 import atexit
 from collections import namedtuple
-import numpy as np
 from datetime import datetime, timedelta
 # from multiprocessing import Process, JoinableQueue
 from threading import Thread, Lock
 from queue import Queue
 import copy
+
+import numpy as np
 
 import itzi.messenger as msgr
 
@@ -39,13 +40,13 @@ from grass.pygrass.vector.table import Link
 # color rules
 _ROOT = os.path.dirname(__file__)
 _DIR = os.path.join(_ROOT, 'data', 'colortable')
-rules_h = os.path.join(_DIR, 'depth.txt')
-rules_v = os.path.join(_DIR, 'velocity.txt')
-rules_vdir = os.path.join(_DIR, 'vdir.txt')
-rules_fr = os.path.join(_DIR, 'froude.txt')
-rules_def = os.path.join(_DIR, 'default.txt')
-colors_rules_dict = {'h': rules_h, 'v': rules_v, 'vdir': rules_vdir,
-                     'fr': rules_fr}
+RULE_H = os.path.join(_DIR, 'depth.txt')
+RULE_V = os.path.join(_DIR, 'velocity.txt')
+RULE_VDIR = os.path.join(_DIR, 'vdir.txt')
+RULE_FR = os.path.join(_DIR, 'froude.txt')
+RULE_DEF = os.path.join(_DIR, 'default.txt')
+colors_rules_dict = {'h': RULE_H, 'v': RULE_V, 'vdir': RULE_VDIR,
+                     'fr': RULE_FR}
 # Check if color rule paths are OK
 for f in colors_rules_dict.values():
     assert os.path.isfile(f)
@@ -89,7 +90,8 @@ def raster_writer(q, lock):
     while True:
         # Get values from the queue
         next_object = q.get()
-        if next_object is None: break
+        if next_object is None:
+            break
         arr, rast_name, mtype, mkey, overwrite = next_object
         # Write raster
         lock.acquire()
@@ -106,7 +108,7 @@ def raster_writer(q, lock):
         q.task_done()
 
 
-class Igis(object):
+class Igis():
     """
     A class providing an access to GRASS GIS Python interfaces:
     scripting, pygrass, temporal GIS
@@ -171,7 +173,7 @@ class Igis(object):
         tgis.init()
         # Create thread and queue for writing raster maps
         self.raster_lock = Lock()
-        self.raster_writer_queue = Queue(maxsize = 15)
+        self.raster_writer_queue = Queue(maxsize=15)
         worker_args = (self.raster_writer_queue, self.raster_lock)
         self.raster_writer_thread = Thread(name="RasterWriter",
                                            target=raster_writer,
