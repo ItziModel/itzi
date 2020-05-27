@@ -6,7 +6,7 @@ Release Notes
 These are the major changes made in each release.
 For more details please see the commit log of the git repository.
 
-Itzï 25.5
+Itzï 20.5
 ---------
 
 *Release date: 2020-05-26*
