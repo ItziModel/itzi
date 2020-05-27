@@ -20,7 +20,7 @@ Python 2.x is no longer supported.
 
 **Changes in the configuration file**
 
-- The "pororosity" option is renamed to "porosity". Using the former will raise a deprecation warning.
+- The "effective_pororosity" option is renamed to "effective_porosity". Using the former will raise a deprecation warning.
 
 **Corrected bugs**
 
