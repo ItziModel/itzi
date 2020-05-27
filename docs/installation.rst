@@ -38,8 +38,8 @@ If Itzï is already installed and you want to update it to the last version::
 
 If you prefer to download and install Itzï manually, you can do it that way::
 
-    tar -xvf itzi-18.2.tar.gz
-    cd itzi-18.2
+    tar -xvf itzi-20.5.tar.gz
+    cd itzi-20.5
     python setup.py install --user
 
 .. note :: For a reason not related to Itzï, pip does not always place the Itzï executable in an accessible place.

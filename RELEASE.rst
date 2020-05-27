@@ -6,6 +6,36 @@ Release Notes
 These are the major changes made in each release.
 For more details please see the commit log of the git repository.
 
+Itzï 25.5
+---------
+
+*Release date: 2020-05-26*
+
+This version supports Python 3.7 and above, and therefore GRASS 7.8 and above.
+Python 2.x is no longer supported.
+
+**Improvements**
+
+- Raster maps are now written in the background. This might improve the performance in some cases.
+
+**Changes in the configuration file**
+
+- The "pororosity" option is renamed to "porosity". Using the former will raise a deprecation warning.
+
+**Corrected bugs**
+
+- Fix the stencil for 2D friction. This do not seems to have significant real-word impact.
+- Computation time display is now working correctly when running simulations with the same filename.
+- The first map of input inflow series is now taken into account.
+- Raster masks are now properly taken into account.
+
+**Internals**
+
+- Python 3.7 or above is now mandatory.
+- Refactoring of the code to follow a initialize-run-finalize model.
+- Inclusion of a test suite to improve quality insurance.
+- Use of grass-session to set the GRASS environment.
+
 
 Itzï 18.2
 ---------
