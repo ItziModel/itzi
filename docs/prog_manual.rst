@@ -16,7 +16,7 @@ The line length could be extended to 90 characters in those cases.
 Source code management
 ----------------------
 
-The source code is managed by `git <https://git-scm.com/>`__ and hosted on `Bitbucket <https://bitbucket.org/itzi-model/itzi>`__.
+The source code is managed by `git <https://git-scm.com/>`__ and hosted on `GitHub <https://github.com/ItziModel/itzi>`__.
 The best way to contribute is to fork the main repository, make your modifications and then create a pull request on Bitbucket.
 The repository have two branches:
 
@@ -24,17 +24,18 @@ The repository have two branches:
 - *dev* where the main development takes place.
 
 The code should be tested in *dev* before being merged to master for release.
+Any larger, possibly breaking changes should be done in a feature branch from *dev*.
 
 Development environment
 -----------------------
 
-We recommend to create a virtual environment to work on the source code.
+Create a virtual environment to work on the source code.
 
 .. code:: sh
 
     $ python3 -m venv itzi_dev
 
-Then you can activate the virtual env and install the dev version of Itzï.
+Activate the virtual env and install the dev version of Itzï.
 
 .. code:: sh
 
@@ -87,7 +88,18 @@ To estimate the test coverage:
     $ pytest --cov=itzi --forked -v
 
 
-Packaging
----------
+Release process
+---------------
 
-The process for packaging and sending to pypi is done via a bitbucket pipeline, defined in the bitbucket-pipelines.yml file.
+Once a potential feature branch is merged into *dev*:
+
+- Make sure all the tests pass
+- Merge *dev* into *master*
+- Bump the version number
+- Write the release notes
+- Update the documentation if necessary
+- Run the tests one last time
+- Create an annotated tag for version number
+- Create the package and push to pypi
+- Write a blog post anouncing the version
+- Post a link to the anouncement on twitter and the user mailing list
