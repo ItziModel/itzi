@@ -18,7 +18,7 @@ import grass.script as gscript
 from itzi import SimulationRunner
 
 # URL of zip file with test data
-EA_TESTS_URL = 'http://evidence.environment-agency.gov.uk/FCERM/Libraries/FCERM_Project_Documents/Benchmarking_Model_Data.sflb.ashx'
+EA_TESTS_URL = 'https://web.archive.org/web/20200527005028/http://evidence.environment-agency.gov.uk/FCERM/Libraries/FCERM_Project_Documents/Benchmarking_Model_Data.sflb.ashx'
 DATA_SHA256 = 'dd91fda6f049df34428b0cacdb21badcd9f0d5e92613e3541e8540a6b92cfda7'
 
 MapInfo = namedtuple('MapInfo', ['name', 'start', 'end', 'value'])
