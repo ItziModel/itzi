@@ -27,6 +27,8 @@ class ConfigReader():
     """Parse the configuration file and check validity of given options
     """
     def __init__(self, filename):
+        if filename is None:
+            msgr.fatal('Not a valid configuration file')
         self.config_file = filename
         # default values to be passed to simulation
         self.__set_defaults()
