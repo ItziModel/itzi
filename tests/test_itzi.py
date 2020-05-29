@@ -57,7 +57,7 @@ def test_region_mask(grass_5by5, test_data_path):
     init_nulls = int(gscript.parse_command('r.univar', map='z', flags='g')['null_cells'])
     # Set simulation (should set region and mask)
     config_file = os.path.join(test_data_path, '5by5', '5by5_mask.ini')
-    sim_runner = SimulationRunner(need_grass_session=False)
+    sim_runner = SimulationRunner()
     assert isinstance(sim_runner, SimulationRunner)
     sim_runner.initialize(config_file)
     # Run simulation

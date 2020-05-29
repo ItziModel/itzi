@@ -62,8 +62,7 @@ class SimulationRunner():
     """provide the necessary tools to run one simulation,
     including setting-up and tearing down GRASS session.
     """
-    def __init__(self, need_grass_session):
-        self.need_grass_session = need_grass_session
+    def __init__(self):
         self.conf = None
         self.sim = None
         self.grass_session = None
@@ -79,16 +78,14 @@ class SimulationRunner():
         msgr.message(f"Starting simulation of {os.path.basename(conf_file)}...")
         self.conf.display_sim_param()
 
-        # If run outside of grass, set it
-        if self.need_grass_session:
+        # If run outside of grass, set session
+        try:
+            from itzi.simulation import SimulationManager
+        except ImportError:
             self.set_grass_session()
-        # GRASS libs can now be safely imported
-        import itzi.gis as gis
-        from itzi.simulation import SimulationManager
+            from itzi.simulation import SimulationManager
         msgr.debug('GRASS session set')
-        # return error if output files exist
-        gis.check_output_files(self.conf.output_map_names.values())
-        msgr.debug('Output files OK')
+
         # Instantiate Simulation object and initialize it
         self.sim = SimulationManager(sim_times=self.conf.sim_times,
                                      stats_file=self.conf.stats_file,
@@ -151,7 +148,7 @@ class SimulationRunner():
         return self
 
 
-def sim_runner_worker(need_grass_session, conf_file, profile):
+def sim_runner_worker(conf_file, profile):
     """Run one simulation
     """
     msgr.raise_on_error = True
@@ -161,7 +158,7 @@ def sim_runner_worker(need_grass_session, conf_file, profile):
             prof = Profiler()
             prof.start()
         # Run the simulation
-        sim_runner = SimulationRunner(need_grass_session)
+        sim_runner = SimulationRunner()
         sim_runner.initialize(conf_file).run().finalize()
         # end profiling and print results
         if profile:
@@ -175,29 +172,22 @@ def sim_runner_worker(need_grass_session, conf_file, profile):
         msgr.warning("Error during execution: {}".format(traceback.format_exc()))
 
 
-def itzi_run_one(need_grass_session, conf_file, profile):
+def itzi_run_one(conf_file, profile):
     """Run a simulation in a subprocess
     """
-    worker_args = (need_grass_session, conf_file, profile)
+    worker_args = (conf_file, profile)
     p = Process(target=sim_runner_worker, args=worker_args)
     p.start()
     p.join()
     if p.exitcode != 0:
         msgr.warning(("Execution of {} "
                       "ended with an error").format(conf_file))
+    p.close()
 
 
 def itzi_run(cli_args):
     """Run one or multiple simulations from the command line.
     """
-    # Check if being run within GRASS session
-    try:
-        import grass.temporal as tgis
-    except ImportError:
-        need_grass_session = True
-    else:
-        need_grass_session = False
-
     # set environment variables
     if cli_args.o:
         os.environ['GRASS_OVERWRITE'] = '1'
@@ -237,7 +227,7 @@ def itzi_run(cli_args):
     for conf_file in cli_args.config_file:
         sim_start = time.time()
         # Run the simulation
-        itzi_run_one(need_grass_session, conf_file, profile)
+        itzi_run_one(conf_file, profile)
         # store computational time
         comp_time = timedelta(seconds=int(time.time() - sim_start))
         list_elem = (os.path.basename(conf_file), comp_time)

@@ -63,6 +63,9 @@ class SimulationManager():
         # dictionaries of map names
         self.in_map_names = input_maps
         self.out_map_names = output_maps
+        # return error if output files exist
+        gis.check_output_files(self.out_map_names.values())
+        msgr.debug('Output files OK')
 
         # data type of arrays
         self.dtype = dtype

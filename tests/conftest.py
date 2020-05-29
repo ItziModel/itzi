@@ -174,7 +174,7 @@ def ea_test8a_sim(ea_test8a, test_data_path):
     current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
     assert current_mapset == 'ea8a'
     config_file = os.path.join(test_data_path, 'EA_test_8', 'a', 'ea2dt8a.ini')
-    sim_runner = SimulationRunner(need_grass_session=False)
+    sim_runner = SimulationRunner()
     assert isinstance(sim_runner, SimulationRunner)
     sim_runner.initialize(config_file)
     sim_runner.run().finalize()
@@ -236,7 +236,7 @@ def grass_5by5_sim(grass_5by5, test_data_path):
     current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
     assert current_mapset == '5by5'
     config_file = os.path.join(test_data_path, '5by5', '5by5.ini')
-    sim_runner = SimulationRunner(need_grass_session=False)
+    sim_runner = SimulationRunner()
     assert isinstance(sim_runner, SimulationRunner)
     sim_runner.initialize(config_file)
     sim_runner.run().finalize()
@@ -287,7 +287,7 @@ def grass_mcdo_norain_sim(grass_mcdo_norain, test_data_path):
     assert current_mapset == 'mcdo_norain'
     # accessible_mapsets = gscript.read_command('g.mapsets', flags='p').rstrip()
     config_file = os.path.join(test_data_path, 'McDonald_long_channel_wo_rain', 'mcdo_norain.ini')
-    sim_runner = SimulationRunner(need_grass_session=False)
+    sim_runner = SimulationRunner()
     assert isinstance(sim_runner, SimulationRunner)
     sim_runner.initialize(config_file)
     sim_runner.run().finalize()
@@ -341,7 +341,7 @@ def grass_mcdo_rain_sim(grass_mcdo_rain, test_data_path):
     # accessible_mapsets = gscript.read_command('g.mapsets', flags='p').rstrip()
     # print(accessible_mapsets)
     config_file = os.path.join(test_data_path, 'McDonald_long_channel_rain', 'mcdo_rain.ini')
-    sim_runner = SimulationRunner(need_grass_session=False)
+    sim_runner = SimulationRunner()
     assert isinstance(sim_runner, SimulationRunner)
     sim_runner.initialize(config_file)
     sim_runner.run().finalize()
