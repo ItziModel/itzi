@@ -180,6 +180,23 @@ class SimulationManager():
             self.step()
         return self
 
+    def run_until(self, then):
+        """Run the simulation until a time in seconds after start_time
+        """
+        assert isinstance(then, timedelta)
+        end_time = self.start_time + then
+        if end_time <= self.sim_time:
+            raise ValueError('End time must be superior to current time')
+        # Temporary set the end time (shorten last time step if necessary)
+        self.next_ts['end'] = end_time
+        while self.sim_time < end_time:
+            self.step()
+        # Reset to global end time
+        self.next_ts['end'] = self.end_time
+        # Make sure everything went well
+        assert self.sim_time == end_time
+        return self
+
     def finalize(self):
         """Perform all operations after time stepping.
         """

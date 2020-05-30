@@ -16,6 +16,8 @@ GNU General Public License for more details.
 """
 
 import os
+from datetime import timedelta
+
 import numpy as np
 from bmipy import Bmi
 import itzi
@@ -43,7 +45,7 @@ class BmiItzi(Bmi):
         self.itzi = None
 
 
-    ### Model control functions ###
+    # Model control functions #
 
     def initialize(self, filename=None):
         """Initialize the Itzï model.
@@ -58,7 +60,7 @@ class BmiItzi(Bmi):
 
     def update(self):
         """Advance model by one time step."""
-        pass
+        self.itzi.step()
 
     def update_until(self, then):
         """Update model until a particular time.
@@ -68,13 +70,14 @@ class BmiItzi(Bmi):
         then : float
             Time to run model until.
         """
-        pass
+        then = timedelta(seconds=float(then))
+        self.itzi.sim.run_until(then)
 
     def finalize(self):
         """Finalize model."""
         self.itzi.finalize()
 
-    ### Model information functions ###
+    # Model information functions #
 
     def get_component_name(self):
         """Name of the component."""
@@ -96,26 +99,27 @@ class BmiItzi(Bmi):
         """Get names of output variables."""
         return self._output_var_names
 
-    ### Time functions ###
+    # Time functions #
 
     def get_start_time(self):
         """Start time of model."""
-        return self._start_time
+        return float(0)
 
     def get_end_time(self):
         """End time of model."""
-        return self._end_time
+        return float(self.itzi.sim.duration.total_seconds())
 
     def get_current_time(self):
-        return self._model.time
+        current_time = self.itzi.sim.sim_time - self.itzi.sim.start_time
+        return float(current_time.total_seconds())
 
     def get_time_step(self):
-        return self._model.time_step
+        return float(self.itzi.sim.dt.total_seconds())
 
     def get_time_units(self):
-        return self._time_units
+        return 's'
 
-    ### Variable information functions ###
+    # Variable information functions #
 
     def get_var_type(self, var_name):
         """Data type of variable.

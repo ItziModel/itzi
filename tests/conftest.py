@@ -8,6 +8,7 @@ import os
 import zipfile
 import hashlib
 from collections import namedtuple
+
 import pytest
 import pandas as pd
 import numpy as np
@@ -15,6 +16,7 @@ import requests
 from grass_session import Session as GrassSession
 import grass.script as gscript
 
+from itzi import BmiItzi
 from itzi import SimulationRunner
 
 # URL of zip file with test data
@@ -346,4 +348,10 @@ def grass_mcdo_rain_sim(grass_mcdo_rain, test_data_path):
     sim_runner.initialize(config_file)
     sim_runner.run().finalize()
     return sim_runner
-    
+
+@pytest.fixture(scope="session")
+def bmi_object(grass_5by5, test_data_path):
+        itzi_bmi = BmiItzi()
+        conf_file = os.path.join(test_data_path, '5by5', '5by5.ini')
+        itzi_bmi.initialize(conf_file)
+        return itzi_bmi
