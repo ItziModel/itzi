@@ -28,17 +28,33 @@ class BmiItzi(Bmi):
 
     _name = "Itzï"
     _input_var_names = ("land_surface__elevation",
+                        "land_surface_water_flow__manning_n_parameter",
+                        "land_surface_water__depth",
                         "land_surface_water__precipitation_leq-volume_flux",
-                        "soil_water__effective_hydraulic_conductivity",
+                        "land_surface_water__inflow_volume_flux",
+                        "land_surface_water__boundary_type",
+                        "land_surface_water__boundary_value",
+                        "soil_surface_water__infiltration_volume_flux",
+                        "soil_water__effective_porosity",
                         "soil_water__pressure_head",
-                        "soil_water__hydraulic_conductivity")
+                        "soil_water__hydraulic_conductivity",
+                        "land_surface_water__losses_volume_flux",
+                        )
     _output_var_names = ("land_surface_water__depth",
                          "land_surface_water_surface__elevation",
-                         "land_surface_water_flow__azimuth_angle_of_velocity",
                          "land_surface_water_flow__speed",
-                         "land_surface__infiltration_rate",
+                         "land_surface_water_flow__azimuth_angle_of_velocity",
                          "land_surface_water__x_component_of_volume_flow_rate",
-                         "land_surface_water__y_component_of_volume_flow_rate")
+                         "land_surface_water__y_component_of_volume_flow_rate",
+                         "soil_surface_water__boundary_volume_flux",
+                         "soil_surface_water__mean_of_infiltration_volume_flux",
+                         "land_surface_water__mean_of_precipitation_leq-volume_flux",
+                         "land_surface_water__mean_of_inflow_volume_flux",
+                         "land_surface_water__mean_of_losses_volume_flux",
+                         "land_surface_water__mean_of_drainage_volume_flux",
+                         "land_surface_water__time_integral_of_error_volume",
+                         "land_surface_water_flow__froude_number",
+                         )
 
     def __init__(self):
         """Create a BmiItzi model that is ready for initialization."""
