@@ -8,7 +8,6 @@ import os
 import pytest
 import pandas as pd
 import numpy as np
-import grass.script as gscript
 
 from itzi import BmiItzi
 
@@ -21,6 +20,27 @@ class TestBmi:
 
     def test_time_unit(self, bmi_object):
         assert bmi_object.get_time_units() == 's'
+
+    def test_get_component_name(self, bmi_object):
+        name = bmi_object.get_component_name()
+        assert name == "Itzï"
+
+    def test_get_input_item_count(self, bmi_object):
+        count = bmi_object.get_input_item_count()
+        assert count == 12
+
+    def test_get_output_item_count(self, bmi_object):
+        count = bmi_object.get_output_item_count()
+        assert count == 14
+
+    def test_get_input_var_names(self, bmi_object):
+        names = bmi_object.get_input_var_names()
+        assert len(names) == bmi_object.get_input_item_count()
+
+    def test_get_output_var_names(self, bmi_object):
+        names = bmi_object.get_output_var_names()
+        assert len(names) == bmi_object.get_output_item_count()
+
 
     def test_time_step(self, bmi_object):
         dt = bmi_object.get_time_step()
