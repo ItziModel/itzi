@@ -146,7 +146,7 @@ class DrainageSimulation():
         Apply the flow to the node and to the relevant raster cell
         """
         arr_h = self.dom.get('h')
-        arr_z = self.dom.get('z')
+        arr_z = self.dom.get('dem')
         arr_qd = self.dom.get('n_drain')
         self.swmm_net.apply_linkage(arr_h, arr_z, arr_qd, dt2d, self._dt)
         return self

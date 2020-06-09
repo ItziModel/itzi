@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2016  Laurent Courty
+Copyright (C) 2016-2020  Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -67,7 +67,7 @@ class Hydrology():
         Input and output are considered to be in mm/h
         """
         flow.inf_user(arr_h=self.dom.get('h'),
-                      arr_inf_in=self.dom.get('in_losses'),
+                      arr_inf_in=self.dom.get('losses'),
                       arr_inf_out=self.dom.get('capped_losses'),
                       dt=self._dt)
 

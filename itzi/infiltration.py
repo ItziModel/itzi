@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2016  Laurent Courty
+Copyright (C) 2016-2020  Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -86,9 +86,9 @@ class InfGreenAmpt(Infiltration):
         """update infiltration rate map in mm/h.
         """
         flow.inf_ga(arr_h=self.dom.get('h'),
-                    arr_eff_por=self.dom.get('por'),
-                    arr_pressure=self.dom.get('pres'),
-                    arr_conduct=self.dom.get('con'),
+                    arr_eff_por=self.dom.get('effective_porosity'),
+                    arr_pressure=self.dom.get('capillary_pressure'),
+                    arr_conduct=self.dom.get('hydraulic_conductivity'),
                     arr_inf_amount=self.infiltration_amount,
                     arr_water_soil_content=self.init_wat_soil_content,
                     arr_inf_out=self.dom.get('inf'), dt=self._dt)

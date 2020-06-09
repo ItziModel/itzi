@@ -107,15 +107,15 @@ class RasterDomain():
         self.in_map_names = input_maps
         self.out_map_names = output_maps
         # correspondance between input map names and the arrays
-        self.in_k_corresp = {'z': 'dem', 'n': 'friction', 'h': 'start_h',
+        self.in_k_corresp = {'dem': 'dem', 'friction': 'friction', 'h': 'start_h',
                              'y': 'start_y',
-                             'por': 'effective_porosity',
-                             'pres': 'capillary_pressure',
-                             'con': 'hydraulic_conductivity',
+                             'effective_porosity': 'effective_porosity',
+                             'capillary_pressure': 'capillary_pressure',
+                             'hydraulic_conductivity': 'hydraulic_conductivity',
                              'in_inf': 'infiltration',
-                             'in_losses': 'losses',
-                             'rain': 'rain', 'in_q': 'inflow',
-                             'bcv': 'bcval', 'bct': 'bctype'}
+                             'losses': 'losses',
+                             'rain': 'rain', 'inflow': 'inflow',
+                             'bcval': 'bcval', 'bctype': 'bctype'}
         # all keys that will be used for the arrays
         self.k_input = list(self.in_k_corresp.keys())
         self.k_internal = ['inf', 'hmax', 'ext', 'y', 'hfe', 'hfs',
@@ -126,7 +126,7 @@ class RasterDomain():
         self.k_stats = ['st_bound', 'st_inf', 'st_rain', 'st_etp',
                         'st_inflow', 'st_losses', 'st_ndrain', 'st_herr']
         self.stats_corresp = {'inf': 'st_inf', 'rain': 'st_rain',
-                              'in_q': 'st_inflow', 'capped_losses': 'st_losses',
+                              'inflow': 'st_inflow', 'capped_losses': 'st_losses',
                               'n_drain': 'st_ndrain'}
         self.k_all = self.k_input + self.k_internal + self.k_stats
         # last update of statistical map entry
@@ -163,7 +163,7 @@ class RasterDomain():
         return self.asum('st_rain') * self.cell_surf
 
     def inflow_vol(self, sim_time):
-        self.populate_stat_array('in_q', sim_time)
+        self.populate_stat_array('inflow', sim_time)
         return self.asum('st_inflow') * self.cell_surf
 
     def losses_vol(self, sim_time):
@@ -239,27 +239,27 @@ class RasterDomain():
         Replace the NULL values (mask)
         """
         # make sure DEM is treated first
-        if not self.tarr['z'].is_valid(sim_time):
-            self.arr['z'][:] = self.tarr['z'].get(sim_time)
-            self.isnew['z'] = True
+        if not self.tarr['dem'].is_valid(sim_time):
+            self.arr['dem'][:] = self.tarr['dem'].get(sim_time)
+            self.isnew['dem'] = True
             # note: must run update_flow_dir() in SuperficialSimulation
-            self.update_mask(self.arr['z'])
-            self.mask_array(self.arr['z'], np.finfo(self.dtype).max)
+            self.update_mask(self.arr['dem'])
+            self.mask_array(self.arr['dem'], np.finfo(self.dtype).max)
 
         # loop through the arrays
         for k, ta in self.tarr.items():
             if not ta.is_valid(sim_time):
                 # z is done before
-                if k == 'z':
+                if k == 'dem':
                     continue
                 # calculate statistics before updating array
-                if k in ['in_q', 'rain']:
+                if k in ['inflow', 'rain']:
                     self.populate_stat_array(k, sim_time)
                 # update array
                 msgr.debug(u"{}: update input array <{}>".format(sim_time, k))
                 self.arr[k][:] = ta.get(sim_time)
                 self.isnew[k] = True
-                if k == 'n':
+                if k == 'friction':
                     fill_value = 1
                 else:
                     fill_value = 0
@@ -303,8 +303,8 @@ class RasterDomain():
         This applies for inputs that are needed to be taken into account,
          at every timestep, like inflows from user or drainage.
         """
-        if any([self.isnew[k] for k in ('in_q', 'n_drain')]):
-            flow.set_ext_array(self.arr['in_q'], self.arr['n_drain'],
+        if any([self.isnew[k] for k in ('inflow', 'n_drain')]):
+            flow.set_ext_array(self.arr['inflow'], self.arr['n_drain'],
                                self.arr['ext'])
             self.isnew['ext'] = True
         else:
@@ -318,7 +318,7 @@ class RasterDomain():
         if self.out_map_names['h'] is not None:
             out_arrays['h'] = self.get_unmasked('h')
         if self.out_map_names['wse'] is not None:
-            out_arrays['wse'] = self.get_unmasked('h') + self.get('z')
+            out_arrays['wse'] = self.get_unmasked('h') + self.get('dem')
         if self.out_map_names['v'] is not None:
             out_arrays['v'] = self.get_unmasked('v')
         if self.out_map_names['vdir'] is not None:
@@ -334,7 +334,7 @@ class RasterDomain():
             if self.out_map_names['boundaries'] is not None:
                 out_arrays['boundaries'] = self.get_unmasked('st_bound') / interval_s
             if self.out_map_names['inflow'] is not None:
-                self.populate_stat_array('in_q', sim_time)
+                self.populate_stat_array('inflow', sim_time)
                 out_arrays['inflow'] = self.get_unmasked('st_inflow') / interval_s
             if self.out_map_names['losses'] is not None:
                 self.populate_stat_array('capped_losses', sim_time)

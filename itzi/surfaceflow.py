@@ -75,7 +75,7 @@ class SurfaceFlowSimulation():
         -1: no routing happening on that face
         '''
         # get a padded array
-        arrp_z = self.dom.get_padded('z')
+        arrp_z = self.dom.get_padded('dem')
         # define differences in Z
         z0 = arrp_z[1:-1, 1:-1]
         zN = arrp_z[0:-2, 1:-1]
@@ -165,7 +165,7 @@ class SurfaceFlowSimulation():
         flow.solve_h(arr_ext=self.dom.get('ext'),
                      arr_qe=flow_east, arr_qw=flow_west,
                      arr_qn=flow_north, arr_qs=flow_south,
-                     arr_bct=self.dom.get('bct'), arr_bcv=self.dom.get('bcv'),
+                     arr_bct=self.dom.get('bctype'), arr_bcv=self.dom.get('bcval'),
                      arr_h=self.dom.get('h'), arr_hmax=self.dom.get('hmax'),
                      arr_hfix=self.dom.get('st_bound'),
                      arr_herr=self.dom.get('st_herr'),
@@ -183,7 +183,7 @@ class SurfaceFlowSimulation():
         '''
         flow.solve_q(arr_dire=self.dom.get('dire'),
                      arr_dirs=self.dom.get('dirs'),
-                     arr_z=self.dom.get('z'), arr_n=self.dom.get('n'),
+                     arr_z=self.dom.get('dem'), arr_n=self.dom.get('friction'),
                      arr_h=self.dom.get('h'),
                      arrp_qe=self.dom.get_padded('qe'),
                      arrp_qs=self.dom.get_padded('qs'),
@@ -209,38 +209,38 @@ class SurfaceFlowSimulation():
         w_boundary_flow = self.dom.get_padded('qe_new')[1:-1, 0]
         self.w_boundary.get_boundary_flow(qin=self.dom.get('qe_new')[:, 0],
                                           hflow=self.dom.get('hfe')[:, 0],
-                                          n=self.dom.get('n')[:, 0],
-                                          z=self.dom.get('z')[:, 0],
+                                          n=self.dom.get('friction')[:, 0],
+                                          z=self.dom.get('dem')[:, 0],
                                           depth=self.dom.get('h')[:, 0],
-                                          bctype=self.dom.get('bct')[:, 0],
-                                          bcvalue=self.dom.get('bcv')[:, 0],
+                                          bctype=self.dom.get('bctype')[:, 0],
+                                          bcvalue=self.dom.get('bcval')[:, 0],
                                           qboundary=w_boundary_flow)
         e_boundary_flow = self.dom.get('qe_new')[:, -1]
         self.e_boundary.get_boundary_flow(qin=self.dom.get('qe_new')[:, -2],
                                           hflow=self.dom.get('hfe')[:, -2],
-                                          n=self.dom.get('n')[:, -1],
-                                          z=self.dom.get('z')[:, -1],
+                                          n=self.dom.get('friction')[:, -1],
+                                          z=self.dom.get('dem')[:, -1],
                                           depth=self.dom.get('h')[:, -1],
-                                          bctype=self.dom.get('bct')[:, -1],
-                                          bcvalue=self.dom.get('bcv')[:, -1],
+                                          bctype=self.dom.get('bctype')[:, -1],
+                                          bcvalue=self.dom.get('bcval')[:, -1],
                                           qboundary=e_boundary_flow)
         n_boundary_flow = self.dom.get_padded('qs_new')[0, 1:-1]
         self.n_boundary.get_boundary_flow(qin=self.dom.get('qs_new')[0],
                                           hflow=self.dom.get('hfs')[0],
-                                          n=self.dom.get('n')[0],
-                                          z=self.dom.get('z')[0],
+                                          n=self.dom.get('friction')[0],
+                                          z=self.dom.get('dem')[0],
                                           depth=self.dom.get('h')[0],
-                                          bctype=self.dom.get('bct')[0],
-                                          bcvalue=self.dom.get('bcv')[0],
+                                          bctype=self.dom.get('bctype')[0],
+                                          bcvalue=self.dom.get('bcval')[0],
                                           qboundary=n_boundary_flow)
         s_boundary_flow = self.dom.get('qs_new')[-1]
         self.s_boundary.get_boundary_flow(qin=self.dom.get('qs_new')[-2],
                                           hflow=self.dom.get('hfs')[-2],
-                                          n=self.dom.get('n')[-1],
-                                          z=self.dom.get('z')[-1],
+                                          n=self.dom.get('friction')[-1],
+                                          z=self.dom.get('dem')[-1],
                                           depth=self.dom.get('h')[-1],
-                                          bctype=self.dom.get('bct')[-1],
-                                          bcvalue=self.dom.get('bcv')[-1],
+                                          bctype=self.dom.get('bctype')[-1],
+                                          bcvalue=self.dom.get('bcval')[-1],
                                           qboundary=s_boundary_flow)
         # add equivalent water depth passing through the boundaries to the statistic array
         self.dom.get('st_bound')[1:-1, 0] += w_boundary_flow[self.ss] / self._dt / self.dx

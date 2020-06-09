@@ -30,6 +30,37 @@ import itzi.hydrology as hydrology
 from itzi.itzi_error import NullError
 
 
+class ItziCore():
+    """
+    """
+    def __init__(self):
+        pass
+
+    def initialize(self):
+        pass
+
+    def step(self):
+        pass
+
+    def finalize(self):
+        pass
+
+    def set_array(self, arr_id, arr):
+        """Set an array of the simulation domain
+        """
+        assert isinstance(arr_id, str)
+        assert isinstance(arr, np.ndarray)
+
+    def get_array(self, arr_id, arr):
+        assert isinstance(arr_id, str)
+        assert isinstance(arr, np.ndarray)
+        pass
+
+    def find_dt(self):
+        pass
+
+
+
 class SimulationManager():
     """Manage the general simulation:
     - update input values for each time-step
@@ -209,7 +240,7 @@ class SimulationManager():
         """Step each of the models if needed
         """
         # recalculate the flow direction if DEM changed
-        if self.rast_domain.isnew['z']:
+        if self.rast_domain.isnew['dem']:
             self.surf_sim.update_flow_dir()
 
         # hydrology #
