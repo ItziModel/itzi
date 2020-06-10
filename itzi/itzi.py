@@ -80,14 +80,14 @@ class SimulationRunner():
 
         # If run outside of grass, set session
         try:
-            from itzi.simulation import SimulationManager
+            from itzi.simulation import create_simulation
         except ImportError:
             self.set_grass_session()
-            from itzi.simulation import SimulationManager
+            from itzi.simulation import create_simulation
         msgr.debug('GRASS session set')
 
         # Instantiate Simulation object and initialize it
-        self.sim = SimulationManager(sim_times=self.conf.sim_times,
+        self.sim = create_simulation(sim_times=self.conf.sim_times,
                                      stats_file=self.conf.stats_file,
                                      dtype=np.float32,
                                      input_maps=self.conf.input_map_names,

@@ -33,6 +33,31 @@ from itzi.itzi_error import NullError
 class ItziCore():
     """
     """
+
+    _array_keys = ['elevation',
+                   'manning_n',
+                   'depth',
+                   'effective_porosity', 'capillary_pressure', 'hydraulic_conductivity',
+                   'infiltration',
+                   'losses',
+                   'rain',
+                   'inflow',
+                   'bcval', 'bctype',
+                   'hmax',
+                   'ext',
+                   'hfe', 'hfs',
+                   'qe', 'qs',
+                   'qe_new', 'qs_new',
+                   'etp',
+                   'ue', 'us',
+                   'v', 'vdir',
+                   'vmax',
+                   'froude',
+                   'n_drain',
+                   'capped_losses',
+                   'dire',
+                   'dirs']
+
     def __init__(self):
         pass
 
@@ -60,6 +85,73 @@ class ItziCore():
         pass
 
 
+def create_simulation(sim_times, input_maps, output_maps, sim_param,
+                      drainage_params, grass_params,
+                      dtype=np.float32,
+                      dtmin=timedelta(seconds=0.01),
+                      stats_file=None):
+    """Return a SimulationManager object.
+    """
+    msgr.verbose(u"Setting up models...")
+    # return error if output files exist
+    gis.check_output_files(output_maps.values())
+    msgr.debug('Output files OK')
+    # GIS interface
+    igis = gis.Igis(start_time=sim_times.start,
+                    end_time=sim_times.end,
+                    dtype=dtype,
+                    mkeys=input_maps.keys(),
+                    region_id=grass_params['region'],
+                    raster_mask_id=grass_params['mask'])
+    inf_model = sim_param['inf_model']
+    dtinf = sim_param['dtinf']
+    # RasterDomain
+    msgr.debug(u"Setting up raster domain...")
+    try:
+        raster_domain = RasterDomain(dtype, igis,
+                                        input_maps, output_maps)
+    except MemoryError:
+        msgr.fatal(u"Out of memory.")
+    # Infiltration
+    msgr.debug(u"Setting up raster infiltration...")
+    inf_class = {'constant': infiltration.InfConstantRate,
+                 'green-ampt': infiltration.InfGreenAmpt,
+                 'null': infiltration.InfNull}
+    try:
+        infiltration_model = inf_class[inf_model](raster_domain, dtinf)
+    except KeyError:
+        assert False, f"Unknow infiltration model: {inf_model}"
+    # Hydrology
+    msgr.debug(u"Setting up hydrologic model...")
+    hydrology_model = hydrology.Hydrology(raster_domain, dtinf, infiltration_model)
+    # Surface flows simulation
+    msgr.debug(u"Setting up surface model...")
+    surface_flow = SurfaceFlowSimulation(raster_domain, sim_param)
+    # Instantiate Massbal object
+    if stats_file:
+        msgr.debug(u"Setting up mass balance object...")
+        massbal = MassBal(stats_file, raster_domain,
+                               sim_times.start, sim_times.temporal_type)
+    else:
+        massbal = None
+    # Drainage
+    if drainage_params['swmm_inp']:
+        msgr.debug(u"Setting up drainage model...")
+        drainage = DrainageSimulation(raster_domain,
+                                           drainage_params,
+                                           igis, sim_param['g'])
+    else:
+        drainage = None
+    # reporting object
+    msgr.debug(u"Setting up reporting object...")
+    report = Report(igis, sim_times.temporal_type,
+                    sim_param['hmin'], massbal,
+                    raster_domain,
+                    drainage, drainage_params['output'])
+    msgr.verbose(u"Models set up")
+    return SimulationManager(raster_domain, hydrology_model, surface_flow, drainage, massbal, report,
+                             sim_times, dtmin)
+
 
 class SimulationManager():
     """Manage the general simulation:
@@ -68,118 +160,25 @@ class SimulationManager():
     Accessed via the run() method
     """
 
-    def __init__(self, sim_times, input_maps, output_maps, sim_param,
-                 drainage_params, grass_params,
-                 dtype=np.float32,
-                 dtmin=timedelta(seconds=0.01),
-                 stats_file=None):
+    def __init__(self, raster_domain, hydrology_model, surface_flow, drainage, massbal, report,
+                 sim_times, dtmin):
 
         # read time parameters
         self.start_time = sim_times.start
         self.end_time = sim_times.end
-        self.duration = sim_times.duration
         self.record_step = sim_times.record_step
-        self.temporal_type = sim_times.temporal_type
 
         # set simulation time to start_time
         self.sim_time = self.start_time
         # First time-step is forced
         self.dt = dtmin  # Global time-step
-        self.dtinf = sim_param['dtinf']
-
-        # Temp region and mask
-        self.region_id = grass_params['region']
-        self.raster_mask_id = grass_params['mask']
-
-        # dictionaries of map names
-        self.in_map_names = input_maps
-        self.out_map_names = output_maps
-        # return error if output files exist
-        gis.check_output_files(self.out_map_names.values())
-        msgr.debug('Output files OK')
-
-        # data type of arrays
-        self.dtype = dtype
-        # simulation parameters
-        self.sim_param = sim_param
-        self.inf_model = self.sim_param['inf_model']
-
-        # drainage parameters
-        self.drainage_params = drainage_params
-
-        # statistic file name
-        self.stats_file = stats_file
-
-    def __set_models(self, igis):
-        """Instantiate models objects
-        """
-        # RasterDomain
-        msgr.debug(u"Setting up raster domain...")
-        try:
-            self.rast_domain = RasterDomain(self.dtype, igis,
-                                            self.in_map_names, self.out_map_names)
-        except MemoryError:
-            msgr.fatal(u"Out of memory.")
-        # Infiltration
-        msgr.debug(u"Setting up raster infiltration...")
-        inf_class = {'constant': infiltration.InfConstantRate,
-                     'green-ampt': infiltration.InfGreenAmpt,
-                     'null': infiltration.InfNull}
-        try:
-            self.infiltration = inf_class[self.inf_model](self.rast_domain,
-                                                          self.dtinf)
-        except KeyError:
-            assert False, u"Unknow infiltration model: {}".format(self.inf_model)
-        # Hydrology
-        msgr.debug(u"Setting up hydrologic model...")
-        self.hydrology = hydrology.Hydrology(self.rast_domain, self.dtinf,
-                                             self.infiltration)
-        # Surface flows simulation
-        msgr.debug(u"Setting up surface model...")
-        self.surf_sim = SurfaceFlowSimulation(self.rast_domain,
-                                              self.sim_param)
-        # Instantiate Massbal object
-        if self.stats_file:
-            msgr.debug(u"Setting up mass balance object...")
-            self.massbal = MassBal(self.stats_file, self.rast_domain,
-                                   self.start_time, self.temporal_type)
-        else:
-            self.massbal = None
-
-        # Drainage
-        if self.drainage_params['swmm_inp']:
-            msgr.debug(u"Setting up drainage model...")
-            self.drainage = DrainageSimulation(self.rast_domain,
-                                               self.drainage_params,
-                                               igis, self.sim_param['g'])
-        else:
-            self.drainage = None
-
-        # reporting object
-        msgr.debug(u"Setting up reporting object...")
-        self.report = Report(igis, self.temporal_type,
-                             self.sim_param['hmin'], self.massbal,
-                             self.rast_domain,
-                             self.drainage, self.drainage_params['output'])
-        return self
-
-    def initialize(self):
-        """Set-up the simulation.
-        """
-        # instantiate simulation objects
-        gis_kwargs = dict(start_time=self.start_time,
-                          end_time=self.end_time,
-                          dtype=self.dtype,
-                          mkeys=self.in_map_names.keys(),
-                          region_id=self.region_id,
-                          raster_mask_id=self.raster_mask_id)
-        self.igis = gis.Igis(**gis_kwargs)
-        msgr.verbose(u"Setting up models...")
-        self.__set_models(self.igis)
-        msgr.verbose(u"Models set up")
-        msgr.verbose(u"Reading maps information from GIS...")
-        self.igis.read(self.in_map_names)
-
+        # objects references
+        self.raster_domain = raster_domain
+        self.hydrology = hydrology_model
+        self.surface_flow = surface_flow
+        self.drainage = drainage
+        self.massbal = massbal
+        self.report = report
         # dict of next time-step (datetime object)
         self.next_ts = {'end': self.end_time,
                         'rec': self.start_time + self.record_step}
@@ -190,10 +189,13 @@ class SimulationManager():
             self.next_ts['drain'] = self.end_time
         # First time-step is forced
         self.nextstep = self.sim_time + self.dt
-        # record initial state
-        self.rast_domain.update_input_arrays(self.sim_time)
+
+    def initialize(self):
+        """Record the initial state.
+        """
+        self.raster_domain.update_input_arrays(self.sim_time)
         self.report.step(self.sim_time)
-        self.rast_domain.reset_stats(self.sim_time)
+        self.raster_domain.reset_stats(self.sim_time)
         return self
 
     def run(self):
@@ -233,15 +235,15 @@ class SimulationManager():
         """
         # write final report
         self.report.end(self.sim_time)
-        self.igis.cleanup()
+        self.raster_domain.cleanup()
         return self
 
     def step(self):
         """Step each of the models if needed
         """
         # recalculate the flow direction if DEM changed
-        if self.rast_domain.isnew['dem']:
-            self.surf_sim.update_flow_dir()
+        if self.raster_domain.isnew['dem']:
+            self.surface_flow.update_flow_dir()
 
         # hydrology #
         if self.sim_time == self.next_ts['hyd']:
@@ -250,8 +252,8 @@ class SimulationManager():
             self.next_ts['hyd'] += self.hydrology.dt
             self.hydrology.step()
             # update stat array
-            self.rast_domain.populate_stat_array('inf', self.sim_time)
-            self.rast_domain.populate_stat_array('capped_losses', self.sim_time)
+            self.raster_domain.populate_stat_array('inf', self.sim_time)
+            self.raster_domain.populate_stat_array('capped_losses', self.sim_time)
 
         # drainage #
         if self.sim_time == self.next_ts['drain'] and self.drainage:
@@ -260,29 +262,29 @@ class SimulationManager():
             self.next_ts['drain'] += self.drainage.dt
             self.drainage.step()
             self.drainage.apply_linkage(self.dt.total_seconds())
-            self.rast_domain.isnew['n_drain'] = True
+            self.raster_domain.isnew['n_drain'] = True
             # update stat array
-            self.rast_domain.populate_stat_array('n_drain', self.sim_time)
+            self.raster_domain.populate_stat_array('n_drain', self.sim_time)
         else:
-            self.rast_domain.isnew['n_drain'] = False
+            self.raster_domain.isnew['n_drain'] = False
 
         # surface flow #
         # update arrays of infiltration, rainfall etc.
-        self.rast_domain.update_ext_array()
+        self.raster_domain.update_ext_array()
         # force time-step to be the general time-step
-        self.surf_sim.dt = self.dt
-        # surf_sim.step() raise NullError in case of NaN/NULL cell
+        self.surface_flow.dt = self.dt
+        # surface_flow.step() raise NullError in case of NaN/NULL cell
         # if this happen, stop simulation and
         # output a map showing the errors
         try:
-            self.surf_sim.step()
+            self.surface_flow.step()
         except NullError:
-            self.report.write_error_to_gis(self.surf_sim.arr_err)
+            self.report.write_error_to_gis(self.surface_flow.arr_err)
             msgr.fatal(u"{}: Null value detected in simulation, "
                        u"terminating".format(self.sim_time))
         # calculate when should happen the next surface time-step
-        self.surf_sim.solve_dt()
-        self.next_ts['surf'] += self.surf_sim.dt
+        self.surface_flow.solve_dt()
+        self.next_ts['surf'] += self.surface_flow.dt
 
         # send current time-step duration to mass balance object
         if self.massbal:
@@ -294,10 +296,10 @@ class SimulationManager():
             self.report.step(self.sim_time)
             self.next_ts['rec'] += self.record_step
             # reset statistic maps
-            self.rast_domain.reset_stats(self.sim_time)
+            self.raster_domain.reset_stats(self.sim_time)
 
         # update input arrays. This is done at initialization as well.
-        self.rast_domain.update_input_arrays(self.sim_time)
+        self.raster_domain.update_input_arrays(self.sim_time)
         # find next step
         self.nextstep = min(self.next_ts.values())
         # force the surface time-step to the lowest time-step

@@ -104,6 +104,8 @@ class RasterDomain():
         self.simple_pad = (slice(1, -1), slice(1, -1))
 
         # input and output map names (GIS names)
+        msgr.verbose(u"Reading maps information from GIS...")
+        self.gis.read(input_maps)
         self.in_map_names = input_maps
         self.out_map_names = output_maps
         # correspondance between input map names and the arrays
@@ -209,6 +211,10 @@ class RasterDomain():
         """
         for k in self.arr.keys():
             self.arr[k], self.arrp[k] = self.pad_array(self.zeros_array())
+        return self
+
+    def cleanup(self):
+        self.gis.cleanup()
         return self
 
     def update_mask(self, arr):
