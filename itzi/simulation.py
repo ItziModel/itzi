@@ -20,7 +20,7 @@ import copy
 import numpy as np
 
 from itzi.surfaceflow import SurfaceFlowSimulation
-from itzi.rasterdomain import RasterDomain
+import itzi.rasterdomain as rasterdomain
 from itzi.massbalance import MassBal
 from itzi.drainage import DrainageSimulation
 import itzi.messenger as msgr
@@ -85,12 +85,23 @@ class ItziCore():
         pass
 
 
+# correspondance between internal numpy arrays and map names
+in_k_corresp = {'dem': 'dem', 'friction': 'friction', 'h': 'start_h',
+                'y': 'start_y',
+                'effective_porosity': 'effective_porosity',
+                'capillary_pressure': 'capillary_pressure',
+                'hydraulic_conductivity': 'hydraulic_conductivity',
+                'in_inf': 'infiltration',
+                'losses': 'losses',
+                'rain': 'rain', 'inflow': 'inflow',
+                'bcval': 'bcval', 'bctype': 'bctype'}
+
 def create_simulation(sim_times, input_maps, output_maps, sim_param,
                       drainage_params, grass_params,
                       dtype=np.float32,
                       dtmin=timedelta(seconds=0.01),
                       stats_file=None):
-    """Return a SimulationManager object.
+    """A factory function that returns a SimulationManager object.
     """
     msgr.verbose(u"Setting up models...")
     # return error if output files exist
@@ -103,20 +114,33 @@ def create_simulation(sim_times, input_maps, output_maps, sim_param,
                     mkeys=input_maps.keys(),
                     region_id=grass_params['region'],
                     raster_mask_id=grass_params['mask'])
-    inf_model = sim_param['inf_model']
-    dtinf = sim_param['dtinf']
+    arr_mask = igis.get_npmask()
+    print(f'arr_mask.shape {arr_mask.shape}')
+    msgr.verbose(u"Reading maps information from GIS...")
+    igis.read(input_maps)
     # RasterDomain
+    raster_shape = (igis.yr, igis.xr)
+    print(f'raster_shape {raster_shape}')
+
+    def zeros_array():
+        return np.zeros(shape=raster_shape, dtype=dtype)
+    tarr = {}
+    for k in in_k_corresp.keys():
+        tarr[k] = rasterdomain.TimedArray(in_k_corresp[k], igis, zeros_array)
     msgr.debug(u"Setting up raster domain...")
     try:
-        raster_domain = RasterDomain(dtype, igis,
-                                        input_maps, output_maps)
+        raster_domain = rasterdomain.RasterDomain(dtype=dtype, arr_mask=arr_mask,
+                                                    tarr=tarr, cell_shape=(igis.dx, igis.dy),
+                                                    output_maps=output_maps)
     except MemoryError:
         msgr.fatal(u"Out of memory.")
     # Infiltration
+    inf_model = sim_param['inf_model']
+    dtinf = sim_param['dtinf']
     msgr.debug(u"Setting up raster infiltration...")
     inf_class = {'constant': infiltration.InfConstantRate,
-                 'green-ampt': infiltration.InfGreenAmpt,
-                 'null': infiltration.InfNull}
+                'green-ampt': infiltration.InfGreenAmpt,
+                'null': infiltration.InfNull}
     try:
         infiltration_model = inf_class[inf_model](raster_domain, dtinf)
     except KeyError:
@@ -131,15 +155,15 @@ def create_simulation(sim_times, input_maps, output_maps, sim_param,
     if stats_file:
         msgr.debug(u"Setting up mass balance object...")
         massbal = MassBal(stats_file, raster_domain,
-                               sim_times.start, sim_times.temporal_type)
+                            sim_times.start, sim_times.temporal_type)
     else:
         massbal = None
     # Drainage
     if drainage_params['swmm_inp']:
         msgr.debug(u"Setting up drainage model...")
         drainage = DrainageSimulation(raster_domain,
-                                           drainage_params,
-                                           igis, sim_param['g'])
+                                        drainage_params,
+                                        igis, sim_param['g'])
     else:
         drainage = None
     # reporting object
@@ -149,8 +173,8 @@ def create_simulation(sim_times, input_maps, output_maps, sim_param,
                     raster_domain,
                     drainage, drainage_params['output'])
     msgr.verbose(u"Models set up")
-    return SimulationManager(raster_domain, hydrology_model, surface_flow, drainage, massbal, report,
-                             sim_times, dtmin)
+    return SimulationManager(raster_domain, hydrology_model, surface_flow,
+                             drainage, massbal, report, sim_times, dtmin)
 
 
 class SimulationManager():
@@ -235,7 +259,6 @@ class SimulationManager():
         """
         # write final report
         self.report.end(self.sim_time)
-        self.raster_domain.cleanup()
         return self
 
     def step(self):
@@ -360,6 +383,7 @@ class Report():
             self.write_hmax_to_gis()
         if self.out_map_names['v']:
             self.write_vmax_to_gis()
+        self.gis.cleanup()
         return self
 
     def write_mass_balance(self, sim_time):

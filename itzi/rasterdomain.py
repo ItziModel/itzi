@@ -82,15 +82,14 @@ class RasterDomain():
     Include tools to update arrays from and write results to GIS,
     including management of the masking and unmasking of arrays.
     """
-    def __init__(self, dtype, igis, input_maps, output_maps):
+    def __init__(self, dtype, arr_mask, cell_shape, tarr, output_maps):
         # data type
         self.dtype = dtype
         # geographical data
-        self.gis = igis
-        self.shape = (self.gis.yr, self.gis.xr)
-        self.dx = self.gis.dx
-        self.dy = self.gis.dy
+        self.shape = arr_mask.shape
+        self.dx, self.dy = cell_shape
         self.cell_surf = self.dx * self.dy
+        self.mask = arr_mask
 
         # conversion factor between mm/h and m/s
         self.mmh_to_ms = 1000. * 3600.
@@ -104,22 +103,12 @@ class RasterDomain():
         self.simple_pad = (slice(1, -1), slice(1, -1))
 
         # input and output map names (GIS names)
-        msgr.verbose(u"Reading maps information from GIS...")
-        self.gis.read(input_maps)
-        self.in_map_names = input_maps
         self.out_map_names = output_maps
-        # correspondance between input map names and the arrays
-        self.in_k_corresp = {'dem': 'dem', 'friction': 'friction', 'h': 'start_h',
-                             'y': 'start_y',
-                             'effective_porosity': 'effective_porosity',
-                             'capillary_pressure': 'capillary_pressure',
-                             'hydraulic_conductivity': 'hydraulic_conductivity',
-                             'in_inf': 'infiltration',
-                             'losses': 'losses',
-                             'rain': 'rain', 'inflow': 'inflow',
-                             'bcval': 'bcval', 'bctype': 'bctype'}
         # all keys that will be used for the arrays
-        self.k_input = list(self.in_k_corresp.keys())
+        self.k_input = ['dem', 'friction', 'h', 'y',
+                        'effective_porosity', 'capillary_pressure', 'hydraulic_conductivity',
+                        'in_inf', 'losses', 'rain', 'inflow',
+                        'bcval', 'bctype']
         self.k_internal = ['inf', 'hmax', 'ext', 'y', 'hfe', 'hfs',
                            'qe', 'qs', 'qe_new', 'qs_new', 'etp',
                            'ue', 'us', 'v', 'vdir', 'vmax', 'fr',
@@ -135,22 +124,16 @@ class RasterDomain():
         self.stats_update_time = dict.fromkeys(self.k_stats)
 
         # dictionnary of unmasked input tarrays
-        self.tarr = dict.fromkeys(self.k_input)
+        self.tarr = tarr
 
         # boolean dict that indicate if an array has been updated
         self.isnew = dict.fromkeys(self.k_all, True)
         self.isnew['n_drain'] = False
 
-        # Create an array mask. True is not computed.
-        self.mask = self.gis.get_npmask()
-
         # Instantiate arrays and padded arrays filled with zeros
         self.arr = dict.fromkeys(self.k_all)
         self.arrp = dict.fromkeys(self.k_all)
         self.create_arrays()
-
-        # Instantiate TimedArrays
-        self.create_timed_arrays()
 
     def water_volume(self):
         """get current water volume in the domain"""
@@ -197,24 +180,12 @@ class RasterDomain():
         arr = arr_p[self.simple_pad]
         return arr, arr_p
 
-    def create_timed_arrays(self):
-        """Create TimedArray objects and store them in the input dict
-        """
-        for k in self.tarr.keys():
-            self.tarr[k] = TimedArray(self.in_k_corresp[k],
-                                      self.gis, self.zeros_array)
-        return self
-
     def create_arrays(self):
         """Instantiate masked arrays and padded arrays
         the unpadded arrays are a slice of the padded ones
         """
         for k in self.arr.keys():
             self.arr[k], self.arrp[k] = self.pad_array(self.zeros_array())
-        return self
-
-    def cleanup(self):
-        self.gis.cleanup()
         return self
 
     def update_mask(self, arr):
