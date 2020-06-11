@@ -95,7 +95,6 @@ class SimulationRunner():
                                      sim_param=self.conf.sim_param,
                                      drainage_params=self.conf.drainage_params,
                                      grass_params=self.conf.grass_params)
-        self.sim.initialize()
         return self
 
     def run(self):

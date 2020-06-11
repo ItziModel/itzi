@@ -61,9 +61,6 @@ class ItziCore():
     def __init__(self):
         pass
 
-    def initialize(self):
-        pass
-
     def step(self):
         pass
 
@@ -213,14 +210,10 @@ class SimulationManager():
             self.next_ts['drain'] = self.end_time
         # First time-step is forced
         self.nextstep = self.sim_time + self.dt
-
-    def initialize(self):
-        """Record the initial state.
-        """
+        # Record the initial state
         self.raster_domain.update_input_arrays(self.sim_time)
         self.report.step(self.sim_time)
         self.raster_domain.reset_stats(self.sim_time)
-        return self
 
     def run(self):
         """Perform a full simulation
