@@ -145,8 +145,8 @@ class DrainageSimulation():
         calculate the flow entering or leaving the drainage network
         Apply the flow to the node and to the relevant raster cell
         """
-        arr_h = self.dom.get('h')
-        arr_z = self.dom.get('dem')
-        arr_qd = self.dom.get('n_drain')
+        arr_h = self.dom.get_array('h')
+        arr_z = self.dom.get_array('dem')
+        arr_qd = self.dom.get_array('n_drain')
         self.swmm_net.apply_linkage(arr_h, arr_z, arr_qd, dt2d, self._dt)
         return self

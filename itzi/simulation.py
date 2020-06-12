@@ -112,23 +112,20 @@ def create_simulation(sim_times, input_maps, output_maps, sim_param,
                     region_id=grass_params['region'],
                     raster_mask_id=grass_params['mask'])
     arr_mask = igis.get_npmask()
-    print(f'arr_mask.shape {arr_mask.shape}')
     msgr.verbose(u"Reading maps information from GIS...")
     igis.read(input_maps)
-    # RasterDomain
-    raster_shape = (igis.yr, igis.xr)
-    print(f'raster_shape {raster_shape}')
-
-    def zeros_array():
-        return np.zeros(shape=raster_shape, dtype=dtype)
+    # Timed arrays
     tarr = {}
+    zeros_array = lambda: np.zeros(shape=raster_shape, dtype=dtype)
     for k in in_k_corresp.keys():
         tarr[k] = rasterdomain.TimedArray(in_k_corresp[k], igis, zeros_array)
     msgr.debug(u"Setting up raster domain...")
+    # RasterDomain
+    raster_shape = (igis.yr, igis.xr)
     try:
         raster_domain = rasterdomain.RasterDomain(dtype=dtype, arr_mask=arr_mask,
-                                                    tarr=tarr, cell_shape=(igis.dx, igis.dy),
-                                                    output_maps=output_maps)
+                                                  cell_shape=(igis.dx, igis.dy),
+                                                  output_maps=output_maps)
     except MemoryError:
         msgr.fatal(u"Out of memory.")
     # Infiltration
@@ -170,7 +167,7 @@ def create_simulation(sim_times, input_maps, output_maps, sim_param,
                     raster_domain,
                     drainage, drainage_params['output'])
     msgr.verbose(u"Models set up")
-    return SimulationManager(raster_domain, hydrology_model, surface_flow,
+    return SimulationManager(raster_domain, hydrology_model, surface_flow, tarr,
                              drainage, massbal, report, sim_times, dtmin)
 
 
@@ -181,8 +178,8 @@ class SimulationManager():
     Accessed via the run() method
     """
 
-    def __init__(self, raster_domain, hydrology_model, surface_flow, drainage, massbal, report,
-                 sim_times, dtmin):
+    def __init__(self, raster_domain, hydrology_model, surface_flow,
+                 tarr, drainage, massbal, report, sim_times, dtmin):
 
         # read time parameters
         self.start_time = sim_times.start
@@ -200,6 +197,7 @@ class SimulationManager():
         self.drainage = drainage
         self.massbal = massbal
         self.report = report
+        self.tarr = tarr
         # dict of next time-step (datetime object)
         self.next_ts = {'end': self.end_time,
                         'rec': self.start_time + self.record_step}
@@ -211,7 +209,7 @@ class SimulationManager():
         # First time-step is forced
         self.nextstep = self.sim_time + self.dt
         # Record the initial state
-        self.raster_domain.update_input_arrays(self.sim_time)
+        self.update_input_arrays()
         self.report.step(self.sim_time)
         self.raster_domain.reset_stats(self.sim_time)
 
@@ -315,7 +313,7 @@ class SimulationManager():
             self.raster_domain.reset_stats(self.sim_time)
 
         # update input arrays. This is done at initialization as well.
-        self.raster_domain.update_input_arrays(self.sim_time)
+        self.update_input_arrays()
         # find next step
         self.nextstep = min(self.next_ts.values())
         # force the surface time-step to the lowest time-step
@@ -325,6 +323,33 @@ class SimulationManager():
         self.sim_time += self.dt
         return self
 
+    def update_input_arrays(self):
+        """Get new array using TimedArray
+        And update
+        """
+        # make sure DEM is treated first
+        if not self.tarr['dem'].is_valid(self.sim_time):
+            self.raster_domain.update_array('dem', self.tarr['dem'].get(self.sim_time))
+            self.raster_domain.isnew['dem'] = True
+
+        # loop through the arrays
+        for k, ta in self.tarr.items():
+            if not ta.is_valid(self.sim_time):
+                # z is done before
+                if k == 'dem':
+                    continue
+                elif k in ['inflow', 'rain']:
+                    self.raster_domain.populate_stat_array(k, self.sim_time)
+                # update array
+                msgr.debug(u"{}: update input array <{}>".format(self.sim_time, k))
+                self.raster_domain.update_array(k, ta.get(self.sim_time))
+                self.raster_domain.isnew[k] = True
+            else:
+                self.raster_domain.isnew[k] = False
+        # calculate water volume at the beginning of the simulation
+        if self.raster_domain.isnew['h']:
+            self.raster_domain.start_volume = self.raster_domain.asum('h')
+        return self
 
 class Report():
     """In charge of results reporting and writing

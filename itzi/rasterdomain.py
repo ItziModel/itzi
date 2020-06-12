@@ -79,10 +79,9 @@ class TimedArray():
 class RasterDomain():
     """Group all rasters for the raster domain.
     Store them as np.ndarray with validity information (TimedArray)
-    Include tools to update arrays from and write results to GIS,
-    including management of the masking and unmasking of arrays.
+    Include management of the masking and unmasking of arrays.
     """
-    def __init__(self, dtype, arr_mask, cell_shape, tarr, output_maps):
+    def __init__(self, dtype, arr_mask, cell_shape, output_maps):
         # data type
         self.dtype = dtype
         # geographical data
@@ -106,8 +105,9 @@ class RasterDomain():
         self.out_map_names = output_maps
         # all keys that will be used for the arrays
         self.k_input = ['dem', 'friction', 'h', 'y',
-                        'effective_porosity', 'capillary_pressure', 'hydraulic_conductivity',
-                        'in_inf', 'losses', 'rain', 'inflow',
+                        'effective_porosity', 'capillary_pressure',
+                        'hydraulic_conductivity', 'in_inf',
+                        'losses', 'rain', 'inflow',
                         'bcval', 'bctype']
         self.k_internal = ['inf', 'hmax', 'ext', 'y', 'hfe', 'hfs',
                            'qe', 'qs', 'qe_new', 'qs_new', 'etp',
@@ -122,9 +122,6 @@ class RasterDomain():
         self.k_all = self.k_input + self.k_internal + self.k_stats
         # last update of statistical map entry
         self.stats_update_time = dict.fromkeys(self.k_stats)
-
-        # dictionnary of unmasked input tarrays
-        self.tarr = tarr
 
         # boolean dict that indicate if an array has been updated
         self.isnew = dict.fromkeys(self.k_all, True)
@@ -210,45 +207,6 @@ class RasterDomain():
         unmasked_array[self.mask] = np.nan
         return unmasked_array
 
-    def update_input_arrays(self, sim_time):
-        """Get new array using TimedArray
-        First update the DEM and mask if needed
-        Replace the NULL values (mask)
-        """
-        # make sure DEM is treated first
-        if not self.tarr['dem'].is_valid(sim_time):
-            self.arr['dem'][:] = self.tarr['dem'].get(sim_time)
-            self.isnew['dem'] = True
-            # note: must run update_flow_dir() in SuperficialSimulation
-            self.update_mask(self.arr['dem'])
-            self.mask_array(self.arr['dem'], np.finfo(self.dtype).max)
-
-        # loop through the arrays
-        for k, ta in self.tarr.items():
-            if not ta.is_valid(sim_time):
-                # z is done before
-                if k == 'dem':
-                    continue
-                # calculate statistics before updating array
-                if k in ['inflow', 'rain']:
-                    self.populate_stat_array(k, sim_time)
-                # update array
-                msgr.debug(u"{}: update input array <{}>".format(sim_time, k))
-                self.arr[k][:] = ta.get(sim_time)
-                self.isnew[k] = True
-                if k == 'friction':
-                    fill_value = 1
-                else:
-                    fill_value = 0
-                # mask arrays
-                self.mask_array(self.arr[k], fill_value)
-            else:
-                self.isnew[k] = False
-        # calculate water volume at the beginning of the simulation
-        if self.isnew['h']:
-            self.start_volume = self.asum('h')
-        return self
-
     def populate_stat_array(self, k, sim_time):
         """given an input array key,
         populate the corresponding statistic array.
@@ -295,7 +253,7 @@ class RasterDomain():
         if self.out_map_names['h'] is not None:
             out_arrays['h'] = self.get_unmasked('h')
         if self.out_map_names['wse'] is not None:
-            out_arrays['wse'] = self.get_unmasked('h') + self.get('dem')
+            out_arrays['wse'] = self.get_unmasked('h') + self.get_array('dem')
         if self.out_map_names['v'] is not None:
             out_arrays['v'] = self.get_unmasked('v')
         if self.out_map_names['vdir'] is not None:
@@ -340,7 +298,24 @@ class RasterDomain():
         self.arrp[k1], self.arrp[k2] = self.arrp[k2], self.arrp[k1]
         return self
 
-    def get(self, k):
+    def update_array(self, k, arr):
+        """Update the values of an array with those of a given array.
+        """
+        if arr.shape != self.shape:
+            return ValueError
+        if k == 'dem':
+            # note: must run update_flow_dir() in SurfaceFlowSimulation
+            self.update_mask(arr)
+            fill_value = np.finfo(self.dtype).max
+        elif k == 'friction':
+            fill_value = 1
+        else:
+            fill_value = 0
+        self.mask_array(arr, fill_value)
+        self.arr[k][:] = arr
+        return self
+
+    def get_array(self, k):
         """return the unpadded, masked array of key 'k'
         """
         return self.arr[k]
