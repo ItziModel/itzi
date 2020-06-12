@@ -125,7 +125,7 @@ def create_simulation(sim_times, input_maps, output_maps, sim_param,
     try:
         raster_domain = rasterdomain.RasterDomain(dtype=dtype, arr_mask=arr_mask,
                                                   cell_shape=(igis.dx, igis.dy),
-                                                  output_maps=output_maps)
+                                                  )
     except MemoryError:
         msgr.fatal(u"Out of memory.")
     # Infiltration
@@ -164,7 +164,7 @@ def create_simulation(sim_times, input_maps, output_maps, sim_param,
     msgr.debug(u"Setting up reporting object...")
     report = Report(igis, sim_times.temporal_type,
                     sim_param['hmin'], massbal,
-                    raster_domain,
+                    output_maps, raster_domain,
                     drainage, drainage_params['output'])
     msgr.verbose(u"Models set up")
     return SimulationManager(raster_domain, hydrology_model, surface_flow, tarr,
@@ -354,12 +354,12 @@ class SimulationManager():
 class Report():
     """In charge of results reporting and writing
     """
-    def __init__(self, igis, temporal_type, hmin, massbal, rast_dom,
-                 drainage_sim, drainage_out):
+    def __init__(self, igis, temporal_type, hmin, massbal, out_map_names,
+                rast_dom, drainage_sim, drainage_out):
         self.record_counter = 0
         self.gis = igis
         self.temporal_type = temporal_type
-        self.out_map_names = rast_dom.out_map_names
+        self.out_map_names = out_map_names
         self.hmin = hmin
         self.rast_dom = rast_dom
         self.massbal = massbal
@@ -369,6 +369,7 @@ class Report():
         # a dict containing lists of maps written to gis to be registered
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
         self.vector_drainage_maplist = []
+        self.output_arrays = {}
         self.last_step = copy.copy(self.gis.start_time)
 
     def step(self, sim_time):
@@ -376,7 +377,7 @@ class Report():
         """
         assert isinstance(sim_time, datetime)
         interval_s = (sim_time-self.last_step).total_seconds()
-        self.output_arrays = self.rast_dom.get_output_arrays(interval_s, sim_time)
+        self.get_output_arrays(interval_s, sim_time)
         self.write_results_to_gis(sim_time)
         if self.massbal:
             self.write_mass_balance(sim_time)
@@ -401,7 +402,54 @@ class Report():
             self.write_hmax_to_gis()
         if self.out_map_names['v']:
             self.write_vmax_to_gis()
+        # Cleanup the GIS state
         self.gis.cleanup()
+        return self
+
+    def get_output_arrays(self, interval_s, sim_time):
+        """Returns a dict of unmasked arrays to be written to the disk
+        """
+        for k in self.out_map_names:
+            if self.out_map_names[k] is not None:
+                if k == 'wse':
+                    h = self.rast_dom.get_unmasked('h')
+                    wse = h + self.rast_dom.get_array('dem')
+                    self.output_arrays['wse'] = wse
+                elif k == 'qx':
+                    qx = self.rast_dom.get_unmasked('qe_new') * self.rast_dom.dy
+                    self.output_arrays['qx'] = qx
+                elif k =='qy':
+                    qy = self.rast_dom.get_unmasked('qs_new') * self.rast_dom.dx
+                    self.output_arrays['qy'] = qy
+                # Created volume (total since last record)
+                elif k == 'verror':
+                    self.rast_dom.populate_stat_array('capped_losses', sim_time)  # This is weird
+                    verror = self.rast_dom.get_unmasked('st_herr') * self.rast_dom.cell_surf
+                    self.output_arrays['verror'] = verror
+                else:
+                    self.output_arrays[k] = self.rast_dom.get_unmasked(k)
+        # statistics (average of last interval)
+        if interval_s:
+            mmh_to_ms = 1000. * 3600.
+            if self.out_map_names['boundaries'] is not None:
+                self.output_arrays['boundaries'] = self.rast_dom.get_unmasked('st_bound') / interval_s
+            if self.out_map_names['inflow'] is not None:
+                self.rast_dom.populate_stat_array('inflow', sim_time)
+                self.output_arrays['inflow'] = self.rast_dom.get_unmasked('st_inflow') / interval_s
+            if self.out_map_names['losses'] is not None:
+                self.rast_dom.populate_stat_array('capped_losses', sim_time)
+                self.output_arrays['losses'] = self.rast_dom.get_unmasked('st_losses') / interval_s
+            if self.out_map_names['drainage_stats'] is not None:
+                self.rast_dom.populate_stat_array('n_drain', sim_time)
+                self.output_arrays['drainage_stats'] = self.rast_dom.get_unmasked('st_ndrain') / interval_s
+            if self.out_map_names['infiltration'] is not None:
+                self.rast_dom.populate_stat_array('inf', sim_time)
+                self.output_arrays['infiltration'] = (self.rast_dom.get_unmasked('st_inf') /
+                                              interval_s) * mmh_to_ms
+            if self.out_map_names['rainfall'] is not None:
+                self.rast_dom.populate_stat_array('rain', sim_time)
+                self.output_arrays['rainfall'] = (self.rast_dom.get_unmasked('st_rain') /
+                                          interval_s) * mmh_to_ms
         return self
 
     def write_mass_balance(self, sim_time):
