@@ -18,16 +18,37 @@ import warnings
 from datetime import datetime, timedelta
 import copy
 import numpy as np
+import pyswmm
 
 from itzi.surfaceflow import SurfaceFlowSimulation
 import itzi.rasterdomain as rasterdomain
 from itzi.massbalance import MassBal
-from itzi.drainage import DrainageSimulation
+from itzi.drainage import DrainageSimulation, SwmmInputParser
 import itzi.messenger as msgr
 import itzi.gis as gis
 import itzi.infiltration as infiltration
 import itzi.hydrology as hydrology
 from itzi.itzi_error import NullError
+
+
+def get_linked_nodes_list(node_objs, nodes_coor_dict, igis):
+    """Check if the drainage nodes are inside the region and can be linked.
+    Return a list of (node_obj, row, col)
+    """
+    linked_nodes_list = []
+    for node in node_objs:
+        node_id = node.nodeid
+        coors = nodes_coor_dict[node_id]
+        # a node without coordinates cannot be linked
+        if coors is None or not igis.is_in_region(coors.x, coors.y):
+            continue
+        else:
+            # get row and column
+            row, col = igis.coor2pixel(coors)
+            # populate list
+            node_tuple = (node, int(row), int(col))
+            linked_nodes_list.append(node_tuple)
+    return linked_nodes_list
 
 
 class ItziCore():
@@ -93,6 +114,7 @@ in_k_corresp = {'dem': 'dem', 'friction': 'friction', 'h': 'start_h',
                 'rain': 'rain', 'inflow': 'inflow',
                 'bcval': 'bcval', 'bctype': 'bctype'}
 
+
 def create_simulation(sim_times, input_maps, output_maps, sim_param,
                       drainage_params, grass_params,
                       dtype=np.float32,
@@ -155,9 +177,18 @@ def create_simulation(sim_times, input_maps, output_maps, sim_param,
     # Drainage
     if drainage_params['swmm_inp']:
         msgr.debug(u"Setting up drainage model...")
+        swmm_sim = pyswmm.Simulation(drainage_params['swmm_inp'])
+        swmm_inp = SwmmInputParser(drainage_params['swmm_inp'])
+        # Select only the nodes inside the domain
+        all_nodes = pyswmm.Nodes(swmm_sim)
+        nodes_coors_dict = swmm_inp.get_nodes_id_as_dict()
+        linked_nodes_list = get_linked_nodes_list(all_nodes, nodes_coors_dict, igis)
+        print(linked_nodes_list)
         drainage = DrainageSimulation(raster_domain,
-                                        drainage_params,
-                                        igis, sim_param['g'])
+                                      swmm_sim,
+                                      drainage_params,
+                                      linked_nodes_list,
+                                      sim_param['g'])
     else:
         drainage = None
     # reporting object
@@ -271,14 +302,14 @@ class SimulationManager():
 
         # drainage #
         if self.sim_time == self.next_ts['drain'] and self.drainage:
-            self.drainage.solve_dt()
-            # calculate when will happen the next time-step
-            self.next_ts['drain'] += self.drainage.dt
+            # self.drainage.solve_dt()
             self.drainage.step()
             self.drainage.apply_linkage(self.dt.total_seconds())
             self.raster_domain.isnew['n_drain'] = True
             # update stat array
             self.raster_domain.populate_stat_array('n_drain', self.sim_time)
+            # calculate when will happen the next time-step
+            self.next_ts['drain'] += self.drainage.dt
         else:
             self.raster_domain.isnew['n_drain'] = False
 
@@ -426,8 +457,13 @@ class Report():
                     self.rast_dom.populate_stat_array('capped_losses', sim_time)  # This is weird
                     verror = self.rast_dom.get_unmasked('st_herr') * self.rast_dom.cell_surf
                     self.output_arrays['verror'] = verror
-                else:
+                elif k == 'drainage_stats' and interval_s:
+                    self.rast_dom.populate_stat_array('n_drain', sim_time)
+                    self.output_arrays['drainage_stats'] = self.rast_dom.get_unmasked('st_ndrain') / interval_s
+                elif k not in ['drainage_stats','boundaries', 'inflow', 'infiltration', 'rainfall']:
                     self.output_arrays[k] = self.rast_dom.get_unmasked(k)
+                else:
+                    continue
         # statistics (average of last interval)
         if interval_s:
             mmh_to_ms = 1000. * 3600.
@@ -439,9 +475,7 @@ class Report():
             if self.out_map_names['losses'] is not None:
                 self.rast_dom.populate_stat_array('capped_losses', sim_time)
                 self.output_arrays['losses'] = self.rast_dom.get_unmasked('st_losses') / interval_s
-            if self.out_map_names['drainage_stats'] is not None:
-                self.rast_dom.populate_stat_array('n_drain', sim_time)
-                self.output_arrays['drainage_stats'] = self.rast_dom.get_unmasked('st_ndrain') / interval_s
+
             if self.out_map_names['infiltration'] is not None:
                 self.rast_dom.populate_stat_array('inf', sim_time)
                 self.output_arrays['infiltration'] = (self.rast_dom.get_unmasked('st_inf') /
