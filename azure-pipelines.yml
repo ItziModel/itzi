@@ -33,7 +33,7 @@ steps:
   displayName: 'Install dependencies'
 
 - script: |
-    cython -3 itzi/swmm/swmm_c.pyx itzi/flow.pyx
+    cython -3 itzi/flow.pyx
     python -m pip install .
   displayName: 'Cythonize, build and install'
 
