@@ -47,7 +47,7 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
 DESCR = "A 2D flood model using GRASS GIS as a back-end"
 
 
-REQUIRES = ['pyinstrument', 'grass-session', 'pyswmm']
+REQUIRES = ['pyinstrument', 'grass-session', 'pyswmm', 'bmi-python']
 
 
 # Set arguments according to compiler
