@@ -180,7 +180,6 @@ def test_ea8b(ea_test8b_reference, ea_test8b_sim):
     series_itzi = series_itzi * 2*2
     # Create a DataFrame with two columns and drop NaN
     df_values = pd.concat([series_itzi, ea_test8b_reference], axis=1).dropna()
-    df_values.to_csv('/home/laurent/eat8b.results.csv')
     # Compare results
     rsr = get_rsr(df_values.itzi, df_values.reference)
     nse = get_nse(df_values.itzi, df_values.reference)
