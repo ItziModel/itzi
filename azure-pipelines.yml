@@ -22,6 +22,10 @@ steps:
   displayName: 'Use Python $(python.version)'
 
 - script: |
+    python --version
+  displayName: 'Display Python version'
+
+- script: |
     sudo add-apt-repository ppa:ubuntugis/ppa
     sudo apt-get update
     sudo apt-get -y install grass-core grass-dev
@@ -38,6 +42,6 @@ steps:
   displayName: 'Cythonize, build and install'
 
 - script: |
-    pip3 install pandas requests pytest pytest-cov pytest-xdist pytest-azurepipelines
+    pip install pandas requests pytest pytest-cov pytest-xdist pytest-azurepipelines
     pytest --cov=itzi --forked -v --junitxml=junit/test-results.xml --cov-report=xml --cov-report=html
   displayName: 'pytest'
