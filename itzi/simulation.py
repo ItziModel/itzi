@@ -183,7 +183,6 @@ def create_simulation(sim_times, input_maps, output_maps, sim_param,
         all_nodes = pyswmm.Nodes(swmm_sim)
         nodes_coors_dict = swmm_inp.get_nodes_id_as_dict()
         linked_nodes_list = get_linked_nodes_list(all_nodes, nodes_coors_dict, igis)
-        print(linked_nodes_list)
         drainage = DrainageSimulation(raster_domain,
                                       swmm_sim,
                                       drainage_params,
@@ -241,6 +240,8 @@ class SimulationManager():
         self.nextstep = self.sim_time + self.dt
         # Record the initial state
         self.update_input_arrays()
+        # calculate water volume at the beginning of the simulation
+        self.raster_domain.start_volume = self.raster_domain.asum('h')
         self.report.step(self.sim_time)
         self.raster_domain.reset_stats(self.sim_time)
 
@@ -286,10 +287,6 @@ class SimulationManager():
     def step(self):
         """Step each of the models if needed
         """
-        # recalculate the flow direction if DEM changed
-        if self.raster_domain.isnew['dem']:
-            self.surface_flow.update_flow_dir()
-
         # hydrology #
         if self.sim_time == self.next_ts['hyd']:
             self.hydrology.solve_dt()
@@ -305,13 +302,10 @@ class SimulationManager():
             # self.drainage.solve_dt()
             self.drainage.step()
             self.drainage.apply_linkage(self.dt.total_seconds())
-            self.raster_domain.isnew['n_drain'] = True
             # update stat array
             self.raster_domain.populate_stat_array('n_drain', self.sim_time)
             # calculate when will happen the next time-step
             self.next_ts['drain'] += self.drainage.dt
-        else:
-            self.raster_domain.isnew['n_drain'] = False
 
         # surface flow #
         # update arrays of infiltration, rainfall etc.
@@ -361,7 +355,7 @@ class SimulationManager():
         # make sure DEM is treated first
         if not self.tarr['dem'].is_valid(self.sim_time):
             self.raster_domain.update_array('dem', self.tarr['dem'].get(self.sim_time))
-            self.raster_domain.isnew['dem'] = True
+            self.surface_flow.update_flow_dir()
 
         # loop through the arrays
         for k, ta in self.tarr.items():
@@ -374,12 +368,6 @@ class SimulationManager():
                 # update array
                 msgr.debug(u"{}: update input array <{}>".format(self.sim_time, k))
                 self.raster_domain.update_array(k, ta.get(self.sim_time))
-                self.raster_domain.isnew[k] = True
-            else:
-                self.raster_domain.isnew[k] = False
-        # calculate water volume at the beginning of the simulation
-        if self.raster_domain.isnew['h']:
-            self.raster_domain.start_volume = self.raster_domain.asum('h')
         return self
 
 class Report():

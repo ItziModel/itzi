@@ -121,10 +121,6 @@ class RasterDomain():
         # last update of statistical map entry
         self.stats_update_time = dict.fromkeys(self.k_stats)
 
-        # boolean dict that indicate if an array has been updated
-        self.isnew = dict.fromkeys(self.k_all, True)
-        self.isnew['n_drain'] = False
-
         # Instantiate arrays and padded arrays filled with zeros
         self.arr = dict.fromkeys(self.k_all)
         self.arrp = dict.fromkeys(self.k_all)
@@ -236,12 +232,7 @@ class RasterDomain():
         This applies for inputs that are needed to be taken into account,
          at every timestep, like inflows from user or drainage.
         """
-        if any([self.isnew[k] for k in ('inflow', 'n_drain')]):
-            flow.set_ext_array(self.arr['inflow'], self.arr['n_drain'],
-                               self.arr['ext'])
-            self.isnew['ext'] = True
-        else:
-            self.isnew['ext'] = False
+        flow.set_ext_array(self.arr['inflow'], self.arr['n_drain'], self.arr['ext'])
         return self
 
     def swap_arrays(self, k1, k2):
@@ -265,7 +256,7 @@ class RasterDomain():
         else:
             fill_value = 0
         self.mask_array(arr, fill_value)
-        self.arr[k][:] = arr
+        self.arr[k][:], self.arrp[k][:] = self.pad_array(arr)
         return self
 
     def get_array(self, k):

@@ -89,9 +89,10 @@ class SurfaceFlowSimulation():
         # maximum altitude difference
         arr_max_dz = np.maximum(np.maximum(dN, dS), np.maximum(dE, dW))
         # y direction
-        flow.flow_dir(arr_max_dz[self.s_j_0], dN, dS, self.dom.get_array('dirs'))
+        flow.flow_dir(arr_max_dz, dN, dS, self.dom.get_array('dirs'))
         # x direction
-        flow.flow_dir(arr_max_dz[self.s_i_0], dW, dE, self.dom.get_array('dire'))
+        flow.flow_dir(arr_max_dz, dW, dE, self.dom.get_array('dire'))
+
         return self
 
     def step(self):
