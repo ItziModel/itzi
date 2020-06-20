@@ -60,7 +60,7 @@ class InfConstantRate(Infiltration):
     rate given by a raster map or serie of maps.
     """
     def step(self):
-        """Update infiltration rate map in mm/h
+        """Update infiltration rate map in m/s
         """
         flow.inf_user(arr_h=self.dom.get_array('h'),
                       arr_inf_in=self.dom.get_array('in_inf'),
@@ -79,11 +79,11 @@ class InfGreenAmpt(Infiltration):
                                               dtype=self.dom.dtype)
         # Initial cumulative infiltration set to one mm
         # (prevent division by zero)
-        self.infiltration_amount = np.ones(shape=self.dom.shape,
+        self.infiltration_amount = np.ones(shape=self.dom.shape, fill_value=(1/1000),
                                            dtype=self.dom.dtype)
 
     def step(self):
-        """update infiltration rate map in mm/h.
+        """update infiltration rate map in m/s.
         """
         flow.inf_ga(arr_h=self.dom.get_array('h'),
                     arr_eff_por=self.dom.get_array('effective_porosity'),

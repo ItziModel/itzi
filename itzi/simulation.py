@@ -363,11 +363,17 @@ class SimulationManager():
                 # z is done before
                 if k == 'dem':
                     continue
-                elif k in ['inflow', 'rain']:
+                if k in ['inflow', 'rain']:
                     self.raster_domain.populate_stat_array(k, self.sim_time)
+                # Convert mm/h to m/s
+                if k in ['rain', 'capillary_pressure',
+                         'hydraulic_conductivity', 'in_inf',]:
+                    new_arr = ta.get(self.sim_time) / (1000*3600)
+                else:
+                    new_arr = ta.get(self.sim_time)
                 # update array
                 msgr.debug(u"{}: update input array <{}>".format(self.sim_time, k))
-                self.raster_domain.update_array(k, ta.get(self.sim_time))
+                self.raster_domain.update_array(k, new_arr)
         return self
 
 class Report():

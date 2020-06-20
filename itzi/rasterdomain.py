@@ -90,9 +90,6 @@ class RasterDomain():
         self.cell_surf = self.dx * self.dy
         self.mask = arr_mask
 
-        # conversion factor between mm/h and m/s
-        self.mmh_to_ms = 1000. * 3600.
-
         # number of cells in a row must be a multiple of that number
         byte_num = 256 / 8  # AVX2
         itemsize = np.dtype(self.dtype).itemsize
@@ -209,19 +206,12 @@ class RasterDomain():
         """
         sk = self.stats_corresp[k]
         update_time = self.stats_update_time[sk]
-        # make sure everything is in m/s
-        if k in ['rain', 'inf', 'capped_losses']:
-            conv_factor = 1 / self.mmh_to_ms
-        else:
-            conv_factor = 1.
-
         if self.stats_update_time[sk] is None:
             self.stats_update_time[sk] = sim_time
         else:
             msgr.debug(u"{}: Populating array <{}>".format(sim_time, sk))
             time_diff = (sim_time - update_time).total_seconds()
-            flow.populate_stat_array(self.arr[k], self.arr[sk],
-                                     conv_factor, time_diff)
+            flow.populate_stat_array(self.arr[k], self.arr[sk], time_diff)
             self.stats_update_time[sk] = sim_time
         return None
 

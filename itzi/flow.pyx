@@ -59,9 +59,9 @@ def apply_hydrology(DTYPE_t [:, :] arr_rain, DTYPE_t [:, :] arr_inf,
                     DTYPE_t [:, :] arr_etp, DTYPE_t [:, :] arr_capped_losses,
                     DTYPE_t [:, :] arr_h, float dt):
     '''Add rain, infiltration etc. to the domain depth for the current time-step
-    rain and inf in mm/h, deph in m, dt in seconds'''
+    rain and infiltration in m/s, deph in m, dt in seconds'''
     cdef int rmax, cmax, r, c
-    cdef float rain, etp, inf, capped_losses, dt_h, h_new
+    cdef float rain, etp, inf, capped_losses, h_new, total_hydro
     rmax = arr_rain.shape[0]
     cmax = arr_rain.shape[1]
     for r in prange(rmax, nogil=True):
@@ -70,8 +70,8 @@ def apply_hydrology(DTYPE_t [:, :] arr_rain, DTYPE_t [:, :] arr_inf,
             inf = arr_inf[r, c]
             etp = arr_etp[r, c]
             capped_losses = arr_capped_losses[r, c]
-            dt_h = dt / 3600.  # dt from sec to hours
-            h_new = max(arr_h[r, c] + (rain - inf - etp - capped_losses) * dt_h / 1000., 0.)
+            total_hydro = (rain - inf - etp - capped_losses) * dt
+            h_new = max(arr_h[r, c] + total_hydro, 0.)
             arr_h[r, c] = h_new
 
 
@@ -386,15 +386,13 @@ def inf_user(DTYPE_t [:, :] arr_h,
     '''Calculate infiltration rate using a user-defined fixed rate
     '''
     cdef int rmax, cmax, r, c
-    cdef float dt_h
 
     rmax = arr_h.shape[0]
     cmax = arr_h.shape[1]
     for r in prange(rmax, nogil=True):
         for c in range(cmax):
-            dt_h = dt / 3600.  # dt from sec to hours
             # cap the rate
-            arr_inf_out[r, c] = cap_inf_rate(dt_h, arr_h[r, c], arr_inf_in[r, c])
+            arr_inf_out[r, c] = cap_inf_rate(dt, arr_h[r, c], arr_inf_in[r, c])
 
 
 @cython.wraparound(False)  # Disable negative index check
@@ -407,12 +405,11 @@ def inf_ga(DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_eff_por,
     '''Calculate infiltration rate using the Green-Ampt formula
     '''
     cdef int rmax, cmax, r, c
-    cdef float dt_h, infrate, avail_porosity, poros_cappress, conduct
+    cdef float infrate, avail_porosity, poros_cappress, conduct
     rmax = arr_h.shape[0]
     cmax = arr_h.shape[1]
     for r in prange(rmax, nogil=True):
         for c in range(cmax):
-            dt_h = dt / 3600.  # dt from sec to hours
             conduct = arr_conduct[r, c]
             avail_porosity = arr_eff_por[r, c] - arr_water_soil_content[r, c]
             poros_cappress = avail_porosity * arr_pressure[r, c]
@@ -421,7 +418,7 @@ def inf_ga(DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_eff_por,
             # cap the rate
             infrate = cap_inf_rate(dt, arr_h[r, c], infrate)
             # update total infiltration amount
-            arr_inf_amount[r, c] += infrate * dt_h
+            arr_inf_amount[r, c] += infrate * dt
             # populate output infiltration array
             arr_inf_out[r, c] = infrate
 
@@ -429,21 +426,16 @@ def inf_ga(DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_eff_por,
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-cdef float cap_inf_rate(float dt_h, float h, float infrate) nogil:
+cdef float cap_inf_rate(float dt, float h, float infrate) nogil:
     '''Cap the infiltration rate to not generate negative depths
     '''
-    cdef float h_mm, max_rate
-    # calculate the max_rate
-    h_mm = h * 1000.
-    max_rate = h_mm / dt_h
-    return min(max_rate, infrate)
+    return min(h / dt, infrate)
 
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-def populate_stat_array(DTYPE_t [:, :] arr, DTYPE_t [:, :] arr_stat,
-                        float conv_factor, float time_diff):
+def populate_stat_array(DTYPE_t [:, :] arr, DTYPE_t [:, :] arr_stat, float time_diff):
     '''Populate an array of statistics
     '''
     cdef int rmax, cmax, r, c
@@ -451,4 +443,4 @@ def populate_stat_array(DTYPE_t [:, :] arr, DTYPE_t [:, :] arr_stat,
     cmax = arr.shape[1]
     for r in prange(rmax, nogil=True):
         for c in range(cmax):
-            arr_stat[r, c] += arr[r, c] * conv_factor * time_diff
+            arr_stat[r, c] += arr[r, c] * time_diff
