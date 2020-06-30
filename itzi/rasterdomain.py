@@ -105,7 +105,7 @@ class RasterDomain():
                         'losses', 'rain', 'inflow',
                         'bcval', 'bctype']
         self.k_internal = ['inf', 'hmax', 'ext', 'y', 'hfe', 'hfs',
-                           'qe', 'qs', 'qe_new', 'qs_new', 'etp', 'hydrology',
+                           'qe', 'qs', 'qe_new', 'qs_new', 'etp', 'eff_precip',
                            'ue', 'us', 'v', 'vdir', 'vmax', 'fr',
                            'n_drain', 'capped_losses', 'dire', 'dirs']
         # arrays gathering the cumulated water depth from corresponding array
@@ -221,7 +221,8 @@ class RasterDomain():
         This applies for inputs that are needed to be taken into account,
          at every timestep, like inflows from user or drainage.
         """
-        flow.set_ext_array(self.arr['inflow'], self.arr['n_drain'], self.arr['hydrology'], self.arr['ext'])
+        flow.set_ext_array(self.arr['inflow'], self.arr['n_drain'],
+                           self.arr['eff_precip'], self.arr['ext'])
         return self
 
     def swap_arrays(self, k1, k2):

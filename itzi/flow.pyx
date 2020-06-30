@@ -58,7 +58,7 @@ def arr_add(DTYPE_t [:, :] arr1, DTYPE_t [:, :] arr2):
 def apply_hydrology(DTYPE_t [:, :] arr_rain, DTYPE_t [:, :] arr_inf,
                     DTYPE_t [:, :] arr_etp, DTYPE_t [:, :] arr_capped_losses,
                     DTYPE_t [:, :] arr_h,
-                    DTYPE_t [:, :] arr_hydrology, float dt):
+                    DTYPE_t [:, :] arr_eff_precip, float dt):
     '''Populate arr_hydrology in m/s
     rain and infiltration in m/s, deph in m, dt in seconds'''
     cdef int rmax, cmax, r, c
@@ -70,7 +70,7 @@ def apply_hydrology(DTYPE_t [:, :] arr_rain, DTYPE_t [:, :] arr_inf,
             hydro_raw = arr_rain[r, c] - arr_inf[r, c] - arr_etp[r, c] - arr_capped_losses[r, c]
             losses_limit = - arr_h[r, c] / dt
             hydro_capped = max(losses_limit, hydro_raw)
-            arr_hydrology[r, c] = hydro_capped
+            arr_eff_precip[r, c] = hydro_capped
 
 
 @cython.wraparound(False)  # Disable negative index check
@@ -361,7 +361,7 @@ def solve_h(DTYPE_t [:, :] arr_ext,
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-def set_ext_array(DTYPE_t [:, :] arr_qext, DTYPE_t [:, :] arr_drain, DTYPE_t [:, :] arr_hydrology,
+def set_ext_array(DTYPE_t [:, :] arr_qext, DTYPE_t [:, :] arr_drain, DTYPE_t [:, :] arr_eff_precip,
                   DTYPE_t [:, :] arr_ext):
     '''Calculate the new ext_array to be used in depth update
     '''
@@ -372,7 +372,7 @@ def set_ext_array(DTYPE_t [:, :] arr_qext, DTYPE_t [:, :] arr_drain, DTYPE_t [:,
     cmax = arr_qext.shape[1]
     for r in prange(rmax, nogil=True):
         for c in range(cmax):
-            arr_ext[r, c] = arr_qext[r, c] + arr_drain[r, c] + arr_hydrology[r, c]
+            arr_ext[r, c] = arr_qext[r, c] + arr_drain[r, c] + arr_eff_precip[r, c]
 
 
 @cython.wraparound(False)  # Disable negative index check

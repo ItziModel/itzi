@@ -5,6 +5,7 @@
 """
 
 import os
+import math
 import zipfile
 import hashlib
 from collections import namedtuple
@@ -19,6 +20,9 @@ import grass.script as gscript
 
 from itzi import BmiItzi
 from itzi import SimulationRunner
+from itzi import InfGreenAmpt
+from itzi import RasterDomain
+
 
 # URL of zip file with test data
 EA_TESTS_URL = 'https://web.archive.org/web/20200527005028/http://evidence.environment-agency.gov.uk/FCERM/Libraries/FCERM_Project_Documents/Benchmarking_Model_Data.sflb.ashx'
@@ -440,9 +444,68 @@ def grass_mcdo_rain_sim(grass_mcdo_rain, test_data_path):
     sim_runner.run().finalize()
     return sim_runner
 
+
 @pytest.fixture(scope="session")
 def bmi_object(grass_5by5, test_data_path):
-        itzi_bmi = BmiItzi()
-        conf_file = os.path.join(test_data_path, '5by5', '5by5.ini')
-        itzi_bmi.initialize(conf_file)
-        return itzi_bmi
+    itzi_bmi = BmiItzi()
+    conf_file = os.path.join(test_data_path, '5by5', '5by5.ini')
+    itzi_bmi.initialize(conf_file)
+    return itzi_bmi
+
+
+@pytest.fixture(scope="session")
+def total_infiltration(infiltration_parameters):
+    # Estimate total Green-Ampt infiltration using formula in:
+    # Barry, D. A., Parlange, J. Y., & Bakhtyar, R. (2010).
+    # Discussion of “application of a nonstandard explicit integration to
+    # solve green and ampt infiltration equation”
+    # by D.R. Mailapalli, W.W. Wallender, R. Singh, and N.S. Raghuwanshi.
+    # Journal of Hydrologic Engineering, 15(7), 595–596.
+    # https://doi.org/10.1061/(ASCE)HE.1943-5584.0000164
+    time = 24 * 3600
+    porosity, cap_pressure, conductivity = infiltration_parameters
+    sorptivity = math.sqrt(2 * conductivity * cap_pressure * porosity)
+    total_inf = sorptivity * math.sqrt(time) + 2 * conductivity * time / 3
+    return total_inf
+
+
+@pytest.fixture(scope="session")
+def infiltration_parameters():
+    # Silt loam from Rawls, Brakensiek and Miller (1983)
+    total_porosity = 0.501
+    effective_porosity = 0.486
+    capillary_pressure = 16.68 / 100  # cm to m
+    hydraulic_conductivity = 0.65 / (100 * 3600)  # cm/h to m/s
+    water_depth = 0.3
+    soil_moisture = 0.3
+    return effective_porosity, capillary_pressure, hydraulic_conductivity
+
+@pytest.fixture(scope="session")
+def infiltration_sim(infiltration_parameters):
+    array_shape = (3, 3)
+    cell_shape = (5,5)
+    dt = 1  # in seconds
+    sim_duration = 24 * 3600
+    porosity, cap_pressure, conductivity = infiltration_parameters
+    mask = np.full(shape=array_shape, fill_value=False, dtype=np.bool_)
+    arr_depth = np.full(shape=array_shape, fill_value=0.3)
+    arr_por = np.full(shape=array_shape, fill_value=porosity)
+    arr_cond = np.full(shape=array_shape, fill_value=conductivity)
+    arr_cap_pressure = np.full(shape=array_shape, fill_value=cap_pressure)
+    raster_domain = RasterDomain(dtype=np.float32, cell_shape=cell_shape,
+                                 arr_mask=mask)
+    raster_domain.update_array('h', arr_depth)
+    raster_domain.update_array('effective_porosity', arr_por)
+    raster_domain.update_array('capillary_pressure', arr_cap_pressure)
+    raster_domain.update_array('hydraulic_conductivity', arr_cond)
+    inf_sim = InfGreenAmpt(raster_domain=raster_domain, dt_inf=dt)
+    elapsed_time = 0
+    while elapsed_time < sim_duration:
+        inf_sim.step()
+        elapsed_time += inf_sim._dt
+    # print(inf_sim.infiltration_amount)
+    # print(arr_depth)
+    theoretical_depth = arr_depth - inf_sim.infiltration_amount
+    print(theoretical_depth)
+    print(raster_domain.get_array('h'))
+    return inf_sim.infiltration_amount.max()

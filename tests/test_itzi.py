@@ -187,3 +187,10 @@ def test_ea8b(ea_test8b_reference, ea_test8b_sim):
     # print(f'rsr {rsr}')
     assert rsr < 0.1
     assert nse > 0.99
+
+
+def test_infiltration(total_infiltration, infiltration_sim):
+    print(total_infiltration)
+    print(infiltration_sim)
+    inf_err = abs(total_infiltration - infiltration_sim)
+    assert inf_err < 1/1000
