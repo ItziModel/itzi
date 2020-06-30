@@ -183,14 +183,12 @@ def test_ea8b(ea_test8b_reference, ea_test8b_sim):
     # Compare results
     rsr = get_rsr(df_values.itzi, df_values.reference)
     nse = get_nse(df_values.itzi, df_values.reference)
-    # print(f'nse {nse}')
-    # print(f'rsr {rsr}')
     assert rsr < 0.1
     assert nse > 0.99
 
 
-def test_infiltration(total_infiltration, infiltration_sim):
-    print(total_infiltration)
-    print(infiltration_sim)
-    inf_err = abs(total_infiltration - infiltration_sim)
-    assert inf_err < 1/1000
+def test_infiltration(reference_infiltration , infiltration_sim):
+    inf_err = abs(reference_infiltration  - infiltration_sim)
+    percent_error = inf_err / reference_infiltration
+    # Accept less than 3% error (See Mailapalli et Al., 2009)
+    assert percent_error < .03

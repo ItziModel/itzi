@@ -79,7 +79,7 @@ class InfGreenAmpt(Infiltration):
                                               dtype=self.dom.dtype)
         # Initial cumulative infiltration set to tiny value
         # (prevent division by zero)
-        self.infiltration_amount = np.full(shape=self.dom.shape, fill_value=(1/100000),
+        self.infiltration_amount = np.full(shape=self.dom.shape, fill_value=(1/1000),
                                            dtype=self.dom.dtype)
 
     def step(self):
