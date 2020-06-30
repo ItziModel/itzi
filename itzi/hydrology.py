@@ -80,5 +80,6 @@ class Hydrology():
                              arr_etp=self.dom.get_array('etp'),
                              arr_capped_losses=self.dom.get_array('capped_losses'),
                              arr_h=self.dom.get_array('h'),
+                             arr_hydrology=self.dom.get_array('hydrology'),
                              dt=self._dt)
         return self

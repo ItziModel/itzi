@@ -105,7 +105,7 @@ class RasterDomain():
                         'losses', 'rain', 'inflow',
                         'bcval', 'bctype']
         self.k_internal = ['inf', 'hmax', 'ext', 'y', 'hfe', 'hfs',
-                           'qe', 'qs', 'qe_new', 'qs_new', 'etp',
+                           'qe', 'qs', 'qe_new', 'qs_new', 'etp', 'hydrology',
                            'ue', 'us', 'v', 'vdir', 'vmax', 'fr',
                            'n_drain', 'capped_losses', 'dire', 'dirs']
         # arrays gathering the cumulated water depth from corresponding array
@@ -205,12 +205,11 @@ class RasterDomain():
         Should be called before updating the array
         """
         sk = self.stats_corresp[k]
-        update_time = self.stats_update_time[sk]
         if self.stats_update_time[sk] is None:
             self.stats_update_time[sk] = sim_time
-        else:
+        time_diff = (sim_time - self.stats_update_time[sk]).total_seconds()
+        if time_diff >= 0:
             msgr.debug(u"{}: Populating array <{}>".format(sim_time, sk))
-            time_diff = (sim_time - update_time).total_seconds()
             flow.populate_stat_array(self.arr[k], self.arr[sk], time_diff)
             self.stats_update_time[sk] = sim_time
         return None
@@ -222,7 +221,7 @@ class RasterDomain():
         This applies for inputs that are needed to be taken into account,
          at every timestep, like inflows from user or drainage.
         """
-        flow.set_ext_array(self.arr['inflow'], self.arr['n_drain'], self.arr['ext'])
+        flow.set_ext_array(self.arr['inflow'], self.arr['n_drain'], self.arr['hydrology'], self.arr['ext'])
         return self
 
     def swap_arrays(self, k1, k2):
