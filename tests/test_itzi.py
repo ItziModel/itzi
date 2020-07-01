@@ -190,5 +190,5 @@ def test_ea8b(ea_test8b_reference, ea_test8b_sim):
 def test_infiltration(reference_infiltration , infiltration_sim):
     inf_err = abs(reference_infiltration  - infiltration_sim)
     percent_error = inf_err / reference_infiltration
-    # Accept less than 3% error (See Mailapalli et Al., 2009)
-    assert percent_error < .03
+    # Accept less than 1% error
+    assert percent_error < .01

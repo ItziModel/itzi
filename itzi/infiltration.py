@@ -74,9 +74,6 @@ class InfGreenAmpt(Infiltration):
     """
     def __init__(self, raster_domain, dt_inf):
         Infiltration.__init__(self, raster_domain, dt_inf)
-        # Initial water soil content set to zero
-        self.init_wat_soil_content = np.zeros(shape=self.dom.shape,
-                                              dtype=self.dom.dtype)
         # Initial cumulative infiltration set to tiny value
         # (prevent division by zero)
         self.infiltration_amount = np.full(shape=self.dom.shape, fill_value=(1/1000),
@@ -90,7 +87,7 @@ class InfGreenAmpt(Infiltration):
                     arr_pressure=self.dom.get_array('capillary_pressure'),
                     arr_conduct=self.dom.get_array('hydraulic_conductivity'),
                     arr_inf_amount=self.infiltration_amount,
-                    arr_water_soil_content=self.init_wat_soil_content,
+                    arr_water_soil_content=self.dom.get_array('soil_water_content'),
                     arr_inf_out=self.dom.get_array('inf'), dt=self._dt)
         return self
 

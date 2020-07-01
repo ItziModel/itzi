@@ -409,10 +409,9 @@ def inf_ga(DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_eff_por,
     for r in prange(rmax, nogil=True):
         for c in range(cmax):
             conduct = arr_conduct[r, c]
-            avail_porosity = arr_eff_por[r, c] - arr_water_soil_content[r, c]
+            avail_porosity = max(arr_eff_por[r, c] - arr_water_soil_content[r, c], 0)
             poros_cappress = avail_porosity * (arr_pressure[r, c] + arr_h[r, c])
-            infrate = conduct * (1 +
-                            (poros_cappress / arr_inf_amount[r, c]))
+            infrate = conduct * (1 + (poros_cappress / arr_inf_amount[r, c]))
             # cap the rate
             infrate = cap_inf_rate(dt, arr_h[r, c], infrate)
             # update total infiltration amount

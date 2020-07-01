@@ -101,7 +101,8 @@ class RasterDomain():
         # all keys that will be used for the arrays
         self.k_input = ['dem', 'friction', 'h', 'y',
                         'effective_porosity', 'capillary_pressure',
-                        'hydraulic_conductivity', 'in_inf',
+                        'hydraulic_conductivity',
+                        'soil_water_content', 'in_inf',
                         'losses', 'rain', 'inflow',
                         'bcval', 'bctype']
         self.k_internal = ['inf', 'hmax', 'ext', 'y', 'hfe', 'hfs',
