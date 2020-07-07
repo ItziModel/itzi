@@ -511,12 +511,13 @@ def infiltration_parameters():
                                )
     return inf_params
 
+
 @pytest.fixture(scope="session")
 def infiltration_sim(infiltration_parameters):
     array_shape = (3, 3)
     cell_shape = (5,5)
     dt = 10  # in seconds
-    dtype = np.float64
+    dtype = np.float32
     inf_params = infiltration_parameters
     mask = np.full(shape=array_shape, fill_value=False, dtype=np.bool_)
     arr_depth = np.full(shape=array_shape, fill_value=inf_params.pond_depth)
@@ -536,7 +537,5 @@ def infiltration_sim(infiltration_parameters):
     while elapsed_time < inf_params.time:
         inf_sim.step()
         elapsed_time += inf_sim._dt
-        # print(raster_domain.get_array('inf').max())
-    # print(arr_depth)
     theoretical_depth = arr_depth - inf_sim.infiltration_amount
     return inf_sim.infiltration_amount.max()
