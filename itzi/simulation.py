@@ -25,7 +25,6 @@ import itzi.rasterdomain as rasterdomain
 from itzi.massbalance import MassBal
 from itzi.drainage import DrainageSimulation, SwmmInputParser
 import itzi.messenger as msgr
-import itzi.gis as gis
 import itzi.infiltration as infiltration
 import itzi.hydrology as hydrology
 from itzi.itzi_error import NullError
@@ -68,6 +67,7 @@ def create_simulation(sim_times, input_maps, output_maps, sim_param,
                       dtype=np.float32, stats_file=None):
     """A factory function that returns a SimulationManager object.
     """
+    import itzi.gis as gis
     msgr.verbose(u"Setting up models...")
     # return error if output files exist
     gis.check_output_files(output_maps.values())
