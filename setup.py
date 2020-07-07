@@ -53,7 +53,7 @@ REQUIRES = ['pyinstrument', 'grass-session', 'pyswmm', 'bmipy']
 # Set arguments according to compiler
 copt =  {'msvc': ['/openmp', '/Ox'],
          'mingw32' : ['-O3', '-w', '-fopenmp', '-lgomp', '-lpthread'],
-         'unix' : ['-O3', '-w', '-fopenmp']
+         'unix' : ['-O3', '-w', '-fopenmp', '-march=native']
          }
 lopt =  {'mingw32' : ['-lgomp', '-lpthread'],
          'unix' : ['-lgomp']
