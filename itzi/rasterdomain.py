@@ -119,6 +119,8 @@ class RasterDomain():
         # last update of statistical map entry
         self.stats_update_time = dict.fromkeys(self.k_stats)
 
+        self.start_volume = None
+
         # Instantiate arrays and padded arrays filled with zeros
         self.arr = dict.fromkeys(self.k_all)
         self.arrp = dict.fromkeys(self.k_all)
@@ -239,9 +241,12 @@ class RasterDomain():
         if arr.shape != self.shape:
             return ValueError
         if k == 'dem':
-            # note: must run update_flow_dir() in SurfaceFlowSimulation
             self.update_mask(arr)
             fill_value = np.finfo(self.dtype).max
+        elif k == 'h':
+            if self.start_volume is None:
+                self.start_volume = self.water_volume()
+            fill_value = 0
         elif k == 'friction':
             fill_value = 1
         else:

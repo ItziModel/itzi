@@ -87,7 +87,7 @@ class BmiItzi(Bmi):
             Time to run model until.
         """
         then = timedelta(seconds=float(then))
-        self.itzi.sim.run_until(then)
+        self.itzi.sim.update_until(then)
 
     def finalize(self):
         """Finalize model."""
@@ -123,7 +123,8 @@ class BmiItzi(Bmi):
 
     def get_end_time(self):
         """End time of model."""
-        return float(self.itzi.sim.duration.total_seconds())
+        duration = self.itzi.sim.start_time - self.itzi.sim.end_time
+        return float(duration.total_seconds())
 
     def get_current_time(self):
         current_time = self.itzi.sim.sim_time - self.itzi.sim.start_time
