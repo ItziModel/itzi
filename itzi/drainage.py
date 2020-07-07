@@ -192,6 +192,7 @@ class DrainageSimulation():
                         math.sqrt(2. * self.g * upstream_depth))
         return math.copysign(unsigned_q, node_head - wse)
 
+
 class SwmmInputParser(object):
     """A parser for swmm input text file
     """

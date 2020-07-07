@@ -112,9 +112,9 @@ class SurfaceFlowSimulation():
         return self
 
     def solve_dt(self):
-        """Calculate the adaptative time-step
-        The formula #15 in almeida et al (2012) has been modified to
-        accomodate non-square cells
+        """Calculate the adaptive time-step
+        The formula #15 in Almeida et al (2012) has been modified to
+        accommodate non-square cells
         The time-step is limited by the maximum time-step dtmax.
         """
         maxh = self.dom.amax('h')  # max depth in domain

@@ -203,6 +203,7 @@ class Igis():
         if self.region_id:
             msgr.debug("Remove temp region...")
             gscript.del_temp_region()
+        # Thread killswitch
         self.raster_writer_queue.put(None)
         self.raster_writer_thread.join()
 
