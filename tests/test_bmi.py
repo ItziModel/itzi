@@ -6,7 +6,6 @@
 import os
 
 import pytest
-import pandas as pd
 import numpy as np
 
 from itzi import BmiItzi
@@ -102,16 +101,7 @@ class TestBmi:
         grid_id = bmi_object.get_var_grid("land_surface__elevation")
         assert grid_id == 0
 
-    def test_get_grid_rank(self, bmi_object):
-        grid_id = bmi_object.get_var_grid("land_surface__elevation")
-        grid_rank = bmi_object.get_grid_rank(grid_id)
-        assert grid_rank == 2
-
-    def test_get_grid_size(self, bmi_object):
-        grid_id = bmi_object.get_var_grid("land_surface__elevation")
-        grid_size = bmi_object.get_grid_size(grid_id)
-        assert grid_size == 25
-
+    # Values getting and setting functions #
     def test_get_value_ptr(self, bmi_object):
         value_ptr = bmi_object.get_value_ptr("land_surface__elevation")
         ref_value = bmi_object.itzi.sim.get_array('dem')
@@ -127,7 +117,46 @@ class TestBmi:
         print(value)
         assert value.item() == 0
 
+    def test_set_value(self, bmi_object):
+        var_name = "land_surface__elevation"
+        grid_id = bmi_object.get_var_grid(var_name)
+        grid_shape = bmi_object.get_grid_shape(grid_id)
+        value = np.ones(grid_shape)
+        assert np.all(value != bmi_object.get_value_ptr(var_name))
+        bmi_object.set_value(var_name, value)
+        assert np.all(value == bmi_object.get_value_ptr(var_name))
+
+    # Grid information functions #
+    def test_get_grid_rank(self, bmi_object):
+        grid_id = bmi_object.get_var_grid("land_surface__elevation")
+        grid_rank = bmi_object.get_grid_rank(grid_id)
+        assert grid_rank == 2
+
+    def test_get_grid_size(self, bmi_object):
+        grid_id = bmi_object.get_var_grid("land_surface__elevation")
+        grid_size = bmi_object.get_grid_size(grid_id)
+        assert grid_size == 25
+
     def test_get_grid_shape(self, bmi_object):
         grid_id = bmi_object.get_var_grid("land_surface__elevation")
         grid_shape = bmi_object.get_grid_shape(grid_id)
         assert grid_shape == (5, 5)
+
+    def test_get_grid_spacing(self, bmi_object):
+        grid_id = bmi_object.get_var_grid("land_surface__elevation")
+        grid_spacing = bmi_object.get_grid_spacing(grid_id)
+        assert isinstance(grid_spacing, np.ndarray)
+        reference = np.array([10, 10])
+        assert np.all(reference == grid_spacing)
+
+    def test_get_grid_origin(self, bmi_object):
+        grid_id = bmi_object.get_var_grid("land_surface__elevation")
+        grid_origin = bmi_object.get_grid_origin(grid_id)
+        assert isinstance(grid_origin, np.ndarray)
+        reference = np.array([50, 0])
+        assert np.all(reference == grid_origin)
+
+    def test_get_grid_type(self, bmi_object):
+        grid_id = bmi_object.get_var_grid("land_surface__elevation")
+        grid_type = bmi_object.get_grid_type(grid_id)
+        assert grid_type == "uniform_rectilinear"

@@ -283,19 +283,21 @@ def ea_test8b_sim(ea_test8b, test_data_path):
 def grass_5by5(grass_xy_session, test_data_path):
     """Create a square, 5 by 5 domain.
     """
+    resolution = 10
     # Create new mapset
     gscript.run_command('g.mapset', mapset='5by5', flags='c')
     # Create 3by5 named region
-    gscript.run_command('g.region', res=10, s=10, n=40, w=0, e=50, save='3by5')
+    gscript.run_command('g.region', res=resolution,
+                        s=10, n=40, w=0, e=50, save='3by5')
     region = gscript.parse_command('g.region', flags='pg')
     assert int(region["cells"]) == 15
     # Create raster for mask (do not apply mask)
-    gscript.run_command('g.region', res=10, s=0, n=50, w=10, e=40)
+    gscript.run_command('g.region', res=resolution, s=0, n=50, w=10, e=40)
     region = gscript.parse_command('g.region', flags='pg')
     assert int(region["cells"]) == 15
     gscript.mapcalc('5by3=1')
     # Set a 5x5 region
-    gscript.run_command('g.region', res=10, s=0, w=0, e=50, n=50)
+    gscript.run_command('g.region', res=resolution, s=0, w=0, e=50, n=50)
     region = gscript.parse_command('g.region', flags='pg')
     assert int(region["cells"]) == 25
     # DEM

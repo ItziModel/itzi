@@ -131,6 +131,12 @@ class SimulationRunner():
         self.update_input_arrays()
         return self
 
+    @property
+    def origin(self):
+        # Get a TimedArray object to reach the GIS interface
+        tarr = next(iter(self.tarr.values()))
+        return tarr.igis.origin
+
     def set_grass_session(self):
         """Set the GRASS session.
         """

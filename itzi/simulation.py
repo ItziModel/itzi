@@ -196,6 +196,8 @@ class Simulation():
         # case if no drainage simulation
         if not self.drainage_model:
             self.next_ts['drainage'] = self.end_time
+        # Grid spacing
+        self.spacing = (self.raster_domain.dy, self.raster_domain.dx)
 
     def update(self):
         # Reporting #
@@ -246,16 +248,9 @@ class Simulation():
         if self.report.massbal:
             self.report.massbal.add_value('tstep', self.dt.total_seconds())
 
-        # find next step
-        self.nextstep = min(self.next_ts.values())
-        # force the surface time-step to the lowest time-step
-        self.next_ts['surface_flow'] = self.nextstep
-        self.dt = self.nextstep - self.sim_time
+        self.find_dt()
         # update simulation time
         self.sim_time += self.dt
-        print(self.sim_time)
-        print(self.dt)
-        print(self.next_ts)
         return self
 
     def update_until(self, then):
@@ -297,7 +292,12 @@ class Simulation():
         return self.raster_domain.get_array(arr_id)
 
     def find_dt(self):
-        pass
+        """find next step"""
+        self.nextstep = min(self.next_ts.values())
+        # force the surface time-step to the lowest time-step
+        self.next_ts['surface_flow'] = self.nextstep
+        self.dt = self.nextstep - self.sim_time
+        return self
 
 
 class Report():

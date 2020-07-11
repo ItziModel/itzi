@@ -266,36 +266,7 @@ class BmiItzi(Bmi):
             if var_name == grid_name:
                 return grid_id
 
-    def get_grid_rank(self, grid_id):
-        """Rank of grid.
-
-        Parameters
-        ----------
-        grid_id : int
-            Identifier of a grid.
-
-        Returns
-        -------
-        int
-            Rank of grid.
-        """
-        return len(self.get_grid_shape(grid_id))
-
-    def get_grid_size(self, grid_id):
-        """Size of grid.
-
-        Parameters
-        ----------
-        grid_id : int
-            Identifier of a grid.
-
-        Returns
-        -------
-        int
-            Size of grid.
-        """
-        return np.prod(self.get_grid_shape(grid_id))
-
+    # Values getting and setting functions #
     def get_value_ptr(self, var_name):
         """Reference to values.
 
@@ -355,8 +326,8 @@ class BmiItzi(Bmi):
         src : array_like
             Array of new values.
         """
-        val = self.get_value_ptr(var_name)
-        val[:] = src
+        internal_var_name = self._var_names[var_name]
+        self.itzi.sim.set_array(internal_var_name, src)
 
     def set_value_at_indices(self, name, inds, src):
         """Set model values at particular indices.
@@ -370,8 +341,40 @@ class BmiItzi(Bmi):
         indices : array_like
             Array of indices.
         """
-        val = self.get_value_ptr(name)
-        val.flat[inds] = src
+        # val = self.get_value_ptr(name)
+        # val.flat[inds] = src
+        raise NotImplementedError("get_grid_edge_count")
+
+    # Grid information functions #
+    def get_grid_rank(self, grid_id):
+        """Rank of grid.
+
+        Parameters
+        ----------
+        grid_id : int
+            Identifier of a grid.
+
+        Returns
+        -------
+        int
+            Rank of grid.
+        """
+        return len(self.get_grid_shape(grid_id))
+
+    def get_grid_size(self, grid_id):
+        """Size of grid.
+
+        Parameters
+        ----------
+        grid_id : int
+            Identifier of a grid.
+
+        Returns
+        -------
+        int
+            Size of grid.
+        """
+        return np.prod(self.get_grid_shape(grid_id))
 
     def get_grid_shape(self, grid_id):
         """Number of rows and columns of uniform rectilinear grid."""
@@ -381,11 +384,11 @@ class BmiItzi(Bmi):
 
     def get_grid_spacing(self, grid_id):
         """Spacing of rows and columns of uniform rectilinear grid."""
-        return self._model.spacing
+        return np.array(self.itzi.sim.spacing)
 
     def get_grid_origin(self, grid_id):
         """Origin of uniform rectilinear grid."""
-        return self._model.origin
+        return np.array(self.itzi.origin)
 
     def get_grid_type(self, grid_id):
         """Type of grid."""

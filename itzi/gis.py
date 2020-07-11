@@ -162,6 +162,7 @@ class Igis():
         self.dy = self.region.nsres
         self.reg_bbox = {'e': self.region.east, 'w': self.region.west,
                          'n': self.region.north, 's': self.region.south}
+        self.origin = (self.reg_bbox['n'], self.reg_bbox['w'])
         # Set temporary mask
         if self.raster_mask_id:
             self.set_temp_mask()
