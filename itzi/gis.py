@@ -94,16 +94,15 @@ def raster_writer(q, lock):
             break
         arr, rast_name, mtype, mkey, overwrite = next_object
         # Write raster
-        lock.acquire()
-        with raster.RasterRow(rast_name, mode='w', mtype=mtype,
-                              overwrite=overwrite) as newraster:
-            newrow = raster.Buffer((arr.shape[1],), mtype=mtype)
-            for row in arr:
-                newrow[:] = row[:]
-                newraster.put_row(newrow)
-        # Apply colour table
-        apply_color_table(rast_name, mkey)
-        lock.release()
+        with lock:
+            with raster.RasterRow(rast_name, mode='w', mtype=mtype,
+                                  overwrite=overwrite) as newraster:
+                newrow = raster.Buffer((arr.shape[1],), mtype=mtype)
+                for row in arr:
+                    newrow[:] = row[:]
+                    newraster.put_row(newrow)
+            # Apply colour table
+            apply_color_table(rast_name, mkey)
         # Signal end of task
         q.task_done()
 
@@ -425,10 +424,9 @@ class Igis():
     def read_raster_map(self, rast_name):
         """Read a GRASS raster and return a numpy array
         """
-        self.raster_lock.acquire()
-        with raster.RasterRow(rast_name, mode='r') as rast:
-            array = np.array(rast, dtype=self.dtype)
-        self.raster_lock.release()
+        with self.raster_lock:
+            with raster.RasterRow(rast_name, mode='r') as rast:
+                array = np.array(rast, dtype=self.dtype)
         return array
 
     def write_raster_map(self, arr, rast_name, mkey):
