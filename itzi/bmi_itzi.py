@@ -27,34 +27,93 @@ class BmiItzi(Bmi):
     """A distributed dynamic flood model."""
 
     _name = "Itzï"
-    _input_var_names = ("land_surface__elevation",
-                        "land_surface_water_flow__manning_n_parameter",
-                        "land_surface_water__depth",
-                        "land_surface_water__precipitation_leq-volume_flux",
-                        "land_surface_water__inflow_volume_flux",
-                        "land_surface_water__boundary_type",
-                        "land_surface_water__boundary_value",
-                        "soil_surface_water__infiltration_volume_flux",
-                        "soil_water__effective_porosity",
-                        "soil_water__pressure_head",
-                        "soil_water__hydraulic_conductivity",
-                        "land_surface_water__losses_volume_flux",
-                        )
-    _output_var_names = ("land_surface_water__depth",
-                         "land_surface_water_surface__elevation",
-                         "land_surface_water_flow__speed",
-                         "land_surface_water_flow__azimuth_angle_of_velocity",
-                         "land_surface_water__x_component_of_volume_flow_rate",
-                         "land_surface_water__y_component_of_volume_flow_rate",
-                         "soil_surface_water__boundary_volume_flux",
-                         "soil_surface_water__mean_of_infiltration_volume_flux",
-                         "land_surface_water__mean_of_precipitation_leq-volume_flux",
-                         "land_surface_water__mean_of_inflow_volume_flux",
-                         "land_surface_water__mean_of_losses_volume_flux",
-                         "land_surface_water__mean_of_drainage_volume_flux",
-                         "land_surface_water__time_integral_of_error_volume",
-                         "land_surface_water_flow__froude_number",
-                         )
+    _input_var_names = {"land_surface__elevation": "dem",
+                        "land_surface_water_flow__manning_n_parameter": "friction",
+                        "land_surface_water__depth": "h",
+                        "land_surface_water__precipitation_leq-volume_flux": "rain",
+                        "land_surface_water__inflow_volume_flux": "inflow",
+                        "land_surface_water__boundary_type": "bctype",
+                        "land_surface_water__boundary_value": "bcval",
+                        "soil_surface_water__infiltration_volume_flux": "in_inf",
+                        "soil_water__effective_porosity": "effective_porosity",
+                        "soil_water__pressure_head": "capillary_pressure",
+                        "soil_water__hydraulic_conductivity": "hydraulic_conductivity",
+                        "soil_water__volume_fraction": "soil_water_content",
+                        "land_surface_water__losses_volume_flux": "losses",
+                        }
+    _output_var_names = {"land_surface_water__depth": "h",
+                         "land_surface_water_surface__elevation": "y",
+                         "land_surface_water_flow__speed": "v",
+                         "land_surface_water_flow__azimuth_angle_of_velocity": "vdir",
+                         "land_surface_water__x_component_of_volume_flow_rate": "qe_new",
+                         "land_surface_water__y_component_of_volume_flow_rate": "qs_new",
+                         "soil_surface_water__boundary_volume_flux": "st_bound",
+                         "soil_surface_water__mean_of_infiltration_volume_flux": "st_inf",
+                         "land_surface_water__mean_of_precipitation_leq-volume_flux": "st_rain",
+                         "land_surface_water__mean_of_inflow_volume_flux": "st_inflow",
+                         "land_surface_water__mean_of_losses_volume_flux": "st_losses",
+                         "land_surface_water__mean_of_drainage_volume_flux": "st_ndrain",
+                         "land_surface_water__time_integral_of_error_volume": "st_herr",
+                         "land_surface_water_flow__froude_number": "fr",
+                         }
+
+    _var_names = {**_input_var_names, **_output_var_names}
+
+    _var_units = {"land_surface__elevation": "m",
+                  "land_surface_water_flow__manning_n_parameter": "s m(-1/3)",
+                  "land_surface_water__precipitation_leq-volume_flux": "m s-1",
+                  "land_surface_water__inflow_volume_flux": "m s-1",
+                  "land_surface_water__boundary_type": "1",
+                  "land_surface_water__boundary_value": "1",
+                  "soil_surface_water__infiltration_volume_flux": "m s-1",
+                  "soil_water__effective_porosity": "m m-1",
+                  "soil_water__pressure_head": "m",
+                  "soil_water__hydraulic_conductivity": "m s-1",
+                  "soil_water__volume_fraction": "m/m",
+                  "land_surface_water__losses_volume_flux": "m s-1",
+                  "land_surface_water__depth": "m",
+                  "land_surface_water_surface__elevation": "m",
+                  "land_surface_water_flow__speed": "m s-1",
+                  "land_surface_water_flow__azimuth_angle_of_velocity": "degree",
+                  "land_surface_water__x_component_of_volume_flow_rate": "m2 s-1",
+                  "land_surface_water__y_component_of_volume_flow_rate": "m2 s-1",
+                  "soil_surface_water__boundary_volume_flux": "m s-1",
+                  "soil_surface_water__mean_of_infiltration_volume_flux": "m s-1",
+                  "land_surface_water__mean_of_precipitation_leq-volume_flux": "m s-1",
+                  "land_surface_water__mean_of_inflow_volume_flux": "m s-1",
+                  "land_surface_water__mean_of_losses_volume_flux": "m s-1",
+                  "land_surface_water__mean_of_drainage_volume_flux": "m s-1",
+                  "land_surface_water__time_integral_of_error_depth": "m",
+                  "land_surface_water_flow__froude_number": "1",
+                  }
+
+    _var_loc = {"land_surface__elevation": "face",
+                "land_surface_water_flow__manning_n_parameter": "face",
+                "land_surface_water__precipitation_leq-volume_flux": "face",
+                "land_surface_water__inflow_volume_flux": "face",
+                "land_surface_water__boundary_type": "face",
+                "land_surface_water__boundary_value": "face",
+                "soil_surface_water__infiltration_volume_flux": "face",
+                "soil_water__effective_porosity": "face",
+                "soil_water__pressure_head": "face",
+                "soil_water__hydraulic_conductivity": "face",
+                "soil_water__volume_fraction": "face",
+                "land_surface_water__losses_volume_flux": "face",
+                "land_surface_water__depth": "face",
+                "land_surface_water_surface__elevation": "face",
+                "land_surface_water_flow__speed": "face",
+                "land_surface_water_flow__azimuth_angle_of_velocity": "face",
+                "land_surface_water__x_component_of_volume_flow_rate": "edge",
+                "land_surface_water__y_component_of_volume_flow_rate": "edge",
+                "soil_surface_water__boundary_volume_flux": "face",
+                "soil_surface_water__mean_of_infiltration_volume_flux": "face",
+                "land_surface_water__mean_of_precipitation_leq-volume_flux": "face",
+                "land_surface_water__mean_of_inflow_volume_flux": "face",
+                "land_surface_water__mean_of_losses_volume_flux": "face",
+                "land_surface_water__mean_of_drainage_volume_flux": "face",
+                "land_surface_water__time_integral_of_error_depth": "face",
+                "land_surface_water_flow__froude_number": "face",
+                }
 
     def __init__(self):
         """Create a BmiItzi model that is ready for initialization."""
@@ -109,11 +168,11 @@ class BmiItzi(Bmi):
 
     def get_input_var_names(self):
         """Get names of input variables."""
-        return self._input_var_names
+        return list(self._input_var_names.keys())
 
     def get_output_var_names(self):
         """Get names of output variables."""
-        return self._output_var_names
+        return list(self._output_var_names.keys())
 
     # Time functions #
 
@@ -203,8 +262,8 @@ class BmiItzi(Bmi):
         int
             Grid id.
         """
-        for grid_id, var_name_list in self._grids.items():
-            if var_name in var_name_list:
+        for grid_id, grid_name in enumerate(self._var_names.keys()):
+            if var_name == grid_name:
                 return grid_id
 
     def get_grid_rank(self, grid_id):
@@ -250,7 +309,9 @@ class BmiItzi(Bmi):
         array_like
             Value array.
         """
-        return self._values[var_name]
+        internal_var_name = self._var_names[var_name]
+        arr = self.itzi.sim.get_array(internal_var_name)
+        return arr
 
     def get_value(self, var_name):
         """Copy of values.
@@ -312,12 +373,11 @@ class BmiItzi(Bmi):
         val = self.get_value_ptr(name)
         val.flat[inds] = src
 
-
-
     def get_grid_shape(self, grid_id):
         """Number of rows and columns of uniform rectilinear grid."""
-        var_name = self._grids[grid_id][0]
-        return self.get_value_ptr(var_name).shape
+        for g_id, var_name in enumerate(self._var_names.keys()):
+            if g_id == grid_id:
+                return self.get_value_ptr(var_name).shape
 
     def get_grid_spacing(self, grid_id):
         """Spacing of rows and columns of uniform rectilinear grid."""
@@ -329,7 +389,7 @@ class BmiItzi(Bmi):
 
     def get_grid_type(self, grid_id):
         """Type of grid."""
-        return self._grid_type[grid_id]
+        return "uniform_rectilinear"
 
     def get_grid_edge_count(self, grid):
         raise NotImplementedError("get_grid_edge_count")
