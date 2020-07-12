@@ -343,7 +343,7 @@ class BmiItzi(Bmi):
         """
         # val = self.get_value_ptr(name)
         # val.flat[inds] = src
-        raise NotImplementedError("get_grid_edge_count")
+        raise NotImplementedError("set_value_at_indices")
 
     # Grid information functions #
     def get_grid_rank(self, grid_id):
