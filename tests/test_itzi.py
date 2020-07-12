@@ -14,6 +14,26 @@ import grass.script as gscript
 from itzi import SimulationRunner
 
 
+def get_rmse(model, ref):
+    """return root mean square error"""
+    return np.sqrt(np.mean((model - ref)**2))
+
+
+def get_nse(model, ref):
+    """Nash-Sutcliffe Efficiency
+    """
+    noise = np.mean((ref - model)**2)
+    information = np.mean((ref - np.mean(ref))**2)
+    return 1-(noise / information)
+
+
+def get_rsr(model, ref):
+    """RMSE/StdDev ratio
+    """
+    rmse = get_rmse(model, ref)
+    return rmse / np.std(ref)
+
+
 def test_number_of_output(grass_5by5_sim):
     current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
     assert current_mapset == '5by5'
@@ -58,7 +78,6 @@ def test_region_mask(grass_5by5, test_data_path):
     # Set simulation (should set region and mask)
     config_file = os.path.join(test_data_path, '5by5', '5by5_mask.ini')
     sim_runner = SimulationRunner()
-    assert isinstance(sim_runner, SimulationRunner)
     sim_runner.initialize(config_file)
     # Run simulation
     sim_runner.run().finalize()
@@ -140,3 +159,36 @@ def test_ea8a(ea_test8a_reference, ea_test8a_sim):
     for df_err in points_values:
         mae = np.mean(df_err['absolute error'])
         assert mae <= 0.04
+
+
+def test_ea8b(ea_test8b_reference, ea_test8b_sim):
+    current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
+    assert current_mapset == 'ea8b'
+    # Extract results at output points
+    itzi_results = gscript.read_command('t.rast.what', points='manhole_location',
+                                        strds='out_drainage_stats', null_value='*',
+                                        separator='comma', layout='col')
+    # Read results as Pandas series
+    series_itzi = pd.read_csv(StringIO(itzi_results), index_col=0, header=None,
+                              squeeze=True, names=['time', 'itzi'])
+    # convert to timedelta
+    series_itzi.index = pd.to_timedelta(series_itzi.index, unit='s')
+    # force temporal resolution
+    series_itzi = series_itzi.resample(rule='s').interpolate(method='time').resample('30s').mean()
+    series_itzi.name = 'itzi'
+    # Convert from m/s to m3/s (2m resolution)
+    series_itzi = series_itzi * 2*2
+    # Create a DataFrame with two columns and drop NaN
+    df_values = pd.concat([series_itzi, ea_test8b_reference], axis=1).dropna()
+    # Compare results
+    rsr = get_rsr(df_values.itzi, df_values.reference)
+    nse = get_nse(df_values.itzi, df_values.reference)
+    assert rsr < 0.1
+    assert nse > 0.99
+
+
+def test_infiltration(reference_infiltration , infiltration_sim):
+    inf_err = abs(reference_infiltration  - infiltration_sim)
+    percent_error = inf_err / reference_infiltration
+    # Accept less than 1% error
+    assert percent_error < .01

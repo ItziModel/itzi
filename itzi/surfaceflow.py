@@ -75,7 +75,7 @@ class SurfaceFlowSimulation():
         -1: no routing happening on that face
         '''
         # get a padded array
-        arrp_z = self.dom.get_padded('z')
+        arrp_z = self.dom.get_padded('dem')
         # define differences in Z
         z0 = arrp_z[1:-1, 1:-1]
         zN = arrp_z[0:-2, 1:-1]
@@ -89,9 +89,10 @@ class SurfaceFlowSimulation():
         # maximum altitude difference
         arr_max_dz = np.maximum(np.maximum(dN, dS), np.maximum(dE, dW))
         # y direction
-        flow.flow_dir(arr_max_dz[self.s_j_0], dN, dS, self.dom.get('dirs'))
+        flow.flow_dir(arr_max_dz, dN, dS, self.dom.get_array('dirs'))
         # x direction
-        flow.flow_dir(arr_max_dz[self.s_i_0], dW, dE, self.dom.get('dire'))
+        flow.flow_dir(arr_max_dz, dW, dE, self.dom.get_array('dire'))
+
         return self
 
     def step(self):
@@ -102,7 +103,7 @@ class SurfaceFlowSimulation():
         self.apply_boundary_conditions()
         self.update_h()
         # in case of NaN/NULL cells, raise a NullError
-        self.arr_err = np.isnan(self.dom.get('h'))
+        self.arr_err = np.isnan(self.dom.get_array('h'))
         if np.any(self.arr_err):
             raise NullError
         self.swap_flow_arrays()
@@ -111,9 +112,9 @@ class SurfaceFlowSimulation():
         return self
 
     def solve_dt(self):
-        """Calculate the adaptative time-step
-        The formula #15 in almeida et al (2012) has been modified to
-        accomodate non-square cells
+        """Calculate the adaptive time-step
+        The formula #15 in Almeida et al (2012) has been modified to
+        accommodate non-square cells
         The time-step is limited by the maximum time-step dtmax.
         """
         maxh = self.dom.amax('h')  # max depth in domain
@@ -149,48 +150,48 @@ class SurfaceFlowSimulation():
         """Calculate new water depth, average velocity and Froude number
         """
         flow_west = self.dom.get_padded('qe_new')[self.ss, self.su]
-        flow_east = self.dom.get('qe_new')
+        flow_east = self.dom.get_array('qe_new')
         flow_north = self.dom.get_padded('qs_new')[self.su, self.ss]
-        flow_south = self.dom.get('qs_new')
+        flow_south = self.dom.get_array('qs_new')
         assert (flow_west.shape == flow_east.shape ==
                 flow_north.shape == flow_south.shape)
 
         hflow_west = self.dom.get_padded('hfe')[self.ss, self.su]
-        hflow_east = self.dom.get('hfe')
+        hflow_east = self.dom.get_array('hfe')
         hflow_north = self.dom.get_padded('hfs')[self.su, self.ss]
-        hflow_south = self.dom.get('hfs')
+        hflow_south = self.dom.get_array('hfs')
         assert (hflow_west.shape == hflow_east.shape ==
                 hflow_north.shape == hflow_south.shape)
 
-        flow.solve_h(arr_ext=self.dom.get('ext'),
+        flow.solve_h(arr_ext=self.dom.get_array('ext'),
                      arr_qe=flow_east, arr_qw=flow_west,
                      arr_qn=flow_north, arr_qs=flow_south,
-                     arr_bct=self.dom.get('bct'), arr_bcv=self.dom.get('bcv'),
-                     arr_h=self.dom.get('h'), arr_hmax=self.dom.get('hmax'),
-                     arr_hfix=self.dom.get('st_bound'),
-                     arr_herr=self.dom.get('st_herr'),
+                     arr_bct=self.dom.get_array('bctype'), arr_bcv=self.dom.get_array('bcval'),
+                     arr_h=self.dom.get_array('h'), arr_hmax=self.dom.get_array('hmax'),
+                     arr_hfix=self.dom.get_array('st_bound'),
+                     arr_herr=self.dom.get_array('st_herr'),
                      arr_hfe=hflow_east, arr_hfw=hflow_west,
                      arr_hfn=hflow_north, arr_hfs=hflow_south,
-                     arr_v=self.dom.get('v'), arr_vdir=self.dom.get('vdir'),
-                     arr_vmax=self.dom.get('vmax'),
-                     arr_fr=self.dom.get('fr'),
+                     arr_v=self.dom.get_array('v'), arr_vdir=self.dom.get_array('vdir'),
+                     arr_vmax=self.dom.get_array('vmax'),
+                     arr_fr=self.dom.get_array('fr'),
                      dx=self.dx, dy=self.dy, dt=self._dt, g=self.g)
-        assert not np.any(self.dom.get('h') < 0)
+        assert not np.any(self.dom.get_array('h') < 0)
         return self
 
     def solve_q(self):
         '''Solve flow inside the domain using C/Cython function
         '''
-        flow.solve_q(arr_dire=self.dom.get('dire'),
-                     arr_dirs=self.dom.get('dirs'),
-                     arr_z=self.dom.get('z'), arr_n=self.dom.get('n'),
-                     arr_h=self.dom.get('h'),
+        flow.solve_q(arr_dire=self.dom.get_array('dire'),
+                     arr_dirs=self.dom.get_array('dirs'),
+                     arr_z=self.dom.get_array('dem'), arr_n=self.dom.get_array('friction'),
+                     arr_h=self.dom.get_array('h'),
                      arrp_qe=self.dom.get_padded('qe'),
                      arrp_qs=self.dom.get_padded('qs'),
-                     arr_hfe=self.dom.get('hfe'),
-                     arr_hfs=self.dom.get('hfs'),
-                     arr_qe_new=self.dom.get('qe_new'),
-                     arr_qs_new=self.dom.get('qs_new'),
+                     arr_hfe=self.dom.get_array('hfe'),
+                     arr_hfs=self.dom.get_array('hfs'),
+                     arr_qe_new=self.dom.get_array('qe_new'),
+                     arr_qs_new=self.dom.get_array('qs_new'),
                      dt=self._dt, dx=self.dx, dy=self.dy, g=self.g,
                      theta=self.theta, hf_min=self.hf_min,
                      v_rout=self.v_routing, sl_thres=self.sl_thresh)
@@ -207,46 +208,46 @@ class SurfaceFlowSimulation():
         '''
 
         w_boundary_flow = self.dom.get_padded('qe_new')[1:-1, 0]
-        self.w_boundary.get_boundary_flow(qin=self.dom.get('qe_new')[:, 0],
-                                          hflow=self.dom.get('hfe')[:, 0],
-                                          n=self.dom.get('n')[:, 0],
-                                          z=self.dom.get('z')[:, 0],
-                                          depth=self.dom.get('h')[:, 0],
-                                          bctype=self.dom.get('bct')[:, 0],
-                                          bcvalue=self.dom.get('bcv')[:, 0],
+        self.w_boundary.get_boundary_flow(qin=self.dom.get_array('qe_new')[:, 0],
+                                          hflow=self.dom.get_array('hfe')[:, 0],
+                                          n=self.dom.get_array('friction')[:, 0],
+                                          z=self.dom.get_array('dem')[:, 0],
+                                          depth=self.dom.get_array('h')[:, 0],
+                                          bctype=self.dom.get_array('bctype')[:, 0],
+                                          bcvalue=self.dom.get_array('bcval')[:, 0],
                                           qboundary=w_boundary_flow)
-        e_boundary_flow = self.dom.get('qe_new')[:, -1]
-        self.e_boundary.get_boundary_flow(qin=self.dom.get('qe_new')[:, -2],
-                                          hflow=self.dom.get('hfe')[:, -2],
-                                          n=self.dom.get('n')[:, -1],
-                                          z=self.dom.get('z')[:, -1],
-                                          depth=self.dom.get('h')[:, -1],
-                                          bctype=self.dom.get('bct')[:, -1],
-                                          bcvalue=self.dom.get('bcv')[:, -1],
+        e_boundary_flow = self.dom.get_array('qe_new')[:, -1]
+        self.e_boundary.get_boundary_flow(qin=self.dom.get_array('qe_new')[:, -2],
+                                          hflow=self.dom.get_array('hfe')[:, -2],
+                                          n=self.dom.get_array('friction')[:, -1],
+                                          z=self.dom.get_array('dem')[:, -1],
+                                          depth=self.dom.get_array('h')[:, -1],
+                                          bctype=self.dom.get_array('bctype')[:, -1],
+                                          bcvalue=self.dom.get_array('bcval')[:, -1],
                                           qboundary=e_boundary_flow)
         n_boundary_flow = self.dom.get_padded('qs_new')[0, 1:-1]
-        self.n_boundary.get_boundary_flow(qin=self.dom.get('qs_new')[0],
-                                          hflow=self.dom.get('hfs')[0],
-                                          n=self.dom.get('n')[0],
-                                          z=self.dom.get('z')[0],
-                                          depth=self.dom.get('h')[0],
-                                          bctype=self.dom.get('bct')[0],
-                                          bcvalue=self.dom.get('bcv')[0],
+        self.n_boundary.get_boundary_flow(qin=self.dom.get_array('qs_new')[0],
+                                          hflow=self.dom.get_array('hfs')[0],
+                                          n=self.dom.get_array('friction')[0],
+                                          z=self.dom.get_array('dem')[0],
+                                          depth=self.dom.get_array('h')[0],
+                                          bctype=self.dom.get_array('bctype')[0],
+                                          bcvalue=self.dom.get_array('bcval')[0],
                                           qboundary=n_boundary_flow)
-        s_boundary_flow = self.dom.get('qs_new')[-1]
-        self.s_boundary.get_boundary_flow(qin=self.dom.get('qs_new')[-2],
-                                          hflow=self.dom.get('hfs')[-2],
-                                          n=self.dom.get('n')[-1],
-                                          z=self.dom.get('z')[-1],
-                                          depth=self.dom.get('h')[-1],
-                                          bctype=self.dom.get('bct')[-1],
-                                          bcvalue=self.dom.get('bcv')[-1],
+        s_boundary_flow = self.dom.get_array('qs_new')[-1]
+        self.s_boundary.get_boundary_flow(qin=self.dom.get_array('qs_new')[-2],
+                                          hflow=self.dom.get_array('hfs')[-2],
+                                          n=self.dom.get_array('friction')[-1],
+                                          z=self.dom.get_array('dem')[-1],
+                                          depth=self.dom.get_array('h')[-1],
+                                          bctype=self.dom.get_array('bctype')[-1],
+                                          bcvalue=self.dom.get_array('bcval')[-1],
                                           qboundary=s_boundary_flow)
         # add equivalent water depth passing through the boundaries to the statistic array
-        self.dom.get('st_bound')[1:-1, 0] += w_boundary_flow[self.ss] / self._dt / self.dx
-        self.dom.get('st_bound')[:, -1] += e_boundary_flow / self._dt / self.dx
-        self.dom.get('st_bound')[0, 1:-1] += n_boundary_flow[self.ss] / self._dt / self.dy
-        self.dom.get('st_bound')[-1] += s_boundary_flow / self._dt / self.dy
+        self.dom.get_array('st_bound')[1:-1, 0] += w_boundary_flow[self.ss] / self._dt / self.dx
+        self.dom.get_array('st_bound')[:, -1] += e_boundary_flow / self._dt / self.dx
+        self.dom.get_array('st_bound')[0, 1:-1] += n_boundary_flow[self.ss] / self._dt / self.dy
+        self.dom.get_array('st_bound')[-1] += s_boundary_flow / self._dt / self.dy
         return self
 
     def swap_flow_arrays(self):

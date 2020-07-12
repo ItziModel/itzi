@@ -79,21 +79,16 @@ class TimedArray():
 class RasterDomain():
     """Group all rasters for the raster domain.
     Store them as np.ndarray with validity information (TimedArray)
-    Include tools to update arrays from and write results to GIS,
-    including management of the masking and unmasking of arrays.
+    Include management of the masking and unmasking of arrays.
     """
-    def __init__(self, dtype, igis, input_maps, output_maps):
+    def __init__(self, dtype, arr_mask, cell_shape):
         # data type
         self.dtype = dtype
         # geographical data
-        self.gis = igis
-        self.shape = (self.gis.yr, self.gis.xr)
-        self.dx = self.gis.dx
-        self.dy = self.gis.dy
+        self.shape = arr_mask.shape
+        self.dx, self.dy = cell_shape
         self.cell_surf = self.dx * self.dy
-
-        # conversion factor between mm/h and m/s
-        self.mmh_to_ms = 1000. * 3600.
+        self.mask = arr_mask
 
         # number of cells in a row must be a multiple of that number
         byte_num = 256 / 8  # AVX2
@@ -103,52 +98,33 @@ class RasterDomain():
         # slice for a simple padding (allow stencil calculation on boundary)
         self.simple_pad = (slice(1, -1), slice(1, -1))
 
-        # input and output map names (GIS names)
-        self.in_map_names = input_maps
-        self.out_map_names = output_maps
-        # correspondance between input map names and the arrays
-        self.in_k_corresp = {'z': 'dem', 'n': 'friction', 'h': 'start_h',
-                             'y': 'start_y',
-                             'por': 'effective_porosity',
-                             'pres': 'capillary_pressure',
-                             'con': 'hydraulic_conductivity',
-                             'in_inf': 'infiltration',
-                             'in_losses': 'losses',
-                             'rain': 'rain', 'in_q': 'inflow',
-                             'bcv': 'bcval', 'bct': 'bctype'}
         # all keys that will be used for the arrays
-        self.k_input = list(self.in_k_corresp.keys())
+        self.k_input = ['dem', 'friction', 'h', 'y',
+                        'effective_porosity', 'capillary_pressure',
+                        'hydraulic_conductivity',
+                        'soil_water_content', 'in_inf',
+                        'losses', 'rain', 'inflow',
+                        'bcval', 'bctype']
         self.k_internal = ['inf', 'hmax', 'ext', 'y', 'hfe', 'hfs',
-                           'qe', 'qs', 'qe_new', 'qs_new', 'etp',
+                           'qe', 'qs', 'qe_new', 'qs_new', 'etp', 'eff_precip',
                            'ue', 'us', 'v', 'vdir', 'vmax', 'fr',
                            'n_drain', 'capped_losses', 'dire', 'dirs']
         # arrays gathering the cumulated water depth from corresponding array
         self.k_stats = ['st_bound', 'st_inf', 'st_rain', 'st_etp',
                         'st_inflow', 'st_losses', 'st_ndrain', 'st_herr']
         self.stats_corresp = {'inf': 'st_inf', 'rain': 'st_rain',
-                              'in_q': 'st_inflow', 'capped_losses': 'st_losses',
+                              'inflow': 'st_inflow', 'capped_losses': 'st_losses',
                               'n_drain': 'st_ndrain'}
         self.k_all = self.k_input + self.k_internal + self.k_stats
         # last update of statistical map entry
         self.stats_update_time = dict.fromkeys(self.k_stats)
 
-        # dictionnary of unmasked input tarrays
-        self.tarr = dict.fromkeys(self.k_input)
-
-        # boolean dict that indicate if an array has been updated
-        self.isnew = dict.fromkeys(self.k_all, True)
-        self.isnew['n_drain'] = False
-
-        # Create an array mask. True is not computed.
-        self.mask = self.gis.get_npmask()
+        self.start_volume = None
 
         # Instantiate arrays and padded arrays filled with zeros
         self.arr = dict.fromkeys(self.k_all)
         self.arrp = dict.fromkeys(self.k_all)
         self.create_arrays()
-
-        # Instantiate TimedArrays
-        self.create_timed_arrays()
 
     def water_volume(self):
         """get current water volume in the domain"""
@@ -163,7 +139,7 @@ class RasterDomain():
         return self.asum('st_rain') * self.cell_surf
 
     def inflow_vol(self, sim_time):
-        self.populate_stat_array('in_q', sim_time)
+        self.populate_stat_array('inflow', sim_time)
         return self.asum('st_inflow') * self.cell_surf
 
     def losses_vol(self, sim_time):
@@ -195,14 +171,6 @@ class RasterDomain():
         arr = arr_p[self.simple_pad]
         return arr, arr_p
 
-    def create_timed_arrays(self):
-        """Create TimedArray objects and store them in the input dict
-        """
-        for k in self.tarr.keys():
-            self.tarr[k] = TimedArray(self.in_k_corresp[k],
-                                      self.gis, self.zeros_array)
-        return self
-
     def create_arrays(self):
         """Instantiate masked arrays and padded arrays
         the unpadded arrays are a slice of the padded ones
@@ -233,45 +201,6 @@ class RasterDomain():
         unmasked_array[self.mask] = np.nan
         return unmasked_array
 
-    def update_input_arrays(self, sim_time):
-        """Get new array using TimedArray
-        First update the DEM and mask if needed
-        Replace the NULL values (mask)
-        """
-        # make sure DEM is treated first
-        if not self.tarr['z'].is_valid(sim_time):
-            self.arr['z'][:] = self.tarr['z'].get(sim_time)
-            self.isnew['z'] = True
-            # note: must run update_flow_dir() in SuperficialSimulation
-            self.update_mask(self.arr['z'])
-            self.mask_array(self.arr['z'], np.finfo(self.dtype).max)
-
-        # loop through the arrays
-        for k, ta in self.tarr.items():
-            if not ta.is_valid(sim_time):
-                # z is done before
-                if k == 'z':
-                    continue
-                # calculate statistics before updating array
-                if k in ['in_q', 'rain']:
-                    self.populate_stat_array(k, sim_time)
-                # update array
-                msgr.debug(u"{}: update input array <{}>".format(sim_time, k))
-                self.arr[k][:] = ta.get(sim_time)
-                self.isnew[k] = True
-                if k == 'n':
-                    fill_value = 1
-                else:
-                    fill_value = 0
-                # mask arrays
-                self.mask_array(self.arr[k], fill_value)
-            else:
-                self.isnew[k] = False
-        # calculate water volume at the beginning of the simulation
-        if self.isnew['h']:
-            self.start_volume = self.asum('h')
-        return self
-
     def populate_stat_array(self, k, sim_time):
         """given an input array key,
         populate the corresponding statistic array.
@@ -279,20 +208,12 @@ class RasterDomain():
         Should be called before updating the array
         """
         sk = self.stats_corresp[k]
-        update_time = self.stats_update_time[sk]
-        # make sure everything is in m/s
-        if k in ['rain', 'inf', 'capped_losses']:
-            conv_factor = 1 / self.mmh_to_ms
-        else:
-            conv_factor = 1.
-
         if self.stats_update_time[sk] is None:
             self.stats_update_time[sk] = sim_time
-        else:
+        time_diff = (sim_time - self.stats_update_time[sk]).total_seconds()
+        if time_diff >= 0:
             msgr.debug(u"{}: Populating array <{}>".format(sim_time, sk))
-            time_diff = (sim_time - update_time).total_seconds()
-            flow.populate_stat_array(self.arr[k], self.arr[sk],
-                                     conv_factor, time_diff)
+            flow.populate_stat_array(self.arr[k], self.arr[sk], time_diff)
             self.stats_update_time[sk] = sim_time
         return None
 
@@ -303,58 +224,9 @@ class RasterDomain():
         This applies for inputs that are needed to be taken into account,
          at every timestep, like inflows from user or drainage.
         """
-        if any([self.isnew[k] for k in ('in_q', 'n_drain')]):
-            flow.set_ext_array(self.arr['in_q'], self.arr['n_drain'],
-                               self.arr['ext'])
-            self.isnew['ext'] = True
-        else:
-            self.isnew['ext'] = False
+        flow.set_ext_array(self.arr['inflow'], self.arr['n_drain'],
+                           self.arr['eff_precip'], self.arr['ext'])
         return self
-
-    def get_output_arrays(self, interval_s, sim_time):
-        """Returns a dict of unmasked arrays to be written to the disk
-        """
-        out_arrays = {}
-        if self.out_map_names['h'] is not None:
-            out_arrays['h'] = self.get_unmasked('h')
-        if self.out_map_names['wse'] is not None:
-            out_arrays['wse'] = self.get_unmasked('h') + self.get('z')
-        if self.out_map_names['v'] is not None:
-            out_arrays['v'] = self.get_unmasked('v')
-        if self.out_map_names['vdir'] is not None:
-            out_arrays['vdir'] = self.get_unmasked('vdir')
-        if self.out_map_names['fr'] is not None:
-            out_arrays['fr'] = self.get_unmasked('fr')
-        if self.out_map_names['qx'] is not None:
-            out_arrays['qx'] = self.get_unmasked('qe_new') * self.dy
-        if self.out_map_names['qy'] is not None:
-            out_arrays['qy'] = self.get_unmasked('qs_new') * self.dx
-        # statistics (average of last interval)
-        if interval_s:
-            if self.out_map_names['boundaries'] is not None:
-                out_arrays['boundaries'] = self.get_unmasked('st_bound') / interval_s
-            if self.out_map_names['inflow'] is not None:
-                self.populate_stat_array('in_q', sim_time)
-                out_arrays['inflow'] = self.get_unmasked('st_inflow') / interval_s
-            if self.out_map_names['losses'] is not None:
-                self.populate_stat_array('capped_losses', sim_time)
-                out_arrays['losses'] = self.get_unmasked('st_losses') / interval_s
-            if self.out_map_names['drainage_stats'] is not None:
-                self.populate_stat_array('n_drain', sim_time)
-                out_arrays['drainage_stats'] = self.get_unmasked('st_ndrain') / interval_s
-            if self.out_map_names['infiltration'] is not None:
-                self.populate_stat_array('inf', sim_time)
-                out_arrays['infiltration'] = (self.get_unmasked('st_inf') /
-                                              interval_s) * self.mmh_to_ms
-            if self.out_map_names['rainfall'] is not None:
-                self.populate_stat_array('rain', sim_time)
-                out_arrays['rainfall'] = (self.get_unmasked('st_rain') /
-                                          interval_s) * self.mmh_to_ms
-        # Created volume (total since last record)
-        if self.out_map_names['verror'] is not None:
-            self.populate_stat_array('capped_losses', sim_time)  # This is weird
-            out_arrays['verror'] = self.get_unmasked('st_herr') * self.cell_surf
-        return out_arrays
 
     def swap_arrays(self, k1, k2):
         """swap values of two arrays
@@ -363,7 +235,27 @@ class RasterDomain():
         self.arrp[k1], self.arrp[k2] = self.arrp[k2], self.arrp[k1]
         return self
 
-    def get(self, k):
+    def update_array(self, k, arr):
+        """Update the values of an array with those of a given array.
+        """
+        if arr.shape != self.shape:
+            return ValueError
+        if k == 'dem':
+            self.update_mask(arr)
+            fill_value = np.finfo(self.dtype).max
+        elif k == 'h':
+            if self.start_volume is None:
+                self.start_volume = self.water_volume()
+            fill_value = 0
+        elif k == 'friction':
+            fill_value = 1
+        else:
+            fill_value = 0
+        self.mask_array(arr, fill_value)
+        self.arr[k][:], self.arrp[k][:] = self.pad_array(arr)
+        return self
+
+    def get_array(self, k):
         """return the unpadded, masked array of key 'k'
         """
         return self.arr[k]

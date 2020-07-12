@@ -33,7 +33,7 @@ import os
 import time
 import traceback
 from multiprocessing import Process
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from pyinstrument import Profiler
 import numpy as np
@@ -59,7 +59,7 @@ def main():
 
 
 class SimulationRunner():
-    """provide the necessary tools to run one simulation,
+    """Provide the necessary tools to run one simulation,
     including setting-up and tearing down GRASS session.
     """
     def __init__(self):
@@ -80,28 +80,41 @@ class SimulationRunner():
 
         # If run outside of grass, set session
         try:
-            from itzi.simulation import SimulationManager
+            from itzi.simulation import create_simulation
         except ImportError:
             self.set_grass_session()
-            from itzi.simulation import SimulationManager
+            from itzi.simulation import create_simulation
         msgr.debug('GRASS session set')
 
         # Instantiate Simulation object and initialize it
-        self.sim = SimulationManager(sim_times=self.conf.sim_times,
-                                     stats_file=self.conf.stats_file,
-                                     dtype=np.float32,
-                                     input_maps=self.conf.input_map_names,
-                                     output_maps=self.conf.output_map_names,
-                                     sim_param=self.conf.sim_param,
-                                     drainage_params=self.conf.drainage_params,
-                                     grass_params=self.conf.grass_params)
-        self.sim.initialize()
+        self.sim, self.tarr = create_simulation(sim_times=self.conf.sim_times,
+                                                stats_file=self.conf.stats_file,
+                                                dtype=np.float32,
+                                                input_maps=self.conf.input_map_names,
+                                                output_maps=self.conf.output_map_names,
+                                                sim_param=self.conf.sim_param,
+                                                drainage_params=self.conf.drainage_params,
+                                                grass_params=self.conf.grass_params)
+        self.update_input_arrays()
         return self
 
     def run(self):
         """Run a full simulation
         """
-        self.sim.run()
+        sim_start_time = datetime.now()
+        msgr.verbose(u"Starting time-stepping...")
+        while self.sim.sim_time < self.sim.end_time:
+            # display advance of simulation
+            msgr.percent(self.sim.start_time, self.sim.end_time,
+                         self.sim.sim_time, sim_start_time)
+            # step models
+            self.step()
+        return self
+
+    def update_until(self, then):
+        """Run the simulation until a time after start_time
+        """
+        self.sim.update_until(then)
         return self
 
     def finalize(self):
@@ -114,8 +127,15 @@ class SimulationRunner():
         return self
 
     def step(self):
-        self.sim.step()
+        self.sim.update()
+        self.update_input_arrays()
         return self
+
+    @property
+    def origin(self):
+        # Get a TimedArray object to reach the GIS interface
+        tarr = next(iter(self.tarr.values()))
+        return tarr.igis.origin
 
     def set_grass_session(self):
         """Set the GRASS session.
@@ -145,6 +165,31 @@ class SimulationRunner():
                                 location=location,
                                 mapset=mapset,
                                 loadlibs=True)
+        return self
+
+    def update_input_arrays(self):
+        """Get new array using TimedArray
+        And update
+        """
+        # make sure DEM is treated first
+        if not self.tarr['dem'].is_valid(self.sim.sim_time):
+            self.sim.set_array('dem', self.tarr['dem'].get(self.sim.sim_time))
+
+        # loop through the arrays
+        for k, ta in self.tarr.items():
+            if not ta.is_valid(self.sim.sim_time):
+                # z is done before
+                if k == 'dem':
+                    continue
+                # Convert mm/h to m/s
+                if k in ['rain', 'capillary_pressure',
+                         'hydraulic_conductivity', 'in_inf',]:
+                    new_arr = ta.get(self.sim.sim_time) / (1000*3600)
+                else:
+                    new_arr = ta.get(self.sim.sim_time)
+                # update array
+                msgr.debug(u"{}: update input array <{}>".format(self.sim.sim_time, k))
+                self.sim.set_array(k, new_arr)
         return self
 
 

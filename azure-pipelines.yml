@@ -3,8 +3,8 @@
 # Add steps that analyze code, save the dist with the build record, publish to a PyPI-compatible index, and more:
 # https://docs.microsoft.com/azure/devops/pipelines/languages/python
 
-trigger:
-- dev
+# trigger:
+# - dev
 
 pool:
   vmImage: 'ubuntu-18.04'
@@ -22,6 +22,10 @@ steps:
   displayName: 'Use Python $(python.version)'
 
 - script: |
+    python --version
+  displayName: 'Display Python version'
+
+- script: |
     sudo add-apt-repository ppa:ubuntugis/ppa
     sudo apt-get update
     sudo apt-get -y install grass-core grass-dev
@@ -33,11 +37,11 @@ steps:
   displayName: 'Install dependencies'
 
 - script: |
-    cython -3 itzi/swmm/swmm_c.pyx itzi/flow.pyx
+    cython -3 itzi/flow.pyx
     python -m pip install .
   displayName: 'Cythonize, build and install'
 
 - script: |
-    pip3 install pandas requests pytest pytest-cov pytest-xdist pytest-azurepipelines
+    pip install scipy pandas requests pytest pytest-cov pytest-xdist pytest-azurepipelines
     pytest --cov=itzi --forked -v --junitxml=junit/test-results.xml --cov-report=xml --cov-report=html
   displayName: 'pytest'

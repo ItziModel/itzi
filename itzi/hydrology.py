@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2016  Laurent Courty
+Copyright (C) 2016-2020  Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -66,19 +66,20 @@ class Hydrology():
         """Cap losses to water depth on the cell.
         Input and output are considered to be in mm/h
         """
-        flow.inf_user(arr_h=self.dom.get('h'),
-                      arr_inf_in=self.dom.get('in_losses'),
-                      arr_inf_out=self.dom.get('capped_losses'),
+        flow.inf_user(arr_h=self.dom.get_array('h'),
+                      arr_inf_in=self.dom.get_array('losses'),
+                      arr_inf_out=self.dom.get_array('capped_losses'),
                       dt=self._dt)
 
     def apply_hydrology(self):
         """Update water depth (h) by adding/removing volume from:
         rainfall, infiltration, evapotranspiration and lump-sum drainage.
         """
-        flow.apply_hydrology(arr_rain=self.dom.get('rain'),
-                             arr_inf=self.dom.get('inf'),
-                             arr_etp=self.dom.get('etp'),
-                             arr_capped_losses=self.dom.get('capped_losses'),
-                             arr_h=self.dom.get('h'),
+        flow.apply_hydrology(arr_rain=self.dom.get_array('rain'),
+                             arr_inf=self.dom.get_array('inf'),
+                             arr_etp=self.dom.get_array('etp'),
+                             arr_capped_losses=self.dom.get_array('capped_losses'),
+                             arr_h=self.dom.get_array('h'),
+                             arr_eff_precip=self.dom.get_array('eff_precip'),
                              dt=self._dt)
         return self

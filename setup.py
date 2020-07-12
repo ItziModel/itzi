@@ -14,9 +14,6 @@ except ImportError:
     sys.exit("Error: NumPy not found")
 
 
-SWMM_SOURCE = 'itzi/swmm/source/'
-
-
 def get_version():
     """read version number from file"""
     ROOT = os.path.dirname(__file__)
@@ -30,16 +27,6 @@ def get_long_description():
         long_description = f.read()
     idx = max(0, long_description.find(u"Itzï is"))
     return long_description[idx:]
-
-
-def swmm_get_source():
-    """locate and return a list of source files
-    """
-    file_list = []
-    for f in os.listdir(SWMM_SOURCE):
-        if f.endswith('.c'):
-            file_list.append(os.path.join(SWMM_SOURCE,f))
-    return file_list
 
 
 ENTRY_POINTS = {'console_scripts': ['itzi=itzi.itzi:main', ], }
@@ -60,13 +47,13 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
 DESCR = "A 2D flood model using GRASS GIS as a back-end"
 
 
-REQUIRES = ['pyinstrument', 'networkx == 1.11', 'grass-session']
+REQUIRES = ['pyinstrument', 'grass-session', 'pyswmm', 'bmipy']
 
 
 # Set arguments according to compiler
 copt =  {'msvc': ['/openmp', '/Ox'],
          'mingw32' : ['-O3', '-w', '-fopenmp', '-lgomp', '-lpthread'],
-         'unix' : ['-O3', '-w', '-fopenmp']
+         'unix' : ['-O3', '-w', '-fopenmp', '-march=native']
          }
 lopt =  {'mingw32' : ['-lgomp', '-lpthread'],
          'unix' : ['-lgomp']
@@ -88,12 +75,6 @@ class build_ext_compiler_check(build_ext):
 ext_flow = Extension('itzi.flow', sources=['itzi/flow.c'],
                      include_dirs=[np.get_include()])
 
-# swmm Cython interface
-ext_iswmm = Extension('itzi.swmm.swmm_c', sources=['itzi/swmm/swmm_c.c'] + swmm_get_source(),
-                      include_dirs=[np.get_include()] + swmm_get_source(),
-                      library_dirs=[SWMM_SOURCE])
-
-
 metadata = dict(name='itzi',
                 version=get_version(),
                 description=DESCR,
@@ -108,7 +89,7 @@ metadata = dict(name='itzi',
                 install_requires=REQUIRES,
                 include_package_data=True,
                 entry_points=ENTRY_POINTS,
-                ext_modules=[ext_flow, ext_iswmm],
+                ext_modules=[ext_flow],
                 cmdclass={'build_ext': build_ext_compiler_check},
                 )
 

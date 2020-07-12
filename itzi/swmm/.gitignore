@@ -1,7 +1,0 @@
-*.out
-*.inp
-*.report
-*.zip
-*.o
-*.py[oyc]
-source/Makefile
