@@ -42,6 +42,6 @@ steps:
   displayName: 'Cythonize, build and install'
 
 - script: |
-    pip install pandas requests pytest pytest-cov pytest-xdist pytest-azurepipelines
+    pip install scipy pandas requests pytest pytest-cov pytest-xdist pytest-azurepipelines
     pytest --cov=itzi --forked -v --junitxml=junit/test-results.xml --cov-report=xml --cov-report=html
   displayName: 'pytest'
