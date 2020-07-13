@@ -13,10 +13,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 from __future__ import division
-cimport numpy as np
 cimport cython
 from cython.parallel cimport prange
-import numpy as np
 from libc.math cimport pow as c_pow
 from libc.math cimport sqrt as c_sqrt
 from libc.math cimport fabs as c_abs

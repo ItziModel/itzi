@@ -8,10 +8,6 @@ from setuptools import setup, find_packages
 from setuptools.extension import Extension
 from setuptools.dist import Distribution
 from setuptools.command.build_ext import build_ext
-try:
-    import numpy as np
-except ImportError:
-    sys.exit("Error: NumPy not found")
 
 
 def get_version():
@@ -47,7 +43,7 @@ CLASSIFIERS = ["Development Status :: 4 - Beta",
 DESCR = "A 2D flood model using GRASS GIS as a back-end"
 
 
-REQUIRES = ['pyinstrument', 'grass-session', 'pyswmm', 'bmipy']
+REQUIRES = ['numpy', 'pyinstrument', 'grass-session', 'pyswmm', 'bmipy']
 
 
 # Set arguments according to compiler
@@ -72,8 +68,7 @@ class build_ext_compiler_check(build_ext):
         build_ext.build_extensions(self)
 
 
-ext_flow = Extension('itzi.flow', sources=['itzi/flow.c'],
-                     include_dirs=[np.get_include()])
+ext_flow = Extension('itzi.flow', sources=['itzi/flow.c'])
 
 metadata = dict(name='itzi',
                 version=get_version(),
