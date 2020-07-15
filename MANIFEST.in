@@ -1,7 +1,5 @@
 include LICENSE
 include RELEASE.rst
 include itzi/flow.pyx
-include itzi/swmm/swmm_c.pyx
-recursive-include itzi/swmm/source *
 recursive-include itzi/data *
 recursive-include itzi/data/colortable *.txt
