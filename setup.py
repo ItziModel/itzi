@@ -80,10 +80,7 @@ USE_CYTHON = has_cython and has_c_file
 file_ext = 'pyx' if USE_CYTHON else 'c'
 extensions = [Extension('itzi.flow', sources=[f'itzi/flow.{file_ext}'])]
 if USE_CYTHON:
-    print("Cythonize extensions.")
     extensions = cythonize(extensions)
-else:
-    print("Do not cythonize extensions.")
 
 
 metadata = dict(name='itzi',
@@ -97,7 +94,6 @@ metadata = dict(name='itzi',
                 classifiers=CLASSIFIERS,
                 keywords='science engineering hydrology',
                 packages=find_packages(),
-                build_requires=['cython'],
                 install_requires=REQUIRES,
                 include_package_data=True,
                 entry_points=ENTRY_POINTS,
