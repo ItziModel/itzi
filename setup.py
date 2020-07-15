@@ -8,6 +8,12 @@ from setuptools import setup, find_packages
 from setuptools.extension import Extension
 from setuptools.dist import Distribution
 from setuptools.command.build_ext import build_ext
+try:
+    from Cython.Build import cythonize
+except ImportError:
+    has_cython = False
+else:
+    has_cython = True
 
 
 def get_version():
@@ -68,7 +74,14 @@ class build_ext_compiler_check(build_ext):
         build_ext.build_extensions(self)
 
 
-ext_flow = Extension('itzi.flow', sources=['itzi/flow.c'])
+# Cythonize only in c file is not present
+has_c_file = os.path.isfile('itzi/flow.c')
+USE_CYTHON = has_cython and has_c_file
+file_ext = 'pyx' if USE_CYTHON else 'c'
+extensions = [Extension('itzi.flow', sources=[f'itzi/flow.{file_ext}'])]
+if USE_CYTHON:
+    extensions = cythonize(extensions)
+
 
 metadata = dict(name='itzi',
                 version=get_version(),
@@ -84,7 +97,7 @@ metadata = dict(name='itzi',
                 install_requires=REQUIRES,
                 include_package_data=True,
                 entry_points=ENTRY_POINTS,
-                ext_modules=[ext_flow],
+                ext_modules=extensions,
                 cmdclass={'build_ext': build_ext_compiler_check},
                 )
 
