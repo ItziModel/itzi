@@ -74,13 +74,16 @@ class build_ext_compiler_check(build_ext):
         build_ext.build_extensions(self)
 
 
-# Cythonize only in c file is not present
+# Cythonize only if c file is not present
 has_c_file = os.path.isfile('itzi/flow.c')
 USE_CYTHON = has_cython and has_c_file
 file_ext = 'pyx' if USE_CYTHON else 'c'
 extensions = [Extension('itzi.flow', sources=[f'itzi/flow.{file_ext}'])]
 if USE_CYTHON:
+    print("Cythonize extensions.")
     extensions = cythonize(extensions)
+else:
+    print("Do not cythonize extensions.")
 
 
 metadata = dict(name='itzi',
