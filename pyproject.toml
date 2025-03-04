@@ -1,3 +1,70 @@
+[project]
+name = "itzi"
+version = "20.5"
+description = "A 2D flood model using GRASS GIS as a back-end"
+authors = [
+    {name = "Laurent Courty", email = "lrntct@gmail.com"},
+]
+dependencies = [
+    "numpy>=2.2.3",
+    "grass-session",
+    "networkx",
+    "pyinstrument",
+]
+requires-python = ">=3.8"
+readme = "README.md"
+license = {file = "LICENSE"}
+keywords = ["science", "engineering", "hydrology", "flood"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Cython",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Hydrology",
+]
+
+[project.urls]
+Homepage = "http://www.itzi.org"
+Documentation = "https://itzi.readthedocs.io"
+Repository = "https://github.com/ItziModel/itzi"
+Issues = "https://github.com/ItziModel/itzi/issues/"
+
+[project.scripts]
+itzi = "itzi.itzi_launcher:main"
+
+[dependency-groups]
+# [project.optional-dependencies]
+dev = [
+    "pytest>=8.3.5",
+    "pytest-cov>=6.0.0",
+    "pytest-forked>=1.6.0",
+    "pandas>=2.2.3",
+    "requests>=2.32.3",
+    "cython",
+    "tox>=4.24.1",
+    "tox-pdm>=0.7.2",
+    "pytest-benchmark>=5.1.0",
+]
+
 [build-system]
-# Minimum requirements for the build system to execute.
-requires = ["setuptools", "wheel", "Cython"]
+requires = ["setuptools>=75.8.2", "wheel", "numpy>=2.2.3"]
+build-backend = "setuptools.build_meta"
+
+[tool.pdm]
+distribution = true
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+addopts = ["--import-mode=importlib"]
+
+[tool.tox]
+requires = ["tox>=4.22"]
+env_list = ["3.13", "3.12", "3.11", "3.10", "3.9", "3.8"]
+
+[tool.tox.env_run_base]
+dependency_groups = ["dev"]
+commands = [["python", "-m", "pytest", "--cov=itzi", "--forked", "tests/"]]

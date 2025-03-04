@@ -55,16 +55,14 @@ def test_number_of_output(grass_5by5_sim):
     verr_map_list = gscript.list_grouped('raster', pattern='*out_5by5_verror_*')[current_mapset]
     assert len(verr_map_list) == 3
 
-
-
-def test_flow_symmetry(grass_5by5_sim):
-    current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
-    assert current_mapset == '5by5'
-    h_values = gscript.read_command('v.what.rast', map='control_points', flags='p', raster='out_5by5_h_0001')
-    s_h = pd.read_csv(StringIO(h_values), sep='|', names=['h'], usecols=[1], squeeze=True)
-    print(s_h)
-    print(np.isclose(s_h[:-1], s_h[1:]))
-    assert np.all(np.isclose(s_h[:-1], s_h[1:]))
+    def test_flow_symmetry(self):
+        current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
+        assert current_mapset == '5by5'
+        h_values = gscript.read_command('v.what.rast', map='control_points', flags='p', raster='out_5by5_h_0001')
+        s_h = pd.read_csv(StringIO(h_values), sep='|', names=['h'], usecols=[1]).squeeze()
+        print(s_h)
+        print(np.isclose(s_h[:-1], s_h[1:]))
+        assert np.all(np.isclose(s_h[:-1], s_h[1:]))
 
 
 def test_region_mask(grass_5by5, test_data_path):
@@ -89,31 +87,32 @@ def test_region_mask(grass_5by5, test_data_path):
     return sim_runner
 
 
-def test_mcdo_norain(grass_mcdo_norain_sim, mcdo_norain_reference):
-    current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
-    assert current_mapset == 'mcdo_norain'
+@pytest.mark.usefixtures("mcdo_norain_reference", "grass_mcdo_norain_sim")
+class TestMcdo_norain:
+    def test_mcdo_norain(self, mcdo_norain_reference):
+        current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
+        assert current_mapset == 'mcdo_norain'
 
-    map_list = gscript.list_grouped('raster', pattern='out_mcdo_norain_wse*')[current_mapset]
-    wse = gscript.read_command('v.what.rast', map='axis_points',
-                               raster='out_mcdo_norain_wse_0004', flags='p')
-    df_wse = pd.read_csv(StringIO(wse), sep='|', names=['wse_model'], usecols=[1])
-    df_results = mcdo_norain_reference.join(df_wse)
-    df_results['abs_error'] = np.abs(df_results['wse_model'] - df_results['wse'])
-    mae = np.mean(df_results['abs_error'])
-    assert mae < 0.03
+        map_list = gscript.list_grouped('raster', pattern='out_mcdo_norain_wse*')[current_mapset]
+        wse = gscript.read_command('v.what.rast', map='axis_points',
+                                raster='out_mcdo_norain_wse_0004', flags='p')
+        df_wse = pd.read_csv(StringIO(wse), sep='|', names=['wse_model'], usecols=[1])
+        df_results = mcdo_norain_reference.join(df_wse)
+        df_results['abs_error'] = np.abs(df_results['wse_model'] - df_results['wse'])
+        mae = np.mean(df_results['abs_error'])
+        assert mae < 0.03
 
+    def test_flow_is_unidimensional(self):
+        """In the MacDonald 1D test, flow should be unidimensional in x dimension
+        """
+        current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
+        assert current_mapset == 'mcdo_norain'
 
-def test_flow_is_unidimensional(grass_mcdo_norain_sim):
-    """In the MacDonald 1D test, flow should be unidimensional in x dimension
-    """
-    current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
-    assert current_mapset == 'mcdo_norain'
-
-    map_list = gscript.list_grouped('raster', pattern='out_mcdo_norain_qy*')[current_mapset]
-    for raster in map_list:
-        univar = gscript.parse_command('r.univar', map=raster, flags='g')
-        assert float(univar['min']) == 0
-        assert float(univar['max']) == 0
+        map_list = gscript.list_grouped('raster', pattern='out_mcdo_norain_qy*')[current_mapset]
+        for raster in map_list:
+            univar = gscript.parse_command('r.univar', map=raster, flags='g')
+            assert float(univar['min']) == 0
+            assert float(univar['max']) == 0
 
 
 def test_mcdo_rain(grass_mcdo_rain_sim, mcdo_rain_reference):

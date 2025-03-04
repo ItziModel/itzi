@@ -4,8 +4,8 @@
 .~*
 build/
 dist/
-itzi.egg-info/
-itzi/flow.c
-itzi/swmm/swmm_c.c
+*.egg-info/
+src/itzi/flow.c
+src/itzi/swmm/swmm_c.c
 docs/_build/
 

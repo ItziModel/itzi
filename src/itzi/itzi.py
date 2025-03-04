@@ -47,6 +47,7 @@ from itzi import parser
 
 
 def main():
+    print(sys.path)
     # default functions for subparsers
     parser.run_parser.set_defaults(func=itzi_run)
     parser.version_parser.set_defaults(func=itzi_version)

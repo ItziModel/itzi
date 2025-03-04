@@ -65,7 +65,7 @@ in_k_corresp = {'dem': 'dem', 'friction': 'friction', 'h': 'start_h',
 def create_simulation(sim_times, input_maps, output_maps, sim_param,
                       drainage_params, grass_params,
                       dtype=np.float32, stats_file=None):
-    """A factory function that returns a SimulationManager object.
+    """A factory function that returns a Simulation object.
     """
     import itzi.gis as gis
     msgr.verbose(u"Setting up models...")

@@ -8,6 +8,7 @@ import os
 import math
 import zipfile
 import hashlib
+import tempfile
 from collections import namedtuple
 from configparser import ConfigParser
 
@@ -69,25 +70,29 @@ def ea_test_files(test_data_path):
     return unzip_path
 
 
-@pytest.fixture(scope="session")
-def grass_xy_session(tmpdir_factory):
+@pytest.fixture(scope="class")
+def grass_xy_session():
     """Create a GRASS session in a new XY location and PERMANENT mapset
     """
-    tmpdir = str(tmpdir_factory.mktemp("grassdata"))
+
+    tmpdir = tempfile.TemporaryDirectory()
+    # tmpdir = str(tmpdir_factory.mktemp("grassdata"))
     print(tmpdir)
     grass_session = GrassSession()
-    grass_session.open(gisdb=tmpdir,
+    grass_session.open(gisdb=tmpdir.name,
                        location='xy',
                        mapset=None,  # PERMANENT
                        create_opts='XY',
                        loadlibs=True)
     os.environ['GRASS_VERBOSE'] = '1'
     # os.environ['ITZI_VERBOSE'] = '4'
+    # os.environ['GRASS_OVERWRITE'] = '1'
     yield grass_session
     grass_session.close()
+    tmpdir.cleanup()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def ea_test8a(grass_xy_session, ea_test_files, test_data_path):
     """Create the GRASS env for ea test 8a.
     """
@@ -175,7 +180,7 @@ def ea_test8a_reference(test_data_path):
     return df_ref
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def ea_test8a_sim(ea_test8a, test_data_path):
     """
     """
@@ -329,7 +334,7 @@ def grass_5by5(grass_xy_session, test_data_path):
     return None
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def grass_5by5_sim(grass_5by5, test_data_path):
     """
     """
@@ -351,7 +356,7 @@ def mcdo_norain_reference(test_data_path):
     return pd.read_csv(file_path)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def grass_mcdo_norain(grass_xy_session, test_data_path):
     """Create a domain for MacDonald 1D solution long channel without rain.
     Delestre, O., Lucas, C., Ksinant, P.-A., Darboux, F., Laguerre, C., Vo, T.-N.-T., … Cordier, S. (2013).
@@ -370,7 +375,7 @@ def grass_mcdo_norain(grass_xy_session, test_data_path):
     gscript.run_command('r.in.gdal', input=bctype_path, output='bctype')
     gscript.run_command('r.in.gdal', input=inflow_path, output='inflow')
     # Generate Manning map
-    gscript.run_command('g.region', raster='dem')
+    gscript.run_command('g.region', raster='dem', flags='o')
     region = gscript.parse_command('g.region', flags='pg')
     assert int(region["cells"]) == 600
     gscript.mapcalc('n=0.033')
@@ -379,7 +384,7 @@ def grass_mcdo_norain(grass_xy_session, test_data_path):
     return None
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def grass_mcdo_norain_sim(grass_mcdo_norain, test_data_path):
     """
     """
@@ -402,7 +407,7 @@ def mcdo_rain_reference(test_data_path):
     return pd.read_csv(file_path)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def grass_mcdo_rain(grass_xy_session, test_data_path):
     """Create a domain for MacDonald 1D solution long channel with rain.
     Delestre, O., Lucas, C., Ksinant, P.-A., Darboux, F., Laguerre, C., Vo, T.-N.-T., … Cordier, S. (2013).
@@ -421,7 +426,7 @@ def grass_mcdo_rain(grass_xy_session, test_data_path):
     gscript.run_command('r.in.gdal', input=bctype_path, output='bctype')
     gscript.run_command('r.in.gdal', input=inflow_path, output='inflow')
     # Create Manning map
-    gscript.run_command('g.region', raster='dem')
+    gscript.run_command('g.region', raster='dem', flags='o')
     region = gscript.parse_command('g.region', flags='pg')
     assert int(region["cells"]) == 600
     gscript.mapcalc('n=0.033')
@@ -432,7 +437,7 @@ def grass_mcdo_rain(grass_xy_session, test_data_path):
     return None
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def grass_mcdo_rain_sim(grass_mcdo_rain, test_data_path):
     """
     """
