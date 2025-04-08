@@ -7,7 +7,6 @@ from setuptools.extension import Extension
 from setuptools.command.build_ext import build_ext
 
 
-
 # Set arguments according to compiler
 copt =  {'msvc': ['/openmp', '/Ox'],
          'mingw32' : ['-O3', '-w', '-fopenmp', '-lgomp', '-lpthread'],
@@ -16,6 +15,7 @@ copt =  {'msvc': ['/openmp', '/Ox'],
 lopt =  {'mingw32' : ['-lgomp', '-lpthread'],
          'unix' : ['-lgomp']
          }
+
 
 class build_ext_compiler_check(build_ext):
     def build_extensions(self):
@@ -31,13 +31,12 @@ class build_ext_compiler_check(build_ext):
 
 
 # Cythonize only if c file is not present
-USE_CYTHON = not os.path.isfile('itzi/flow.c')
-file_ext = 'pyx' if USE_CYTHON else 'c'
-extensions = [Extension('itzi.flow', sources=[f'itzi/flow.{file_ext}'])]
-if USE_CYTHON:
+use_cython = not os.path.isfile('src/itzi/flow.c')
+file_ext = 'pyx' if use_cython else 'c'
+extensions = [Extension('itzi.flow', sources=[f'src/itzi/flow.{file_ext}'])]
+if use_cython:
     from Cython.Build import cythonize
     extensions = cythonize(extensions)
-
 
 
 setup(
