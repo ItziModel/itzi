@@ -215,7 +215,7 @@ def solve_q(DTYPE_t [:, :] arr_dire, DTYPE_t [:, :] arr_dirs,
                 arr_qs_new[r, c] = qs_new
 
 
-cdef DTYPE_t hflow(DTYPE_t z0, DTYPE_t z1, DTYPE_t wse0, DTYPE_t wse1) nogil:
+cdef DTYPE_t hflow(DTYPE_t z0, DTYPE_t z1, DTYPE_t wse0, DTYPE_t wse1) noexcept nogil:
     """calculate flow depth
     """
     return max(wse1, wse0) - max(z1, z0)
@@ -227,7 +227,7 @@ cdef DTYPE_t hflow(DTYPE_t z0, DTYPE_t z1, DTYPE_t wse0, DTYPE_t wse1) nogil:
 cdef DTYPE_t almeida2013(DTYPE_t hf, DTYPE_t wse0, DTYPE_t wse1, DTYPE_t n,
                          DTYPE_t qm1, DTYPE_t q0, DTYPE_t qp1,
                          DTYPE_t q_norm, DTYPE_t theta,
-                         DTYPE_t g, DTYPE_t dt, DTYPE_t cell_len) nogil:
+                         DTYPE_t g, DTYPE_t dt, DTYPE_t cell_len) noexcept nogil:
     '''Solve flow using q-centered scheme from Almeida et Al. (2013)
     '''
     cdef DTYPE_t term_1, term_2, term_3, slope
@@ -248,7 +248,7 @@ cdef DTYPE_t almeida2013(DTYPE_t hf, DTYPE_t wse0, DTYPE_t wse1, DTYPE_t n,
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
 cdef DTYPE_t rain_routing(DTYPE_t h0, DTYPE_t wse0, DTYPE_t wse1, DTYPE_t dt,
-                          DTYPE_t cell_len, DTYPE_t v_routing) nogil:
+                          DTYPE_t cell_len, DTYPE_t v_routing) noexcept nogil:
     """Calculate flow routing at a face in m2/s
     Cf. Sampson et al. (2013)
     """
@@ -421,7 +421,7 @@ def inf_ga(DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_eff_por,
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-cdef DTYPE_t cap_inf_rate(DTYPE_t dt, DTYPE_t h, DTYPE_t infrate) nogil:
+cdef DTYPE_t cap_inf_rate(DTYPE_t dt, DTYPE_t h, DTYPE_t infrate) noexcept nogil:
     '''Cap the infiltration rate to not generate negative depths
     '''
     return min(h / dt, infrate)
