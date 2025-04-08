@@ -11,6 +11,14 @@ import numpy as np
 from itzi import BmiItzi
 
 
+@pytest.fixture(scope="class")
+def bmi_object(grass_5by5, test_data_path):
+    itzi_bmi = BmiItzi()
+    conf_file = os.path.join(test_data_path, '5by5', '5by5.ini')
+    itzi_bmi.initialize(conf_file)
+    return itzi_bmi
+
+
 class TestBmi:
 
     # Model control functions #
