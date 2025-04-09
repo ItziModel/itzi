@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2015-2020 Laurent Courty
+Copyright (C) 2015-2025 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -12,8 +12,6 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
-from __future__ import division
-from __future__ import absolute_import
 import warnings
 from datetime import datetime, timedelta
 import copy
@@ -23,31 +21,56 @@ import pyswmm
 from itzi.surfaceflow import SurfaceFlowSimulation
 import itzi.rasterdomain as rasterdomain
 from itzi.massbalance import MassBal
-from itzi.drainage import DrainageSimulation, SwmmInputParser
+from itzi.drainage import DrainageSimulation, SwmmInputParser, DrainageNode, DrainageLink, LinkageTypes
 import itzi.messenger as msgr
 import itzi.infiltration as infiltration
-import itzi.hydrology as hydrology
+from itzi.hydrology import Hydrology
 from itzi.itzi_error import NullError
 
 
-def get_linked_nodes_list(node_objs, nodes_coor_dict, igis):
+def get_nodes_list(pswmm_nodes, nodes_coor_dict, drainage_params, igis, g):
     """Check if the drainage nodes are inside the region and can be linked.
-    Return a list of (node_obj, row, col)
+    Return a list of (DrainageNode, row, col)
     """
-    linked_nodes_list = []
-    for node in node_objs:
-        node_id = node.nodeid
-        coors = nodes_coor_dict[node_id]
+    nodes_list = []
+    for pyswmm_node in pswmm_nodes:
+        coors = nodes_coor_dict[pyswmm_node.nodeid]
+        node = DrainageNode(node_object=pyswmm_node,
+                        coordinates=coors,
+                        linkage_type=LinkageTypes.NOT_LINKED,
+                        orifice_coeff=drainage_params['orifice_coeff'],
+                        free_weir_coeff=drainage_params['free_weir_coeff'],
+                        submerged_weir_coeff=drainage_params['submerged_weir_coeff'],
+                        g=g)
         # a node without coordinates cannot be linked
         if coors is None or not igis.is_in_region(coors.x, coors.y):
             continue
         else:
+            # Set node as linked with no flow
+            node.linkage_type = LinkageTypes.LINKED_NO_FLOW
             # get row and column
             row, col = igis.coor2pixel(coors)
             # populate list
             node_tuple = (node, int(row), int(col))
-            linked_nodes_list.append(node_tuple)
-    return linked_nodes_list
+            nodes_list.append(node_tuple)
+    return nodes_list
+
+
+def get_links_list(pyswmm_links, links_vertices_dict, nodes_coor_dict):
+    """
+    """
+    links_list = []
+    for pyswmm_link in pyswmm_links:
+        # Add nodes coordinates to the vertices list
+        in_node_coor = nodes_coor_dict[pyswmm_link.inlet_node]
+        out_node_coor = nodes_coor_dict[pyswmm_link.outlet_node]
+        vertices = [in_node_coor]
+        vertices.extend(links_vertices_dict[pyswmm_link.linkid].vertices)
+        vertices.append(out_node_coor)
+        link = DrainageLink(link_object=pyswmm_link, vertices=vertices)
+        # add link to the list
+        links_list.append(link)
+    return links_list
 
 
 # correspondance between internal numpy arrays and map names
@@ -109,7 +132,7 @@ def create_simulation(sim_times, input_maps, output_maps, sim_param,
         assert False, f"Unknow infiltration model: {inf_model}"
     # Hydrology
     msgr.debug(u"Setting up hydrologic model...")
-    hydrology_model = hydrology.Hydrology(raster_domain, dtinf, infiltration_model)
+    hydrology_model = Hydrology(raster_domain, dtinf, infiltration_model)
     # Surface flows simulation
     msgr.debug(u"Setting up surface model...")
     surface_flow = SurfaceFlowSimulation(raster_domain, sim_param)
@@ -125,15 +148,18 @@ def create_simulation(sim_times, input_maps, output_maps, sim_param,
         msgr.debug(u"Setting up drainage model...")
         swmm_sim = pyswmm.Simulation(drainage_params['swmm_inp'])
         swmm_inp = SwmmInputParser(drainage_params['swmm_inp'])
-        # Select only the nodes inside the domain
+        # Create Node objects
         all_nodes = pyswmm.Nodes(swmm_sim)
+        msgr.message(f"{all_nodes=}")
         nodes_coors_dict = swmm_inp.get_nodes_id_as_dict()
-        linked_nodes_list = get_linked_nodes_list(all_nodes, nodes_coors_dict, igis)
+        nodes_list = get_nodes_list(all_nodes, nodes_coors_dict, drainage_params, igis, sim_param['g'])
+        # Create Link objects
+        links_vertices_dict = swmm_inp.get_links_id_as_dict()
+        links_list = get_links_list(pyswmm.Links(swmm_sim), links_vertices_dict, nodes_coors_dict)
         drainage = DrainageSimulation(raster_domain,
                                       swmm_sim,
-                                      drainage_params,
-                                      linked_nodes_list,
-                                      sim_param['g'])
+                                      nodes_list,
+                                      links_list)
     else:
         drainage = None
     # reporting object
@@ -220,7 +246,7 @@ class Simulation():
         if self.sim_time == self.next_ts['drainage'] and self.drainage_model:
             # self.drainage.solve_dt()
             self.drainage_model.step()
-            self.drainage_model.apply_linkage(self.dt.total_seconds())
+            self.drainage_model.apply_linkage_to_nodes(self.dt.total_seconds())
             # update stat array
             self.raster_domain.populate_stat_array('n_drain', self.sim_time)
             # calculate when will happen the next time-step
@@ -331,6 +357,8 @@ class Report():
         self.write_results_to_gis(sim_time)
         if self.massbal:
             self.write_mass_balance(sim_time)
+        if self.drainage_sim and self.drainage_out:
+            self.save_drainage_values(sim_time)
         self.record_counter += 1
         self.last_step = copy.copy(sim_time)
         self.rast_dom.reset_stats(sim_time)
@@ -470,4 +498,23 @@ class Report():
                 continue
             self.gis.register_maps_in_stds(mkey, strds_name, lst, 'strds',
                                            self.temporal_type)
+        # vector
+        if self.drainage_sim and self.drainage_out:
+            self.gis.register_maps_in_stds(stds_title="Itzï drainage results",
+                                           stds_name=self.drainage_out,
+                                           map_list=self.vector_drainage_maplist,
+                                           stds_type='stvds',
+                                           t_type=self.temporal_type)
+        return self
+
+    def save_drainage_values(self, sim_time):
+        """Write vector map of drainage network
+        """
+        # format map name
+        suffix = str(self.record_counter).zfill(4)
+        map_name = f"{self.drainage_out}_{suffix}"
+        # write the map
+        self.gis.write_vector_map(self.drainage_sim, map_name)
+        # add map name and time to the list
+        self.vector_drainage_maplist.append((map_name, sim_time))
         return self

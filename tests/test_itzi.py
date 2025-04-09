@@ -14,26 +14,6 @@ import grass.script as gscript
 from itzi import SimulationRunner
 
 
-def get_rmse(model, ref):
-    """return root mean square error"""
-    return np.sqrt(np.mean((model - ref)**2))
-
-
-def get_nse(model, ref):
-    """Nash-Sutcliffe Efficiency
-    """
-    noise = np.mean((ref - model)**2)
-    information = np.mean((ref - np.mean(ref))**2)
-    return 1-(noise / information)
-
-
-def get_rsr(model, ref):
-    """RMSE/StdDev ratio
-    """
-    rmse = get_rmse(model, ref)
-    return rmse / np.std(ref)
-
-
 def test_number_of_output(grass_5by5_sim):
     current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
     assert current_mapset == '5by5'

@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2015-2020 Laurent Courty
+Copyright (C) 2015-2025 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -115,6 +115,52 @@ class Igis():
     Everything related to GRASS maps or stds stays in that class.
     """
 
+    strds_cols = ['id', 'start_time', 'end_time']
+    MapData = namedtuple('MapData', strds_cols)
+    LinkDescr = namedtuple('LinkDescr', ['layer', 'table'])
+    LayerDescr = namedtuple('LayerDescr', ['table_suffix', 'cols', 'layer_number'])
+
+    node_columns_def = [(u'cat', 'INTEGER PRIMARY KEY'),
+                       (u'node_id', 'TEXT'),
+                       (u'type', 'TEXT'),
+                       (u'linkage_type', 'TEXT'),
+                       (u'linkage_flow', 'REAL'),
+                       (u'inflow', 'REAL'),
+                       (u'outflow', 'REAL'),
+                       (u'latFlow', 'REAL'),
+                       (u'losses', 'REAL'),
+                       (u'overflow', 'REAL'),
+                       (u'depth', 'REAL'),
+                       (u'head', 'REAL'),
+                    #    (u'crownElev', 'REAL'),
+                       (u'crestElev', 'REAL'),
+                       (u'invertElev', 'REAL'),
+                       (u'initDepth', 'REAL'),
+                       (u'fullDepth', 'REAL'),
+                       (u'surDepth', 'REAL'),
+                       (u'pondedArea', 'REAL'),
+                    #    (u'degree', 'INT'),
+                       (u'newVolume', 'REAL'),
+                       (u'fullVolume', 'REAL')]
+    link_columns_def = [(u'cat', 'INTEGER PRIMARY KEY'),
+                       (u'link_id', 'TEXT'),
+                       (u'type', 'TEXT'),
+                       (u'flow', 'REAL'),
+                       (u'depth', 'REAL'),
+                    #    (u'velocity', 'REAL'),
+                       (u'volume', 'REAL'),
+                       (u'offset1', 'REAL'),
+                       (u'offset2', 'REAL'),
+                    #    (u'yFull', 'REAL'),
+                       (u'froude', 'REAL')]
+
+    linking_elements = {'node': LayerDescr(table_suffix='_node',
+                                           cols=node_columns_def,
+                                           layer_number=1),
+                        'link': LayerDescr(table_suffix='_link',
+                                           cols=node_columns_def,
+                                           layer_number=2)}
+
     # a unit convertion table relative to seconds
     t_unit_conv = {'seconds': 1, 'minutes': 60, 'hours': 3600, 'days': 86400}
     # datatype conversion between GRASS and numpy
@@ -124,10 +170,7 @@ class Igis():
                            'int8', 'int16', 'int32', 'int64',
                            'uint8', 'uint16', 'uint32', 'uint64')}
 
-    # define used namedtuples
-    strds_cols = ['id', 'start_time', 'end_time']
-    MapData = namedtuple('MapData', strds_cols)
-    LinkDescr = namedtuple('LinkDescr', ['layer', 'table'])
+
 
     def __init__(self, start_time, end_time, dtype, mkeys, region_id, raster_mask_id):
         assert isinstance(start_time, datetime), \
@@ -478,22 +521,23 @@ class Igis():
             dblinks[layer_name] = self.LinkDescr(dblink.layer, dbtable)
         return dblinks
 
-    def write_vector_map(self, drainage_network, map_name, linking_elem):
+    def write_vector_map(self, drainage_network, map_name):
         """Write a vector map to GRASS GIS using
-        drainage_network is a networkx object
+        drainage_network is a DrainageSimulation object
         """
+
         with VectorTopo(map_name, mode='w', overwrite=self.overwrite) as vect_map:
             # create db links and tables
-            dblinks = self.create_db_links(vect_map, linking_elem)
+            dblinks = self.create_db_links(vect_map, self.linking_elements)
 
             # set category manually
             cat_num = 1
 
             # dict to keep DB infos to write DB after geometries
-            db_info = {k: [] for k in linking_elem}
+            db_info = {k: [] for k in self.linking_elements}
 
             # Points
-            for node in drainage_network.nodes():
+            for node, row, col in drainage_network.nodes:
                 if node.coordinates:
                     point = Point(*node.coordinates)
                     # add values
@@ -507,15 +551,10 @@ class Igis():
                     cat_num += 1
 
             # Lines
-            for in_node, out_node, edge_data in drainage_network.edges_iter(data=True):
-                link = edge_data['object']
+            for link in drainage_network.links:
                 # assemble geometry
-                in_node_coor = in_node.coordinates
-                out_node_coor = out_node.coordinates
-                if in_node_coor and out_node_coor:
-                    line_object = Line([in_node_coor]
-                                       + link.vertices
-                                       + [out_node_coor])
+                if all(link.vertices):
+                    line_object = Line(link.vertices)
                     # set category and layer link
                     map_layer, dbtable = dblinks['link']
                     self.write_vector_geometry(vect_map, line_object,

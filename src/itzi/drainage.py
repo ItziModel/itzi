@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2016-2020 Laurent Courty
+Copyright (C) 2016-2025 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -12,20 +12,22 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
-from __future__ import division
-from __future__ import absolute_import
+
 import os
 import math
 from datetime import timedelta
 from collections import namedtuple
 from collections import defaultdict
 
+import pyswmm
+import numpy as np
+
 foot = 0.3048
 
 
 class LinkageTypes:
     NOT_LINKED = 0
-    NO_LINKAGE = 1
+    LINKED_NO_FLOW = 1
     FREE_WEIR = 2
     SUBMERGED_WEIR = 3
     ORIFICE = 4
@@ -35,19 +37,12 @@ class DrainageSimulation():
     """manage simulation of the pipe network
     write results to RasterDomain object
     """
-
-    # define namedtuples
-    LayerDescr = namedtuple('LayerDescr', ['table_suffix', 'cols', 'layer_number'])
-    GridCoords = namedtuple('GridCoords', ['row', 'col'])
-
-    def __init__(self, raster_domain, pyswmm_sim, drainage_params, linked_node_list, g):
+    def __init__(self, raster_domain, pyswmm_sim, nodes_list, links_list):
         self.dom = raster_domain
-        self.g = g
-        self.orifice_coeff = drainage_params['orifice_coeff']
-        self.free_weir_coeff = drainage_params['free_weir_coeff']
-        self.submerged_weir_coeff = drainage_params['submerged_weir_coeff']
-        # A list of tuple (pyswmm_node_object, row, col)
-        self.linked_nodes = linked_node_list
+        # A list of tuple (DrainageNode, row, col)
+        self.nodes = nodes_list
+        # A list of DrainageLink objects
+        self.links = links_list
         # create swmm object, open files and start simulation
         self.swmm_sim = pyswmm_sim
         self.swmm_model = self.swmm_sim._model
@@ -59,10 +54,10 @@ class DrainageSimulation():
         # self.swmm5.allow_ponding()
 
         self.cell_surf = self.dom.cell_surf
-        self.old_time = self.swmm_model.getCurrentSimulationTime()
         self._dt = 0.0
         # A dict {nodeid: linkage_flow}
         self.nodes_flow = defaultdict(lambda: 0)
+        self.elapsed_time = 0.0
 
     def __del__(self):
         """Make sure the swmm simulation is ended and closed properly.
@@ -84,14 +79,15 @@ class DrainageSimulation():
         """Run a swmm time-step
         calculate the exchanges with raster domain
         """
-        self.swmm_model.swmm_step()
-        current_time = self.swmm_model.getCurrentSimulationTime()
-        self._dt = (current_time - self.old_time).total_seconds()
-        assert self._dt > 0
-        self.old_time = self.swmm_model.getCurrentSimulationTime()
+        elapsed_days = self.swmm_model.swmm_step()
+        elapsed_seconds = elapsed_days * 24 * 3600
+        # calculate the time step
+        self._dt = elapsed_seconds - self.elapsed_time
+        assert self._dt > 0.
+        self.elapsed_time = elapsed_seconds
         return self
 
-    def apply_linkage(self, dt2d):
+    def apply_linkage_to_nodes(self, dt2d):
         """For each linked node,
         calculate the flow entering or leaving the drainage network
         Apply the flow to the node and to the relevant raster cell
@@ -99,61 +95,172 @@ class DrainageSimulation():
         arr_h = self.dom.get_array('h')
         arr_z = self.dom.get_array('dem')
         arr_qd = self.dom.get_array('n_drain')
-        for node, row, col in self.linked_nodes:
-            z = arr_z[row, col]
-            h = arr_h[row, col]
-            wse = z + h
-            crest_elev = node.invert_elevation + node.full_depth
-            # swmm api does not convert units
-            surface_area = self.swmm_model.getSimAnalysisSetting(5) * foot * foot
-            # weir width is the circumference (node considered circular)
-            weir_width = math.pi * 2. * math.sqrt(surface_area / math.pi)
-            linkage_type = self.get_linkage_type(wse, crest_elev, node.head,
-                                                 weir_width, surface_area)
-            linkage_flow = self.get_linkage_flow(wse, node.head, weir_width,
-                                                 crest_elev, linkage_type, surface_area,
-                                                 self.orifice_coeff, self.free_weir_coeff,
-                                                 self.submerged_weir_coeff)
-            ## flow limiter ##
-            # flow leaving the 2D domain can't drain the corresponding cell
-            if linkage_flow < 0:
-                maxflow = (h * self.cell_surf) / self._dt
-                linkage_flow = max(linkage_flow, -maxflow)
-
-            ## force flow to zero in case of flow inversion ##
-            old_flow = self.nodes_flow[node.nodeid]
-            overflow_to_drainage = old_flow > 0 and linkage_flow < 0
-            drainage_to_overflow = old_flow < 0 and linkage_flow > 0
-            if overflow_to_drainage or drainage_to_overflow:
-                linkage_type = LinkageTypes.NO_LINKAGE
-                linkage_flow = 0.
-            # apply flow to 2D model (m/s) and drainage model (m3/s)
-            arr_qd[row, col] = linkage_flow / self.cell_surf
-            node.generated_inflow(- linkage_flow)
-            # update internal values
-            self.nodes_flow[node.nodeid] = linkage_flow
+        for node, row, col in self.nodes:
+            if node.is_linked():
+                z = arr_z[row, col]
+                h = arr_h[row, col]
+                node.apply_linkage(z, h, self._dt, self.cell_surf)
+                # apply flow to 2D model (m/s) and drainage model (m3/s)
+                arr_qd[row, col] = node.linkage_flow / self.cell_surf
+                # self.nodes_flow[node.nodeid] = linkage_flow
         return self
 
-    def get_linkage_type(self, wse, crest_elev, node_head, weir_width,
-                         overflow_area):
+
+class DrainageNode(object):
+    '''A wrapper around the pyswmm node object.
+    Includes the flow linking logic
+    '''
+
+    def __init__(self, node_object, coordinates=None,
+                 linkage_type=LinkageTypes.NOT_LINKED,
+                 orifice_coeff=None,
+                 free_weir_coeff=None,
+                 submerged_weir_coeff=None,
+                 g=9.81):
+        self.g = g
+        self._model = node_object._model
+        self.pyswmm_node = node_object
+        # need to add a node validity check
+        self.node_id = node_object.nodeid
+        self.coordinates = coordinates
+        self.orifice_coeff = orifice_coeff
+        self.free_weir_coeff = free_weir_coeff
+        self.submerged_weir_coeff = submerged_weir_coeff
+        self.node_type = self.get_node_type()
+        self.surface_area = self._model.getSimAnalysisSetting(
+            pyswmm.toolkitapi.SimulationParameters.MinSurfArea)
+        # weir width is the circumference (node considered circular)
+        self.weir_width = 2 * math.sqrt(self.surface_area * math.pi)
+        # Set deafault values
+        self.linkage_type = linkage_type
+        self.linkage_flow = 0.0
+        # TODO: set crest elevation to at least DEM
+        # TODO: set surcharge depth
+        self.relaxation_factor = 0.9
+        self.damping_factor = 0.5
+
+    def get_node_type(self):
         """
+        """
+        if self.pyswmm_node.is_junction():
+            return 'junction'
+        elif self.pyswmm_node.is_outfall():
+            return 'outfall'
+        elif self.pyswmm_node.is_divider():
+            return 'divider'
+        elif self.pyswmm_node.is_storage():
+            return 'storage'
+        else:
+            raise ValueError(f"Unknown node type for node {self.node_id}")
+
+    def get_full_volume(self):
+        return self.surface_area * self.pyswmm_node.full_depth
+
+    def get_overflow(self):
+        return self._model.getNodeResult(
+            self.node_id, pyswmm.toolkitapi.NodeResults.overflow)
+
+    def get_crest_elev(self):
+        """return the crest elevation of the node
+        """
+        return self.pyswmm_node.invert_elevation + self.pyswmm_node.full_depth
+
+    def get_linkage_type_as_str(self):
+        """return the linkage type as a string
+        """
+        if self.linkage_type == LinkageTypes.LINKED_NO_FLOW:
+            return 'linked, no flow'
+        elif self.linkage_type == LinkageTypes.FREE_WEIR:
+            return 'free weir'
+        elif self.linkage_type == LinkageTypes.SUBMERGED_WEIR:
+            return 'submerged weir'
+        elif self.linkage_type == LinkageTypes.ORIFICE:
+            return 'orifice'
+        elif self.linkage_type == LinkageTypes.NOT_LINKED:
+            return 'not linked'
+        else:
+            raise ValueError(f"Unknown linkage type for node {self.node_id}")
+
+    def is_linked(self):
+        """return True if the node is linked to the 2D domain
+        """
+        return self.linkage_type != LinkageTypes.NOT_LINKED
+
+    def get_attrs(self):
+        """return a list of node data in the right DB order
+        """
+        attrs = [self.node_id, self.node_type,
+                 self.get_linkage_type_as_str(),
+                 self.linkage_flow,
+                 self.pyswmm_node.total_inflow,
+                 self.pyswmm_node.total_outflow,
+                 self.pyswmm_node.lateral_inflow,
+                 self.pyswmm_node.losses,
+                 self.get_overflow(),
+                 self.pyswmm_node.depth,
+                 self.pyswmm_node.head,
+                #  values['crown_elev'],
+                 self.get_crest_elev(),
+                 self.pyswmm_node.invert_elevation,
+                 self.pyswmm_node.initial_depth,
+                 self.pyswmm_node.full_depth,
+                 self.pyswmm_node.surcharge_depth,
+                 self.pyswmm_node.ponding_area,
+                #  values['degree'],
+                 self.pyswmm_node.volume,
+                 self.get_full_volume()]
+        return attrs
+
+    def apply_linkage(self, z, h, dt_drainage, cell_surf):
+        """Apply the linkage to the node
+        """
+        wse = z + h
+        crest_elev = self.get_crest_elev()
+        # Calculate the linkage type and flow
+        self.linkage_type = self._get_linkage_type(wse, crest_elev)
+        new_linkage_flow = self._get_linkage_flow(wse, crest_elev)
+        
+        ## flow relaxation ##
+        # Apply a relaxation factor (blend new flow with previous flow)
+        new_linkage_flow = (self.relaxation_factor * new_linkage_flow +
+                            (1 - self.relaxation_factor) * self.linkage_flow)
+        
+        ## flow limiter ##
+        # flow leaving the 2D domain can't drain the corresponding cell
+        if new_linkage_flow < 0.:
+            maxflow = (h * cell_surf) / dt_drainage
+            new_linkage_flow = max(new_linkage_flow, -maxflow)
+
+        ## Dampen flow in case of flow inversion ##
+        old_flow = self.linkage_flow
+        overflow_to_drainage = old_flow > 0 and new_linkage_flow < 0
+        drainage_to_overflow = old_flow < 0 and new_linkage_flow > 0
+        if overflow_to_drainage or drainage_to_overflow:
+            new_linkage_flow = new_linkage_flow * self.damping_factor
+
+        # pyswmm fails if type not forced to double
+        self.pyswmm_node.generated_inflow(np.float64(- new_linkage_flow))
+        # update internal values
+        self.linkage_flow = new_linkage_flow
+        return self
+
+    def _get_linkage_type(self, wse, crest_elev):
+        """orifice, free- and submerged-weir
+        M. Rubinato et al. (2017)
+        “Experimental Calibration and Validation of Sewer/surface Flow Exchange Equations
+        in Steady and Unsteady Flow Conditions.”
+        https://doi.org/10.1016/j.jhydrol.2017.06.024.
         """
         depth_2d = wse - crest_elev
-        weir_ratio = overflow_area / weir_width
+        weir_ratio = self.surface_area / self.weir_width
+        node_head = self.pyswmm_node.head
         overflow = node_head > wse
         drainage = node_head < wse
-        ########
-        # orifice, free- and submerged-weir
-        # M. Rubinato et al. (2017)
-        # “Experimental Calibration and Validation of Sewer/surface Flow Exchange Equations
-        # in Steady and Unsteady Flow Conditions.”
-        # https://doi.org/10.1016/j.jhydrol.2017.06.024.
-        overflow_orifice = overflow
         free_weir = drainage and (node_head < crest_elev)
         submerged_weir = drainage and (node_head > crest_elev) and (depth_2d < weir_ratio)
         drainage_orifice = drainage and (node_head > crest_elev) and (depth_2d > weir_ratio)
-        ########
-        if overflow_orifice or drainage_orifice:
+        # orifice
+        if overflow or drainage_orifice:
             new_linkage_type = LinkageTypes.ORIFICE
         # drainage free weir
         elif free_weir:
@@ -162,35 +269,78 @@ class DrainageSimulation():
         elif submerged_weir:
             new_linkage_type = LinkageTypes.SUBMERGED_WEIR
         else:
-            new_linkage_type = LinkageTypes.NO_LINKAGE
+            new_linkage_type = LinkageTypes.LINKED_NO_FLOW
         return new_linkage_type
 
-    def get_linkage_flow(self, wse, node_head, weir_width,
-                         crest_elev, linkage_type, overflow_area,
-                         orifice_coeff, free_weir_coeff,
-                         submerged_weir_coeff):
+    def _get_linkage_flow(self, wse, crest_elev):
         """flow sign is :
                 - negative when entering the drainage (leaving the 2D model)
                 - positive when leaving the drainage (entering the 2D model)
         """
+        node_head = self.pyswmm_node.head
         head_up = max(wse, node_head)
         head_down = min(wse, node_head)
         head_diff = head_up - head_down
         upstream_depth = head_up - crest_elev
 
         # calculate the flow
-        if linkage_type in [LinkageTypes.NO_LINKAGE, LinkageTypes.NOT_LINKED]:
+        if self.linkage_type in [LinkageTypes.LINKED_NO_FLOW, LinkageTypes.NOT_LINKED]:
             unsigned_q = 0.
-        elif linkage_type == LinkageTypes.ORIFICE:
-            unsigned_q = orifice_coeff * overflow_area * math.sqrt(2. * self.g * head_diff)
-        elif linkage_type == LinkageTypes.FREE_WEIR:
-            unsigned_q = ((2./3.) * free_weir_coeff * weir_width *
+        elif self.linkage_type == LinkageTypes.ORIFICE:
+            unsigned_q = self.orifice_coeff * self.surface_area * math.sqrt(2. * self.g * head_diff)
+        elif self.linkage_type == LinkageTypes.FREE_WEIR:
+            unsigned_q = ((2./3.) * self.free_weir_coeff * self.weir_width *
                         math.pow(upstream_depth, 3/2.) *
                         math.sqrt(2. * self.g))
-        elif linkage_type == LinkageTypes.SUBMERGED_WEIR:
-            unsigned_q = (submerged_weir_coeff * weir_width * upstream_depth *
+        elif self.linkage_type == LinkageTypes.SUBMERGED_WEIR:
+            unsigned_q = (self.submerged_weir_coeff * self.weir_width * upstream_depth *
                         math.sqrt(2. * self.g * upstream_depth))
         return math.copysign(unsigned_q, node_head - wse)
+
+
+class DrainageLink(object):
+    """A wrapper around the pyswmm link object
+    """
+    def __init__(self, link_object, vertices=[]):
+        self.pyswmm_link = link_object
+        self.link_id = self.pyswmm_link.linkid
+        self.link_type = self._get_link_type()
+        self.start_node_id = self.pyswmm_link.inlet_node
+        self.end_node_id = self.pyswmm_link.outlet_node
+        # vertices include the coordinates of the start and end nodes
+        self.vertices = vertices
+
+    def _get_link_type(self):
+        """return the type of the link
+        """
+        if self.pyswmm_link.is_conduit():
+            link_type = "conduit"
+        elif self.pyswmm_link.is_pump():
+            link_type = "pump"
+        elif self.pyswmm_link.is_orifice():
+            link_type = "orifice"
+        elif self.pyswmm_link.is_weir():
+            link_type = "weir"
+        elif self.pyswmm_link.is_outlet():
+            link_type = "outlet"
+        else:
+            raise ValueError(f"Unknown link type for link {self.link_id}")
+        return link_type
+
+    def get_attrs(self):
+        """return a list of link data in the right DB order
+        """
+        attrs = [self.link_id,
+                 self.link_type,
+                 self.pyswmm_link.flow,
+                 self.pyswmm_link.depth,
+                #  values['velocity'],
+                 self.pyswmm_link.volume,
+                 self.pyswmm_link.inlet_offset,
+                 self.pyswmm_link.outlet_offset,
+                #  values['full_depth'],
+                 self.pyswmm_link.froude]
+        return attrs
 
 
 class SwmmInputParser(object):
