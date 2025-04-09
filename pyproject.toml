@@ -8,12 +8,12 @@ authors = [
 dependencies = [
     "numpy==2.2.*",
     "pyinstrument==5.*",
-    "pyswmm==2.*",
+    "pyswmm>=2.0.1",
+    "bmipy>=2.0.1",
 ]
 requires-python = ">=3.11"
 readme = "README.md"
 license = {text = "GPL-2.0-or-later"}
-# license-file = "LICENSE"
 keywords = ["science", "engineering", "hydrology", "flood"]
 classifiers = [
     "Development Status :: 4 - Beta",

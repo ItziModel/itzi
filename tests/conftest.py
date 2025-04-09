@@ -6,15 +6,20 @@ Define pytest fixture common to various test modules.
 """
 
 import os
+import sys
 import zipfile
 import hashlib
 import tempfile
 from pathlib import Path
+import subprocess
 
 import pytest
 import requests
 from pyinstrument import Profiler
-from grass_session import Session as GrassSession
+# need to set the path to the GRASS Python library
+grass_python_path = subprocess.check_output(["grass", "--config",
+                                             "python_path"], text=True).strip()
+sys.path.append(grass_python_path)
 import grass.script as gscript
 
 from itzi import SimulationRunner
@@ -79,25 +84,25 @@ def ea_test_files(test_data_path):
     return unzip_path
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="session")
 def grass_xy_session():
     """Create a GRASS session in a new XY location and PERMANENT mapset
     """
-
-    tmpdir = tempfile.TemporaryDirectory()
-    # tmpdir = str(tmpdir_factory.mktemp("grassdata"))
-    print(tmpdir)
-    grass_session = GrassSession()
-    grass_session.open(gisdb=tmpdir.name,
-                       location='xy',
-                       mapset=None,  # PERMANENT
-                       create_opts='XY',
-                       loadlibs=True)
+    tmpdir = tempfile.TemporaryDirectory(prefix='tests_itzi_')
+    gscript.set_raise_on_error(True)
+    # create a new location
+    location_name = 'xy'
+    gscript.create_project(tmpdir.name, name=location_name)
+    # set up session
+    grass_session = gscript.setup.init(path=tmpdir.name,
+                                       location=location_name,
+                                       mapset='PERMANENT',
+                                       grass_path='grass')
     os.environ['GRASS_VERBOSE'] = '1'
     # os.environ['ITZI_VERBOSE'] = '4'
     # os.environ['GRASS_OVERWRITE'] = '1'
     yield grass_session
-    grass_session.close()
+    grass_session.finish()
     tmpdir.cleanup()
 
 
