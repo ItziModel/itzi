@@ -6,14 +6,14 @@ authors = [
     {name = "Laurent Courty", email = "lrntct@gmail.com"},
 ]
 dependencies = [
-    "numpy>=2.2.3",
-    "grass-session",
-    "networkx",
-    "pyinstrument",
+    "numpy==2.2.*",
+    "pyinstrument==5.*",
+    "pyswmm==2.*",
 ]
 requires-python = ">=3.11"
 readme = "README.md"
-license = " GPL-2.0-or-later"
+license = {text = "GPL-2.0-or-later"}
+# license-file = "LICENSE"
 keywords = ["science", "engineering", "hydrology", "flood"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -37,16 +37,20 @@ itzi = "itzi.itzi:main"
 
 [dependency-groups]
 dev = [
-    "pytest>=8.3.5",
-    "pytest-cov>=6.0.0",
-    "pytest-forked>=1.6.0",
-    "pandas>=2.2.3",
-    "requests>=2.32.3",
-    "pytest-benchmark>=5.1.0",
+    "pytest==8.3.*",
+    "pytest-cov==6.*",
+    "pytest-forked==1.*",
+    "pandas==2.*",
+    "requests==2.*",
+    "pytest-benchmark==5.1.*",
 ]
 
 [build-system]
-requires = ["setuptools>=75.8.2", "numpy>=2.2.3", "cython"]
+requires = [
+    "setuptools==75.*",
+    "numpy==2.*",
+    "cython==3.*"
+]
 build-backend = "setuptools.build_meta"
 
 [tool.pdm]

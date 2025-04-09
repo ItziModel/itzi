@@ -32,12 +32,12 @@ import sys
 import os
 import time
 import traceback
+import subprocess
 from multiprocessing import Process
 from datetime import datetime, timedelta
 
 from pyinstrument import Profiler
 import numpy as np
-from grass_session import Session as GrassSession
 
 from itzi.configreader import ConfigReader
 import itzi.itzi_error as itzi_error
@@ -67,6 +67,7 @@ class SimulationRunner():
         self.conf = None
         self.sim = None
         self.grass_session = None
+        self.grass_required_version = '8.4.0'
 
     def initialize(self, conf_file):
         """Parse the configuration file, set GRASS,
@@ -81,10 +82,16 @@ class SimulationRunner():
 
         # If run outside of grass, set session
         try:
+            import grass.script as gscript
             from itzi.simulation import create_simulation
         except ImportError:
             self.set_grass_session()
             from itzi.simulation import create_simulation
+        # Check GRASS version
+        grass_version = gscript.parse_command('g.version', flags='g')['version']
+        if grass_version < self.grass_required_version:
+            msgr.fatal((f"Itzi requires at least GRASS {self.grass_required_version}, "
+                        "version {grass_version} detected."))
         msgr.debug('GRASS session set')
 
         # Instantiate Simulation object and initialize it
@@ -124,7 +131,7 @@ class SimulationRunner():
         self.sim.finalize()
         # Close GRASS session
         if self.grass_session is not None:
-            self.grass_session.close()
+            self.grass_session.finish()
         return self
 
     def step(self):
@@ -156,17 +163,22 @@ class SimulationRunner():
         elif not os.access(os.path.join(gisdb, location, mapset), os.W_OK):
             msgr.fatal(error_msg.format(mapset))
 
-        # Start Session
+        # Set GRASS python path
         if self.conf.grass_params['grass_bin']:
             grassbin = self.conf.grass_params['grass_bin']
         else:
-            grassbin = None
-        self.grass_session = GrassSession(grassbin=grassbin)
-        self.grass_session.open(gisdb=gisdb,
-                                location=location,
-                                mapset=mapset,
-                                loadlibs=True)
-        return self
+            grassbin = 'grass'
+        grass_cmd = [grassbin, "--config", "python_path"]
+        grass_python_path = subprocess.check_output(grass_cmd, text=True).strip()
+        sys.path.append(grass_python_path)
+        # Now we can import grass modules
+        import grass.script as gscript
+
+        # set up session
+        self.grass_session = gscript.setup.init(path=gisdb,
+                                                location=location,
+                                                mapset=mapset,
+                                                grass_path=grassbin)
 
     def update_input_arrays(self):
         """Get new array using TimedArray
