@@ -2,7 +2,7 @@
 """
 Basic Model Interface implementation for the Itzï flood model.
 
-Copyright (C) 2020 Laurent Courty
+Copyright (C) 2020-2025 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -15,7 +15,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-import os
 from datetime import timedelta
 
 import numpy as np

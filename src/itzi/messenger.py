@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2015-2020 Laurent Courty
+Copyright (C) 2015-2025 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -13,9 +13,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-from __future__ import division
-from __future__ import print_function
-from __future__ import absolute_import
 import sys
 import os
 from datetime import timedelta, datetime

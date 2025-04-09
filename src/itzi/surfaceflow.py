@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2015-2016 Laurent Courty
+Copyright (C) 2015-2025 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -12,10 +12,8 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
-from __future__ import division
-from __future__ import absolute_import
+
 import math
-import time
 from datetime import timedelta
 import numpy as np
 
@@ -98,7 +96,6 @@ class SurfaceFlowSimulation():
     def step(self):
         """Run a full simulation time-step
         """
-        start_time = time.time()
         self.solve_q()
         self.apply_boundary_conditions()
         self.update_h()
@@ -107,8 +104,6 @@ class SurfaceFlowSimulation():
         if np.any(self.arr_err):
             raise NullError
         self.swap_flow_arrays()
-        end_time = time.time()
-        step_duration = end_time - start_time
         return self
 
     def solve_dt(self):

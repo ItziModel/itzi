@@ -25,9 +25,6 @@ COPYRIGHT: (C) 2015-2025 by Laurent Courty
             GNU General Public License for more details.
 """
 
-
-from __future__ import print_function, division
-from __future__ import absolute_import
 import sys
 import os
 import time

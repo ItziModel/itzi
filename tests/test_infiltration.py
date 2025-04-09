@@ -44,7 +44,8 @@ def ga_barry2009(inf_params):
     available_porosity = max(0, inf_params.eff_porosity - inf_params.init_wat_content)
     total_head = inf_params.cap_pressure + inf_params.pond_depth
     sorptivity = math.sqrt(2 * inf_params.hydr_cond  * total_head * available_porosity)
-    total_inf = sorptivity * math.sqrt(inf_params.time) + 2 * inf_params.hydr_cond * inf_params.time / 3
+    total_inf = (sorptivity * math.sqrt(inf_params.time) + 2
+                 * inf_params.hydr_cond * inf_params.time / 3)
     return total_inf
 
 
@@ -55,7 +56,7 @@ def infiltration_parameters():
                    'hydr_cond']
     InfParameters = namedtuple('InfParameters', param_names)
     # Silt loam from Rawls, Brakensiek and Miller (1983)
-    total_porosity = 0.501
+    # total_porosity = 0.501
     inf_params = InfParameters(pond_depth=0.4,
                                time=24*3600,
                                eff_porosity=0.486,
@@ -84,8 +85,10 @@ def infiltration_sim(infiltration_parameters):
     arr_depth = np.full(shape=array_shape, fill_value=inf_params.pond_depth)
     arr_por = np.full(shape=array_shape, fill_value=inf_params.eff_porosity)
     arr_cond = np.full(shape=array_shape, fill_value=inf_params.hydr_cond )
-    arr_cap_pressure = np.full(shape=array_shape, fill_value=inf_params.cap_pressure)
-    arr_water_content = np.full(shape=array_shape, fill_value=inf_params.init_wat_content)
+    arr_cap_pressure = np.full(shape=array_shape,
+                               fill_value=inf_params.cap_pressure)
+    arr_water_content = np.full(shape=array_shape,
+                                ill_value=inf_params.init_wat_content)
     raster_domain = RasterDomain(dtype=dtype, cell_shape=cell_shape,
                                  arr_mask=mask)
     raster_domain.update_array('h', arr_depth)
@@ -98,7 +101,6 @@ def infiltration_sim(infiltration_parameters):
     while elapsed_time < inf_params.time:
         inf_sim.step()
         elapsed_time += inf_sim._dt
-    theoretical_depth = arr_depth - inf_sim.infiltration_amount
     return inf_sim.infiltration_amount.max()
 
 

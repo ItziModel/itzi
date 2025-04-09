@@ -49,9 +49,7 @@ class DrainageSimulation():
         # self.swmm_model.swmm_open()
         self.swmm_model.swmm_start()
         # allow ponding
-        # if not self.swmm_model.getSimAnalysisSetting(tka.SimAnalysisSettings.AllowPonding):
-        #     raise RuntimeWarning('Ponding not allowed, simulation might be unstable')
-        # self.swmm5.allow_ponding()
+        # TODO: check if allowing ponding is necessary
 
         self.cell_surf = self.dom.cell_surf
         self._dt = 0.0

@@ -12,10 +12,8 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
-from __future__ import division
-from __future__ import absolute_import
+
 import os
-import atexit
 from collections import namedtuple
 from datetime import datetime, timedelta
 # from multiprocessing import Process, JoinableQueue
@@ -142,6 +140,7 @@ class Igis():
                     #    (u'degree', 'INT'),
                        (u'newVolume', 'REAL'),
                        (u'fullVolume', 'REAL')]
+
     link_columns_def = [(u'cat', 'INTEGER PRIMARY KEY'),
                        (u'link_id', 'TEXT'),
                        (u'type', 'TEXT'),
@@ -158,7 +157,7 @@ class Igis():
                                            cols=node_columns_def,
                                            layer_number=1),
                         'link': LayerDescr(table_suffix='_link',
-                                           cols=node_columns_def,
+                                           cols=link_columns_def,
                                            layer_number=2)}
 
     # a unit convertion table relative to seconds

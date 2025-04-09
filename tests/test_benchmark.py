@@ -5,12 +5,8 @@
 """
 
 import math
-import io
-import os
 import numpy as np
 import pytest
-import time
-import grass.script as gscript
 
 from itzi.rasterdomain import RasterDomain
 from itzi.const import DefaultValues

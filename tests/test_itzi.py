@@ -6,7 +6,6 @@
 import os
 from io import StringIO
 
-import pytest
 import pandas as pd
 import numpy as np
 import grass.script as gscript
@@ -39,7 +38,8 @@ def test_number_of_output(grass_5by5_sim):
 def test_flow_symmetry(grass_5by5_sim):
     current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
     assert current_mapset == '5by5'
-    h_values = gscript.read_command('v.what.rast', map='control_points', flags='p', raster='out_5by5_h_0001')
+    h_values = gscript.read_command('v.what.rast', map='control_points',
+                                    flags='p', raster='out_5by5_h_0001')
     s_h = pd.read_csv(StringIO(h_values), sep='|', names=['h'], usecols=[1]).squeeze()
     print(s_h)
     print(np.isclose(s_h[:-1], s_h[1:]))

@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2016-2020  Laurent Courty
+Copyright (C) 2016-2025  Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -13,8 +13,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-from __future__ import division
-from __future__ import absolute_import
 from datetime import timedelta
 
 import itzi.flow as flow

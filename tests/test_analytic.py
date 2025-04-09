@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Test itzi against analytics solutions to the shallow water equation.
+Test itzi against analytic solutions to the shallow water equation.
 """
 
 import os
@@ -11,7 +11,6 @@ from io import StringIO
 import numpy as np
 import pandas as pd
 import pytest
-import pyinstrument
 import grass.script as gscript
 
 from itzi import SimulationRunner
@@ -127,7 +126,6 @@ class TestMcdo_norain:
         current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
         assert current_mapset == 'mcdo_norain'
 
-        map_list = gscript.list_grouped('raster', pattern='out_mcdo_norain_wse*')[current_mapset]
         wse = gscript.read_command('v.what.rast', map='axis_points',
                                 raster='out_mcdo_norain_wse_0004', flags='p')
         df_wse = pd.read_csv(StringIO(wse), sep='|', names=['wse_model'], usecols=[1])
