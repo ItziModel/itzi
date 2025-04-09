@@ -65,7 +65,7 @@ def ea_test_files(test_data_path):
     # Check if the file exists and has the right hash
     try:
         assert sha256(file_path) == DATA_SHA256
-    except:
+    except Exception:
         # Download the file
         with open(file_path, "wb") as data_file:
             response = requests.get(EA_TESTS_URL)
