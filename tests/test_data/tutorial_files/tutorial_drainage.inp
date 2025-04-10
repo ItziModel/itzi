@@ -1,0 +1,62 @@
+[TITLE]
+'Wake county culvert'
+
+[OPTIONS]
+FLOW_UNITS           CMS
+INFILTRATION         HORTON
+FLOW_ROUTING         DYNWAVE
+START_DATE           01/01/0001
+START_TIME           00:00:00
+REPORT_START_DATE    01/01/0001
+REPORT_START_TIME    00:00:00
+END_DATE             01/01/0001
+END_TIME             2:00:00
+SWEEP_START          01/01
+SWEEP_END            12/31
+DRY_DAYS             0
+REPORT_STEP          00:05:00
+WET_STEP             00:00:05
+DRY_STEP             01:00:00
+ROUTING_STEP         0.5
+ALLOW_PONDING        YES
+INERTIAL_DAMPING     PARTIAL
+VARIABLE_STEP        .5
+LENGTHENING_STEP     0
+MIN_SURFAREA         25
+NORMAL_FLOW_LIMITED  FROUDE
+SKIP_STEADY_STATE    NO
+FORCE_MAIN_EQUATION  D-W
+LINK_OFFSETS         DEPTH
+MIN_SLOPE            0
+
+[JUNCTIONS]
+;;        Invert   Max.   Init.  Surcharge  Ponded
+;;Name    Elev.    Depth  Depth  Depth      Area
+;;------- -------- ------ ------ ---------- ------
+J0        112      0.0    0      0          0
+J1        111.4    0.0    0      0          0
+
+[OUTFALLS]
+;;         Invert    Outfall  Stage/Table    Tide
+;;Name     Elev.     Type     Time Series    Gate
+;;-------- --------- -------- -------------- ----
+O2         1000      FREE                    NO
+
+[COORDINATES]
+;;Node       X-Coord  Y-Coord
+;;---------- -------  -------
+J0           638752   220262
+J1           638769   220233
+
+[CONDUITS]
+;;       Inlet  Outlet         Manning Inlet  Outlet
+;;Name   Node   Node    Length N       Offset Offset
+;;------ ------ ------- ------ ------- ------ ------
+C0       J0     J1      34     0.017   0      0
+C1       J1     O2      100    0.017   0      0
+
+[XSECTIONS]
+;;Link    Shape      Geom1 Geom2 Geom3 Geom4 Barrels
+;;------- ---------- ----- ----- ----- ----- -------
+C0        CIRCULAR   1.5   0     0     0     2
+C1        CIRCULAR   0.1   0     0     0     1
