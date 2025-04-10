@@ -579,7 +579,7 @@ class Igis():
         cats.reset()
         cats.set(cat_num, map_layer)
         # write geometry
-        vector_map.write(geom)
+        vector_map.write(geom, cat_num)
 
     def get_array(self, mkey, sim_time):
         """take a given map key and simulation time
@@ -611,6 +611,10 @@ class Igis():
         # Print message in case of decreased GRASS verbosity
         if msgr.verbosity() <= 2:
             msgr.message(u"Registering maps in temporal framework...")
+        # Set GRASS verbosity to -1 to avoid superfluous messages about semantic labels
+        grass_verbosity = copy.deepcopy(os.environ['GRASS_VERBOSE'])
+        if stds_type == 'stvds' and grass_verbosity != '-1':
+            os.environ['GRASS_VERBOSE'] = '-1'
         # create stds
         stds_id = self.format_id(stds_name)
         stds_desc = ""
@@ -647,4 +651,7 @@ class Igis():
                                                map_dts_lst, stds,
                                                delete_empty=del_empty[stds_type],
                                                unit=t_unit[t_type])
+        # Restore GRASS verbosity
+        if stds_type == 'stvds' and grass_verbosity != '-1':
+            os.environ['GRASS_VERBOSE'] = grass_verbosity
         return self
