@@ -111,11 +111,8 @@ def grass_mcdo_rain_sim(grass_mcdo_rain, test_data_path):
     """
     current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
     assert current_mapset == 'mcdo_rain'
-    # accessible_mapsets = gscript.read_command('g.mapsets', flags='p').rstrip()
-    # print(accessible_mapsets)
     config_file = os.path.join(test_data_path, 'McDonald_long_channel_rain', 'mcdo_rain.ini')
     sim_runner = SimulationRunner()
-    assert isinstance(sim_runner, SimulationRunner)
     sim_runner.initialize(config_file)
     sim_runner.run().finalize()
     return sim_runner

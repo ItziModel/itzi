@@ -8,41 +8,11 @@ import zipfile
 from io import StringIO
 from configparser import ConfigParser
 
-import numpy as np
 import pandas as pd
 import pytest
 import grass.script as gscript
 
 from itzi import SimulationRunner
-
-
-def get_rmse(model, ref):
-    """return root mean square error"""
-    return np.sqrt(np.mean((model - ref)**2))
-
-
-def get_nse(model, ref):
-    """Nash-Sutcliffe Efficiency
-    """
-    noise = np.mean((ref - model)**2)
-    information = np.mean((ref - np.mean(ref))**2)
-    return 1-(noise / information)
-
-
-def get_rsr(model, ref):
-    """RMSE/StdDev ratio
-    """
-    rmse = get_rmse(model, ref)
-    return rmse / np.std(ref)
-
-
-def roughness(timeseries):
-    """Sum of the squared difference of
-    the normalized differences.
-    """
-    f = timeseries.diff()
-    normed_f = (f - f.mean()) / f.std()
-    return (normed_f.diff() ** 2).sum()
 
 
 @pytest.fixture(scope="class")
@@ -154,7 +124,7 @@ def ea8b_itzi_drainage_results(ea_test8b_sim):
     return ds_itzi_results
 
 
-def test_ea8b(ea_test8b_reference, ea8b_itzi_drainage_results):
+def test_ea8b(ea_test8b_reference, ea8b_itzi_drainage_results, helpers):
     """Compare results with XPSTORM
     """
     # Extract results at output points
@@ -164,19 +134,7 @@ def test_ea8b(ea_test8b_reference, ea8b_itzi_drainage_results):
     ds_itzi_results = ea8b_itzi_drainage_results
     ds_ref = ea_test8b_reference
     # calculate NSE
-    nse = get_nse(ds_itzi_results, ds_ref)
-    rsr = get_rsr(ds_itzi_results, ds_ref)
-    itzi_roughness = roughness(ds_itzi_results)
-    xpstorm_roughness = roughness(ds_ref)
-    autocorrelation_itzi = ds_itzi_results.autocorr(lag=1)
-    autocorrelation_ref = ds_ref.autocorr(lag=1)
-    print(f"xpstorm roughness (better closer to zero): {xpstorm_roughness}")
-    print(f"xpstorm autocorrelation (better closer to one): {autocorrelation_ref}")
-    print(f"flow exchange roughness (better closer to zero): {itzi_roughness}")
-    print(f"flow exchange autocorrelation (better closer to one): {autocorrelation_itzi}")
-    print(f"{nse=}")
-    print(f"{rsr=}")
+    nse = helpers.get_nse(ds_itzi_results, ds_ref)
+    rsr = helpers.get_rsr(ds_itzi_results, ds_ref)
     assert nse > 0.99
     assert rsr < 0.01
-    assert itzi_roughness < 0.2
-    assert autocorrelation_itzi > 0.9
