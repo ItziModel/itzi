@@ -32,13 +32,16 @@ class DefaultValues():
     SLMAX = 0.1
     # Hydrology time step (s)
     DTINF = 60.
-    # maximum Froude number. Not used.
+    # maximum Froude number. Not used yet.
     FRMAX = 1.
     # coefficients taken from Rubinato et al. (2017)
     # http://doi.org/10.1016/j.jhydrol.2017.06.024
     ORIFICE_COEFF = 0.167
     FREE_WEIR_COEFF = 0.54
     SUBMERGED_WEIR_COEFF = 0.056
+    # coefficients for drainage coupling stability
+    RELAXATION_FACTOR = 0.8
+    DAMPING_FACTOR = 0.5
 
 
 class VerbosityLevel():

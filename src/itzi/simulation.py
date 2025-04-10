@@ -22,7 +22,8 @@ import pyswmm
 from itzi.surfaceflow import SurfaceFlowSimulation
 import itzi.rasterdomain as rasterdomain
 from itzi.massbalance import MassBal
-from itzi.drainage import DrainageSimulation, SwmmInputParser, DrainageNode, DrainageLink, LinkageTypes
+from itzi.drainage import DrainageSimulation, DrainageNode, DrainageLink, LinkageTypes
+from itzi import SwmmInputParser
 import itzi.messenger as msgr
 import itzi.infiltration as infiltration
 from itzi.hydrology import Hydrology
