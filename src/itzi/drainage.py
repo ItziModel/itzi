@@ -35,9 +35,7 @@ class DrainageSimulation():
     """manage simulation of the pipe network
     write results to RasterDomain object
     """
-    def __init__(self, raster_domain, pyswmm_sim, nodes_list, links_list):
-        # TODO: Remove dependency to RasterDomain
-        self.dom = raster_domain
+    def __init__(self, pyswmm_sim, nodes_list, links_list):
         # A list of tuple (DrainageNode, row, col)
         self.nodes = nodes_list
         # A list of DrainageLink objects
@@ -51,8 +49,6 @@ class DrainageSimulation():
         self.swmm_model.swmm_start()
         # allow ponding
         # TODO: check if allowing ponding is necessary
-
-        self.cell_surf = self.dom.cell_surf
         self._dt = 0.0
         self.elapsed_time = 0.0
 
@@ -84,22 +80,20 @@ class DrainageSimulation():
         self.elapsed_time = elapsed_seconds
         return self
 
-    def apply_linkage_to_nodes(self, dt2d):
+    def apply_linkage_to_nodes(self, arr_h, arr_z, arr_qd, cell_surf):
         """For each linked node,
         calculate the flow entering or leaving the drainage network
         Apply the flow to the node and to the relevant raster cell
+
+        TODO: move all raster operations off the drainage model
         """
-        # TODO: move all raster operations of the drainage model
-        arr_h = self.dom.get_array('h')
-        arr_z = self.dom.get_array('dem')
-        arr_qd = self.dom.get_array('n_drain')
         for node, row, col in self.nodes:
             if node.is_linked():
                 z = arr_z[row, col]
                 h = arr_h[row, col]
-                node.apply_linkage(z, h, self._dt, self.cell_surf)
+                node.apply_linkage(z, h, self._dt, cell_surf)
                 # apply flow to 2D model (m/s)
-                arr_qd[row, col] = node.linkage_flow / self.cell_surf
+                arr_qd[row, col] = node.linkage_flow / cell_surf
         return self
 
 

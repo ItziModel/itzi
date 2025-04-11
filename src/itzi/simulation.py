@@ -158,8 +158,7 @@ def create_simulation(sim_times, input_maps, output_maps, sim_param,
         # Create Link objects
         links_vertices_dict = swmm_inp.get_links_id_as_dict()
         links_list = get_links_list(pyswmm.Links(swmm_sim), links_vertices_dict, nodes_coors_dict)
-        drainage = DrainageSimulation(raster_domain,
-                                      swmm_sim,
+        drainage = DrainageSimulation(swmm_sim,
                                       nodes_list,
                                       links_list)
     else:
@@ -248,7 +247,10 @@ class Simulation():
         if self.sim_time == self.next_ts['drainage'] and self.drainage_model:
             # self.drainage.solve_dt()
             self.drainage_model.step()
-            self.drainage_model.apply_linkage_to_nodes(self.dt.total_seconds())
+            self.drainage_model.apply_linkage_to_nodes(self.raster_domain.get_array('h'),
+                                                       self.raster_domain.get_array('dem'),
+                                                       self.raster_domain.get_array('n_drain'),
+                                                       self.raster_domain.cell_surf)
             # update stat array
             self.raster_domain.populate_stat_array('n_drain', self.sim_time)
             # calculate when will happen the next time-step
