@@ -74,7 +74,7 @@ class InfGreenAmpt(Infiltration):
         Infiltration.__init__(self, raster_domain, dt_inf)
         # Initial cumulative infiltration set to tiny value
         # (prevent division by zero)
-        self.infiltration_amount = np.full(shape=self.dom.shape, fill_value=(1/1000),
+        self.infiltration_amount = np.full(shape=self.dom.shape, fill_value=(1e-4),
                                            dtype=self.dom.dtype)
 
     def step(self):
@@ -91,7 +91,7 @@ class InfGreenAmpt(Infiltration):
 
 
 class InfNull(Infiltration):
-    """Dummy class for cases where no inflitration is calculated
+    """Dummy class for cases where no infiltration is calculated
     """
     def step(self):
         """dummy time-step

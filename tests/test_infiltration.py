@@ -88,7 +88,7 @@ def infiltration_sim(infiltration_parameters):
     arr_cap_pressure = np.full(shape=array_shape,
                                fill_value=inf_params.cap_pressure)
     arr_water_content = np.full(shape=array_shape,
-                                ill_value=inf_params.init_wat_content)
+                                fill_value=inf_params.init_wat_content)
     raster_domain = RasterDomain(dtype=dtype, cell_shape=cell_shape,
                                  arr_mask=mask)
     raster_domain.update_array('h', arr_depth)

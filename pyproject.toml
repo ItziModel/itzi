@@ -43,6 +43,7 @@ dev = [
     "pandas==2.*",
     "requests==2.*",
     "pytest-benchmark==5.1.*",
+    "scipy>=1.15.2",
 ]
 
 [build-system]
