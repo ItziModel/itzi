@@ -6,6 +6,7 @@
 
 import math
 import numpy as np
+# import pyperf
 import pytest
 
 from itzi.rasterdomain import RasterDomain
@@ -24,14 +25,14 @@ def gen_eggbox(min_x, max_x, min_y, max_y, res, slope_x, slope_y,
     return ZX + ZY
 
 
-num_cells_params = [10_000, 1_000_000, 9_000_000]
+num_cells_params = [1_000, 1_000_000, 10_000_000]
 cell_size_params = [1, 2, 5, 10]
 
 
-@pytest.fixture(scope="class")
-def eggbox_simulation(grass_xy_session, num_cells=10_000, cell_size=5):
+def setup_eggbox_simulation(num_cells=10_000, cell_size=5):
     """Create the SurfaceFlow object
     """
+    starting_depth = 1.0
     coord_min = 0
     coord_max = int(math.sqrt(num_cells)) * cell_size
     # Generate the Egg box DEM
@@ -50,7 +51,7 @@ def eggbox_simulation(grass_xy_session, num_cells=10_000, cell_size=5):
     array_shape = egg_box.shape
     mask = np.full(shape=array_shape, fill_value=False, dtype=np.bool_)
     manning = np.full(shape=array_shape, fill_value=0.03, dtype=np.float32)
-    water_depth = np.full(shape=array_shape, fill_value=0.25, dtype=np.float32)
+    water_depth = np.full(shape=array_shape, fill_value=starting_depth, dtype=np.float32)
     sim_param = dict(dtmax=5, cfl=0.7, theta=0.9, hmin=0.005, vrouting=.1,
                         g=DefaultValues.G, slmax=DefaultValues.SLMAX)
     raster_domain = RasterDomain(dtype=np.float32, arr_mask=mask,
@@ -61,18 +62,21 @@ def eggbox_simulation(grass_xy_session, num_cells=10_000, cell_size=5):
     surface_flow = SurfaceFlowSimulation(raster_domain, sim_param)
     surface_flow.update_flow_dir()
     # Spin up the model
-    for i in range(10):
+    for i in range(5):
         surface_flow.solve_dt()
         surface_flow.step()
     return surface_flow
 
 
-# @pytest.fixture(scope="class")
 def benchmark_surface_flow(eggbox_simulation):
     for i in range(10):
         eggbox_simulation.solve_dt()
         eggbox_simulation.step()
 
-
-def test_benchmark_surface_flow(benchmark, eggbox_simulation):
-    benchmark(benchmark_surface_flow, eggbox_simulation)
+@pytest.mark.parametrize('num_cells', num_cells_params)
+@pytest.mark.parametrize('cell_size', cell_size_params)
+def test_benchmark(benchmark, num_cells, cell_size):
+    """Run the benchmark for a given number of cells and cell size
+    """
+    eggbox_sim = setup_eggbox_simulation(num_cells=num_cells, cell_size=cell_size)
+    benchmark(benchmark_surface_flow, eggbox_sim)
