@@ -16,7 +16,6 @@ from itzi import SimulationRunner
 def test_number_of_output(grass_5by5_sim):
     current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
     assert current_mapset == '5by5'
-    # map_list = gscript.list_grouped('raster', pattern='*out_5by5*')[current_mapset]
     h_map_list = gscript.list_grouped('raster', pattern='*out_5by5_h_*')[current_mapset]
     assert len(h_map_list) == 4
     wse_map_list = gscript.list_grouped('raster', pattern='*out_5by5_wse_*')[current_mapset]
@@ -41,8 +40,6 @@ def test_flow_symmetry(grass_5by5_sim):
     h_values = gscript.read_command('v.what.rast', map='control_points',
                                     flags='p', raster='out_5by5_h_0001')
     s_h = pd.read_csv(StringIO(h_values), sep='|', names=['h'], usecols=[1]).squeeze()
-    print(s_h)
-    print(np.isclose(s_h[:-1], s_h[1:]))
     assert np.all(np.isclose(s_h[:-1], s_h[1:]))
 
 
@@ -66,3 +63,5 @@ def test_region_mask(grass_5by5, test_data_path):
     assert int(gscript.parse_command('g.region', flags='pg')['cells']) == init_ncells
     assert int(gscript.parse_command('r.univar', map='z', flags='g')['null_cells']) == init_nulls
     return sim_runner
+
+# TODO: Add test for asymmetrical cells

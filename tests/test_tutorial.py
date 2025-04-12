@@ -150,8 +150,6 @@ class TestItziTutorial:
         # Check stability
         drainage_roughness = helpers.roughness(ts_drainage)
         drainage_autocorrelation = ts_drainage.autocorr(lag=1)
-        print(f"flow exchange roughness (better closer to zero) = {drainage_roughness}")
-        print(f"flow exchange autocorrelation (better closer to one) = {drainage_autocorrelation}")
         assert drainage_roughness < 3
         assert drainage_autocorrelation > 0.99
 

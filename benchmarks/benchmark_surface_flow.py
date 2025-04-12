@@ -6,7 +6,6 @@
 
 import math
 import numpy as np
-# import pyperf
 import pytest
 
 from itzi.rasterdomain import RasterDomain
