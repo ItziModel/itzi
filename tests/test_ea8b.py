@@ -16,9 +16,11 @@ from itzi import SimulationRunner
 
 
 @pytest.fixture(scope="class")
-def ea_test8b(grass_xy_session, ea_test_files):
+def ea_test8b(grass_xy_session, ea_test_files, test_data_temp_path):
     """Create the GRASS env for ea test 8a.
     """
+    # Keep all generated files in the test_data_temp_path
+    os.chdir(test_data_temp_path)
     # Unzip the file
     file_path = os.path.join(ea_test_files, 'Test8B_dataset_2010.zip')
     with zipfile.ZipFile(file_path, 'r') as zip_ref:
@@ -81,9 +83,11 @@ def ea_test8b_reference(test_data_path):
 
 
 @pytest.fixture(scope="class")
-def ea_test8b_sim(ea_test8b, test_data_path):
+def ea_test8b_sim(ea_test8b, test_data_path, test_data_temp_path):
     """
     """
+    # Keep all generated files in the test_data_temp_path
+    os.chdir(test_data_temp_path)
     current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
     assert current_mapset == 'ea8b'
     inp_file = os.path.join(test_data_path, 'EA_test_8', 'b',
@@ -95,8 +99,7 @@ def ea_test8b_sim(ea_test8b, test_data_path):
                    'drainage': {'swmm_inp': inp_file, 'orifice_coeff': 1, 'output': 'out_drainage'}}
     parser = ConfigParser()
     parser.read_dict(config_dict)
-    conf_file = os.path.join(test_data_path, 'EA_test_8', 'b',
-                            'ea2dt8b.ini')
+    conf_file = os.path.join(test_data_temp_path, 'ea2dt8b.ini')
     with open(conf_file, 'w') as f:
         parser.write(f)
     sim_runner = SimulationRunner()

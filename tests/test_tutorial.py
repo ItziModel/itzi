@@ -20,11 +20,11 @@ DATA_EPSG = "3358"
 
 
 @pytest.fixture(scope="session")
-def tutorial_test_file(test_data_path, helpers):
+def tutorial_test_file(test_data_temp_path, helpers):
     """Download the tutorial main file.
     """
     file_name = 'elev_lid792_1m.gtiff'
-    file_path = os.path.join(test_data_path, 'tutorial_files', file_name)
+    file_path = os.path.join(test_data_temp_path, file_name)
     # Check if the file exists and has the right hash
     try:
         assert helpers.md5(file_path) == MD5_SUM
@@ -43,9 +43,11 @@ def tutorial_test_file(test_data_path, helpers):
 
 
 @pytest.fixture(scope="class")
-def grass_tutorial_session():
+def grass_tutorial_session(test_data_temp_path):
     """Create a GRASS session in a new location and PERMANENT mapset
     """
+    # Keep all generated files in the test_data_temp_path
+    os.chdir(test_data_temp_path)
     tmpdir = tempfile.TemporaryDirectory()
     gscript.create_project(tmpdir.name,
                            name='itzi_tutorial',
@@ -111,11 +113,11 @@ class TestItziTutorial:
         assert float(h_max_univar['max']) == pytest.approx(2.298454, abs=1e-2)
         assert float(h_max_univar['mean_of_abs']) == pytest.approx(0.041, abs=1e-3)
 
-    def test_tutorial_drainage(itzi_tutorial, test_data_path, helpers):
+    def test_tutorial_drainage(itzi_tutorial, test_data_path, test_data_temp_path, helpers):
         """Run the tutorial simulation with drainage.
         """
         # Set the config file dynamically to make sure it can find the INP file
-        inp_file = os.path.join(test_data_path, 'tutorial_files', 'tutorial_drainage.inp')
+        inp_file = os.path.join(test_data_temp_path, 'tutorial_files', 'tutorial_drainage.inp')
         config_dict = {'time': {'duration': '00:30:00', 'record_step': '00:00:30'},
                     'input': {'dem': 'elev_lid792_5m', 'friction': 'n','rain': 'rain',
                               'bctype': 'bctype', 'bcvalue': 'bcvalue'},
@@ -125,7 +127,7 @@ class TestItziTutorial:
                     'drainage': {'swmm_inp': inp_file, 'output': 'nc_itzi_tutorial_drainage'}}
         parser = ConfigParser()
         parser.read_dict(config_dict)
-        config_file = os.path.join(test_data_path, 'tutorial_files', 'tutorial_drainage.ini')
+        config_file = os.path.join(test_data_temp_path, 'tutorial_drainage.ini')
         with open(config_file, 'w') as f:
             parser.write(f)
 

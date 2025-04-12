@@ -94,16 +94,26 @@ def auto_profile(request):
 
 @pytest.fixture(scope="session")
 def test_data_path():
+    """Path to the permanent test data directory.
+    """
     dir_path = os.path.dirname(os.path.realpath(__file__))
     return os.path.join(dir_path, 'test_data')
 
 
 @pytest.fixture(scope="session")
-def ea_test_files(test_data_path):
+def test_data_temp_path():
+    """Directory where generated test data resides.
+    """
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    return os.path.join(dir_path, 'test_data_temp')
+
+
+@pytest.fixture(scope="session")
+def ea_test_files(test_data_temp_path):
     """Download and extract the EA tests main file.
     """
     file_name = 'benchmarking_model_data.zip'
-    file_path = os.path.join(test_data_path, file_name)
+    file_path = os.path.join(test_data_temp_path, file_name)
     # Check if the file exists and has the right hash
     try:
         assert helpers.sha256(file_path) == DATA_SHA256
@@ -115,16 +125,18 @@ def ea_test_files(test_data_path):
             data_file.write(response.content)
 
     # Unzip the main file
-    unzip_path = os.path.join(test_data_path, 'ea_test_files')
+    unzip_path = os.path.join(test_data_temp_path, 'ea_test_files')
     with zipfile.ZipFile(file_path, 'r') as zip_ref:
         zip_ref.extractall(unzip_path)
     return unzip_path
 
 
 @pytest.fixture(scope="session")
-def grass_xy_session():
+def grass_xy_session(test_data_temp_path):
     """Create a GRASS session in a new XY location and PERMANENT mapset
     """
+    # Keep all generated files in the test_data_temp_path
+    os.chdir(test_data_temp_path)
     tmpdir = tempfile.TemporaryDirectory(prefix='tests_itzi_')
     gscript.set_raise_on_error(True)
     # create a new location
@@ -197,8 +209,6 @@ def grass_5by5(grass_xy_session, test_data_path):
 def grass_5by5_sim(grass_5by5, test_data_path):
     """
     """
-    current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
-    assert current_mapset == '5by5'
     config_file = os.path.join(test_data_path, '5by5', '5by5.ini')
     sim_runner = SimulationRunner()
     assert isinstance(sim_runner, SimulationRunner)
