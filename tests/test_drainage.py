@@ -29,7 +29,7 @@ def drainage_sim_results(grass_xy_session, test_data_path):
     gscript.mapcalc('dem=100')
     gscript.mapcalc('friction=0.03')
     # boundary conditions
-    boundary_conditions = os.path.join(test_data_path, 'test_drainage.asc')
+    boundary_conditions = os.path.join(test_data_path, 'test_drainage_bc.asc')
     gscript.run_command('v.in.ascii', input=boundary_conditions, output='boundary_conditions')
     gscript.run_command('v.to.rast', input='boundary_conditions', type='point',
                         output='bctype', use='val', value=4)

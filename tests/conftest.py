@@ -71,6 +71,14 @@ class Helpers:
                 hash_sha256.update(chunk)
         return hash_sha256.hexdigest()
 
+    @staticmethod
+    def md5(file_path):
+        hash_md5 = hashlib.md5()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_md5.update(chunk)
+        return hash_md5.hexdigest()
+
 
 @pytest.fixture(scope="session")
 def helpers():
@@ -105,7 +113,10 @@ def test_data_temp_path():
     """Directory where generated test data resides.
     """
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    return os.path.join(dir_path, 'test_data_temp')
+    temp_path = os.path.join(dir_path, 'test_data_temp')
+    if not os.path.exists(temp_path):
+        os.makedirs(temp_path)
+    return temp_path
 
 
 @pytest.fixture(scope="session")
