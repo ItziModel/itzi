@@ -12,7 +12,7 @@ dependencies = [
     "bmipy>=2.0.1",
 ]
 requires-python = ">=3.11"
-readme = "README.md"
+readme = "README.rst"
 license = {text = "GPL-2.0-or-later"}
 keywords = ["science", "engineering", "hydrology", "flood"]
 classifiers = [
