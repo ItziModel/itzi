@@ -117,7 +117,7 @@ class TestItziTutorial:
         """Run the tutorial simulation with drainage.
         """
         # Set the config file dynamically to make sure it can find the INP file
-        inp_file = os.path.join(test_data_temp_path, 'tutorial_files', 'tutorial_drainage.inp')
+        inp_file = os.path.join(test_data_path, 'tutorial_files', 'tutorial_drainage.inp')
         config_dict = {'time': {'duration': '00:30:00', 'record_step': '00:00:30'},
                     'input': {'dem': 'elev_lid792_5m', 'friction': 'n','rain': 'rain',
                               'bctype': 'bctype', 'bcvalue': 'bcvalue'},
