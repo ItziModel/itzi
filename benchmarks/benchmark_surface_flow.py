@@ -24,7 +24,7 @@ def gen_eggbox(min_x, max_x, min_y, max_y, res, slope_x, slope_y,
     return ZX + ZY
 
 
-num_cells_params = [1_000, 1_000_000, 10_000_000]
+num_cells_params = [10_000, 100_000, 1_000_000, 10_000_000]
 cell_size_params = [1, 2, 5, 10]
 
 
