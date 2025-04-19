@@ -13,9 +13,8 @@ copt =  {'msvc': ['/openmp', '/Ox'],
          'unix' : ['-O3', '-w', '-fopenmp']
          }
 lopt =  {'mingw32' : ['-lgomp', '-lpthread'],
-         'unix' : ['-lgomp']
+         'unix' : ['-lgomp', '-fopenmp']
          }
-
 
 class build_ext_compiler_check(build_ext):
     def build_extensions(self):
