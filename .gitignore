@@ -5,6 +5,7 @@
 *.rpt
 .~*
 .pdm-python
+.python-version
 .profiles/
 pdm.lock
 build/
