@@ -15,6 +15,7 @@ GNU General Public License for more details.
 
 import math
 from datetime import timedelta
+from enum import StrEnum
 
 import pyswmm
 import numpy as np
@@ -23,18 +24,16 @@ from itzi import DefaultValues
 from itzi import messenger as msgr
 
 
-class LinkageTypes:
-    NOT_LINKED = 0
-    LINKED_NO_FLOW = 1
-    FREE_WEIR = 2
-    SUBMERGED_WEIR = 3
-    ORIFICE = 4
+class LinkageTypes(StrEnum):
+    NOT_LINKED = "not linked"
+    LINKED_NO_FLOW = "linked, no flow"
+    FREE_WEIR = "free weir"
+    SUBMERGED_WEIR = "submerged weir"
+    ORIFICE = "orifice"
 
 
 class DrainageSimulation:
-    """manage simulation of the pipe network
-    write results to RasterDomain object
-    """
+    """manage simulation of the pipe network"""
 
     def __init__(self, pyswmm_sim, nodes_list, links_list):
         # A list of tuple (DrainageNode, row, col)
@@ -161,21 +160,6 @@ class DrainageNode(object):
         """Return the crest elevation of the node."""
         return self.pyswmm_node.invert_elevation + self.pyswmm_node.full_depth
 
-    def get_linkage_type_as_str(self):
-        """return the linkage type as a string"""
-        if self.linkage_type == LinkageTypes.LINKED_NO_FLOW:
-            return "linked, no flow"
-        elif self.linkage_type == LinkageTypes.FREE_WEIR:
-            return "free weir"
-        elif self.linkage_type == LinkageTypes.SUBMERGED_WEIR:
-            return "submerged weir"
-        elif self.linkage_type == LinkageTypes.ORIFICE:
-            return "orifice"
-        elif self.linkage_type == LinkageTypes.NOT_LINKED:
-            return "not linked"
-        else:
-            raise ValueError(f"Unknown linkage type for node {self.node_id}")
-
     def is_linked(self):
         """return True if the node is linked to the 2D domain"""
         return self.linkage_type != LinkageTypes.NOT_LINKED
@@ -187,7 +171,7 @@ class DrainageNode(object):
         attrs = [
             self.node_id,
             self.node_type,
-            self.get_linkage_type_as_str(),
+            self.linkage_type.value,
             self.linkage_flow,
             self.pyswmm_node.total_inflow,
             self.pyswmm_node.total_outflow,
