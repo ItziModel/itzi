@@ -9,10 +9,13 @@ and that you possess a basic knowledge of GRASS.
 Get ready
 ---------
 
-Here we will use the GRASS `North Carolina dataset <https://grass.osgeo.org/download/sample-data/>`__.
-Please download the GRASS 7 version and extract it in your *grassdata* directory.
-
+Here we will use the GRASS `North Carolina dataset <https://grass.osgeo.org/download/data/#NorthCarolinaDataset>`__.
+Please download the full dataset and extract it in your *grassdata* directory.
 Then start GRASS in the PERMANENT mapset.
+
+Alternatively, you can create a new project using the EPSG:3358 projection,
+download only the lidar elevation data from `Zenodo <https://zenodo.org/records/15009114>`__,
+and import it using *r.in.gdal*.
 
 Surface modelling
 -----------------

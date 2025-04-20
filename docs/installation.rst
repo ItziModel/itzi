@@ -11,69 +11,30 @@ You can browse and download the source code on `bitbucket <https://bitbucket.org
 Installation on GNU/Linux
 -------------------------
 
-Itzï depends on `GRASS GIS 7.8 or above <https://grass.osgeo.org/download/>`__ and `NumPy <http://www.numpy.org/>`__.
+Itzï depends on `GRASS GIS 8.4 or above <https://grass.osgeo.org/download/>`__.
 GRASS should therefore be installed in order to use Itzï.
-NumPy is normally installed along GRASS.
 All other dependencies are installed by pip.
 
-To install Itzï, you'll need to have the Python installation software *pip* installed.
-On Ubuntu, the package is called *python-pip* and is installed as follow::
+To install Itzï, you'll need to have the Python installation software `uv <https://docs.astral.sh/uv>`__ installed.
+Install it by following the instructions on the `uv website <https://docs.astral.sh/uv>`__.
 
-    sudo apt-get install python-pip
+Once you have *uv* installed, you can run Itzï using *uvx*.
 
-Installation for a single user
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    uvx itzi
 
-This is useful when you do not have root access on the computer.
-
-To download and install the last version of Itzï using pip::
-
-    pip install itzi --user
-
-
-If Itzï is already installed and you want to update it to the last version::
-
-    pip install itzi --user --upgrade
-
-
-If you prefer to download and install Itzï manually, you can do it that way::
-
-    tar -xvf itzi-20.5.tar.gz
-    cd itzi-20.5
-    python setup.py install --user
-
-.. note :: For a reason not related to Itzï, pip does not always place the Itzï executable in an accessible place.
-    If calling *itzi* returns a *command not found* error, you need to add the installation directory (usually *~/.local/bin*) to your PATH.
-
-Installation for all users
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This requires root access.
-The steps are the same as above, with the addition of the use of sudo::
-
-    sudo pip install itzi
-
+This will automatically install itzi in its own environment and run it.
 
 Installation on Windows
 -------------------------
 
-Itzï can be run on Windows 10 using the Windows Subsystem for Linux (WSL).
-For that, you'll need at least Windows 10 64bits Creators Update.
-
-To install WSL, follow the steps given by `Microsoft <https://docs.microsoft.com/en-gb/windows/wsl/install-win10>`__.
-
-You can then install the prerequisites::
-
-    sudo apt-get update
-    sudo apt-get install grass-dev grass-core python-pip
-
-Once everything is installed, the installation steps are the same as GNU/Linux.
+Itzï should be able to run on Windows using the Windows Subsystem for Linux (WSL).
+To install WSL, follow the steps given by `Microsoft <https://learn.microsoft.com/en-gb/windows/wsl/install>`__.
+Once a GNU/Linux distribution is installed, the installation steps for itzi are the same as above.
 
 Verification of the installation
 --------------------------------
 
 To check if everything went fine::
 
-    itzi version
-    itzi run -h
-
+    uvx itzi version
+    uvx itzi run -h

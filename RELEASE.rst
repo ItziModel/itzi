@@ -6,6 +6,33 @@ Release Notes
 These are the major changes made in each release.
 For more details please see the commit log of the git repository.
 
+Itzï 25.4
+---------
+
+*Release date: 2025-04-XX*
+
+This version implements the `Basic Model Interface <https://csdms.colorado.edu/wiki/BMI>`__,
+which allows to couple itzi with other models.
+This version requires GRASS 8.4 or above.
+
+**Improvements**
+
+- Add compatibility with the `Basic Model Interface <https://csdms.colorado.edu/wiki/BMI>`__
+
+**Corrected bugs**
+
+- Fix the calculation of the Green-Ampt infiltration rate.
+
+**Internals**
+
+- This version now relies on pyswmm for the drainage coupling, instead of embedding the swmm codebase.
+- The code is now tested with Python 3.11 and above
+- Better code organization and refactoring
+- Remove the dependency on grass-session, as allowed by grass 8.4
+- More tests and better test coverage
+- Add benchmark tests for the surface flow simulation
+- All units for infiltration are now m/s instead of mm/h, preventing conversions errors
+
 Itzï 20.5
 ---------
 
