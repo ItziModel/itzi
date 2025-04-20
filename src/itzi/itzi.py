@@ -30,6 +30,7 @@ import os
 import time
 import traceback
 import subprocess
+from importlib.metadata import version
 from multiprocessing import Process
 from datetime import datetime, timedelta
 
@@ -44,7 +45,6 @@ from itzi import parser
 
 
 def main():
-    print(sys.path)
     # default functions for subparsers
     parser.run_parser.set_defaults(func=itzi_run)
     parser.version_parser.set_defaults(func=itzi_version)
@@ -306,11 +306,8 @@ def itzi_run(cli_args):
 
 
 def itzi_version(cli_args):
-    """Display the software version number from a file"""
-    root = os.path.dirname(__file__)
-    f_version = os.path.join(root, "data", "VERSION")
-    with open(f_version, "r") as f:
-        print(f.readline().strip())
+    """Display the software version number from the installed version"""
+    print(version("itzi"))
 
 
 if __name__ == "__main__":
