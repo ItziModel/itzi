@@ -19,9 +19,9 @@ import itzi.flow as flow
 from itzi.itzi_error import DtError
 
 
-class Hydrology():
-    """
-    """
+class Hydrology:
+    """ """
+
     def __init__(self, raster_domain, dt, infiltration):
         self.dom = raster_domain
         self.def_dt = dt
@@ -29,8 +29,7 @@ class Hydrology():
         self.infiltration = infiltration
 
     def solve_dt(self):
-        """time-step is by default equal to the default time-step
-        """
+        """time-step is by default equal to the default time-step"""
         self._dt = self.def_dt
         self.infiltration.solve_dt()
         return self
@@ -41,8 +40,7 @@ class Hydrology():
 
     @dt.setter
     def dt(self, newdt):
-        """return an error if new dt is higher than current one
-        """
+        """return an error if new dt is higher than current one"""
         newdt_s = newdt.total_seconds()
         fudge = timedelta.resolution.total_seconds()
         if newdt_s > self._dt + fudge:
@@ -52,8 +50,7 @@ class Hydrology():
             self.infiltration.dt = newdt_s
 
     def step(self):
-        """Run hydrologic models and update the water depth map
-        """
+        """Run hydrologic models and update the water depth map"""
         # calculate flows
         self.infiltration.step()
         self.cap_losses()
@@ -64,20 +61,24 @@ class Hydrology():
         """Cap losses to water depth on the cell.
         Input and output are considered to be in mm/h
         """
-        flow.inf_user(arr_h=self.dom.get_array('h'),
-                      arr_inf_in=self.dom.get_array('losses'),
-                      arr_inf_out=self.dom.get_array('capped_losses'),
-                      dt=self._dt)
+        flow.inf_user(
+            arr_h=self.dom.get_array("h"),
+            arr_inf_in=self.dom.get_array("losses"),
+            arr_inf_out=self.dom.get_array("capped_losses"),
+            dt=self._dt,
+        )
 
     def apply_hydrology(self):
         """Update water depth (h) by adding/removing volume from:
         rainfall, infiltration, evapotranspiration and lump-sum drainage.
         """
-        flow.apply_hydrology(arr_rain=self.dom.get_array('rain'),
-                             arr_inf=self.dom.get_array('inf'),
-                             arr_etp=self.dom.get_array('etp'),
-                             arr_capped_losses=self.dom.get_array('capped_losses'),
-                             arr_h=self.dom.get_array('h'),
-                             arr_eff_precip=self.dom.get_array('eff_precip'),
-                             dt=self._dt)
+        flow.apply_hydrology(
+            arr_rain=self.dom.get_array("rain"),
+            arr_inf=self.dom.get_array("inf"),
+            arr_etp=self.dom.get_array("etp"),
+            arr_capped_losses=self.dom.get_array("capped_losses"),
+            arr_h=self.dom.get_array("h"),
+            arr_eff_precip=self.dom.get_array("eff_precip"),
+            dt=self._dt,
+        )
         return self

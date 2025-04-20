@@ -29,23 +29,21 @@ raise_on_error = False
 
 
 def verbosity():
-    """Return the current verbosity as integer
-    """
+    """Return the current verbosity as integer"""
     try:
-        return int(os.environ.get('ITZI_VERBOSE'))
+        return int(os.environ.get("ITZI_VERBOSE"))
     except TypeError:
         return VerbosityLevel.QUIET
 
 
 def percent(start_time, end_time, sim_time, sim_start_time):
-    """Display progress of the simulation
-    """
+    """Display progress of the simulation"""
     sim_time_s = (sim_time - start_time).total_seconds()
-    duration_s = (end_time-start_time).total_seconds()
+    duration_s = (end_time - start_time).total_seconds()
     advance_perc = sim_time_s / duration_s
 
     if verbosity() == VerbosityLevel.QUIET:
-        print(u"{:.1%}".format(advance_perc), file=OUTPUT, end='\r')
+        print("{:.1%}".format(advance_perc), file=OUTPUT, end="\r")
 
     elif verbosity() >= VerbosityLevel.MESSAGE:
         elapsed_s = (datetime.now() - sim_start_time).total_seconds()
@@ -55,43 +53,42 @@ def percent(start_time, end_time, sim_time, sim_start_time):
             rate = 0
         remaining = (end_time - sim_time).total_seconds()
         eta = timedelta(seconds=int(remaining * rate))
-        txt = u"Time: {sim} Advance: {perc:.1%} ETA: {eta}{pad}"
-        disp = txt.format(sim=sim_time.isoformat(" ").split(".")[0],
-                          perc=advance_perc, eta=eta, pad=" " * 10)
-        print(disp, file=OUTPUT, end='\r')
+        txt = "Time: {sim} Advance: {perc:.1%} ETA: {eta}{pad}"
+        disp = txt.format(
+            sim=sim_time.isoformat(" ").split(".")[0],
+            perc=advance_perc,
+            eta=eta,
+            pad=" " * 10,
+        )
+        print(disp, file=OUTPUT, end="\r")
 
 
 def message(msg):
-    """Display a normal message
-    """
+    """Display a normal message"""
     if verbosity() >= VerbosityLevel.MESSAGE:
         print(msg + PAD, file=OUTPUT)
 
 
 def verbose(msg):
-    """Display a verbose message
-    """
+    """Display a verbose message"""
     if verbosity() >= VerbosityLevel.VERBOSE:
         print(msg + PAD, file=OUTPUT)
 
 
 def debug(msg):
-    """Display a debug message
-    """
+    """Display a debug message"""
     if verbosity() >= VerbosityLevel.DEBUG:
         print(msg + PAD, file=OUTPUT)
 
 
 def warning(msg):
-    """Display a warning message
-    """
+    """Display a warning message"""
     if verbosity() >= VerbosityLevel.SUPER_QUIET:
         print(WARNING + msg + PAD, file=OUTPUT)
 
 
 def fatal(msg):
-    """Display a fatal error and (exit or raise)
-    """
+    """Display a fatal error and (exit or raise)"""
     if raise_on_error:
         raise ItziFatal(msg)
     else:

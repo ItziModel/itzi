@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-"""
+""" """
+
 import os
 
 import pytest
@@ -14,17 +14,16 @@ from itzi import BmiItzi
 @pytest.fixture(scope="class")
 def bmi_object(grass_5by5, test_data_path):
     itzi_bmi = BmiItzi()
-    conf_file = os.path.join(test_data_path, '5by5', '5by5.ini')
+    conf_file = os.path.join(test_data_path, "5by5", "5by5.ini")
     itzi_bmi.initialize(conf_file)
     return itzi_bmi
 
 
 class TestBmi:
-
     # Model control functions #
     def test_initialize(self, bmi_object):
-        assert hasattr(bmi_object, 'itzi')
-        assert hasattr(bmi_object.itzi, 'initialize')
+        assert hasattr(bmi_object, "itzi")
+        assert hasattr(bmi_object.itzi, "initialize")
 
     def test_update(self, bmi_object):
         old_time = bmi_object.get_current_time()
@@ -66,7 +65,7 @@ class TestBmi:
 
     # Time functions #
     def test_time_unit(self, bmi_object):
-        assert bmi_object.get_time_units() == 's'
+        assert bmi_object.get_time_units() == "s"
 
     def test_time_step(self, bmi_object):
         dt = bmi_object.get_time_step()
@@ -87,7 +86,7 @@ class TestBmi:
 
     def test_get_var_units(self, bmi_object):
         var_unit = bmi_object.get_var_units("land_surface__elevation")
-        assert var_unit == 'm'
+        assert var_unit == "m"
 
     def test_get_var_nbytes(self, bmi_object):
         var_name = "land_surface__elevation"
@@ -103,7 +102,7 @@ class TestBmi:
 
     def test_get_var_location(self, bmi_object):
         loc = bmi_object.get_var_location("land_surface__elevation")
-        assert loc == 'face'
+        assert loc == "face"
 
     def test_get_var_grid(self, bmi_object):
         grid_id = bmi_object.get_var_grid("land_surface__elevation")
@@ -112,12 +111,12 @@ class TestBmi:
     # Values getting and setting functions #
     def test_get_value_ptr(self, bmi_object):
         value_ptr = bmi_object.get_value_ptr("land_surface__elevation")
-        ref_value = bmi_object.itzi.sim.get_array('dem')
+        ref_value = bmi_object.itzi.sim.get_array("dem")
         assert np.all(value_ptr == ref_value)
 
     def test_get_value(self, bmi_object):
         value = bmi_object.get_value("land_surface__elevation")
-        ref_value = bmi_object.itzi.sim.get_array('dem')
+        ref_value = bmi_object.itzi.sim.get_array("dem")
         assert np.all(value == ref_value)
 
     def test_get_value_at_indices(self, bmi_object):

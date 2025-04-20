@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-"""
+""" """
 
 import math
 import numpy as np
@@ -13,14 +12,29 @@ from itzi.const import DefaultValues
 from itzi.surfaceflow import SurfaceFlowSimulation
 
 
-def gen_eggbox(min_x, max_x, min_y, max_y, res, slope_x, slope_y,
-               vshift, phase_shift, amplitude, period):
-    """Return an eggbox 2D surface as a numpy array
-    """
-    X, Y = np.meshgrid(np.arange(min_x, max_x, res),
-                       np.arange(min_y, max_y, res))
-    ZX = vshift + slope_x*X + (amplitude/2) * np.sin(2*math.pi * (X-phase_shift) / period)
-    ZY = slope_y*Y + (amplitude/2) * np.sin(2*math.pi * (Y-phase_shift) / period)
+def gen_eggbox(
+    min_x,
+    max_x,
+    min_y,
+    max_y,
+    res,
+    slope_x,
+    slope_y,
+    vshift,
+    phase_shift,
+    amplitude,
+    period,
+):
+    """Return an eggbox 2D surface as a numpy array"""
+    X, Y = np.meshgrid(np.arange(min_x, max_x, res), np.arange(min_y, max_y, res))
+    ZX = (
+        vshift
+        + slope_x * X
+        + (amplitude / 2) * np.sin(2 * math.pi * (X - phase_shift) / period)
+    )
+    ZY = slope_y * Y + (amplitude / 2) * np.sin(
+        2 * math.pi * (Y - phase_shift) / period
+    )
     return ZX + ZY
 
 
@@ -29,8 +43,7 @@ cell_size_params = [1, 2, 5, 10]
 
 
 def setup_eggbox_simulation(num_cells=10_000, cell_size=5):
-    """Create the SurfaceFlow object
-    """
+    """Create the SurfaceFlow object"""
     starting_depth = 1.0
     coord_min = 0
     coord_max = int(math.sqrt(num_cells)) * cell_size
@@ -41,23 +54,41 @@ def setup_eggbox_simulation(num_cells=10_000, cell_size=5):
     slope_y = 0.002
     period = coord_max / n_peaks
     phase_shift = period / 4
-    egg_box = gen_eggbox(min_x=coord_min, max_x=coord_max,
-                            min_y=coord_min, max_y=coord_max,
-                            res=cell_size, slope_x=slope_x, slope_y=slope_y,
-                            vshift=amplitude, phase_shift=phase_shift,
-                            amplitude=amplitude, period=period)
+    egg_box = gen_eggbox(
+        min_x=coord_min,
+        max_x=coord_max,
+        min_y=coord_min,
+        max_y=coord_max,
+        res=cell_size,
+        slope_x=slope_x,
+        slope_y=slope_y,
+        vshift=amplitude,
+        phase_shift=phase_shift,
+        amplitude=amplitude,
+        period=period,
+    )
     # Domain cover all the array
     array_shape = egg_box.shape
     mask = np.full(shape=array_shape, fill_value=False, dtype=np.bool_)
     manning = np.full(shape=array_shape, fill_value=0.03, dtype=np.float32)
-    water_depth = np.full(shape=array_shape, fill_value=starting_depth, dtype=np.float32)
-    sim_param = dict(dtmax=5, cfl=0.7, theta=0.9, hmin=0.005, vrouting=.1,
-                        g=DefaultValues.G, slmax=DefaultValues.SLMAX)
-    raster_domain = RasterDomain(dtype=np.float32, arr_mask=mask,
-                                 cell_shape=(cell_size, cell_size))
-    raster_domain.update_array('dem', egg_box)
-    raster_domain.update_array('friction', manning)
-    raster_domain.update_array('h', water_depth)
+    water_depth = np.full(
+        shape=array_shape, fill_value=starting_depth, dtype=np.float32
+    )
+    sim_param = dict(
+        dtmax=5,
+        cfl=0.7,
+        theta=0.9,
+        hmin=0.005,
+        vrouting=0.1,
+        g=DefaultValues.G,
+        slmax=DefaultValues.SLMAX,
+    )
+    raster_domain = RasterDomain(
+        dtype=np.float32, arr_mask=mask, cell_shape=(cell_size, cell_size)
+    )
+    raster_domain.update_array("dem", egg_box)
+    raster_domain.update_array("friction", manning)
+    raster_domain.update_array("h", water_depth)
     surface_flow = SurfaceFlowSimulation(raster_domain, sim_param)
     surface_flow.update_flow_dir()
     # Spin up the model
@@ -72,10 +103,10 @@ def benchmark_surface_flow(eggbox_simulation):
         eggbox_simulation.solve_dt()
         eggbox_simulation.step()
 
-@pytest.mark.parametrize('num_cells', num_cells_params)
-@pytest.mark.parametrize('cell_size', cell_size_params)
+
+@pytest.mark.parametrize("num_cells", num_cells_params)
+@pytest.mark.parametrize("cell_size", cell_size_params)
 def test_benchmark(benchmark, num_cells, cell_size):
-    """Run the benchmark for a given number of cells and cell size
-    """
+    """Run the benchmark for a given number of cells and cell size"""
     eggbox_sim = setup_eggbox_simulation(num_cells=num_cells, cell_size=cell_size)
     benchmark(benchmark_surface_flow, eggbox_sim)

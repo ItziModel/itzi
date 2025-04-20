@@ -17,90 +17,103 @@ from itzi import SimulationRunner
 
 @pytest.fixture(scope="class")
 def ea_test8b(grass_xy_session, ea_test_files, test_data_temp_path):
-    """Create the GRASS env for ea test 8a.
-    """
+    """Create the GRASS env for ea test 8a."""
     # Keep all generated files in the test_data_temp_path
     os.chdir(test_data_temp_path)
     # Unzip the file
-    file_path = os.path.join(ea_test_files, 'Test8B_dataset_2010.zip')
-    with zipfile.ZipFile(file_path, 'r') as zip_ref:
+    file_path = os.path.join(ea_test_files, "Test8B_dataset_2010.zip")
+    with zipfile.ZipFile(file_path, "r") as zip_ref:
         zip_ref.extractall(ea_test_files)
-    unzip_path = os.path.join(ea_test_files, 'Test8B dataset 2010')
+    unzip_path = os.path.join(ea_test_files, "Test8B dataset 2010")
     # Create new mapset
-    mapset_name = 'ea8b'
-    gscript.run_command('g.mapset', mapset=mapset_name, flags='c')
+    mapset_name = "ea8b"
+    gscript.run_command("g.mapset", mapset=mapset_name, flags="c")
     # Define the region
-    region = gscript.parse_command('g.region', res=2,
-                                   s=664408, w=263976,
-                                   e=264940, n=664808, flags='g')
-    assert int(region['rows']) == 200
-    assert int(region['cols']) == 482
+    region = gscript.parse_command(
+        "g.region", res=2, s=664408, w=263976, e=264940, n=664808, flags="g"
+    )
+    assert int(region["rows"]) == 200
+    assert int(region["cols"]) == 482
     # DEM
-    dem_path = os.path.join(unzip_path, 'Test8DEM.asc')
-    gscript.run_command('r.in.gdal', input=dem_path, output='dem50cm')
-    gscript.run_command('r.resamp.stats', input='dem50cm', output='dem2m')
-    univar_dem = gscript.parse_command('r.univar', map='dem2m', flags='g')
-    assert int(univar_dem['null_cells']) == 0
+    dem_path = os.path.join(unzip_path, "Test8DEM.asc")
+    gscript.run_command("r.in.gdal", input=dem_path, output="dem50cm")
+    gscript.run_command("r.resamp.stats", input="dem50cm", output="dem2m")
+    univar_dem = gscript.parse_command("r.univar", map="dem2m", flags="g")
+    assert int(univar_dem["null_cells"]) == 0
     # Buildings
-    buildings_path = os.path.join(unzip_path, 'Test8Buildings.asc')
-    gscript.run_command('r.in.gdal', input=buildings_path, output='buildings')
-    gscript.mapcalc('dem2m_buildings=if(isnull(buildings), dem2m, dem2m+5)')
+    buildings_path = os.path.join(unzip_path, "Test8Buildings.asc")
+    gscript.run_command("r.in.gdal", input=buildings_path, output="buildings")
+    gscript.mapcalc("dem2m_buildings=if(isnull(buildings), dem2m, dem2m+5)")
     # Manning
-    road_path = os.path.join(unzip_path, 'Test8RoadPavement.asc')
-    gscript.run_command('r.in.gdal', input=road_path, output='road50cm')
-    gscript.mapcalc('n=if(isnull(road50cm), 0.05, 0.02)')
-    univar_n = gscript.parse_command('r.univar', map='n', flags='g')
-    assert float(univar_n['min']) == 0.02
-    assert float(univar_n['max']) == 0.05
-    assert int(univar_n['null_cells']) == 0
+    road_path = os.path.join(unzip_path, "Test8RoadPavement.asc")
+    gscript.run_command("r.in.gdal", input=road_path, output="road50cm")
+    gscript.mapcalc("n=if(isnull(road50cm), 0.05, 0.02)")
+    univar_n = gscript.parse_command("r.univar", map="n", flags="g")
+    assert float(univar_n["min"]) == 0.02
+    assert float(univar_n["max"]) == 0.05
+    assert int(univar_n["null_cells"]) == 0
     # Output points #
-    stages_path = os.path.join(unzip_path, 'Test8Output.csv')
-    gscript.run_command('v.in.ascii', input=stages_path, output='output_points',
-                        format='point', sep='comma', skip=1, cat=1, x=2, y=3)
+    stages_path = os.path.join(unzip_path, "Test8Output.csv")
+    gscript.run_command(
+        "v.in.ascii",
+        input=stages_path,
+        output="output_points",
+        format="point",
+        sep="comma",
+        skip=1,
+        cat=1,
+        x=2,
+        y=3,
+    )
     # Manhole location
-    gscript.write_command('v.in.ascii', input='-',
-                          stdin='264895|664747',
-                          output='manhole_location')
+    gscript.write_command(
+        "v.in.ascii", input="-", stdin="264895|664747", output="manhole_location"
+    )
     return None
 
 
 @pytest.fixture(scope="session")
 def ea_test8b_reference(test_data_path):
-    """Take the results from xpstorm as reference.
-    """
-    col_names = ['Time', 'results']
-    file_path = os.path.join(test_data_path, 'EA_test_8', 'b', 'xpstorm.csv')
+    """Take the results from xpstorm as reference."""
+    col_names = ["Time", "results"]
+    file_path = os.path.join(test_data_path, "EA_test_8", "b", "xpstorm.csv")
     df_ref = pd.read_csv(file_path, index_col=0, names=col_names)
     # Convert to seconds
-    df_ref.index *= 60.
+    df_ref.index *= 60.0
     # Round time to 10 ms
     df_ref.index = df_ref.index.round(decimals=2)
     # convert indices to timedelta
-    df_ref.index = pd.to_timedelta(df_ref.index, unit='s')
+    df_ref.index = pd.to_timedelta(df_ref.index, unit="s")
     # to series
-    ds_ref= df_ref.squeeze()
+    ds_ref = df_ref.squeeze()
     return ds_ref
 
 
 @pytest.fixture(scope="class")
 def ea_test8b_sim(ea_test8b, test_data_path, test_data_temp_path):
-    """
-    """
+    """ """
     # Keep all generated files in the test_data_temp_path
     os.chdir(test_data_temp_path)
-    current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
-    assert current_mapset == 'ea8b'
-    inp_file = os.path.join(test_data_path, 'EA_test_8', 'b',
-                            'test8b_drainage_ponding.inp')
-    config_dict = {'time': {'duration': '03:20:00', 'record_step': '00:00:30'},
-                   'input': {'dem': 'dem2m_buildings', 'friction': 'n'},
-                   'output': {'prefix': 'out', 'values': 'h, drainage_stats'},
-                   'options': {'theta': 0.7, 'cfl': 0.5},
-                   'drainage': {'swmm_inp': inp_file, 'orifice_coeff': 1, 'output': 'out_drainage'}}
+    current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
+    assert current_mapset == "ea8b"
+    inp_file = os.path.join(
+        test_data_path, "EA_test_8", "b", "test8b_drainage_ponding.inp"
+    )
+    config_dict = {
+        "time": {"duration": "03:20:00", "record_step": "00:00:30"},
+        "input": {"dem": "dem2m_buildings", "friction": "n"},
+        "output": {"prefix": "out", "values": "h, drainage_stats"},
+        "options": {"theta": 0.7, "cfl": 0.5},
+        "drainage": {
+            "swmm_inp": inp_file,
+            "orifice_coeff": 1,
+            "output": "out_drainage",
+        },
+    }
     parser = ConfigParser()
     parser.read_dict(config_dict)
-    conf_file = os.path.join(test_data_temp_path, 'ea2dt8b.ini')
-    with open(conf_file, 'w') as f:
+    conf_file = os.path.join(test_data_temp_path, "ea2dt8b.ini")
+    with open(conf_file, "w") as f:
         parser.write(f)
     sim_runner = SimulationRunner()
     sim_runner.initialize(conf_file)
@@ -110,26 +123,26 @@ def ea_test8b_sim(ea_test8b, test_data_path, test_data_temp_path):
 
 @pytest.fixture(scope="class")
 def ea8b_itzi_drainage_results(ea_test8b_sim):
-    """Extract linkage flow from the drainage network
-    """
-    current_mapset = gscript.read_command('g.mapset', flags='p').rstrip()
-    assert current_mapset == 'ea8b'
-    select_col = ['start_time', 'linkage_flow']
-    itzi_results = gscript.read_command('t.vect.db.select', input='out_drainage')
+    """Extract linkage flow from the drainage network"""
+    current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
+    assert current_mapset == "ea8b"
+    select_col = ["start_time", "linkage_flow"]
+    itzi_results = gscript.read_command("t.vect.db.select", input="out_drainage")
     # translate to Pandas dataframe and keep only linkage_flow with start_time over 3000
-    df_itzi_results = pd.read_csv(StringIO(itzi_results), sep='|')[select_col]
+    df_itzi_results = pd.read_csv(StringIO(itzi_results), sep="|")[select_col]
     df_itzi_results = df_itzi_results[df_itzi_results.start_time >= 3000]
-    df_itzi_results.set_index('start_time', drop=True, inplace=True, verify_integrity=True)
+    df_itzi_results.set_index(
+        "start_time", drop=True, inplace=True, verify_integrity=True
+    )
     # convert indices to timedelta
-    df_itzi_results.index = pd.to_timedelta(df_itzi_results.index, unit='s')
+    df_itzi_results.index = pd.to_timedelta(df_itzi_results.index, unit="s")
     # to series
     ds_itzi_results = df_itzi_results.squeeze()
     return ds_itzi_results
 
 
 def test_ea8b(ea_test8b_reference, ea8b_itzi_drainage_results, helpers):
-    """Compare results with XPSTORM
-    """
+    """Compare results with XPSTORM"""
     # Extract results at output points
     # itzi_results = gscript.read_command('t.rast.what', points='manhole_location',
     #                                     strds='out_drainage_stats', null_value='*',

@@ -44,6 +44,8 @@ dev = [
     "requests==2.*",
     "pytest-benchmark==5.1.*",
     "scipy>=1.15.2",
+    "pre-commit>=4.2.0",
+    "ruff>=0.11.6",
 ]
 
 [build-system]

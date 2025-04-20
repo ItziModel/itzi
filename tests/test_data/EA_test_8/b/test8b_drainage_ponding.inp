@@ -36,8 +36,8 @@ NODES ALL
 LINKS ALL
 
 [JUNCTIONS]
-;;               Invert     Max.       Init.      Surcharge  Ponded    
-;;Name           Elev.      Depth      Depth      Depth      Area      
+;;               Invert     Max.       Init.      Surcharge  Ponded
+;;Name           Elev.      Depth      Depth      Depth      Area
 ;;-------------- ---------- ---------- ---------- ---------- ----------
 J0               39.17        2.0          0       100        0
 J1               29.46        2.0          0       100        1
@@ -56,8 +56,8 @@ O7               23.49        FREE
 J1               264895         664747
 
 [CONDUITS]
-;;             Inlet      Outlet                 Manning    Inlet      Outlet     Init.      Max.      
-;;Name         Node       Node        Length     N          Offset     Offset     Flow       Flow      
+;;             Inlet      Outlet                 Manning    Inlet      Outlet     Init.      Max.
+;;Name         Node       Node        Length     N          Offset     Offset     Flow       Flow
 ;;------------ ---------- ----------- ---------- ---------- ---------- ---------- ---------- ----------
 C0             J0        J1           467         0.017       0         0         0
 C1             J1        J2           104         0.017       0         0         0
@@ -68,7 +68,7 @@ C5             J5        J6           154         0.017       0         0       
 C6             J6        O7           195         0.017       0         0         0
 
 [XSECTIONS]
-;;Link           Shape        Geom1            Geom2      Geom3      Geom4      Barrels   
+;;Link           Shape        Geom1            Geom2      Geom3      Geom4      Barrels
 ;;-------------- ------------ ---------------- ---------- ---------- ---------- ----------
 C0               CIRCULAR    1.4               0            0          0          1
 C1               CIRCULAR    1.4               0            0          0          1

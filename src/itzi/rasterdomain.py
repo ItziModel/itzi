@@ -20,14 +20,15 @@ import itzi.flow as flow
 import itzi.messenger as msgr
 
 
-class TimedArray():
+class TimedArray:
     """A container for np.ndarray with time informations.
     Update the array value according to the simulation time.
     array is accessed via get()
     """
+
     def __init__(self, mkey, igis, f_arr_def):
-        assert isinstance(mkey, str), u"not a string!"
-        assert hasattr(f_arr_def, '__call__'), u"not a function!"
+        assert isinstance(mkey, str), "not a string!"
+        assert hasattr(f_arr_def, "__call__"), "not a function!"
         self.mkey = mkey
         self.igis = igis  # GIS interface
         # A function to generate a default array
@@ -74,11 +75,12 @@ class TimedArray():
         return self
 
 
-class RasterDomain():
+class RasterDomain:
     """Group all rasters for the raster domain.
     Store them as np.ndarray with validity information (TimedArray)
     Include management of the masking and unmasking of arrays.
     """
+
     def __init__(self, dtype, arr_mask, cell_shape):
         # data type
         self.dtype = dtype
@@ -97,22 +99,64 @@ class RasterDomain():
         self.simple_pad = (slice(1, -1), slice(1, -1))
 
         # all keys that will be used for the arrays
-        self.k_input = ['dem', 'friction', 'h', 'y',
-                        'effective_porosity', 'capillary_pressure',
-                        'hydraulic_conductivity',
-                        'soil_water_content', 'in_inf',
-                        'losses', 'rain', 'inflow',
-                        'bcval', 'bctype']
-        self.k_internal = ['inf', 'hmax', 'ext', 'y', 'hfe', 'hfs',
-                           'qe', 'qs', 'qe_new', 'qs_new', 'etp', 'eff_precip',
-                           'ue', 'us', 'v', 'vdir', 'vmax', 'fr',
-                           'n_drain', 'capped_losses', 'dire', 'dirs']
+        self.k_input = [
+            "dem",
+            "friction",
+            "h",
+            "y",
+            "effective_porosity",
+            "capillary_pressure",
+            "hydraulic_conductivity",
+            "soil_water_content",
+            "in_inf",
+            "losses",
+            "rain",
+            "inflow",
+            "bcval",
+            "bctype",
+        ]
+        self.k_internal = [
+            "inf",
+            "hmax",
+            "ext",
+            "y",
+            "hfe",
+            "hfs",
+            "qe",
+            "qs",
+            "qe_new",
+            "qs_new",
+            "etp",
+            "eff_precip",
+            "ue",
+            "us",
+            "v",
+            "vdir",
+            "vmax",
+            "fr",
+            "n_drain",
+            "capped_losses",
+            "dire",
+            "dirs",
+        ]
         # arrays gathering the cumulated water depth from corresponding array
-        self.k_stats = ['st_bound', 'st_inf', 'st_rain', 'st_etp',
-                        'st_inflow', 'st_losses', 'st_ndrain', 'st_herr']
-        self.stats_corresp = {'inf': 'st_inf', 'rain': 'st_rain',
-                              'inflow': 'st_inflow', 'capped_losses': 'st_losses',
-                              'n_drain': 'st_ndrain'}
+        self.k_stats = [
+            "st_bound",
+            "st_inf",
+            "st_rain",
+            "st_etp",
+            "st_inflow",
+            "st_losses",
+            "st_ndrain",
+            "st_herr",
+        ]
+        self.stats_corresp = {
+            "inf": "st_inf",
+            "rain": "st_rain",
+            "inflow": "st_inflow",
+            "capped_losses": "st_losses",
+            "n_drain": "st_ndrain",
+        }
         self.k_all = self.k_input + self.k_internal + self.k_stats
         # last update of statistical map entry
         self.stats_update_time = dict.fromkeys(self.k_stats)
@@ -126,33 +170,33 @@ class RasterDomain():
 
     def water_volume(self):
         """get current water volume in the domain"""
-        return self.asum('h') * self.cell_surf
+        return self.asum("h") * self.cell_surf
 
     def inf_vol(self, sim_time):
-        self.populate_stat_array('inf', sim_time)
-        return self.asum('st_inf') * self.cell_surf
+        self.populate_stat_array("inf", sim_time)
+        return self.asum("st_inf") * self.cell_surf
 
     def rain_vol(self, sim_time):
-        self.populate_stat_array('rain', sim_time)
-        return self.asum('st_rain') * self.cell_surf
+        self.populate_stat_array("rain", sim_time)
+        return self.asum("st_rain") * self.cell_surf
 
     def inflow_vol(self, sim_time):
-        self.populate_stat_array('inflow', sim_time)
-        return self.asum('st_inflow') * self.cell_surf
+        self.populate_stat_array("inflow", sim_time)
+        return self.asum("st_inflow") * self.cell_surf
 
     def losses_vol(self, sim_time):
-        self.populate_stat_array('capped_losses', sim_time)
-        return self.asum('st_losses') * self.cell_surf
+        self.populate_stat_array("capped_losses", sim_time)
+        return self.asum("st_losses") * self.cell_surf
 
     def ndrain_vol(self, sim_time):
-        self.populate_stat_array('n_drain', sim_time)
-        return self.asum('st_ndrain') * self.cell_surf
+        self.populate_stat_array("n_drain", sim_time)
+        return self.asum("st_ndrain") * self.cell_surf
 
     def boundary_vol(self):
-        return self.asum('st_bound') * self.cell_surf
+        return self.asum("st_bound") * self.cell_surf
 
     def err_vol(self):
-        return self.asum('st_herr') * self.cell_surf
+        return self.asum("st_herr") * self.cell_surf
 
     def zeros_array(self):
         """return a np array of the domain dimension, filled with zeros.
@@ -165,7 +209,7 @@ class RasterDomain():
         """Return the original input array
         as a slice of a larger padded array with one cell
         """
-        arr_p = np.pad(arr, 1, 'edge')
+        arr_p = np.pad(arr, 1, "edge")
         arr = arr_p[self.simple_pad]
         return arr, arr_p
 
@@ -178,23 +222,20 @@ class RasterDomain():
         return self
 
     def update_mask(self, arr):
-        '''Create a mask array by marking NULL values from arr as True.
-        '''
+        """Create a mask array by marking NULL values from arr as True."""
         pass
         # self.mask[:] = np.isnan(arr)
         return self
 
     def mask_array(self, arr, default_value):
-        '''Replace NULL values in the input array by the default_value
-        '''
+        """Replace NULL values in the input array by the default_value"""
         mask = np.logical_or(np.isnan(arr), self.mask)
         arr[mask] = default_value
         assert not np.any(np.isnan(arr))
         return self
 
     def unmask_array(self, arr):
-        '''Replace values in the input array by NULL values from mask
-        '''
+        """Replace values in the input array by NULL values from mask"""
         unmasked_array = np.copy(arr)
         unmasked_array[self.mask] = np.nan
         return unmasked_array
@@ -210,7 +251,7 @@ class RasterDomain():
             self.stats_update_time[sk] = sim_time
         time_diff = (sim_time - self.stats_update_time[sk]).total_seconds()
         if time_diff >= 0:
-            msgr.debug(u"{}: Populating array <{}>".format(sim_time, sk))
+            msgr.debug("{}: Populating array <{}>".format(sim_time, sk))
             flow.populate_stat_array(self.arr[k], self.arr[sk], time_diff)
             self.stats_update_time[sk] = sim_time
         return None
@@ -222,30 +263,32 @@ class RasterDomain():
         This applies for inputs that are needed to be taken into account,
          at every timestep, like inflows from user or drainage.
         """
-        flow.set_ext_array(self.arr['inflow'], self.arr['n_drain'],
-                           self.arr['eff_precip'], self.arr['ext'])
+        flow.set_ext_array(
+            self.arr["inflow"],
+            self.arr["n_drain"],
+            self.arr["eff_precip"],
+            self.arr["ext"],
+        )
         return self
 
     def swap_arrays(self, k1, k2):
-        """swap values of two arrays
-        """
+        """swap values of two arrays"""
         self.arr[k1], self.arr[k2] = self.arr[k2], self.arr[k1]
         self.arrp[k1], self.arrp[k2] = self.arrp[k2], self.arrp[k1]
         return self
 
     def update_array(self, k, arr):
-        """Update the values of an array with those of a given array.
-        """
+        """Update the values of an array with those of a given array."""
         if arr.shape != self.shape:
             return ValueError
-        if k == 'dem':
+        if k == "dem":
             self.update_mask(arr)
             fill_value = np.finfo(self.dtype).max
-        elif k == 'h':
+        elif k == "h":
             if self.start_volume is None:
                 self.start_volume = self.water_volume()
             fill_value = 0
-        elif k == 'friction':
+        elif k == "friction":
             fill_value = 1
         else:
             fill_value = 0
@@ -254,23 +297,19 @@ class RasterDomain():
         return self
 
     def get_array(self, k):
-        """return the unpadded, masked array of key 'k'
-        """
+        """return the unpadded, masked array of key 'k'"""
         return self.arr[k]
 
     def get_padded(self, k):
-        """return the padded, masked array of key 'k'
-        """
+        """return the padded, masked array of key 'k'"""
         return self.arrp[k]
 
     def get_unmasked(self, k):
-        """return unpadded array with NaN
-        """
+        """return unpadded array with NaN"""
         return self.unmask_array(self.arr[k])
 
     def amax(self, k):
-        """return maximum value of an unpadded array
-        """
+        """return maximum value of an unpadded array"""
         return np.amax(self.arr[k])
 
     def asum(self, k):
@@ -280,9 +319,8 @@ class RasterDomain():
         return flow.arr_sum(self.arr[k])
 
     def reset_stats(self, sim_time):
-        """Set stats arrays to zeros and the update time to current time
-        """
+        """Set stats arrays to zeros and the update time to current time"""
         for k in self.k_stats:
-            self.arr[k][:] = 0.
+            self.arr[k][:] = 0.0
             self.stats_update_time[k] = sim_time
         return self

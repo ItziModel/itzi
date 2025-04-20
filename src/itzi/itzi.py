@@ -56,15 +56,16 @@ def main():
         parser.arg_parser.print_usage()
 
 
-class SimulationRunner():
+class SimulationRunner:
     """Provide the necessary tools to run one simulation,
     including setting-up and tearing down GRASS session.
     """
+
     def __init__(self):
         self.conf = None
         self.sim = None
         self.grass_session = None
-        self.grass_required_version = '8.4.0'
+        self.grass_required_version = "8.4.0"
 
     def initialize(self, conf_file):
         """Parse the configuration file, set GRASS,
@@ -85,46 +86,53 @@ class SimulationRunner():
             self.set_grass_session()
             from itzi.simulation import create_simulation
         # Check GRASS version
-        grass_version = gscript.parse_command('g.version', flags='g')['version']
+        grass_version = gscript.parse_command("g.version", flags="g")["version"]
         if grass_version < self.grass_required_version:
-            msgr.fatal((f"Itzi requires at least GRASS {self.grass_required_version}, "
-                        "version {grass_version} detected."))
-        msgr.debug('GRASS session set')
+            msgr.fatal(
+                (
+                    f"Itzi requires at least GRASS {self.grass_required_version}, "
+                    "version {grass_version} detected."
+                )
+            )
+        msgr.debug("GRASS session set")
 
         # Instantiate Simulation object and initialize it
-        self.sim, self.tarr = create_simulation(sim_times=self.conf.sim_times,
-                                                stats_file=self.conf.stats_file,
-                                                dtype=np.float32,
-                                                input_maps=self.conf.input_map_names,
-                                                output_maps=self.conf.output_map_names,
-                                                sim_param=self.conf.sim_param,
-                                                drainage_params=self.conf.drainage_params,
-                                                grass_params=self.conf.grass_params)
+        self.sim, self.tarr = create_simulation(
+            sim_times=self.conf.sim_times,
+            stats_file=self.conf.stats_file,
+            dtype=np.float32,
+            input_maps=self.conf.input_map_names,
+            output_maps=self.conf.output_map_names,
+            sim_param=self.conf.sim_param,
+            drainage_params=self.conf.drainage_params,
+            grass_params=self.conf.grass_params,
+        )
         self.update_input_arrays()
         return self
 
     def run(self):
-        """Run a full simulation
-        """
+        """Run a full simulation"""
         sim_start_time = datetime.now()
-        msgr.verbose(u"Starting time-stepping...")
+        msgr.verbose("Starting time-stepping...")
         while self.sim.sim_time < self.sim.end_time:
             # display advance of simulation
-            msgr.percent(self.sim.start_time, self.sim.end_time,
-                         self.sim.sim_time, sim_start_time)
+            msgr.percent(
+                self.sim.start_time,
+                self.sim.end_time,
+                self.sim.sim_time,
+                sim_start_time,
+            )
             # step models
             self.step()
         return self
 
     def update_until(self, then):
-        """Run the simulation until a time after start_time
-        """
+        """Run the simulation until a time after start_time"""
         self.sim.update_until(then)
         return self
 
     def finalize(self):
-        """Tear down the simulation and return to previous state.
-        """
+        """Tear down the simulation and return to previous state."""
         self.sim.finalize()
         # Close GRASS session
         if self.grass_session is not None:
@@ -143,16 +151,15 @@ class SimulationRunner():
         return tarr.igis.origin
 
     def set_grass_session(self):
-        """Set the GRASS session.
-        """
-        gisdb = self.conf.grass_params['grassdata']
-        location = self.conf.grass_params['location']
-        mapset = self.conf.grass_params['mapset']
+        """Set the GRASS session."""
+        gisdb = self.conf.grass_params["grassdata"]
+        location = self.conf.grass_params["location"]
+        mapset = self.conf.grass_params["mapset"]
         if location is None:
             msgr.fatal(("[grass] section is missing."))
 
         # Check if the given parameters exist and can be accessed
-        error_msg = u"'{}' does not exist or does not have adequate permissions"
+        error_msg = "'{}' does not exist or does not have adequate permissions"
         if not os.access(gisdb, os.R_OK):
             msgr.fatal(error_msg.format(gisdb))
         elif not os.access(os.path.join(gisdb, location), os.R_OK):
@@ -161,10 +168,10 @@ class SimulationRunner():
             msgr.fatal(error_msg.format(mapset))
 
         # Set GRASS python path
-        if self.conf.grass_params['grass_bin']:
-            grassbin = self.conf.grass_params['grass_bin']
+        if self.conf.grass_params["grass_bin"]:
+            grassbin = self.conf.grass_params["grass_bin"]
         else:
-            grassbin = 'grass'
+            grassbin = "grass"
         grass_cmd = [grassbin, "--config", "python_path"]
         grass_python_path = subprocess.check_output(grass_cmd, text=True).strip()
         sys.path.append(grass_python_path)
@@ -172,40 +179,42 @@ class SimulationRunner():
         import grass.script as gscript
 
         # set up session
-        self.grass_session = gscript.setup.init(path=gisdb,
-                                                location=location,
-                                                mapset=mapset,
-                                                grass_path=grassbin)
+        self.grass_session = gscript.setup.init(
+            path=gisdb, location=location, mapset=mapset, grass_path=grassbin
+        )
 
     def update_input_arrays(self):
         """Get new array using TimedArray
         And update
         """
         # make sure DEM is treated first
-        if not self.tarr['dem'].is_valid(self.sim.sim_time):
-            self.sim.set_array('dem', self.tarr['dem'].get(self.sim.sim_time))
+        if not self.tarr["dem"].is_valid(self.sim.sim_time):
+            self.sim.set_array("dem", self.tarr["dem"].get(self.sim.sim_time))
 
         # loop through the arrays
         for k, ta in self.tarr.items():
             if not ta.is_valid(self.sim.sim_time):
                 # z is done before
-                if k == 'dem':
+                if k == "dem":
                     continue
                 # Convert mm/h to m/s
-                if k in ['rain', 'capillary_pressure',
-                         'hydraulic_conductivity', 'in_inf',]:
-                    new_arr = ta.get(self.sim.sim_time) / (1000*3600)
+                if k in [
+                    "rain",
+                    "capillary_pressure",
+                    "hydraulic_conductivity",
+                    "in_inf",
+                ]:
+                    new_arr = ta.get(self.sim.sim_time) / (1000 * 3600)
                 else:
                     new_arr = ta.get(self.sim.sim_time)
                 # update array
-                msgr.debug(u"{}: update input array <{}>".format(self.sim.sim_time, k))
+                msgr.debug("{}: update input array <{}>".format(self.sim.sim_time, k))
                 self.sim.set_array(k, new_arr)
         return self
 
 
 def sim_runner_worker(conf_file, profile):
-    """Run one simulation
-    """
+    """Run one simulation"""
     msgr.raise_on_error = True
     try:
         # Start profiler if requested
@@ -228,48 +237,45 @@ def sim_runner_worker(conf_file, profile):
 
 
 def itzi_run_one(conf_file, profile):
-    """Run a simulation in a subprocess
-    """
+    """Run a simulation in a subprocess"""
     worker_args = (conf_file, profile)
     p = Process(target=sim_runner_worker, args=worker_args)
     p.start()
     p.join()
     if p.exitcode != 0:
-        msgr.warning(("Execution of {} "
-                      "ended with an error").format(conf_file))
+        msgr.warning(("Execution of {} ended with an error").format(conf_file))
     p.close()
 
 
 def itzi_run(cli_args):
-    """Run one or multiple simulations from the command line.
-    """
+    """Run one or multiple simulations from the command line."""
     # set environment variables
     if cli_args.o:
-        os.environ['GRASS_OVERWRITE'] = '1'
+        os.environ["GRASS_OVERWRITE"] = "1"
     else:
-        os.environ['GRASS_OVERWRITE'] = '0'
+        os.environ["GRASS_OVERWRITE"] = "0"
     # verbosity
     if cli_args.q and cli_args.q == 2:
-        os.environ['ITZI_VERBOSE'] = str(VerbosityLevel.SUPER_QUIET)
+        os.environ["ITZI_VERBOSE"] = str(VerbosityLevel.SUPER_QUIET)
     elif cli_args.q == 1:
-        os.environ['ITZI_VERBOSE'] = str(VerbosityLevel.QUIET)
+        os.environ["ITZI_VERBOSE"] = str(VerbosityLevel.QUIET)
     elif cli_args.v == 1:
-        os.environ['ITZI_VERBOSE'] = str(VerbosityLevel.VERBOSE)
+        os.environ["ITZI_VERBOSE"] = str(VerbosityLevel.VERBOSE)
     elif cli_args.v and cli_args.v >= 2:
-        os.environ['ITZI_VERBOSE'] = str(VerbosityLevel.DEBUG)
+        os.environ["ITZI_VERBOSE"] = str(VerbosityLevel.DEBUG)
     else:
-        os.environ['ITZI_VERBOSE'] = str(VerbosityLevel.MESSAGE)
+        os.environ["ITZI_VERBOSE"] = str(VerbosityLevel.MESSAGE)
 
     # setting GRASS verbosity (especially for maps registration)
     if cli_args.q and cli_args.q >= 1:
         # no warnings
-        os.environ['GRASS_VERBOSE'] = '-1'
+        os.environ["GRASS_VERBOSE"] = "-1"
     elif cli_args.v and cli_args.v >= 1:
         # normal
-        os.environ['GRASS_VERBOSE'] = '2'
+        os.environ["GRASS_VERBOSE"] = "2"
     else:
         # only warnings
-        os.environ['GRASS_VERBOSE'] = '0'
+        os.environ["GRASS_VERBOSE"] = "0"
 
     profile = False
     if cli_args.p:
@@ -291,20 +297,19 @@ def itzi_run(cli_args):
     # stop total time counter
     total_elapsed_time = timedelta(seconds=int(time.time() - total_sim_start))
     # display total computation duration
-    msgr.message(u"Simulation(s) complete. Elapsed times:")
+    msgr.message("Simulation(s) complete. Elapsed times:")
     for f, t in times_list:
-        msgr.message(u"{}: {}".format(f, t))
-    msgr.message(u"Total: {}".format(total_elapsed_time))
+        msgr.message("{}: {}".format(f, t))
+    msgr.message("Total: {}".format(total_elapsed_time))
     avg_time_s = int(total_elapsed_time.total_seconds() / len(times_list))
-    msgr.message(u"Average: {}".format(timedelta(seconds=avg_time_s)))
+    msgr.message("Average: {}".format(timedelta(seconds=avg_time_s)))
 
 
 def itzi_version(cli_args):
-    """Display the software version number from a file
-    """
+    """Display the software version number from a file"""
     root = os.path.dirname(__file__)
-    f_version = os.path.join(root, 'data', 'VERSION')
-    with open(f_version, 'r') as f:
+    f_version = os.path.join(root, "data", "VERSION")
+    with open(f_version, "r") as f:
         print(f.readline().strip())
 
 

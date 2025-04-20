@@ -49,4 +49,3 @@ The surface model of Itzï is described in details in the following open-access 
     Itzï (version 17.1): an open-source, distributed GIS model for dynamic flood simulation.
     Geoscientific Model Development, 10(4), 1835–1847.
     http://doi.org/10.5194/gmd-10-1835-2017
-

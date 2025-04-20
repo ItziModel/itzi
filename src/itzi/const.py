@@ -13,9 +13,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-class DefaultValues():
-    """Default config values
-    """
+
+class DefaultValues:
+    """Default config values"""
+
     # Threshold for determining the flow equation (m)
     HFMIN = 0.005
     # Coefficient applied to time-step calculation
@@ -27,13 +28,13 @@ class DefaultValues():
     # Routing velocity (m/s)
     VROUTING = 0.1
     # Maximum time-step duration (s)
-    DTMAX = 5.
+    DTMAX = 5.0
     # Maximum slope (m/m). Not used
     SLMAX = 0.1
     # Hydrology time step (s)
-    DTINF = 60.
+    DTINF = 60.0
     # maximum Froude number. Not used yet.
-    FRMAX = 1.
+    FRMAX = 1.0
     # coefficients taken from Rubinato et al. (2017)
     # http://doi.org/10.1016/j.jhydrol.2017.06.024
     ORIFICE_COEFF = 0.167
@@ -44,9 +45,9 @@ class DefaultValues():
     DAMPING_FACTOR = 0.5
 
 
-class VerbosityLevel():
-    """Messenger verbosity levels
-    """
+class VerbosityLevel:
+    """Messenger verbosity levels"""
+
     SUPER_QUIET = 0
     QUIET = 1
     MESSAGE = 2

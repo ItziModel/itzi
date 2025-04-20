@@ -2,25 +2,17 @@
 Programer's manual
 ==================
 
-Itzï is written principaly in Python.
-The computationally intensive parts of the code and some C bindings are written in Cython.
-Itzï includes the SWMM source code, which is written in C.
-As of version 20.5, itzi only supports Python 3.
-
-We do our best to keep Itzï `PEP8-compliant <https://www.python.org/dev/peps/pep-0008/>`__.
-Please use the `pycodestyle <https://pypi.python.org/pypi/pycodestyle/>`__ utility to check your code for compliance.
-Sometimes it is difficult to keep the line length under 72 characters.
-The line length could be extended to 90 characters in those cases.
-
+Itzï is written principally in Python.
+The computationally intensive parts of the code are written in Cython.
 
 Source code management
 ----------------------
 
 The source code is managed by `git <https://git-scm.com/>`__ and hosted on `GitHub <https://github.com/ItziModel/itzi>`__.
 The best way to contribute is to fork the main repository, make your modifications and then create a pull request on Bitbucket.
-The repository have two branches:
+The repository has two branches:
 
-- *master* than contain the current released verion.
+- *master* than contain the current released version.
 - *dev* where the main development takes place.
 
 The code should be tested in *dev* before being merged to master for release.
@@ -29,64 +21,58 @@ Any larger, possibly breaking changes should be done in a feature branch from *d
 Development environment
 -----------------------
 
-Create a virtual environment to work on the source code.
+We use `PDM <https://pdm-project.org>`__ to manage the environment and dependencies.
+Once the repository is cloned, you can create a virtual environment and install itzi in editable mode
+alongside the dependencies with:
 
 .. code:: sh
 
-    $ python3 -m venv itzi_dev
+    $ pdm install
 
-Activate the virtual env and install the dev version of Itzï.
+This will create a virtual environment and install all the dependencies listed in the *pyproject.toml* file.
+Now, every change you make to the Python code will be directly reflected when running *itzi* from the command line or the tests.
 
-.. code:: sh
-
-    $ source itzi_dev/bin/activate
-    $ pip install numpy
-    $ cd itzi
-    $ pip install -e .
-
-Now, every change you make to the Python code will be directly reflected when running *itzi* from the command line.
-To leave the virtual env:
+The default dependency resolver of PDM might fails.
+If so, install `uv <https://docs.astral.sh/uv/>`__ and set pdm to use it:
 
 .. code:: sh
 
-    $ deactivate
+    $ pdm config use_uv true
+
 
 Cython code
 -----------
 
-After modifying the Cython code, you should first compile it to C, then compile the C code.
-
+The install script should automatically compile the Cython code.
+However, if you want to compile it manually,
+you can do so by running the following command in the root directory of the repository:
 .. code:: sh
 
-    $ cython -3 itzi/swmm/swmm_c.pyx itzi/flow.pyx
-    $ rm -rf build/
-    $ pip install -e .
-
+    $ cython -3 src/itzi/flow.pyx
+    $ pdm install
 
 Testing
 -------
 
-Testing is done through pytest. Running the tests require the following additional requirements:
-
-- pytest
-- pytest-cov
-- pytest-xdist
-- pandas
-- requests
-
-pytest-xdist allows to run each test in a separate process.
-To do so, run the following command:
+Testing is done with pytest.
+Due to global variables in GRASS, the tests must be run in separate processes (`see <https://github.com/OSGeo/grass/issues/629>`__).
 
 .. code:: sh
 
-    $ pytest --forked -v
+    $ pdm run pytest --forked -v
 
 To estimate the test coverage:
 
 .. code:: sh
 
-    $ pytest --cov=itzi --forked -v
+    $ pdm run pytest --cov=itzi --forked -v
 
+Coding style
+------------
+
+Code formatting and linting is done with `ruff <https://docs.astral.sh/ruff/>`__.
+Formatting is checked automatically before each commit with a pre-commit hook.
+pre-commit hooks should be installed after first cloning the repository by following the instructions on the *pre-commit* `official website <https://pre-commit.com/>`__.
 
 Release process
 ---------------
@@ -95,11 +81,11 @@ Once a potential feature branch is merged into *dev*:
 
 - Make sure all the tests pass
 - Merge *dev* into *master*
-- Bump the version number
+- Bump the version number in the *pyproject.toml* file and the documentation *conf.py*
 - Write the release notes
 - Update the documentation if necessary
 - Run the tests one last time
 - Create an annotated tag for version number
 - Create the package and push to pypi
-- Write a blog post anouncing the version
-- Post a link to the anouncement on twitter and the user mailing list
+- Write a blog post announcing the version
+- Post a link to the announcement on the user mailing list

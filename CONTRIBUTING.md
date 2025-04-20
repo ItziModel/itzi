@@ -34,4 +34,3 @@ If above that threshold, break the line.
 ### Code
 
 Please have a look at the [programer's manual](http://itzi.readthedocs.io/en/latest/prog_manual.html).
-
