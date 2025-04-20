@@ -5,6 +5,7 @@ Programer's manual
 Itzï is written principally in Python.
 The computationally intensive parts of the code are written in Cython.
 
+
 Source code management
 ----------------------
 
@@ -18,6 +19,7 @@ The repository has two branches:
 
 The code should be tested in *dev* before being merged to master for release.
 Any larger, possibly breaking changes should be done in a feature branch from *dev*.
+
 
 Development environment
 -----------------------
@@ -53,6 +55,7 @@ you can do so by running the following command in the root directory of the repo
     $ cython -3 src/itzi/flow.pyx
     $ pdm install
 
+
 Testing
 -------
 
@@ -70,12 +73,18 @@ To estimate the test coverage:
 
     $ pdm run pytest --cov=itzi --forked -v
 
+Select the python version to test against with *pdm use*.
+Test against the 3 `last versions of python <https://devguide.python.org/versions/>`__.
+In april 2025, that would be 3.11, 3.12 and 3.13.
+
+
 Coding style
 ------------
 
 Code formatting and linting is done with `ruff <https://docs.astral.sh/ruff/>`__.
 Formatting is checked automatically before each commit with a pre-commit hook.
 pre-commit hooks should be installed after first cloning the repository by following the instructions on the *pre-commit* `official website <https://pre-commit.com/>`__.
+
 
 Documentation
 -------------
@@ -89,6 +98,7 @@ Then you can build the documentation locally:
 
     $ cd docs
     $ sphinx-build . _build
+
 
 Release process
 ---------------
