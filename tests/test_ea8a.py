@@ -9,6 +9,7 @@ import zipfile
 from collections import namedtuple
 
 import pytest
+import requests
 import numpy as np
 import pandas as pd
 import grass.script as gscript
@@ -17,15 +18,42 @@ from itzi import SimulationRunner
 
 MapInfo = namedtuple("MapInfo", ["name", "start", "end", "value"])
 
+TEST8A_URL = (
+    "https://zenodo.org/api/records/15256842/files/Test8A_dataset_2010.zip/content"
+)
+TEST8A_MD5 = "46b589ee000ff87c9077fcc51fa71e8e"
+
+
+@pytest.fixture(scope="session")
+def test8a_file(test_data_temp_path, helpers):
+    """Download the test 8a main file."""
+    file_name = "Test8A_dataset_2010.zip"
+    file_path = os.path.join(test_data_temp_path, file_name)
+    # Check if the file exists and has the right hash
+    try:
+        assert helpers.md5(file_path) == TEST8A_MD5
+    except Exception:
+        # Download the file
+        print("downloading file from Zenodo...")
+        file_response = requests.get(TEST8A_URL, stream=True, timeout=5)
+        if file_response.status_code == 200:
+            with open(file_path, "wb") as data_file:
+                for chunk in file_response.iter_content(chunk_size=8192):
+                    data_file.write(chunk)
+            print(f"File successfully downloaded to {file_path}")
+        else:
+            print(f"Failed to download file: Status code {file_response.status_code}")
+    return file_path
+
 
 @pytest.fixture(scope="function")
-def ea_test8a(grass_xy_session, ea_test_files, test_data_path):
+def ea_test8a(grass_xy_session, test8a_file, test_data_path, test_data_temp_path):
     """Create the GRASS env for ea test 8a."""
+
     # Unzip the file
-    file_path = os.path.join(ea_test_files, "Test8A_dataset_2010.zip")
-    with zipfile.ZipFile(file_path, "r") as zip_ref:
-        zip_ref.extractall(ea_test_files)
-    unzip_path = os.path.join(ea_test_files, "Test8A dataset 2010")
+    with zipfile.ZipFile(test8a_file, "r") as zip_ref:
+        zip_ref.extractall()
+    unzip_path = os.path.join(test_data_temp_path, "Test8A dataset 2010")
     # Create new mapset
     mapset_name = "ea8a"
     gscript.run_command("g.mapset", mapset=mapset_name, flags="c")
@@ -167,6 +195,7 @@ def ea_test8a_sim(ea_test8a, test_data_path):
     return sim_runner
 
 
+@pytest.mark.slow
 def test_ea8a(ea_test8a_reference, ea_test8a_sim):
     """Compare results with LISFLOOD-FP"""
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()

@@ -7,16 +7,13 @@ Define pytest fixture common to various test modules.
 
 import os
 import sys
-import zipfile
 import hashlib
 import tempfile
 from pathlib import Path
 import subprocess
 
 import pytest
-import requests
 import numpy as np
-from pyinstrument import Profiler
 
 # need to set the path to the GRASS Python library
 grass_python_path = subprocess.check_output(
@@ -27,12 +24,7 @@ import grass.script as gscript  # noqa: E402
 
 from itzi import SimulationRunner  # noqa: E402
 
-
 TESTS_ROOT = Path.cwd()
-
-# URL of zip file with test data
-EA_TESTS_URL = "https://web.archive.org/web/20200527005028/http://evidence.environment-agency.gov.uk/FCERM/Libraries/FCERM_Project_Documents/Benchmarking_Model_Data.sflb.ashx"
-DATA_SHA256 = "dd91fda6f049df34428b0cacdb21badcd9f0d5e92613e3541e8540a6b92cfda7"
 
 
 class Helpers:
@@ -85,21 +77,6 @@ def helpers():
     return Helpers
 
 
-@pytest.fixture(autouse=True)
-def auto_profile(request):
-    PROFILE_ROOT = TESTS_ROOT / ".profiles"
-    # Turn profiling on
-    profiler = Profiler()
-    profiler.start()
-
-    yield  # Run test
-
-    profiler.stop()
-    PROFILE_ROOT.mkdir(exist_ok=True)
-    results_file = PROFILE_ROOT / f"{request.node.name}.html"
-    profiler.write_html(results_file)
-
-
 @pytest.fixture(scope="session")
 def test_data_path():
     """Path to the permanent test data directory."""
@@ -115,28 +92,6 @@ def test_data_temp_path():
     if not os.path.exists(temp_path):
         os.makedirs(temp_path)
     return temp_path
-
-
-@pytest.fixture(scope="session")
-def ea_test_files(test_data_temp_path):
-    """Download and extract the EA tests main file."""
-    file_name = "benchmarking_model_data.zip"
-    file_path = os.path.join(test_data_temp_path, file_name)
-    # Check if the file exists and has the right hash
-    try:
-        assert helpers.sha256(file_path) == DATA_SHA256
-    except Exception:
-        # Download the file
-        with open(file_path, "wb") as data_file:
-            response = requests.get(EA_TESTS_URL)
-            # write to file
-            data_file.write(response.content)
-
-    # Unzip the main file
-    unzip_path = os.path.join(test_data_temp_path, "ea_test_files")
-    with zipfile.ZipFile(file_path, "r") as zip_ref:
-        zip_ref.extractall(unzip_path)
-    return unzip_path
 
 
 @pytest.fixture(scope="session")
