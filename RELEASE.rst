@@ -9,7 +9,7 @@ For more details please see the commit log of the git repository.
 Itzï 25.4
 ---------
 
-*Release date: 2025-04-XX*
+*Release date: 2025-04-21*
 
 This version implements the `Basic Model Interface <https://csdms.colorado.edu/wiki/BMI>`__,
 which allows to couple itzi with other models.
