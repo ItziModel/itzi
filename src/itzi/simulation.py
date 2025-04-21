@@ -23,7 +23,7 @@ import pyswmm
 from itzi.surfaceflow import SurfaceFlowSimulation
 import itzi.rasterdomain as rasterdomain
 from itzi.massbalance import MassBal
-from itzi.drainage import DrainageSimulation, DrainageNode, DrainageLink, LinkageTypes
+from itzi.drainage import DrainageSimulation, DrainageNode, DrainageLink, CouplingTypes
 from itzi import SwmmInputParser
 import itzi.messenger as msgr
 import itzi.infiltration as infiltration
@@ -36,7 +36,7 @@ DrainageNodeData = namedtuple(
 
 
 def get_nodes_list(pswmm_nodes, nodes_coor_dict, drainage_params, igis, g):
-    """Check if the drainage nodes are inside the region and can be linked.
+    """Check if the drainage nodes are inside the region and can be coupled.
     Return a list of DrainageNodeData
     """
     nodes_list = []
@@ -45,22 +45,21 @@ def get_nodes_list(pswmm_nodes, nodes_coor_dict, drainage_params, igis, g):
         node = DrainageNode(
             node_object=pyswmm_node,
             coordinates=coors,
-            linkage_type=LinkageTypes.NOT_LINKED,
+            coupling_type=CouplingTypes.NOT_COUPLED,
             orifice_coeff=drainage_params["orifice_coeff"],
             free_weir_coeff=drainage_params["free_weir_coeff"],
             submerged_weir_coeff=drainage_params["submerged_weir_coeff"],
             g=g,
         )
-        # a node without coordinates cannot be linked
+        # a node without coordinates cannot be coupled
         if coors is None or not igis.is_in_region(coors.x, coors.y):
-            node.linkage_type = LinkageTypes.NOT_LINKED
             x_coor = None
             y_coor = None
             row = None
             col = None
         else:
-            # Set node as linked with no flow
-            node.linkage_type = LinkageTypes.LINKED_NO_FLOW
+            # Set node as coupled with no flow
+            node.coupling_type = CouplingTypes.COUPLED_NO_FLOW
             x_coor = coors.x
             y_coor = coors.y
             row, col = igis.coor2pixel(coors)
@@ -299,7 +298,7 @@ class Simulation:
             self.next_ts["drainage"] = self.end_time
         else:
             self.node_id_to_loc = {
-                n.id: (n.row, n.col) for n in self.nodes_list if n.object.is_linked()
+                n.id: (n.row, n.col) for n in self.nodes_list if n.object.is_coupled()
             }
         # Grid spacing
         self.spacing = (self.raster_domain.dy, self.raster_domain.dx)
@@ -331,7 +330,7 @@ class Simulation:
             arr_h = self.raster_domain.get_array("h")
             for node_id, (row, col) in self.node_id_to_loc.items():
                 surface_states[node_id] = {"z": arr_z[row, col], "h": arr_h[row, col]}
-            coupling_flows = self.drainage_model.apply_linkage_to_nodes(
+            coupling_flows = self.drainage_model.apply_coupling_to_nodes(
                 surface_states, cell_surf
             )
             # update drainage array

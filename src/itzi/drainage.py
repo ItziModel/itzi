@@ -24,12 +24,12 @@ from itzi import DefaultValues
 from itzi import messenger as msgr
 
 
-class LinkageTypes(StrEnum):
-    NOT_LINKED = "not linked"
-    LINKED_NO_FLOW = "linked, no flow"
-    FREE_WEIR = "free weir"
-    SUBMERGED_WEIR = "submerged weir"
-    ORIFICE = "orifice"
+class CouplingTypes(StrEnum):
+    NOT_COUPLED = "not coupled"
+    COUPLED_NO_FLOW = "coupled, no flow"
+    FREE_WEIR = "coupled, free weir"
+    SUBMERGED_WEIR = "coupled, submerged weir"
+    ORIFICE = "coupled, orifice"
 
 
 class DrainageSimulation:
@@ -77,18 +77,18 @@ class DrainageSimulation:
         self.elapsed_time = elapsed_seconds
         return self
 
-    def apply_linkage_to_nodes(self, surface_states, cell_surf):
-        """For each linked node,
+    def apply_coupling_to_nodes(self, surface_states, cell_surf):
+        """For each coupled node,
         calculate the flow entering or leaving the drainage network
         surface_states {node_id: {'z': float, 'h': float}}
         """
         calculated_flows = {}
         for node in self.nodes:
             node_id = node.node_id
-            if node.is_linked() and (node_id in surface_states):
+            if node.is_coupled() and (node_id in surface_states):
                 state = surface_states[node_id]
-                node.apply_linkage(state["z"], state["h"], self._dt, cell_surf)
-                calculated_flows[node_id] = node.linkage_flow
+                node.apply_coupling(state["z"], state["h"], self._dt, cell_surf)
+                calculated_flows[node_id] = node.coupling_flow
         return calculated_flows
 
 
@@ -101,7 +101,7 @@ class DrainageNode(object):
         self,
         node_object,
         coordinates=None,
-        linkage_type=LinkageTypes.NOT_LINKED,
+        coupling_type=CouplingTypes.NOT_COUPLED,
         orifice_coeff=DefaultValues.ORIFICE_COEFF,
         free_weir_coeff=DefaultValues.FREE_WEIR_COEFF,
         submerged_weir_coeff=DefaultValues.SUBMERGED_WEIR_COEFF,
@@ -125,8 +125,8 @@ class DrainageNode(object):
         # weir width is the circumference (node considered circular)
         self.weir_width = 2 * math.sqrt(self.surface_area * math.pi)
         # Set default values
-        self.linkage_type = linkage_type
-        self.linkage_flow = 0.0
+        self.coupling_type = coupling_type
+        self.coupling_flow = 0.0
         # TODO: set surcharge depth
         self.relaxation_factor = relaxation_factor
         self.damping_factor = damping_factor
@@ -156,9 +156,9 @@ class DrainageNode(object):
         """Return the crest elevation of the node."""
         return self.pyswmm_node.invert_elevation + self.pyswmm_node.full_depth
 
-    def is_linked(self):
-        """return True if the node is linked to the 2D domain"""
-        return self.linkage_type != LinkageTypes.NOT_LINKED
+    def is_coupled(self):
+        """return True if the node is coupled to the 2D domain"""
+        return self.coupling_type != CouplingTypes.NOT_COUPLED
 
     def get_attrs(self):
         """return a list of node data in the right DB order
@@ -167,8 +167,8 @@ class DrainageNode(object):
         attrs = [
             self.node_id,
             self.node_type,
-            self.linkage_type.value,
-            self.linkage_flow,
+            self.coupling_type.value,
+            self.coupling_flow,
             self.pyswmm_node.total_inflow,
             self.pyswmm_node.total_outflow,
             self.pyswmm_node.lateral_inflow,
@@ -189,45 +189,45 @@ class DrainageNode(object):
         ]
         return attrs
 
-    def apply_linkage(self, z, h, dt_drainage, cell_surf):
-        """Apply the linkage to the node"""
+    def apply_coupling(self, z, h, dt_drainage, cell_surf):
+        """Apply the coupling to the node"""
         wse = z + h
         # Default crest elevation to the DEM elevation
         crest_elev = z
 
-        # Calculate the linkage type and flow
-        self.linkage_type = self._get_linkage_type(wse, crest_elev)
-        new_linkage_flow = self._get_linkage_flow(wse, crest_elev)
+        # Calculate the coupling type and flow
+        self.coupling_type = self._get_coupling_type(wse, crest_elev)
+        new_coupling_flow = self._get_coupling_flow(wse, crest_elev)
 
         ## flow relaxation ##
         # Apply a relaxation factor (blend new flow with previous flow)
-        new_linkage_flow = (
-            self.relaxation_factor * new_linkage_flow
-            + (1 - self.relaxation_factor) * self.linkage_flow
+        new_coupling_flow = (
+            self.relaxation_factor * new_coupling_flow
+            + (1 - self.relaxation_factor) * self.coupling_flow
         )
 
         ## flow limiter ##
         # flow leaving the 2D domain can't drain the corresponding cell
-        if new_linkage_flow < 0.0:
+        if new_coupling_flow < 0.0:
             maxflow = (h * cell_surf) / dt_drainage
-            new_linkage_flow = max(new_linkage_flow, -maxflow)
+            new_coupling_flow = max(new_coupling_flow, -maxflow)
 
         ## Reduce flow by damping factor in case of inversion ##
-        old_flow = self.linkage_flow
-        overflow_to_drainage = old_flow > 0 and new_linkage_flow < 0
-        drainage_to_overflow = old_flow < 0 and new_linkage_flow > 0
+        old_flow = self.coupling_flow
+        overflow_to_drainage = old_flow > 0 and new_coupling_flow < 0
+        drainage_to_overflow = old_flow < 0 and new_coupling_flow > 0
         if overflow_to_drainage or drainage_to_overflow:
-            new_linkage_flow = new_linkage_flow * self.damping_factor
+            new_coupling_flow = new_coupling_flow * self.damping_factor
 
         ## Apply flow to internal values and pyswmm node ##
         # pyswmm fails if type not forced to double
         # itzi considers the flow as positive when leaving the drainage, pyswmm is the opposite
-        self.pyswmm_node.generated_inflow(np.float64(-new_linkage_flow))
+        self.pyswmm_node.generated_inflow(np.float64(-new_coupling_flow))
         # update internal values
-        self.linkage_flow = new_linkage_flow
+        self.coupling_flow = new_coupling_flow
         return self
 
-    def _get_linkage_type(self, wse, crest_elev):
+    def _get_coupling_type(self, wse, crest_elev):
         """orifice, free- and submerged-weir
         M. Rubinato et al. (2017)
         “Experimental Calibration and Validation of Sewer/surface Flow Exchange Equations
@@ -248,18 +248,18 @@ class DrainageNode(object):
         )
         # orifice
         if overflow or drainage_orifice:
-            new_linkage_type = LinkageTypes.ORIFICE
+            new_coupling_type = CouplingTypes.ORIFICE
         # drainage free weir
         elif free_weir:
-            new_linkage_type = LinkageTypes.FREE_WEIR
+            new_coupling_type = CouplingTypes.FREE_WEIR
         # drainage submerged weir
         elif submerged_weir:
-            new_linkage_type = LinkageTypes.SUBMERGED_WEIR
+            new_coupling_type = CouplingTypes.SUBMERGED_WEIR
         else:
-            new_linkage_type = LinkageTypes.LINKED_NO_FLOW
-        return new_linkage_type
+            new_coupling_type = CouplingTypes.COUPLED_NO_FLOW
+        return new_coupling_type
 
-    def _get_linkage_flow(self, wse, crest_elev):
+    def _get_coupling_flow(self, wse, crest_elev):
         """flow sign is :
         - negative when entering the drainage (leaving the 2D model)
         - positive when leaving the drainage (entering the 2D model)
@@ -271,15 +271,18 @@ class DrainageNode(object):
         upstream_depth = head_up - crest_elev
 
         # calculate the flow
-        if self.linkage_type in [LinkageTypes.LINKED_NO_FLOW, LinkageTypes.NOT_LINKED]:
+        if self.coupling_type in [
+            CouplingTypes.COUPLED_NO_FLOW,
+            CouplingTypes.NOT_COUPLED,
+        ]:
             unsigned_q = 0.0
-        elif self.linkage_type == LinkageTypes.ORIFICE:
+        elif self.coupling_type == CouplingTypes.ORIFICE:
             unsigned_q = (
                 self.orifice_coeff
                 * self.surface_area
                 * math.sqrt(2.0 * self.g * head_diff)
             )
-        elif self.linkage_type == LinkageTypes.FREE_WEIR:
+        elif self.coupling_type == CouplingTypes.FREE_WEIR:
             unsigned_q = (
                 (2.0 / 3.0)
                 * self.free_weir_coeff
@@ -287,7 +290,7 @@ class DrainageNode(object):
                 * math.pow(upstream_depth, 3 / 2.0)
                 * math.sqrt(2.0 * self.g)
             )
-        elif self.linkage_type == LinkageTypes.SUBMERGED_WEIR:
+        elif self.coupling_type == CouplingTypes.SUBMERGED_WEIR:
             unsigned_q = (
                 self.submerged_weir_coeff
                 * self.weir_width

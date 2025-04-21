@@ -8,7 +8,7 @@ import pytest
 import pyswmm
 
 from itzi import SwmmInputParser
-from itzi.drainage import DrainageNode, LinkageTypes, DrainageSimulation
+from itzi.drainage import DrainageNode, CouplingTypes, DrainageSimulation
 from itzi.simulation import get_links_list
 
 
@@ -32,7 +32,7 @@ def drainage_sim_results(test_data_path):
     nodes_coors_dict = swmm_inp.get_nodes_id_as_dict()
     pyswmm_node = pyswmm_nodes[coupling_node_id]
     coupling_node = DrainageNode(
-        pyswmm_node, nodes_coors_dict[coupling_node_id], LinkageTypes.LINKED_NO_FLOW
+        pyswmm_node, nodes_coors_dict[coupling_node_id], CouplingTypes.COUPLED_NO_FLOW
     )
     nodes_list = [coupling_node]
     # Create Link objects
@@ -51,7 +51,7 @@ def drainage_sim_results(test_data_path):
         # update simulation
         drainage.step()
         # coupling
-        calculated_flows = drainage.apply_linkage_to_nodes(surface_states, cell_surf)
+        calculated_flows = drainage.apply_coupling_to_nodes(surface_states, cell_surf)
         node_flow = calculated_flows[coupling_node_id]
         coupling_flows[current_time - sim_start_time] = node_flow
         # update time
