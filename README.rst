@@ -3,7 +3,7 @@
 Itzï
 ====
 
-|Azure| |pypi| |rtfd|
+|Actions| |pypi| |rtfd|
 
 Itzï is a dynamic, fully distributed hydrologic and hydraulic model that
 simulates 2D surface flows on a regular raster grid and drainage flows through the SWMM model.
@@ -15,9 +15,9 @@ Documentation: http://itzi.rtfd.io/
 
 Repository: https://github.com/ItziModel/itzi
 
-.. |Azure| image:: https://dev.azure.com/laurentcourty/laurentcourty/_apis/build/status/ItziModel.itzi?branchName=dev
-   :target: https://dev.azure.com/laurentcourty/laurentcourty/_build/latest?definitionId=1&branchName=dev
-   :alt: Azure Pipeline status
+.. |Actions| image:: https://github.com/ItziModel/itzi/actions/workflows/tests.yml/badge.svg
+   :target: https://github.com/ItziModel/itzi/actions/workflows/tests.yml
+   :alt: Github Actions status
 
 .. |pypi| image:: https://badge.fury.io/py/itzi.svg
     :target: https://badge.fury.io/py/itzi
