@@ -16,6 +16,7 @@ GNU General Public License for more details.
 import warnings
 from datetime import datetime, timedelta
 import copy
+from collections import namedtuple
 import numpy as np
 import pyswmm
 
@@ -29,10 +30,14 @@ import itzi.infiltration as infiltration
 from itzi.hydrology import Hydrology
 from itzi.itzi_error import NullError
 
+DrainageNodeData = namedtuple(
+    "DrainageNodeData", ["id", "object", "x", "y", "row", "col"]
+)
+
 
 def get_nodes_list(pswmm_nodes, nodes_coor_dict, drainage_params, igis, g):
     """Check if the drainage nodes are inside the region and can be linked.
-    Return a list of (DrainageNode, row, col)
+    Return a list of DrainageNodeData
     """
     nodes_list = []
     for pyswmm_node in pswmm_nodes:
@@ -48,15 +53,22 @@ def get_nodes_list(pswmm_nodes, nodes_coor_dict, drainage_params, igis, g):
         )
         # a node without coordinates cannot be linked
         if coors is None or not igis.is_in_region(coors.x, coors.y):
-            continue
+            node.linkage_type = LinkageTypes.NOT_LINKED
+            x_coor = None
+            y_coor = None
+            row = None
+            col = None
         else:
             # Set node as linked with no flow
             node.linkage_type = LinkageTypes.LINKED_NO_FLOW
-            # get row and column
+            x_coor = coors.x
+            y_coor = coors.y
             row, col = igis.coor2pixel(coors)
-            # populate list
-            node_tuple = (node, int(row), int(col))
-            nodes_list.append(node_tuple)
+        # populate list
+        drainage_node_data = DrainageNodeData(
+            id=pyswmm_node.nodeid, object=node, x=x_coor, y=y_coor, row=row, col=col
+        )
+        nodes_list.append(drainage_node_data)
     return nodes_list
 
 
@@ -125,6 +137,7 @@ def create_simulation(
     igis.read(input_maps)
     # Timed arrays
     tarr = {}
+    # TimedArray expects a function as an init parameter
     zeros_array = lambda: np.zeros(shape=raster_shape, dtype=dtype)  # noqa: E731
     for k in in_k_corresp.keys():
         tarr[k] = rasterdomain.TimedArray(in_k_corresp[k], igis, zeros_array)
@@ -173,7 +186,6 @@ def create_simulation(
         swmm_inp = SwmmInputParser(drainage_params["swmm_inp"])
         # Create Node objects
         all_nodes = pyswmm.Nodes(swmm_sim)
-        msgr.message(f"{all_nodes=}")
         nodes_coors_dict = swmm_inp.get_nodes_id_as_dict()
         nodes_list = get_nodes_list(
             all_nodes, nodes_coors_dict, drainage_params, igis, sim_param["g"]
@@ -183,8 +195,10 @@ def create_simulation(
         links_list = get_links_list(
             pyswmm.Links(swmm_sim), links_vertices_dict, nodes_coors_dict
         )
-        drainage = DrainageSimulation(swmm_sim, nodes_list, links_list)
+        node_objects_only = [i.object for i in nodes_list]
+        drainage = DrainageSimulation(swmm_sim, node_objects_only, links_list)
     else:
+        nodes_list = None
         drainage = None
     # reporting object
     msgr.debug("Setting up reporting object...")
@@ -207,6 +221,7 @@ def create_simulation(
         hydrology_model,
         surface_flow,
         drainage,
+        nodes_list,
         report,
     )
     return (simulation, tarr)
@@ -258,6 +273,7 @@ class Simulation:
         hydrology_model,
         surface_flow,
         drainage_model,
+        nodes_list,
         report,
     ):
         self.raster_domain = raster_domain
@@ -268,6 +284,7 @@ class Simulation:
         self.raster_domain = raster_domain
         self.hydrology_model = hydrology_model
         self.drainage_model = drainage_model
+        self.nodes_list = nodes_list
         self.surface_flow = surface_flow
         self.report = report
         # First time-step is forced
@@ -280,6 +297,10 @@ class Simulation:
         # case if no drainage simulation
         if not self.drainage_model:
             self.next_ts["drainage"] = self.end_time
+        else:
+            self.node_id_to_loc = {
+                n.id: (n.row, n.col) for n in self.nodes_list if n.object.is_linked()
+            }
         # Grid spacing
         self.spacing = (self.raster_domain.dy, self.raster_domain.dx)
 
@@ -302,14 +323,22 @@ class Simulation:
 
         # drainage #
         if self.sim_time == self.next_ts["drainage"] and self.drainage_model:
-            # self.drainage.solve_dt()
             self.drainage_model.step()
-            self.drainage_model.apply_linkage_to_nodes(
-                self.raster_domain.get_array("h"),
-                self.raster_domain.get_array("dem"),
-                self.raster_domain.get_array("n_drain"),
-                self.raster_domain.cell_surf,
+            # Update drainage nodes
+            surface_states = {}
+            cell_surf = self.raster_domain.cell_surf
+            arr_z = self.raster_domain.get_array("dem")
+            arr_h = self.raster_domain.get_array("h")
+            for node_id, (row, col) in self.node_id_to_loc.items():
+                surface_states[node_id] = {"z": arr_z[row, col], "h": arr_h[row, col]}
+            coupling_flows = self.drainage_model.apply_linkage_to_nodes(
+                surface_states, cell_surf
             )
+            # update drainage array
+            arr_qd = self.raster_domain.get_array("n_drain")
+            for node_id, coupling_flow in coupling_flows.items():
+                row, col = self.node_id_to_loc[node_id]
+                arr_qd[row, col] = coupling_flow / cell_surf
             # update stat array
             self.raster_domain.populate_stat_array("n_drain", self.sim_time)
             # calculate when will happen the next time-step

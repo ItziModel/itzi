@@ -1,101 +1,71 @@
 """Test the drainage component."""
 
 import os
-from configparser import ConfigParser
-from io import StringIO
+from datetime import timedelta
 
 import pandas as pd
 import pytest
-import grass.script as gscript
+import pyswmm
 
-from itzi import SimulationRunner
+from itzi import SwmmInputParser
+from itzi.drainage import DrainageNode, LinkageTypes, DrainageSimulation
+from itzi.simulation import get_links_list
 
 
 @pytest.fixture(scope="class")
-def drainage_sim_results(grass_xy_session, test_data_path):
-    # Create new mapset
-    gscript.run_command("g.mapset", mapset="drainage", flags="c")
-
-    array_shape = (9, 9)
-    cell_size = 5
-    # define region
-    gscript.run_command(
-        "g.region",
-        res=cell_size,
-        s=0,
-        n=array_shape[1] * cell_size,
-        w=0,
-        e=array_shape[0] * cell_size,
-        flags="o",
-    )
-    # create maps
-    gscript.mapcalc("dem=100")
-    gscript.mapcalc("friction=0.03")
-    # boundary conditions
-    boundary_conditions = os.path.join(test_data_path, "test_drainage_bc.asc")
-    gscript.run_command(
-        "v.in.ascii", input=boundary_conditions, output="boundary_conditions"
-    )
-    gscript.run_command(
-        "v.to.rast",
-        input="boundary_conditions",
-        type="point",
-        output="bctype",
-        use="val",
-        value=4,
-    )
-    gscript.run_command(
-        "v.to.rast",
-        input="boundary_conditions",
-        type="point",
-        output="bcvalue",
-        use="val",
-        value=0,
-    )
+def drainage_sim_results(test_data_path):
     # SWMM config file based on EA test 8b
     inp_file = os.path.join(test_data_path, "test_drainage.inp")
-    # Create itzi config file
-    config_dict = {
-        "time": {"duration": "03:20:00", "record_step": "00:00:30"},
-        "input": {"dem": "dem", "friction": "friction"},
-        "output": {"prefix": "out", "values": "h, drainage_stats"},
-        "options": {"theta": 0.7, "cfl": 0.5},
-        "drainage": {
-            "swmm_inp": inp_file,
-            "orifice_coeff": 1,
-            "output": "out_drainage",
-        },
-    }
-
-    conf_file = os.path.join(test_data_path, "test_drainage.ini")
-    parser = ConfigParser()
-    parser.read_dict(config_dict)
-    with open(conf_file, "w") as f:
-        parser.write(f)
-
-    # Create and run simulation
-    sim_runner = SimulationRunner()
-    sim_runner.initialize(conf_file)
-    sim_runner.run().finalize()
-
-    # Retrieve results
-    select_col = ["start_time", "linkage_flow"]
-    itzi_results = gscript.read_command("t.vect.db.select", input="out_drainage")
-    # translate to Pandas dataframe and keep only linkage_flow with start_time over 3000
-    df_itzi_results = pd.read_csv(StringIO(itzi_results), sep="|")[select_col]
-    df_itzi_results = df_itzi_results[df_itzi_results.start_time >= 3000]
-    df_itzi_results.set_index(
-        "start_time", drop=True, inplace=True, verify_integrity=True
+    # from input file
+    coupling_node_id = "J1"
+    # Dummy surface state
+    surface_states = {}
+    surface_states[coupling_node_id] = {"z": 100, "h": 0.0}
+    cell_surf = 25.0
+    # Create simulation
+    swmm_sim = pyswmm.Simulation(inp_file)
+    swmm_inp = SwmmInputParser(inp_file)
+    sim_start_time = swmm_sim.start_time
+    sim_end_time = swmm_sim.end_time
+    # Create Node objects
+    pyswmm_nodes = pyswmm.Nodes(swmm_sim)
+    nodes_coors_dict = swmm_inp.get_nodes_id_as_dict()
+    pyswmm_node = pyswmm_nodes[coupling_node_id]
+    coupling_node = DrainageNode(
+        pyswmm_node, nodes_coors_dict[coupling_node_id], LinkageTypes.LINKED_NO_FLOW
     )
-    # convert indices to timedelta
-    df_itzi_results.index = pd.to_timedelta(df_itzi_results.index, unit="s")
-    # to series
-    return df_itzi_results.squeeze()
+    nodes_list = [coupling_node]
+    # Create Link objects
+    links_vertices_dict = swmm_inp.get_links_id_as_dict()
+    links_list = get_links_list(
+        pyswmm.Links(swmm_sim), links_vertices_dict, nodes_coors_dict
+    )
+    # Create simulation object
+    drainage = DrainageSimulation(swmm_sim, nodes_list, links_list)
+
+    # Run simulation
+    coupling_flows = {}
+    current_time = sim_start_time
+    # Add fudge
+    while current_time < sim_end_time - timedelta(milliseconds=500):
+        # update simulation
+        drainage.step()
+        # coupling
+        calculated_flows = drainage.apply_linkage_to_nodes(surface_states, cell_surf)
+        node_flow = calculated_flows[coupling_node_id]
+        coupling_flows[current_time - sim_start_time] = node_flow
+        # update time
+        current_time += drainage.dt
+
+    ds_results = pd.Series(coupling_flows)
+    # things start happening after 3000 seconds
+    ds_results = ds_results[ds_results.index >= timedelta(seconds=3000)]
+    return ds_results
 
 
 def test_drainage_coupling_stability(drainage_sim_results, helpers):
-    """Test the stability of the coupling between itzi and SWMM."""
+    """Test the stability of the drainage coupling."""
     # roughness = helpers.roughness(drainage_sim_results)
-    autocorrelation = drainage_sim_results.autocorr(lag=1)
     # assert roughness < 5
+    autocorrelation = drainage_sim_results.autocorr(lag=1)
     assert autocorrelation > 0.9

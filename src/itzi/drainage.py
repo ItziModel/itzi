@@ -36,7 +36,7 @@ class DrainageSimulation:
     """manage simulation of the pipe network"""
 
     def __init__(self, pyswmm_sim, nodes_list, links_list):
-        # A list of tuple (DrainageNode, row, col)
+        # A list of DrainageNode object
         self.nodes = nodes_list
         # A list of DrainageLink objects
         self.links = links_list
@@ -54,8 +54,6 @@ class DrainageSimulation:
 
     def __del__(self):
         """Make sure the swmm simulation is ended and closed properly."""
-        # self.swmm_sim.report()
-        # self.swmm_sim.close()
         self.swmm_model.swmm_report()
         self.swmm_model.swmm_close()
 
@@ -79,26 +77,24 @@ class DrainageSimulation:
         self.elapsed_time = elapsed_seconds
         return self
 
-    def apply_linkage_to_nodes(self, arr_h, arr_z, arr_qd, cell_surf):
+    def apply_linkage_to_nodes(self, surface_states, cell_surf):
         """For each linked node,
         calculate the flow entering or leaving the drainage network
-        Apply the flow to the node and to the relevant raster cell
-
-        TODO: move all raster operations off the drainage model
+        surface_states {node_id: {'z': float, 'h': float}}
         """
-        for node, row, col in self.nodes:
-            if node.is_linked():
-                z = arr_z[row, col]
-                h = arr_h[row, col]
-                node.apply_linkage(z, h, self._dt, cell_surf)
-                # apply flow to 2D model (m/s)
-                arr_qd[row, col] = node.linkage_flow / cell_surf
-        return self
+        calculated_flows = {}
+        for node in self.nodes:
+            node_id = node.node_id
+            if node.is_linked() and (node_id in surface_states):
+                state = surface_states[node_id]
+                node.apply_linkage(state["z"], state["h"], self._dt, cell_surf)
+                calculated_flows[node_id] = node.linkage_flow
+        return calculated_flows
 
 
 class DrainageNode(object):
     """A wrapper around the pyswmm node object.
-    Includes the flow linking logic
+    Includes the flow coupling logic
     """
 
     def __init__(
@@ -106,9 +102,9 @@ class DrainageNode(object):
         node_object,
         coordinates=None,
         linkage_type=LinkageTypes.NOT_LINKED,
-        orifice_coeff=None,
-        free_weir_coeff=None,
-        submerged_weir_coeff=None,
+        orifice_coeff=DefaultValues.ORIFICE_COEFF,
+        free_weir_coeff=DefaultValues.FREE_WEIR_COEFF,
+        submerged_weir_coeff=DefaultValues.SUBMERGED_WEIR_COEFF,
         g=DefaultValues.G,
         relaxation_factor=DefaultValues.RELAXATION_FACTOR,
         damping_factor=DefaultValues.DAMPING_FACTOR,
@@ -223,7 +219,9 @@ class DrainageNode(object):
         if overflow_to_drainage or drainage_to_overflow:
             new_linkage_flow = new_linkage_flow * self.damping_factor
 
+        ## Apply flow to internal values and pyswmm node ##
         # pyswmm fails if type not forced to double
+        # itzi considers the flow as positive when leaving the drainage, pyswmm is the opposite
         self.pyswmm_node.generated_inflow(np.float64(-new_linkage_flow))
         # update internal values
         self.linkage_flow = new_linkage_flow

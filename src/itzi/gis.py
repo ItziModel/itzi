@@ -333,7 +333,8 @@ class Igis:
 
     def coor2pixel(self, coor):
         """convert coordinates easting and northing to pixel row and column"""
-        return gutils.coor2pixel(coor, self.region)
+        row, col = gutils.coor2pixel(coor, self.region)
+        return int(row), int(col)
 
     def is_in_region(self, x, y):
         """For a given coordinate pair(x, y),
@@ -565,7 +566,7 @@ class Igis:
             db_info = {k: [] for k in self.linking_elements}
 
             # Points
-            for node, row, col in drainage_network.nodes:
+            for node in drainage_network.nodes:
                 if node.coordinates:
                     point = Point(*node.coordinates)
                     # add values
