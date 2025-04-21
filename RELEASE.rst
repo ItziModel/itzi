@@ -32,6 +32,7 @@ This version requires GRASS 8.4 or above.
 - More tests and better test coverage
 - Add benchmark tests for the surface flow simulation
 - All units for infiltration are now m/s instead of mm/h, preventing conversions errors
+- More modern package tooling
 
 Itzï 20.5
 ---------

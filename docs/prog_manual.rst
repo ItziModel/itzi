@@ -100,6 +100,13 @@ Then you can build the documentation locally:
     $ sphinx-build . _build
 
 
+Continuous integration
+----------------
+
+Tests are automatically run with GitHub Actions.
+Before committing changes to the workflows, test them locally using `act <https://nektosact.com/>`__.
+
+
 Release process
 ---------------
 
