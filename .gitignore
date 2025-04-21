@@ -7,11 +7,11 @@
 .pdm-python
 .python-version
 .profiles/
+.vscode
 pdm.lock
 build/
 dist/
 *.egg-info/
 src/itzi/flow.c
-src/itzi/swmm/swmm_c.c
 docs/_build/
 tests/test_data_temp/
