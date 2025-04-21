@@ -1,4 +1,4 @@
-name: CI
+name: tests
 
 on:
   push:
@@ -42,12 +42,12 @@ jobs:
 
     - name: Test with pytest
       run: |
-        pdm run pytest --cov=src --forked --junitxml=junit/test-results.xml --cov-report=xml --cov-report=html
+        pdm run pytest --cov=src --forked --junitxml=junit/test-results.xml --cov-report=xml --cov-report=html tests/test_infiltration.py
 
     - name: Upload coverage
       uses: actions/upload-artifact@v4
       with:
-        name: coverage-report
+        name: coverage-report-${{ matrix.python-version }}
         path: |
           htmlcov/
           coverage.xml
