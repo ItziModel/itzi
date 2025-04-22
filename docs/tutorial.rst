@@ -27,7 +27,7 @@ Fit the lidar elevation raster map and set a resolution of 5m:
 
 .. code:: sh
 
-    $ g.region -p raster=elev_lid792_1m@PERMANENT res=5 save=lidar_5m
+    g.region raster=elev_lid792_1m@PERMANENT res=5
 
 Resample the DEM
 ~~~~~~~~~~~~~~~~
@@ -40,7 +40,7 @@ which prevent high slope values that could occur if using the GRASS default near
 
 .. code:: sh
 
-    $ r.resamp.interp input=elev_lid792_1m@PERMANENT output=elev_lid792_5m
+    r.resamp.interp input=elev_lid792_1m@PERMANENT output=elev_lid792_5m
 
 Create a raster mask
 ~~~~~~~~~~~~~~~~~~~~
@@ -49,14 +49,14 @@ Generate a drainage direction map and then create a watershed raster using the o
 
 .. code:: sh
 
-    $ r.watershed elevation=elev_lid792_5m drainage=elev_lid792_5m_drainage
-    $ r.water.outlet input=elev_lid792_5m_drainage output=watershed coordinates=638888,220011
+    r.watershed elevation=elev_lid792_5m drainage=elev_lid792_5m_drainage
+    r.water.outlet input=elev_lid792_5m_drainage output=watershed coordinates=638888,220011
 
 Create a raster mask to prevent calculation outside of the watershed:
 
 .. code:: sh
 
-    $ r.mask rast=watershed
+    r.mask rast=watershed
 
 Create boundary condition maps
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -65,8 +65,8 @@ Create a vector map with the watershed outlet point:
 
 .. code:: sh
 
-    $ echo '638888|220011' > watershed_out.txt
-    $ v.in.ascii input=watershed_out.txt output=watershed_out
+    echo '638888|220011' > watershed_out.txt
+    v.in.ascii input=watershed_out.txt output=watershed_out
 
 Using this vector map, create two raster maps for the boundary conditions.
 The first with a value corresponding to the type of condition,
@@ -75,8 +75,8 @@ The second being the value of the depth wanted, here 0.
 
 .. code:: sh
 
-    $ v.to.rast input=watershed_out type=point output=bctype use=val value=4
-    $ v.to.rast input=watershed_out type=point output=bcvalue use=val value=0
+    v.to.rast input=watershed_out type=point output=bctype use=val value=4
+    v.to.rast input=watershed_out type=point output=bcvalue use=val value=0
 
 Create rainfall and friction maps
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -85,8 +85,8 @@ Create maps of uniform rainfall and friction coefficient:
 
 .. code:: sh
 
-    $ r.mapcalc exp='rain=100'
-    $ r.mapcalc exp='n=0.05'
+    r.mapcalc exp='rain=100'
+    r.mapcalc exp='n=0.05'
 
 Create a parameters file
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -121,7 +121,7 @@ Run the simulation:
 
 .. code:: sh
 
-    $ itzi run <parameter_file_name>
+    itzi run <parameter_file_name>
 
 At the end of the simulation, Itzï should have generated five Space-Time
 Raster Dataset (STRDS) in the form:

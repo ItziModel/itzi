@@ -15,14 +15,15 @@ Itzï depends on `GRASS GIS 8.4 or above <https://grass.osgeo.org/download/>`__.
 GRASS should therefore be installed in order to use Itzï.
 All other dependencies are installed by pip.
 
-To install Itzï, you'll need to have the Python installation software `uv <https://docs.astral.sh/uv>`__ installed.
-Install it by following the instructions on the `uv website <https://docs.astral.sh/uv>`__.
+You can install itzi with pip or pipx.
+However, we recommend you use `uv <https://docs.astral.sh/uv>`__.
+Install *uv* by following the instructions on the `uv website <https://docs.astral.sh/uv>`__.
 
-Once you have *uv* installed, you can run Itzï using *uvx*.
+Once you have *uv* installed, you can install Itzï with the following command:
 
-    uvx itzi
+    uv tool install itzi
 
-This will automatically install itzi in its own environment and run it.
+This will automatically download itzi and install it in its own python environment.
 
 Installation on Windows
 -------------------------
@@ -36,5 +37,5 @@ Verification of the installation
 
 To check if everything went fine::
 
-    uvx itzi version
-    uvx itzi run -h
+    itzi version
+    itzi run -h
