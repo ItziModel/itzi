@@ -17,9 +17,9 @@ jobs:
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.23.2
-        # env:
-        #   CIBW_SOME_OPTION: value
-        #    ...
+        env:
+          CIBW_ARCHS: auto64  # Don't build 32 bits wheels
+          CIBW_SKIP: pp*  # Don't build pypy wheels
         # with:
         #   package-dir: .
         #   output-dir: wheelhouse
