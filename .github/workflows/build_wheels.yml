@@ -20,11 +20,6 @@ jobs:
         env:
           CIBW_ARCHS: auto64  # Don't build 32 bits wheels
           CIBW_SKIP: pp*  # Don't build pypy wheels
-        # with:
-        #   package-dir: .
-        #   output-dir: wheelhouse
-        #   config-file: "{package}/pyproject.toml"
-
       - uses: actions/upload-artifact@v4
         with:
           name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
@@ -43,3 +38,21 @@ jobs:
         with:
           name: cibw-sdist
           path: dist/*.tar.gz
+
+upload_pypi:
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          # unpacks all CIBW artifacts into dist/
+          pattern: cibw-*
+          path: dist
+          merge-multiple: true
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # To test: repository-url: https://test.pypi.org/legacy/
