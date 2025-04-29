@@ -30,7 +30,7 @@ alongside the dependencies with:
 
 .. code:: sh
 
-    $ pdm install
+    pdm install
 
 This will create a virtual environment and install all the dependencies listed in the *pyproject.toml* file.
 Now, every change you make to the Python code will be directly reflected when running *itzi* from the command line or the tests.
@@ -40,7 +40,7 @@ If so, install `uv <https://docs.astral.sh/uv/>`__ and set pdm to use it:
 
 .. code:: sh
 
-    $ pdm config use_uv true
+    pdm config use_uv true
 
 
 Cython code
@@ -52,8 +52,8 @@ you can do so by running the following command in the root directory of the repo
 
 .. code:: sh
 
-    $ cython -3 src/itzi/flow.pyx
-    $ pdm install
+    cython -3 src/itzi/flow.pyx
+    pdm install
 
 
 Testing
@@ -65,13 +65,13 @@ the tests must be run in separate processes using *pytest-forked*.
 
 .. code:: sh
 
-    $ pdm run pytest --forked -v
+    pdm run pytest --forked -v
 
 To estimate the test coverage:
 
 .. code:: sh
 
-    $ pdm run pytest --cov=itzi --forked -v
+    pdm run pytest --cov=itzi --forked -v
 
 Select the python version to test against with *pdm use*.
 Test against the 3 `last versions of python <https://devguide.python.org/versions/>`__.
@@ -96,12 +96,12 @@ Then you can build the documentation locally:
 
 .. code:: sh
 
-    $ cd docs
-    $ sphinx-build . _build
+    cd docs
+    sphinx-build . _build
 
 
 Continuous integration
-----------------
+----------------------
 
 Tests are automatically run with GitHub Actions.
 Before committing changes to the workflows, test them locally using `act <https://nektosact.com/>`__.
