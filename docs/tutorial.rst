@@ -3,7 +3,7 @@ Tutorial
 
 This tutorial shows how to run a basic Itzï simulation using freely available dataset.
 
-It assumes that GRASS 7 and Itzï are properly installed on your machine
+It assumes that GRASS and Itzï are properly installed on your machine
 and that you possess a basic knowledge of GRASS.
 
 Get ready
