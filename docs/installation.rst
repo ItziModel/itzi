@@ -19,7 +19,7 @@ You can install itzi with pip or pipx.
 However, we recommend you use `uv <https://docs.astral.sh/uv>`__.
 Install *uv* by following the instructions on the `uv website <https://docs.astral.sh/uv>`__.
 
-Once you have *uv* installed, you can install Itzï with the following command:
+Once you have *uv* installed, you can install Itzï with the following command::
 
     uv tool install itzi
 
@@ -28,9 +28,8 @@ This will automatically download itzi and install it in its own python environme
 Installation on Windows
 -------------------------
 
-Itzï should be able to run on Windows using the Windows Subsystem for Linux (WSL).
-To install WSL, follow the steps given by `Microsoft <https://learn.microsoft.com/en-gb/windows/wsl/install>`__.
-Once a GNU/Linux distribution is installed, the installation steps for itzi are the same as above.
+Itzï has been tested on Windows 11.
+From a PowerShell terminal, the steps to install Itzï are the same as for GNU/Linux: first install *uv* then itzi.
 
 Verification of the installation
 --------------------------------
