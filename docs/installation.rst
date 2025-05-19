@@ -6,7 +6,7 @@ Availability
 ------------
 
 The python package for Itzï is on `pypi <https://pypi.python.org/pypi/itzi>`__.
-You can browse and download the source code on `bitbucket <https://bitbucket.org/itzi-model/itzi>`__.
+You can browse and download the source code on `GitHub <https://github.com/ItziModel/itzi>`__.
 
 Installation on GNU/Linux
 -------------------------
