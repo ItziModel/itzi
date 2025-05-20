@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import platform
 from setuptools import setup
 from setuptools.extension import Extension
 from setuptools.command.build_ext import build_ext
@@ -19,13 +20,25 @@ lopt = {"mingw32": ["-lgomp", "-lpthread"], "unix": ["-lgomp", "-fopenmp"]}
 class build_ext_compiler_check(build_ext):
     def build_extensions(self):
         compiler = self.compiler.compiler_type
-        print("compiler: {}".format(compiler))
-        if compiler in copt:
-            for e in self.extensions:
-                e.extra_compile_args = copt[compiler]
-        if compiler in lopt:
-            for e in self.extensions:
-                e.extra_link_args = lopt[compiler]
+        print(f"{compiler=}")
+        for ext in self.extensions:
+            if compiler in ["msvc", "mingw32"]:
+                ext.extra_compile_args = copt[compiler]
+                ext.extra_link_args = lopt.get(compiler)
+            if compiler in ["unix"]:
+                if platform.system() == "Darwin":
+                    ext.extra_compile_args.extend(["-Xpreprocessor", "-fopenmp"])
+                    ext.extra_link_args.append("-lomp")
+                    for path in ["/opt/homebrew/include", "/usr/local/include"]:
+                        if os.path.exists(path):
+                            ext.include_dirs.append(path)
+                    # Add homebrew library directories
+                    for path in ["/opt/homebrew/lib", "/usr/local/lib"]:
+                        if os.path.exists(path):
+                            ext.library_dirs.append(path)
+                else:
+                    ext.extra_compile_args = copt[compiler]
+                    ext.extra_link_args = lopt[compiler]
         build_ext.build_extensions(self)
 
 
