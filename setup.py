@@ -28,7 +28,7 @@ macos_libs = [
     "/opt/homebrew/opt/llvm/lib",
     "/opt/homebrew/opt/libomp/lib",
 ]
-macos_min_ver = 14.0
+macos_min_ver = "14.0"
 
 
 class build_ext_compiler_check(build_ext):
