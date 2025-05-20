@@ -15,6 +15,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install OpenMP
+        if: ${{ matrix.os }} == 'macos-14'
+        run: brew install libomp
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.23.2
         env:
