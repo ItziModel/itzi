@@ -15,15 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install OpenMP
+      - name: Set-up on MacOS
         if: ${{ matrix.os == 'macos-14' }}
         run: |
-          echo "Operating System: ${{ matrix.os }}"
           brew install libomp
-          export LDFLAGS="-L/opt/homebrew/opt/libomp/lib"
-          export CPPFLAGS="-I/opt/homebrew/opt/libomp/include"
-          export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
-          export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
+          export MACOSX_DEPLOYMENT_TARGET="14.0"
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.23.2
