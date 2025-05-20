@@ -28,7 +28,6 @@ macos_libs = [
     "/opt/homebrew/opt/llvm/lib",
     "/opt/homebrew/opt/libomp/lib",
 ]
-macos_min_ver = "14.0"
 
 
 class build_ext_compiler_check(build_ext):
@@ -41,7 +40,6 @@ class build_ext_compiler_check(build_ext):
                 ext.extra_link_args = lopt.get(compiler)
             if compiler in ["unix"]:
                 if platform.system() == "Darwin":
-                    os.environ["MACOSX_DEPLOYMENT_TARGET"] = macos_min_ver
                     ext.extra_compile_args.extend(["-Xpreprocessor", "-fopenmp"])
                     ext.extra_link_args.append("-lomp")
                     for path in macos_includes:

@@ -19,13 +19,13 @@ jobs:
         if: ${{ matrix.os == 'macos-14' }}
         run: |
           brew install libomp
-          export MACOSX_DEPLOYMENT_TARGET=14.0
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.23.2
         env:
           CIBW_ARCHS: auto64  # Don't build 32 bits wheels
           CIBW_SKIP: pp*  # Don't build pypy wheels
+          CIBW_ENVIRONMENT: "MACOSX_DEPLOYMENT_TARGET=14.0"
         # with:
         #   package-dir: .
         #   output-dir: wheelhouse
