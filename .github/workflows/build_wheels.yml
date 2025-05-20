@@ -20,6 +20,8 @@ jobs:
         run: |
           echo "Operating System: ${{ matrix.os }}"
           brew install libomp
+          export LDFLAGS="-L/opt/homebrew/opt/libomp/lib"
+          export CPPFLAGS="-I/opt/homebrew/opt/libomp/include"
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.23.2
