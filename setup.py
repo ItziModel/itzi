@@ -16,6 +16,13 @@ copt = {
 }
 lopt = {"mingw32": ["-lgomp", "-lpthread"], "unix": ["-lgomp", "-fopenmp"]}
 
+macos_includes = [
+    "/opt/homebrew/include",
+    "/usr/local/include",
+    "/opt/homebrew/opt/llvm/include",
+]
+macos_dirs = ["/opt/homebrew/lib", "/usr/local/lib", "/opt/homebrew/opt/llvm/include"]
+
 
 class build_ext_compiler_check(build_ext):
     def build_extensions(self):
@@ -29,11 +36,11 @@ class build_ext_compiler_check(build_ext):
                 if platform.system() == "Darwin":
                     ext.extra_compile_args.extend(["-Xpreprocessor", "-fopenmp"])
                     ext.extra_link_args.append("-lomp")
-                    for path in ["/opt/homebrew/include", "/usr/local/include"]:
+                    for path in macos_includes:
                         if os.path.exists(path):
                             ext.include_dirs.append(path)
                     # Add homebrew library directories
-                    for path in ["/opt/homebrew/lib", "/usr/local/lib"]:
+                    for path in macos_dirs:
                         if os.path.exists(path):
                             ext.library_dirs.append(path)
                 else:
