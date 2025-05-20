@@ -20,13 +20,13 @@ macos_includes = [
     "/opt/homebrew/include",
     "/usr/local/include",
     "/opt/homebrew/opt/llvm/include",
-    "/opt/homebrew/opt/libomp/lib",
+    "/opt/homebrew/opt/libomp/include",
 ]
-macos_dirs = [
+macos_libs = [
     "/opt/homebrew/lib",
     "/usr/local/lib",
-    "/opt/homebrew/opt/llvm/include",
-    "/opt/homebrew/opt/libomp/include",
+    "/opt/homebrew/opt/llvm/lib",
+    "/opt/homebrew/opt/libomp/lib",
 ]
 
 
@@ -46,7 +46,7 @@ class build_ext_compiler_check(build_ext):
                         if os.path.exists(path):
                             ext.include_dirs.append(path)
                     # Add homebrew library directories
-                    for path in macos_dirs:
+                    for path in macos_libs:
                         if os.path.exists(path):
                             ext.library_dirs.append(path)
                 else:
