@@ -20,8 +20,14 @@ macos_includes = [
     "/opt/homebrew/include",
     "/usr/local/include",
     "/opt/homebrew/opt/llvm/include",
+    "/opt/homebrew/opt/libomp/lib",
 ]
-macos_dirs = ["/opt/homebrew/lib", "/usr/local/lib", "/opt/homebrew/opt/llvm/include"]
+macos_dirs = [
+    "/opt/homebrew/lib",
+    "/usr/local/lib",
+    "/opt/homebrew/opt/llvm/include",
+    "/opt/homebrew/opt/libomp/include",
+]
 
 
 class build_ext_compiler_check(build_ext):
