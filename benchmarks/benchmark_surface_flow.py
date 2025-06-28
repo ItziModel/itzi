@@ -39,12 +39,12 @@ def gen_eggbox(
 
 
 num_cells_params = [10_000, 100_000, 1_000_000, 10_000_000]
-cell_size_params = [1, 2, 5, 10]
+cell_size_params = [1, 2, 5, 10, 20]
 
 
 def setup_eggbox_simulation(num_cells=10_000, cell_size=5):
     """Create the SurfaceFlow object"""
-    starting_depth = 1.0
+    starting_depth = 0.1
     coord_min = 0
     coord_max = int(math.sqrt(num_cells)) * cell_size
     # Generate the Egg box DEM

@@ -11,7 +11,7 @@ dependencies = [
     "pyswmm>=2.0.1",
     "bmipy>=2.0.1",
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.13"  # pyswmm does not support python > 3.12
 readme = "README.rst"
 license = {text = "GPL-2.0-or-later"}
 keywords = ["science", "engineering", "hydrology", "flood"]
@@ -42,7 +42,7 @@ dev = [
     "pytest-forked==1.*",
     "pandas==2.*",
     "requests==2.*",
-    "pytest-benchmark==5.1.*",
+    "pytest-benchmark[histogram]==5.1.*",
     "scipy>=1.15.2",
     "pre-commit>=4.2.0",
     "ruff>=0.11.6",
