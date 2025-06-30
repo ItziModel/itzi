@@ -133,8 +133,18 @@ def test_benchmark_surface_flow_n_steps(benchmark, num_cells, cell_size, n_steps
 @pytest.mark.parametrize("n_seconds", [30])  # Set as parameter to get it in the output json
 def test_benchmark_surface_flow_n_seconds(benchmark, num_cells, cell_size, n_seconds):
     """Run the benchmark for a given number of cells and cell size"""
+    results = []
+    def wrapper(eggbox_sim, n_seconds):
+        n_steps = benchmark_surface_flow_n_seconds(eggbox_sim, n_seconds)
+        results.append(n_steps)
+        return n_steps
+
     eggbox_sim = setup_eggbox_simulation(num_cells=num_cells, cell_size=cell_size)
-    n_steps = benchmark(benchmark_surface_flow_n_seconds, eggbox_sim, n_seconds)
-    print(f"Number of steps: {n_steps}")
-    benchmark.extra_info["n_steps"] = n_steps
-    benchmark.extra_info["lattice_updates"] = n_steps * num_cells
+    n_steps = benchmark(wrapper, eggbox_sim, n_seconds)
+    # Calculate statistics
+    n_steps_mean = np.mean(results)
+    n_steps_std = np.std(results)
+    print(f"Number of steps: {n_steps} (mean: {n_steps_mean:.1f} ± {n_steps_std:.1f})")
+    benchmark.extra_info["n_steps_mean"] = n_steps_mean
+    benchmark.extra_info["n_steps_std"] = n_steps_std
+    benchmark.extra_info["lattice_updates"] = n_steps_mean * num_cells
