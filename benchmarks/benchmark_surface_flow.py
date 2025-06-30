@@ -4,6 +4,8 @@
 """ """
 
 import math
+import datetime
+
 import numpy as np
 import pytest
 
@@ -98,15 +100,41 @@ def setup_eggbox_simulation(num_cells=10_000, cell_size=5):
     return surface_flow
 
 
-def benchmark_surface_flow(eggbox_simulation):
-    for i in range(10):
+def benchmark_surface_flow_n_steps(eggbox_simulation, n_steps=10):
+    for _ in range(n_steps):
         eggbox_simulation.solve_dt()
         eggbox_simulation.step()
+    return n_steps
+
+
+def benchmark_surface_flow_n_seconds(eggbox_simulation, n_seconds=30):
+    time_left = datetime.timedelta(seconds=n_seconds)
+    n_steps = 0
+    while time_left >= datetime.timedelta(seconds=0):
+        eggbox_simulation.solve_dt()
+        eggbox_simulation.step()
+        time_left -= eggbox_simulation.dt
+        n_steps += 1
+    return n_steps
+
+
+@pytest.mark.parametrize("num_cells", num_cells_params)
+@pytest.mark.parametrize("cell_size", [5])  # Set as parameter to get it in the output json
+@pytest.mark.parametrize("n_steps", [5, 10])
+def test_benchmark_surface_flow_n_steps(benchmark, num_cells, cell_size, n_steps):
+    """Run the benchmark for a given number of cells and cell size"""
+    eggbox_sim = setup_eggbox_simulation(num_cells=num_cells, cell_size=cell_size)
+    benchmark(benchmark_surface_flow_n_steps, eggbox_sim, n_steps)
+    benchmark.extra_info["lattice_updates"] = n_steps * num_cells
 
 
 @pytest.mark.parametrize("num_cells", num_cells_params)
 @pytest.mark.parametrize("cell_size", cell_size_params)
-def test_benchmark(benchmark, num_cells, cell_size):
+@pytest.mark.parametrize("n_seconds", [30])  # Set as parameter to get it in the output json
+def test_benchmark_surface_flow_n_seconds(benchmark, num_cells, cell_size, n_seconds):
     """Run the benchmark for a given number of cells and cell size"""
     eggbox_sim = setup_eggbox_simulation(num_cells=num_cells, cell_size=cell_size)
-    benchmark(benchmark_surface_flow, eggbox_sim)
+    n_steps = benchmark(benchmark_surface_flow_n_seconds, eggbox_sim, n_seconds)
+    print(f"Number of steps: {n_steps}")
+    benchmark.extra_info["n_steps"] = n_steps
+    benchmark.extra_info["lattice_updates"] = n_steps * num_cells
