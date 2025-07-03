@@ -91,7 +91,7 @@ class SimulationRunner:
             msgr.fatal(
                 (
                     f"Itzi requires at least GRASS {self.grass_required_version}, "
-                    "version {grass_version} detected."
+                    f"version {grass_version} detected."
                 )
             )
         msgr.debug("GRASS session set")

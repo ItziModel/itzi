@@ -300,7 +300,7 @@ class Simulation:
             self.node_id_to_loc = {
                 n.id: (n.row, n.col) for n in self.nodes_list if n.object.is_coupled()
             }
-        # Grid spacing
+        # Grid spacing (for BMI)
         self.spacing = (self.raster_domain.dy, self.raster_domain.dx)
 
     def update(self):
