@@ -15,32 +15,49 @@ def calculate_total_volume(depth_array: np.ndarray, cell_surface_area: float) ->
 
 
 def calculate_continuity_error(volume_error: float, volume_change: float) -> float:
-    """Calculates the continuity error percentage."""
-    pass
+    """Calculates the continuity error percentage.
+    Args:
+        volume_error: Difference between expected and actual volume (m³)
+        volume_change: Total volume change during time step (m³)
+    Returns:
+        Continuity error as a percentage
+    """
+    if volume_change == 0:
+        return 0.0
+    return (volume_error / volume_change) * 100
 
 # --- Output Array Calculations (Previously in Report) ---
 
 def calculate_wse(h_array: np.ndarray, dem_array: np.ndarray) -> np.ndarray:
-    """Calculates Water Surface Elevation."""
-    pass
+    """Calculates Water Surface Elevation.
+    Args:
+        h_array: 2D array of water depths (m)
+        dem_array: 2D array of ground elevations (m)
+    Returns:
+        2D array of water surface elevations (m)
+    """
+    return h_array + dem_array
 
 
-def calculate_qx(qe_new_array: np.ndarray, dy: float) -> np.ndarray:
-    """Calculates the Qx flux."""
-    pass
-
-
-def calculate_qy(qs_new_array: np.ndarray, dx: float) -> np.ndarray:
-    """Calculates the Qy flux."""
-    pass
+def calculate_flux(flow_array: np.ndarray, cell_size: float) -> np.ndarray:
+    """Calculates the flux (Qx or Qy) by multiplying flow array by cell size.
+    Args:
+        flow_array: 2D array of flow values (m²/s)
+        cell_size: Grid cell size in perpendicular direction (m)
+    Returns:
+        2D array of flux values (m³/s)
+    """
+    return flow_array * cell_size
 
 # --- Statistical Calculations (Previously in Report) ---
 
-def calculate_average_rate_from_total(total_volume_array: np.ndarray, interval_seconds: float) -> np.ndarray:
-    """Calculates an average rate (m/s) from a cumulated volume array (m)."""
-    pass
-
-
-def calculate_average_rate_from_total_mmh(total_volume_array: np.ndarray, interval_seconds: float) -> np.ndarray:
-    """Calculates an average rate (mm/h) from a cumulated volume array (m)."""
-    pass
+def calculate_average_rate_from_total(total_volume_array: np.ndarray, interval_seconds: float, conversion_factor: float = 1.0) -> np.ndarray:
+    """Calculates an average rate from a cumulated volume array.
+    Args:
+        total_volume_array: 2D array of total volumes (m)
+        interval_seconds: Time interval over which volumes were accumulated (s)
+        conversion_factor: Factor to convert rate units (default: 1.0 for m/s)
+    Returns:
+        2D array of average rates in converted units
+    """
+    return (total_volume_array / interval_seconds) * conversion_factor
