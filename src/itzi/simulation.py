@@ -17,6 +17,8 @@ import warnings
 from datetime import datetime, timedelta
 import copy
 from collections import namedtuple
+from dataclasses import dataclass
+from typing import Dict
 import numpy as np
 import pyswmm
 
@@ -29,6 +31,23 @@ import itzi.messenger as msgr
 import itzi.infiltration as infiltration
 from itzi.hydrology import Hydrology
 from itzi.itzi_error import NullError
+
+
+@dataclass
+class SimulationData:
+    """Immutable data container for passing raw simulation state to Report.
+
+    This is a pure data structure containing only the "raw ingredients"
+    needed for a report. All report-specific calculations (e.g., WSE,
+    average rates) are performed by the Report class itself.
+    """
+    sim_time: datetime
+    raw_arrays: Dict[str, np.ndarray]  # Raw arrays: h, dem, qe_new, etc.
+    statistical_arrays: Dict[str, np.ndarray] # Accumulated totals: st_rain, st_inf, etc.
+    cell_dx: float  # cell size in east-west direction
+    cell_dy: float  # cell size in north-south direction
+    report_interval_seconds: float  # Time since last report
+
 
 DrainageNodeData = namedtuple(
     "DrainageNodeData", ["id", "object", "x", "y", "row", "col"]
