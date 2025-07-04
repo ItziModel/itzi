@@ -103,3 +103,50 @@ def test_calculate_average_rate_from_total():
         total_volume_array, interval_seconds, conversion_factor
     )
     assert np.allclose(result2, expected_rate2)
+
+
+def test_accumulate_rate_to_total():
+    """Test accumulate_rate_to_total with various inputs."""
+    # Create test arrays (3x3 grid)
+    stat_array = np.array([
+        [1.0, 2.0, 3.0],
+        [4.0, 5.0, 6.0],
+        [7.0, 8.0, 9.0]
+    ])
+    rate_array = np.array([
+        [0.1, 0.2, 0.3],
+        [0.4, 0.5, 0.6],
+        [0.7, 0.8, 0.9]
+    ])
+    time_delta_seconds = 60.0  # 1 minute
+    
+    # Store original stat_array for comparison (shallow copy is sufficient for numeric arrays)
+    original_stat_array = stat_array.copy()
+    
+    # Calculate expected result manually
+    expected_accumulation = rate_array * time_delta_seconds
+    expected_result = original_stat_array + expected_accumulation
+    
+    # Call the function (should modify stat_array in-place)
+    rastermetrics.accumulate_rate_to_total(stat_array, rate_array, time_delta_seconds)
+    
+    # Assert that stat_array was modified in-place to the expected result
+    assert np.allclose(stat_array, expected_result)
+
+    # Make sure the original array has not changed
+    assert not np.allclose(stat_array, original_stat_array)
+    
+    # Test case 2: Zero time delta
+    stat_array2 = np.array([
+        [1.0, 2.0],
+        [3.0, 4.0]
+    ])
+    rate_array2 = np.array([
+        [0.5, 0.6],
+        [0.7, 0.8]
+    ])
+    original_stat_array2 = stat_array2.copy()
+    
+    # With zero time delta, stat_array should remain unchanged
+    rastermetrics.accumulate_rate_to_total(stat_array2, rate_array2, 0.0)
+    assert np.allclose(stat_array2, original_stat_array2)

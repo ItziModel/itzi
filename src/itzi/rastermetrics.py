@@ -61,3 +61,16 @@ def calculate_average_rate_from_total(total_volume_array: np.ndarray, interval_s
         2D array of average rates in converted units
     """
     return (total_volume_array / interval_seconds) * conversion_factor
+
+
+def accumulate_rate_to_total(stat_array: np.ndarray, rate_array: np.ndarray, time_delta_seconds: float) -> None:
+    """Accumulates a rate array into a total array over a time delta.
+       The operation is performed in-place on stat_array.
+    Args:
+        stat_array: 2D array to accumulate into (modified in-place)
+        rate_array: 2D array of rates to accumulate
+        time_delta_seconds: Time interval over which to accumulate (s)
+    Returns:
+        None (modifies stat_array in-place)
+    """
+    stat_array += rate_array * time_delta_seconds
