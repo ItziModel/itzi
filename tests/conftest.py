@@ -176,3 +176,14 @@ def grass_5by5_sim(grass_5by5, test_data_path):
     sim_runner.initialize(config_file)
     sim_runner.run().finalize()
     return sim_runner
+
+
+@pytest.fixture(scope="class")
+def grass_5by5_max_values_sim(grass_5by5, test_data_path):
+    """ """
+    config_file = os.path.join(test_data_path, "5by5", "5by5_max_values.ini")
+    sim_runner = SimulationRunner()
+    assert isinstance(sim_runner, SimulationRunner)
+    sim_runner.initialize(config_file)
+    sim_runner.run().finalize()
+    return sim_runner

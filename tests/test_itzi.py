@@ -74,3 +74,35 @@ def test_region_mask(grass_5by5, test_data_path):
 
 
 # TODO: Add test for asymmetrical cells
+
+
+def test_max_values(grass_5by5_max_values_sim):
+    """Check if the maximum values of h and v are properly calculated."""
+    current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
+    assert current_mapset == "5by5"
+    h_maps = gscript.list_grouped("raster", pattern="*out_5by5_max_values_h_*")[
+        current_mapset
+    ]
+    v_maps = gscript.list_grouped("raster", pattern="*out_5by5_max_values_v_*")[
+        current_mapset
+    ]
+    gscript.run_command(
+        "r.series",
+        input=h_maps,
+        output="h_max_test",
+        method="maximum",
+        overwrite=True,
+    )
+    gscript.run_command(
+        "r.series",
+        input=v_maps,
+        output="v_max_test",
+        method="maximum",
+        overwrite=True,
+    )
+    h_max = gscript.raster_info("out_5by5_max_values_h_max")
+    h_max_test = gscript.raster_info("h_max_test")
+    v_max = gscript.raster_info("out_5by5_max_values_v_max")
+    v_max_test = gscript.raster_info("v_max_test")
+    assert np.isclose(h_max["max"], h_max_test["max"])
+    assert np.isclose(v_max["max"], v_max_test["max"])
