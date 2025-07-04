@@ -45,8 +45,8 @@ class SimulationData:
     """
 
     sim_time: datetime
-    raw_arrays: Dict[str, np.ndarray]  # Raw arrays: h, dem, qe_new, etc.
-    statistical_arrays: Dict[str, np.ndarray]  # Accumulated totals: st_rain, st_inf, etc.
+    raw_arrays: Dict[str, np.ndarray]
+    statistical_arrays: Dict[str, np.ndarray]
     cell_dx: float  # cell size in east-west direction
     cell_dy: float  # cell size in north-south direction
     report_interval_seconds: float  # Time since last report

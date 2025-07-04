@@ -46,6 +46,7 @@ dev = [
     "scipy>=1.15.2",
     "pre-commit>=4.2.0",
     "ruff>=0.11.6",
+    "ty>=0.0.1a13",
 ]
 
 [build-system]
@@ -68,3 +69,7 @@ markers = [
 
 [tool.ruff]
 line-length = 99
+
+[tool.ty.rules]
+# GRASS imports are resolved at runtime
+unresolved-import = "ignore"
