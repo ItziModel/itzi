@@ -123,9 +123,7 @@ def grass_5by5(grass_xy_session, test_data_path):
     # Create new mapset
     gscript.run_command("g.mapset", mapset="5by5", flags="c")
     # Create 3by5 named region
-    gscript.run_command(
-        "g.region", res=resolution, s=10, n=40, w=0, e=50, save="3by5", flags="o"
-    )
+    gscript.run_command("g.region", res=resolution, s=10, n=40, w=0, e=50, save="3by5", flags="o")
     region = gscript.parse_command("g.region", flags="pg")
     assert int(region["cells"]) == 15
     # Create raster for mask (do not apply mask)

@@ -40,9 +40,7 @@ class MassBalanceLogger:
     def _set_file_name(self, file_name: str) -> str:
         """Generate output file name"""
         if not file_name:
-            file_name = "{}_stats.csv".format(
-                str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S"))
-            )
+            file_name = "{}_stats.csv".format(str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S")))
         return file_name
 
     def _create_file(self) -> None:

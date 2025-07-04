@@ -18,9 +18,7 @@ from itzi import SimulationRunner
 
 MapInfo = namedtuple("MapInfo", ["name", "start", "end", "value"])
 
-TEST8A_URL = (
-    "https://zenodo.org/api/records/15256842/files/Test8A_dataset_2010.zip/content"
-)
+TEST8A_URL = "https://zenodo.org/api/records/15256842/files/Test8A_dataset_2010.zip/content"
 TEST8A_MD5 = "46b589ee000ff87c9077fcc51fa71e8e"
 
 

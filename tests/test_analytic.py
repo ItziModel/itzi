@@ -19,9 +19,7 @@ from itzi import SimulationRunner
 @pytest.fixture(scope="session")
 def mcdo_norain_reference(test_data_path):
     """ """
-    file_path = os.path.join(
-        test_data_path, "McDonald_long_channel_wo_rain", "mcdo_norain.csv"
-    )
+    file_path = os.path.join(test_data_path, "McDonald_long_channel_wo_rain", "mcdo_norain.csv")
     return pd.read_csv(file_path)
 
 
@@ -59,9 +57,7 @@ def grass_mcdo_norain_sim(grass_mcdo_norain, test_data_path):
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     assert current_mapset == "mcdo_norain"
     # accessible_mapsets = gscript.read_command('g.mapsets', flags='p').rstrip()
-    config_file = os.path.join(
-        test_data_path, "McDonald_long_channel_wo_rain", "mcdo_norain.ini"
-    )
+    config_file = os.path.join(test_data_path, "McDonald_long_channel_wo_rain", "mcdo_norain.ini")
     sim_runner = SimulationRunner()
     assert isinstance(sim_runner, SimulationRunner)
     sim_runner.initialize(config_file)
@@ -72,9 +68,7 @@ def grass_mcdo_norain_sim(grass_mcdo_norain, test_data_path):
 @pytest.fixture(scope="session")
 def mcdo_rain_reference(test_data_path):
     """ """
-    file_path = os.path.join(
-        test_data_path, "McDonald_long_channel_rain", "mcdo_rain.csv"
-    )
+    file_path = os.path.join(test_data_path, "McDonald_long_channel_rain", "mcdo_rain.csv")
     return pd.read_csv(file_path)
 
 
@@ -113,9 +107,7 @@ def grass_mcdo_rain_sim(grass_mcdo_rain, test_data_path):
     """ """
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     assert current_mapset == "mcdo_rain"
-    config_file = os.path.join(
-        test_data_path, "McDonald_long_channel_rain", "mcdo_rain.ini"
-    )
+    config_file = os.path.join(test_data_path, "McDonald_long_channel_rain", "mcdo_rain.ini")
     sim_runner = SimulationRunner()
     sim_runner.initialize(config_file)
     sim_runner.run().finalize()
@@ -145,9 +137,7 @@ class TestMcdo_norain:
         current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
         assert current_mapset == "mcdo_norain"
 
-        map_list = gscript.list_grouped("raster", pattern="out_mcdo_norain_qy*")[
-            current_mapset
-        ]
+        map_list = gscript.list_grouped("raster", pattern="out_mcdo_norain_qy*")[current_mapset]
         for raster in map_list:
             univar = gscript.parse_command("r.univar", map=raster, flags="g")
             assert float(univar["min"]) == 0

@@ -148,20 +148,13 @@ class SurfaceFlowSimulation:
         flow_east = self.dom.get_array("qe_new")
         flow_north = self.dom.get_padded("qs_new")[self.su, self.ss]
         flow_south = self.dom.get_array("qs_new")
-        assert (
-            flow_west.shape == flow_east.shape == flow_north.shape == flow_south.shape
-        )
+        assert flow_west.shape == flow_east.shape == flow_north.shape == flow_south.shape
 
         hflow_west = self.dom.get_padded("hfe")[self.ss, self.su]
         hflow_east = self.dom.get_array("hfe")
         hflow_north = self.dom.get_padded("hfs")[self.su, self.ss]
         hflow_south = self.dom.get_array("hfs")
-        assert (
-            hflow_west.shape
-            == hflow_east.shape
-            == hflow_north.shape
-            == hflow_south.shape
-        )
+        assert hflow_west.shape == hflow_east.shape == hflow_north.shape == hflow_south.shape
 
         flow.solve_h(
             arr_ext=self.dom.get_array("ext"),
@@ -182,7 +175,7 @@ class SurfaceFlowSimulation:
             arr_v=self.dom.get_array("v"),
             arr_vdir=self.dom.get_array("vdir"),
             arr_vmax=self.dom.get_array("vmax"),
-            arr_fr=self.dom.get_array("fr"),
+            arr_fr=self.dom.get_array("froude"),
             dx=self.dx,
             dy=self.dy,
             dt=self._dt,
@@ -271,13 +264,9 @@ class SurfaceFlowSimulation:
             qboundary=s_boundary_flow,
         )
         # add equivalent water depth passing through the boundaries to the statistic array
-        self.dom.get_array("st_bound")[1:-1, 0] += (
-            w_boundary_flow[self.ss] / self._dt / self.dx
-        )
+        self.dom.get_array("st_bound")[1:-1, 0] += w_boundary_flow[self.ss] / self._dt / self.dx
         self.dom.get_array("st_bound")[:, -1] += e_boundary_flow / self._dt / self.dx
-        self.dom.get_array("st_bound")[0, 1:-1] += (
-            n_boundary_flow[self.ss] / self._dt / self.dy
-        )
+        self.dom.get_array("st_bound")[0, 1:-1] += n_boundary_flow[self.ss] / self._dt / self.dy
         self.dom.get_array("st_bound")[-1] += s_boundary_flow / self._dt / self.dy
         return self
 
@@ -338,9 +327,7 @@ class Boundary(object):
         # Boundary type 3 (user-defined wse)
         slope = self.get_slope(depth[slice_wse], z[slice_wse], bcvalue[slice_wse])
         hf_boundary = bcvalue[slice_wse] - z[slice_wse]
-        qboundary[slice_wse] = self.get_flow_wse_boundary(
-            n[slice_wse], hf_boundary, slope
-        )
+        qboundary[slice_wse] = self.get_flow_wse_boundary(n[slice_wse], hf_boundary, slope)
         return self
 
     def get_flow_open_boundary(self, qin, hf, hf_boundary):

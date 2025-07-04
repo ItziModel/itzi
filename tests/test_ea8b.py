@@ -15,9 +15,7 @@ import grass.script as gscript
 
 from itzi import SimulationRunner
 
-TEST8B_URL = (
-    "https://zenodo.org/api/records/15256842/files/Test8B_dataset_2010.zip/content"
-)
+TEST8B_URL = "https://zenodo.org/api/records/15256842/files/Test8B_dataset_2010.zip/content"
 TEST8B_MD5 = "84b865cedd28f8156cfe70b84004b62c"
 
 
@@ -123,9 +121,7 @@ def ea_test8b_sim(ea_test8b, test_data_path, test_data_temp_path):
     os.chdir(test_data_temp_path)
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     assert current_mapset == "ea8b"
-    inp_file = os.path.join(
-        test_data_path, "EA_test_8", "b", "test8b_drainage_ponding.inp"
-    )
+    inp_file = os.path.join(test_data_path, "EA_test_8", "b", "test8b_drainage_ponding.inp")
     config_dict = {
         "time": {"duration": "03:20:00", "record_step": "00:00:30"},
         "input": {"dem": "dem2m_buildings", "friction": "n"},
@@ -158,9 +154,7 @@ def ea8b_itzi_drainage_results(ea_test8b_sim):
     # translate to Pandas dataframe and keep only linkage_flow with start_time over 3000
     df_itzi_results = pd.read_csv(StringIO(itzi_results), sep="|")[select_col]
     df_itzi_results = df_itzi_results[df_itzi_results.start_time >= 3000]
-    df_itzi_results.set_index(
-        "start_time", drop=True, inplace=True, verify_integrity=True
-    )
+    df_itzi_results.set_index("start_time", drop=True, inplace=True, verify_integrity=True)
     # convert indices to timedelta
     df_itzi_results.index = pd.to_timedelta(df_itzi_results.index, unit="s")
     # to series

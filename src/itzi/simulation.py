@@ -46,17 +46,13 @@ class SimulationData:
 
     sim_time: datetime
     raw_arrays: Dict[str, np.ndarray]  # Raw arrays: h, dem, qe_new, etc.
-    statistical_arrays: Dict[
-        str, np.ndarray
-    ]  # Accumulated totals: st_rain, st_inf, etc.
+    statistical_arrays: Dict[str, np.ndarray]  # Accumulated totals: st_rain, st_inf, etc.
     cell_dx: float  # cell size in east-west direction
     cell_dy: float  # cell size in north-south direction
     report_interval_seconds: float  # Time since last report
 
 
-DrainageNodeData = namedtuple(
-    "DrainageNodeData", ["id", "object", "x", "y", "row", "col"]
-)
+DrainageNodeData = namedtuple("DrainageNodeData", ["id", "object", "x", "y", "row", "col"])
 
 
 def get_nodes_list(pswmm_nodes, nodes_coor_dict, drainage_params, igis, g):
@@ -231,9 +227,7 @@ def create_simulation(
         )
         # Create Link objects
         links_vertices_dict = swmm_inp.get_links_id_as_dict()
-        links_list = get_links_list(
-            pyswmm.Links(swmm_sim), links_vertices_dict, nodes_coors_dict
-        )
+        links_list = get_links_list(pyswmm.Links(swmm_sim), links_vertices_dict, nodes_coors_dict)
         node_objects_only = [i.object for i in nodes_list]
         drainage = DrainageSimulation(swmm_sim, node_objects_only, links_list)
     else:
@@ -373,8 +367,7 @@ class Simulation:
                 if k not in self.raster_domain.k_stats
             }
             statistical_arrays = {
-                k: self.raster_domain.get_unmasked(k)
-                for k in self.raster_domain.k_stats
+                k: self.raster_domain.get_unmasked(k) for k in self.raster_domain.k_stats
             }
 
             simulation_data = SimulationData(
@@ -383,9 +376,7 @@ class Simulation:
                 statistical_arrays=statistical_arrays,
                 cell_dx=self.raster_domain.dx,
                 cell_dy=self.raster_domain.dy,
-                report_interval_seconds=(
-                    self.sim_time - self.report.last_step
-                ).total_seconds(),
+                report_interval_seconds=(self.sim_time - self.report.last_step).total_seconds(),
             )
 
             # b. Pass data to the reporting module
@@ -418,9 +409,7 @@ class Simulation:
             arr_h = self.raster_domain.get_array("h")
             for node_id, (row, col) in self.node_id_to_loc.items():
                 surface_states[node_id] = {"z": arr_z[row, col], "h": arr_h[row, col]}
-            coupling_flows = self.drainage_model.apply_coupling_to_nodes(
-                surface_states, cell_surf
-            )
+            coupling_flows = self.drainage_model.apply_coupling_to_nodes(surface_states, cell_surf)
             # update drainage array
             arr_qd = self.raster_domain.get_array("n_drain")
             for node_id, coupling_flow in coupling_flows.items():
@@ -443,11 +432,7 @@ class Simulation:
             self.surface_flow.step()
         except NullError:
             self.report.write_error_to_gis(self.surface_flow.arr_err)
-            msgr.fatal(
-                "{}: Null value detected in simulation, terminating".format(
-                    self.sim_time
-                )
-            )
+            msgr.fatal("{}: Null value detected in simulation, terminating".format(self.sim_time))
         # calculate when should happen the next surface time-step
         self.surface_flow.solve_dt()
         self.next_ts["surface_flow"] += self.surface_flow.dt
@@ -496,9 +481,7 @@ class Simulation:
             statistical_arrays=statistical_arrays,
             cell_dx=self.raster_domain.dx,
             cell_dy=self.raster_domain.dy,
-            report_interval_seconds=(
-                self.sim_time - self.report.last_step
-            ).total_seconds(),
+            report_interval_seconds=(self.sim_time - self.report.last_step).total_seconds(),
         )
         # write final report
         self.report.end(simulation_data)
@@ -528,9 +511,7 @@ class Simulation:
         return self
 
     def _check_mass_balance_error(self) -> None:
-        # New private method to perform the continuity error check.
-        # This is called on EVERY time step to ensure immediate feedback on
-        # simulation stability.
+        # Private method to perform the continuity error check.
         # It will calculate all volumes using `rastermetrics` and raise
         # MassBalanceError if the threshold is exceeded.
         pass
@@ -643,17 +624,11 @@ class Report:
 
             # --- Calculated arrays ---
             if k == "wse":
-                self.output_arrays["wse"] = rastermetrics.calculate_wse(
-                    raw["h"], raw["dem"]
-                )
+                self.output_arrays["wse"] = rastermetrics.calculate_wse(raw["h"], raw["dem"])
             elif k == "qx":
-                self.output_arrays["qx"] = rastermetrics.calculate_flux(
-                    raw["qe_new"], cell_dy
-                )
+                self.output_arrays["qx"] = rastermetrics.calculate_flux(raw["qe_new"], cell_dy)
             elif k == "qy":
-                self.output_arrays["qy"] = rastermetrics.calculate_flux(
-                    raw["qs_new"], cell_dx
-                )
+                self.output_arrays["qy"] = rastermetrics.calculate_flux(raw["qs_new"], cell_dx)
             elif k == "verror":  # Volume error
                 self.output_arrays["verror"] = stats["st_herr"] * cell_area
 
@@ -668,10 +643,8 @@ class Report:
             }
             for name, key in stat_map.items():
                 if self.out_map_names.get(name) and key in stats:
-                    self.output_arrays[name] = (
-                        rastermetrics.calculate_average_rate_from_total(
-                            stats[key], interval_s, 1.0
-                        )
+                    self.output_arrays[name] = rastermetrics.calculate_average_rate_from_total(
+                        stats[key], interval_s, 1.0
                     )
 
             rain_inf_map = {
@@ -680,10 +653,8 @@ class Report:
             }
             for name, key in rain_inf_map.items():
                 if self.out_map_names.get(name) and key in stats:
-                    self.output_arrays[name] = (
-                        rastermetrics.calculate_average_rate_from_total(
-                            stats[key], interval_s, mmh_to_ms
-                        )
+                    self.output_arrays[name] = rastermetrics.calculate_average_rate_from_total(
+                        stats[key], interval_s, mmh_to_ms
                     )
         return self
 
@@ -693,9 +664,7 @@ class Report:
 
         # 1. Calculate all volumes using rastermetrics
         cell_area = data.cell_dy * data.cell_dy
-        new_domain_vol = rastermetrics.calculate_total_volume(
-            data.raw_arrays["h"], cell_area
-        )
+        new_domain_vol = rastermetrics.calculate_total_volume(data.raw_arrays["h"], cell_area)
         if self.old_domain_volume is None:
             # On first time step, old_domain_volume is equal to new_domain_volume
             self.old_domain_volume = new_domain_vol.copy()
@@ -713,9 +682,7 @@ class Report:
 
         # 2. Calculate continuity error
         vol_change = new_domain_vol - self.old_domain_volume
-        continuity_error = rastermetrics.calculate_continuity_error(
-            vol_error, vol_change
-        )
+        continuity_error = rastermetrics.calculate_continuity_error(vol_error, vol_change)
 
         # 3. Assemble data and log
         report_data = {
@@ -723,9 +690,7 @@ class Report:
             "avg_timestep": data.raw_arrays.get(
                 "avg_timestep", "-"
             ),  # Should be passed in simData
-            "#timesteps": data.raw_arrays.get(
-                "#timesteps", 0
-            ),  # Should be passed in simData
+            "#timesteps": data.raw_arrays.get("#timesteps", 0),  # Should be passed in simData
             "boundary_vol": boundary_vol,
             "rain_vol": rain_vol,
             "inf_vol": inf_vol,
@@ -793,9 +758,7 @@ class Report:
             strds_name = self.out_map_names[mkey]
             if strds_name is None:
                 continue
-            self.gis.register_maps_in_stds(
-                mkey, strds_name, lst, "strds", self.temporal_type
-            )
+            self.gis.register_maps_in_stds(mkey, strds_name, lst, "strds", self.temporal_type)
         # vector
         if self.drainage_sim and self.drainage_out:
             self.gis.register_maps_in_stds(

@@ -114,7 +114,7 @@ The "open" and "closed" boundary conditions are applied only at the border of th
 The possible values to be exported are the following:
 
 +--------------+---------------------------------------------------------+--------+
-| Keyword      | Description                                             | Format |
+| Keyword      | Description                                             | Unit   |
 +==============+=========================================================+========+
 | h            | Water depth                                             | meters |
 +--------------+---------------------------------------------------------+--------+
@@ -122,8 +122,9 @@ The possible values to be exported are the following:
 +--------------+---------------------------------------------------------+--------+
 | v            | Overland flow speed (velocity's magnitude)              | m/s    |
 +--------------+---------------------------------------------------------+--------+
-| vdir         | Velocity's direction. CCW from East                     | degrees|
-|              |                                                         |        |
+| vdir         | Velocity's direction. Counter-clockwise from East       | degrees|
++--------------+---------------------------------------------------------+--------+
+| froude       | The Froude number                                       | none   |
 +--------------+---------------------------------------------------------+--------+
 | qx           | Volumetric flow, x direction. Positive if going East    | m³/s   |
 +--------------+---------------------------------------------------------+--------+
@@ -141,17 +142,17 @@ The possible values to be exported are the following:
 | inflow       | Average user flow since the last record                 | m/s    |
 +--------------+---------------------------------------------------------+--------+
 | losses       | Average losses since the last record                    | m/s    |
-|              | (*new in 17.1, renamed in 17.7*)                        |        |
 +--------------+---------------------------------------------------------+--------+
 |drainage_stats| Average exchange flow between surface and drainage model|        |
-|              | since the last record (*new in 17.7*)                   | m/s    |
+|              | since the last record                                   | m/s    |
 +--------------+---------------------------------------------------------+--------+
 | verror       | Total created volume due to numerical error since the   | m³     |
-|              | last record (*new in 17.1*)                             |        |
+|              | last record                                             |        |
 +--------------+---------------------------------------------------------+--------+
 
-.. versionadded:: 17.1
-    *drainage_cap* and *verror* are added.
+
+.. versionadded:: 25.7
+    *froude* is added.
 
 .. versionchanged:: 17.7
     *drainage_cap* is renamed to *losses*

@@ -17,7 +17,6 @@ from datetime import datetime
 import numpy as np
 
 import itzi.flow as flow
-import itzi.messenger as msgr
 from itzi import rastermetrics
 
 
@@ -134,7 +133,7 @@ class RasterDomain:
             "v",
             "vdir",
             "vmax",
-            "fr",
+            "froude",
             "n_drain",
             "capped_losses",
             "dire",
@@ -232,9 +231,7 @@ class RasterDomain:
             fill_value = np.finfo(self.dtype).max
         elif k == "h":
             if self.start_volume is None:
-                self.start_volume = rastermetrics.calculate_total_volume(
-                    arr, self.cell_surf
-                )
+                self.start_volume = rastermetrics.calculate_total_volume(arr, self.cell_surf)
             fill_value = 0
         elif k == "friction":
             fill_value = 1
