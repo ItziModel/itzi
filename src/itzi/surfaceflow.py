@@ -111,7 +111,7 @@ class SurfaceFlowSimulation:
         accommodate non-square cells
         The time-step is limited by the maximum time-step dtmax.
         """
-        maxh = self.dom.amax("h")  # max depth in domain
+        maxh = np.amax(self.dom.get_array("h"))  # max depth in domain
         min_dim = min(self.dx, self.dy)
         if maxh > 0:
             dt = self.cfl * (min_dim / (math.sqrt(self.g * maxh)))

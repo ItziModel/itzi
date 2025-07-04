@@ -42,7 +42,9 @@ class MassBalanceError(ItziError):
     def __init__(self, error_percentage: float, threshold: float):
         self.error_percentage = error_percentage
         self.threshold = threshold
-        super().__init__(f"Mass balance error {error_percentage:.2f}% exceeds threshold {threshold:.2f}%")
+        super().__init__(
+            f"Mass balance error {error_percentage:.2f}% exceeds threshold {threshold:.2f}%"
+        )
 
 
 class ItziFatal(ItziError):

@@ -3,6 +3,7 @@ from datetime import datetime
 
 # --- Volume & Flow Calculations ---
 
+
 def calculate_total_volume(depth_array: np.ndarray, cell_surface_area: float) -> float:
     """Calculates the total volume from a depth array.
     Args:
@@ -26,7 +27,9 @@ def calculate_continuity_error(volume_error: float, volume_change: float) -> flo
         return 0.0
     return (volume_error / volume_change) * 100
 
+
 # --- Output Array Calculations (Previously in Report) ---
+
 
 def calculate_wse(h_array: np.ndarray, dem_array: np.ndarray) -> np.ndarray:
     """Calculates Water Surface Elevation.
@@ -49,9 +52,15 @@ def calculate_flux(flow_array: np.ndarray, cell_size: float) -> np.ndarray:
     """
     return flow_array * cell_size
 
+
 # --- Statistical Calculations (Previously in Report) ---
 
-def calculate_average_rate_from_total(total_volume_array: np.ndarray, interval_seconds: float, conversion_factor: float = 1.0) -> np.ndarray:
+
+def calculate_average_rate_from_total(
+    total_volume_array: np.ndarray,
+    interval_seconds: float,
+    conversion_factor: float = 1.0,
+) -> np.ndarray:
     """Calculates an average rate from a cumulated volume array.
     Args:
         total_volume_array: 2D array of total volumes (m)
@@ -63,7 +72,9 @@ def calculate_average_rate_from_total(total_volume_array: np.ndarray, interval_s
     return (total_volume_array / interval_seconds) * conversion_factor
 
 
-def accumulate_rate_to_total(stat_array: np.ndarray, rate_array: np.ndarray, time_delta_seconds: float) -> None:
+def accumulate_rate_to_total(
+    stat_array: np.ndarray, rate_array: np.ndarray, time_delta_seconds: float
+) -> None:
     """Accumulates a rate array into a total array over a time delta.
        The operation is performed in-place on stat_array.
     Args:

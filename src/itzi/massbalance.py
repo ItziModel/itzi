@@ -15,50 +15,29 @@ GNU General Public License for more details.
 
 from datetime import datetime
 import csv
-import copy
+from typing import List, Dict, Any
 
 
-class MassBal:
-    """Follow-up the mass balance during the simulation run
-    Intended use:
-    at each record time, using write_values():
-    averaged or cumulated values for the considered time difference are
-    written to a CSV file
-    """
+class MassBalanceLogger:
+    """Writes pre-calculated mass balance data to a CSV file."""
 
-    def __init__(self, file_name, rast_dom, start_time, temporal_type):
-        self.dom = rast_dom
-        self.start_time = start_time
+    def __init__(
+        self,
+        file_name: str,
+        start_time: datetime,
+        temporal_type: str,
+        fields: List[str],
+    ):
+        """Initializes the logger and creates the output file with headers."""
         if temporal_type not in ["absolute", "relative"]:
-            assert False, "unknown temporal type <{}>".format(temporal_type)
+            raise ValueError(f"unknown temporal type <{temporal_type}>")
         self.temporal_type = temporal_type
-        # values to be written on each record time
-        self.fields = [
-            "sim_time",  # either timedelta or datetime
-            "avg_timestep",
-            "#timesteps",
-            "boundary_vol",
-            "rain_vol",
-            "inf_vol",
-            "inflow_vol",
-            "losses_vol",
-            "drain_net_vol",
-            "domain_vol",
-            "created_vol",
-            "%error",
-        ]
-        # data written to file as one line
-        self.line = dict.fromkeys(self.fields)
-        # data collected during simulation
-        self.sim_data = {"tstep": []}
-        # set file name and create file
-        self.file_name = self.set_file_name(file_name)
-        self.create_file()
-        # water volume in the domain
-        self.old_dom_vol = None
-        self.new_dom_vol = 0.0
+        self.start_time = start_time
+        self.fields = fields
+        self.file_name = self._set_file_name(file_name)
+        self._create_file()
 
-    def set_file_name(self, file_name):
+    def _set_file_name(self, file_name: str) -> str:
         """Generate output file name"""
         if not file_name:
             file_name = "{}_stats.csv".format(
@@ -66,81 +45,33 @@ class MassBal:
             )
         return file_name
 
-    def create_file(self):
+    def _create_file(self) -> None:
         """Create a csv file and write headers"""
-        with open(self.file_name, "w") as f:
+        with open(self.file_name, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=self.fields)
             writer.writeheader()
-        return self
 
-    def read_dom_vol(self):
-        """read new domain volume
-        store the current volume as old domain volume
-        """
-        if self.old_dom_vol is None:
-            self.old_dom_vol = self.dom.start_volume
-        else:
-            self.old_dom_vol = copy.copy(self.new_dom_vol)
-        self.new_dom_vol = self.dom.water_volume()
-        return self
-
-    def add_value(self, key, value):
-        """add a value to sim_data"""
-        assert key in self.sim_data, "unknown key!"
-        self.sim_data[key].append(value)
-        return self
-
-    def write_values(self, sim_time):
-        """Calculate statistics and write them to the file"""
+    def log(self, report_data: Dict[str, Any]) -> None:
+        """Writes a single line of data to the CSV file."""
+        line_to_write = {}
         if self.temporal_type == "relative":
-            self.line["sim_time"] = sim_time - self.start_time
-        else:
-            self.line["sim_time"] = sim_time
+            report_data["sim_time"] = report_data["sim_time"] - self.start_time
 
-        # number of time-step during the interval is the number of records
-        self.line["#timesteps"] = len(self.sim_data["tstep"])
-        # average time-step calculation
-        elapsed_time = sum(self.sim_data["tstep"])
-        try:
-            avg_timestep = elapsed_time / self.line["#timesteps"]
-            self.line["avg_timestep"] = "{:.3f}".format(avg_timestep)
-        except ZeroDivisionError:
-            self.line["avg_timestep"] = "-"
+        for key, value in report_data.items():
+            if key in self.fields:
+                if isinstance(value, float):
+                    line_to_write[key] = f"{value:.3f}"
+                else:
+                    line_to_write[key] = value
 
-        # domain volume
-        self.read_dom_vol()
-        self.line["domain_vol"] = "{:.3f}".format(self.new_dom_vol)
+        # specific formatting for %error
+        if "%error" in line_to_write:
+            error_val = report_data["%error"]
+            if isinstance(error_val, float):
+                line_to_write["%error"] = f"{error_val:.2%}"
+            else:
+                line_to_write["%error"] = "-"
 
-        # sum of inflow (positive) / outflow (negative) volumes
-        boundary_vol = self.dom.boundary_vol()
-        self.line["boundary_vol"] = "{:.3f}".format(boundary_vol)
-        rain_vol = self.dom.rain_vol(sim_time)
-        self.line["rain_vol"] = "{:.3f}".format(rain_vol)
-        inf_vol = -self.dom.inf_vol(sim_time)
-        self.line["inf_vol"] = "{:.3f}".format(inf_vol)
-        inflow_vol = self.dom.inflow_vol(sim_time)
-        self.line["inflow_vol"] = "{:.3f}".format(inflow_vol)
-        losses_vol = -self.dom.losses_vol(sim_time)
-        self.line["losses_vol"] = "{:.3f}".format(losses_vol)
-        drain_net_vol = self.dom.ndrain_vol(sim_time)
-        self.line["drain_net_vol"] = "{:.3f}".format(drain_net_vol)
-
-        # Computation error from array
-        vol_error = self.dom.err_vol()
-        self.line["created_vol"] = "{:.3f}".format(vol_error)
-        # Continuity error: part of volume change due to error
-        dom_vol_diff = self.new_dom_vol - self.old_dom_vol
-        if dom_vol_diff <= 0:
-            self.line["%error"] = "-"
-        else:
-            self.line["%error"] = "{:.2%}".format(vol_error / dom_vol_diff)
-
-        # Add line to file
-        with open(self.file_name, "a") as f:
+        with open(self.file_name, "a", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=self.fields)
-            writer.writerow(self.line)
-
-        # empty dictionaries
-        self.sim_data = {k: [] for k in self.sim_data.keys()}
-        self.line = dict.fromkeys(self.line.keys())
-        return self
+            writer.writerow(line_to_write)
