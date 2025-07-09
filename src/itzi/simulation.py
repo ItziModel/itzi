@@ -344,8 +344,10 @@ class Simulation:
         self.nextstep = self.sim_time + self.dt
         # dict of next time-step (datetime object)
         self.next_ts = {"end": self.end_time}
-        for k in ["hydrology", "surface_flow", "drainage", "record"]:
+        for k in ["hydrology", "surface_flow", "drainage"]:
             self.next_ts[k] = self.start_time
+        # Schedule the first record step to avoid duplication with initialize()
+        self.next_ts["record"] = self.start_time + self.report.dt
         # case if no drainage simulation
         if not self.drainage_model:
             self.next_ts["drainage"] = self.end_time
@@ -633,7 +635,7 @@ class Report:
         write max level maps
         """
         # do the last step
-        # self.step(final_data)
+        self.step(final_data)
         # Make sure all maps are written in the background process
         self.gis.finalize()
         # register maps and write max maps

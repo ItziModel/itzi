@@ -95,7 +95,7 @@ def grass_mcdo_rain(grass_xy_session, test_data_path):
     assert int(region["cells"]) == 600
     gscript.mapcalc("n=0.033")
     # Create rain map
-    gscript.mapcalc("rain=3600")
+    gscript.mapcalc("rain=3600")  # 0.001 m/s
     # Load axis points vector
     gscript.run_command("v.in.ogr", input=points_path, output="axis_points", flags="o")
     return None

@@ -153,13 +153,11 @@ def test_stats_maps(grass_5by5_stats_sim):
             minimum = float(stats["min"])
             maximum = float(stats["max"])
             # Initial maps are expected to be zero (simulation has not started yet)
-            print(f"{raster_map=}, {minimum=}, {maximum=}")
             if raster_map.endswith('0000'):
                 assert np.isclose(minimum, 0)
                 assert np.isclose(maximum, 0)
                 continue
-            # Ignore the very first time step
-            if not raster_map.endswith('0001'):
+            else:
                 if map_name == "rainfall":
                     assert np.isclose(minimum, 10.0)
                     assert np.isclose(maximum, 10.0)
@@ -175,7 +173,6 @@ def test_stats_maps(grass_5by5_stats_sim):
     # water depth
     first_depth_map = gscript.list_grouped("raster", pattern=f"*_h_0000")[current_mapset]
     depth_stats = gscript.parse_command("r.univar", flags="g", map=first_depth_map)
-    print(f"{depth_stats=}")
     depth_n = int(depth_stats["n"])
     depth_null_cells = int(depth_stats["null_cells"])
     depth_mean = float(depth_stats["mean"])
