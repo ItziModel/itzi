@@ -45,9 +45,10 @@ class SimulationData:
     """
 
     sim_time: datetime
-    time_step: float
+    time_step: float  # time step duration
+    time_steps_counter: int  # number of time steps since last update
     raw_arrays: Dict[str, np.ndarray]
-    statistical_arrays: Dict[str, np.ndarray]
+    accumulation_arrays: Dict[str, np.ndarray]
     cell_dx: float  # cell size in east-west direction
     cell_dy: float  # cell size in north-south direction
 
@@ -198,18 +199,18 @@ def create_simulation(
             start_time=sim_times.start,
             temporal_type=sim_times.temporal_type,
             fields=[
-                "sim_time",
-                "avg_timestep",
+                "simulation_time",
+                "average_timestep",
                 "#timesteps",
-                "boundary_vol",
-                "rain_vol",
-                "inf_vol",
-                "inflow_vol",
-                "losses_vol",
-                "drain_net_vol",
-                "domain_vol",
-                "created_vol",
-                "%error",
+                "boundary_volume",
+                "rainfall_volume",
+                "infiltration_volume",
+                "inflow_volume",
+                "losses_volume",
+                "drainage_network_volume",
+                "domain_volume",
+                "created_volume",
+                "percent_error"
             ],
         )
     else:
@@ -324,20 +325,20 @@ class Simulation:
         # Mass balance error checking
         self.old_domain_volume: float = 0.0
         self.mass_balance_error_threshold = mass_balance_error_threshold
-        # Moved from RasterDomain: statistical array management
-        self.stats_update_time: dict[str, datetime] = {
-            "st_inf": None,
-            "st_rain": None,
-            "st_inflow": None,
-            "st_losses": None,
-            "st_ndrain": None,
+        # Accumulation array management
+        self.accum_update_time: dict[str, datetime] = {
+            "infiltration_accum": None,
+            "rainfall_accum": None,
+            "inflow_accum": None,
+            "losses_accum": None,
+            "drainage_network_accum": None,
         }
-        self.stats_corresp: dict[str, str] = {
-            "inf": "st_inf",
-            "rain": "st_rain",
-            "inflow": "st_inflow",
-            "capped_losses": "st_losses",
-            "n_drain": "st_ndrain",
+        self.accum_corresp: dict[str, str] = {
+            "inf": "infiltration_accum",
+            "rain": "rainfall_accum",
+            "inflow": "inflow_accum",
+            "capped_losses": "losses_accum",
+            "n_drain": "drainage_network_accum",
         }
         # First time-step is forced
         self.dt = timedelta(seconds=0.001)
@@ -357,38 +358,41 @@ class Simulation:
             }
         # Grid spacing (for BMI)
         self.spacing = (self.raster_domain.dy, self.raster_domain.dx)
+        # time step counter
+        self.time_steps_counter: int = 0
 
     def initialize(self) -> Self:
         """Record the initial stage of the simulation, before time-stepping.
         """
-        self._populate_stat_array("rain", self.sim_time)
-        self._populate_stat_array("inflow", self.sim_time)
-        self._populate_stat_array("inf", self.sim_time)
-        self._populate_stat_array("capped_losses", self.sim_time)
+        self._populate_accum_array("rain", self.sim_time)
+        self._populate_accum_array("inflow", self.sim_time)
+        self._populate_accum_array("inf", self.sim_time)
+        self._populate_accum_array("capped_losses", self.sim_time)
         # Package data into SimulationData object
         raw_arrays = {
             k: self.raster_domain.get_unmasked(k)
             for k in self.raster_domain.k_all
-            if k not in self.raster_domain.k_stats
+            if k not in self.raster_domain.k_accum
         }
-        statistical_arrays = {
-            k: self.raster_domain.get_unmasked(k) for k in self.raster_domain.k_stats
+        accumulation_arrays = {
+            k: self.raster_domain.get_unmasked(k) for k in self.raster_domain.k_accum
         }
         simulation_data = SimulationData(
             sim_time=self.sim_time,
             time_step=self.dt.total_seconds(),
+            time_steps_counter=0,
             raw_arrays=raw_arrays,
-            statistical_arrays=statistical_arrays,
+            accumulation_arrays=accumulation_arrays,
             cell_dx=self.raster_domain.dx,
             cell_dy=self.raster_domain.dy,
         )
         # Pass data to the reporting module
         self.report.step(simulation_data)
 
-        # d. Reset statistical accumulators
-        self.raster_domain.reset_stats()
-        for key in self.stats_update_time:
-            self.stats_update_time[key] = self.sim_time
+        # d. Reset accumulators
+        self.raster_domain.reset_accumulations()
+        for key in self.accum_update_time:
+            self.accum_update_time[key] = self.sim_time
         return self
 
     def update(self) -> Self:
@@ -398,9 +402,9 @@ class Simulation:
             # calculate when will happen the next time-step
             self.next_ts["hydrology"] += self.hydrology_model.dt
             self.hydrology_model.step()
-            # update stat array
-            self._populate_stat_array("inf", self.sim_time)
-            self._populate_stat_array("capped_losses", self.sim_time)
+            # update accumulation array
+            self._populate_accum_array("inf", self.sim_time)
+            self._populate_accum_array("capped_losses", self.sim_time)
 
         # drainage #
         if self.sim_time == self.next_ts["drainage"] and self.drainage_model:
@@ -418,8 +422,8 @@ class Simulation:
             for node_id, coupling_flow in coupling_flows.items():
                 row, col = self.node_id_to_loc[node_id]
                 arr_qd[row, col] = coupling_flow / cell_surf
-            # update stat array
-            self._populate_stat_array("n_drain", self.sim_time)
+            # update accumulation array
+            self._populate_accum_array("n_drain", self.sim_time)
             # calculate when will happen the next time-step
             self.next_ts["drainage"] += self.drainage_model.dt
 
@@ -452,26 +456,27 @@ class Simulation:
             msgr.verbose(f"{self.sim_time}: Writing output maps...")
 
             # Populate statistical arrays before packaging data
-            self._populate_stat_array("rain", self.sim_time)
-            self._populate_stat_array("inflow", self.sim_time)
-            self._populate_stat_array("inf", self.sim_time)
-            self._populate_stat_array("capped_losses", self.sim_time)
+            self._populate_accum_array("rain", self.sim_time)
+            self._populate_accum_array("inflow", self.sim_time)
+            self._populate_accum_array("inf", self.sim_time)
+            self._populate_accum_array("capped_losses", self.sim_time)
 
             # Package data into SimulationData object
             raw_arrays = {
                 k: self.raster_domain.get_unmasked(k)
                 for k in self.raster_domain.k_all
-                if k not in self.raster_domain.k_stats
+                if k not in self.raster_domain.k_accum
             }
-            statistical_arrays = {
-                k: self.raster_domain.get_unmasked(k) for k in self.raster_domain.k_stats
+            accumulation_arrays = {
+                k: self.raster_domain.get_unmasked(k) for k in self.raster_domain.k_accum
             }
 
             simulation_data = SimulationData(
                 sim_time=self.sim_time,
                 time_step=self.dt.total_seconds(),
+                time_steps_counter=self.time_steps_counter,
                 raw_arrays=raw_arrays,
-                statistical_arrays=statistical_arrays,
+                accumulation_arrays=accumulation_arrays,
                 cell_dx=self.raster_domain.dx,
                 cell_dy=self.raster_domain.dy,
             )
@@ -479,10 +484,11 @@ class Simulation:
             # Pass data to the reporting module
             self.report.step(simulation_data)
 
-            # Reset statistical accumulators
-            self.raster_domain.reset_stats()
-            for key in self.stats_update_time:
-                self.stats_update_time[key] = self.sim_time
+            # Reset accumulation arrays
+            self.time_steps_counter = 0
+            self.raster_domain.reset_accumulations()
+            for key in self.accum_update_time:
+                self.accum_update_time[key] = self.sim_time
             # Update next time step
             self.next_ts["record"] += self.report.dt
         # Find next time step
@@ -507,25 +513,26 @@ class Simulation:
         return self
 
     def finalize(self):
-        self._populate_stat_array("rain", self.sim_time)
-        self._populate_stat_array("inflow", self.sim_time)
-        self._populate_stat_array("inf", self.sim_time)
-        self._populate_stat_array("capped_losses", self.sim_time)
+        self._populate_accum_array("rain", self.sim_time)
+        self._populate_accum_array("inflow", self.sim_time)
+        self._populate_accum_array("inf", self.sim_time)
+        self._populate_accum_array("capped_losses", self.sim_time)
 
         raw_arrays = {
             k: self.raster_domain.get_unmasked(k)
             for k in self.raster_domain.k_all
-            if k not in self.raster_domain.k_stats
+            if k not in self.raster_domain.k_accum
         }
-        statistical_arrays = {
-            k: self.raster_domain.get_unmasked(k) for k in self.raster_domain.k_stats
+        accumulation_arrays = {
+            k: self.raster_domain.get_unmasked(k) for k in self.raster_domain.k_accum
         }
 
         simulation_data = SimulationData(
             sim_time=self.sim_time,
             time_step=self.dt.total_seconds(),
+            time_steps_counter=self.time_steps_counter,
             raw_arrays=raw_arrays,
-            statistical_arrays=statistical_arrays,
+            accumulation_arrays=accumulation_arrays,
             cell_dx=self.raster_domain.dx,
             cell_dy=self.raster_domain.dy,
         )
@@ -537,7 +544,7 @@ class Simulation:
         assert isinstance(arr_id, str)
         assert isinstance(arr, np.ndarray)
         if arr_id in ["inflow", "rain"]:
-            self._populate_stat_array(arr_id, self.sim_time)
+            self._populate_accum_array(arr_id, self.sim_time)
         self.raster_domain.update_array(arr_id, arr)
         if arr_id == "dem":
             self.surface_flow.update_flow_dir()
@@ -566,21 +573,20 @@ class Simulation:
         # MassBalanceError if the threshold is exceeded.
         pass
 
-    def _populate_stat_array(self, k: str, sim_time: datetime) -> None:
-        """Manage statistical array updates.
+    def _populate_accum_array(self, k: str, sim_time: datetime) -> None:
+        """Update the accumulation arrays.
         """
-        sk = self.stats_corresp[k]
-        if self.stats_update_time[sk] is None:
-            self.stats_update_time[sk] = sim_time
-        time_diff = (sim_time - self.stats_update_time[sk]).total_seconds()
+        ak = self.accum_corresp[k]
+        if self.accum_update_time[ak] is None:
+            self.accum_update_time[ak] = sim_time
+        time_diff = (sim_time - self.accum_update_time[ak]).total_seconds()
         if time_diff >= 0:
-            # Use rastermetrics.accumulate_rate_to_total instead of flow.populate_stat_array
             from itzi.rastermetrics import accumulate_rate_to_total
 
             rate_array = self.raster_domain.get_array(k)
-            stat_array = self.raster_domain.get_array(sk)
-            accumulate_rate_to_total(stat_array, rate_array, time_diff)
-            self.stats_update_time[sk] = sim_time
+            accum_array = self.raster_domain.get_array(ak)
+            accumulate_rate_to_total(accum_array, rate_array, time_diff)
+            self.accum_update_time[ak] = sim_time
 
 
 class Report:
@@ -651,7 +657,7 @@ class Report:
     def get_output_arrays(self, data: SimulationData):
         """Returns a dict of arrays to be written to the disk"""
         raw = data.raw_arrays
-        stats = data.statistical_arrays
+        accum_arrays = data.accumulation_arrays
         interval_s = (data.sim_time - self.last_step).total_seconds()
         cell_dx = data.cell_dx
         cell_dy = data.cell_dy
@@ -675,34 +681,34 @@ class Report:
             elif k == "qy":
                 self.output_arrays["qy"] = rastermetrics.calculate_flux(raw["qs_new"], cell_dx)
             elif k == "verror":  # Volume error
-                self.output_arrays["verror"] = stats["st_herr"] * cell_area
+                self.output_arrays["verror"] = accum_arrays["error_depth_accum"] * cell_area
 
-        # --- Averaged statistical arrays ---
+        # --- Averaged accumulation arrays ---
         if interval_s <= 0:
             interval_s = data.time_step
 
-        stat_map = {
-            "boundaries": "st_bound",
-            "inflow": "st_inflow",
-            "losses": "st_losses",
-            "drainage_stats": "st_ndrain",
+        accum_maps = {
+            "boundaries": "boundaries_accum",
+            "inflow": "inflow_accum",
+            "losses": "losses_accum",
+            "drainage_stats": "drainage_network_accum",
         }
-        for name, key in stat_map.items():
-            if self.out_map_names.get(name) and key in stats:
-                map_mean = np.mean(stats[key])
+        for name, key in accum_maps.items():
+            if self.out_map_names.get(name) and key in accum_arrays:
+                map_mean = np.mean(accum_arrays[key])
                 self.output_arrays[name] = rastermetrics.calculate_average_rate_from_total(
-                    stats[key], interval_s, 1.0
+                    accum_arrays[key], interval_s, 1.0
                 )
 
         rain_inf_map = {
-            "rainfall": "st_rain",
-            "infiltration": "st_inf",
+            "rainfall": "rainfall_accum",
+            "infiltration": "infiltration_accum",
         }
         ms_to_mmh = 1000 * 3600  # m/s to mm/h
         for name, key in rain_inf_map.items():
-            if self.out_map_names.get(name) and key in stats:
+            if self.out_map_names.get(name) and key in accum_arrays:
                 self.output_arrays[name] = rastermetrics.calculate_average_rate_from_total(
-                    stats[key], interval_s, ms_to_mmh
+                    accum_arrays[key], interval_s, ms_to_mmh
                 )
         return self
 
@@ -717,15 +723,14 @@ class Report:
             # On first time step, old_domain_volume is equal to new_domain_volume
             self.old_domain_volume = new_domain_vol.copy()
 
-        boundary_vol = flow.arr_sum(data.statistical_arrays["st_bound"])
-
-        rain_vol = flow.arr_sum(data.statistical_arrays["st_rain"])
-        inf_vol = -flow.arr_sum(data.statistical_arrays["st_inf"])
-        inflow_vol = flow.arr_sum(data.statistical_arrays["st_inflow"])
-        losses_vol = -flow.arr_sum(data.statistical_arrays["st_losses"])
-        drain_net_vol = flow.arr_sum(data.statistical_arrays["st_ndrain"])
+        boundary_vol = flow.arr_sum(data.accumulation_arrays["boundaries_accum"])
+        rain_vol = flow.arr_sum(data.accumulation_arrays["rainfall_accum"])
+        inf_vol = -flow.arr_sum(data.accumulation_arrays["infiltration_accum"])
+        inflow_vol = flow.arr_sum(data.accumulation_arrays["inflow_accum"])
+        losses_vol = -flow.arr_sum(data.accumulation_arrays["losses_accum"])
+        drain_net_vol = flow.arr_sum(data.accumulation_arrays["drainage_network_accum"])
         vol_error = rastermetrics.calculate_total_volume(
-            data.statistical_arrays["st_herr"], cell_area
+            data.accumulation_arrays["error_depth_accum"], cell_area
         )
 
         # 2. Calculate continuity error
@@ -733,21 +738,24 @@ class Report:
         continuity_error = rastermetrics.calculate_continuity_error(vol_error, vol_change)
 
         # 3. Assemble data and log
+        interval_s = (data.sim_time - self.last_step).total_seconds()
+        if interval_s > 0:
+            average_timestep = str(data.time_steps_counter / interval_s)
+        else:
+            average_timestep = "-"
         report_data = {
-            "sim_time": data.sim_time,
-            "avg_timestep": data.raw_arrays.get(
-                "avg_timestep", "-"
-            ),  # Should be passed in simData
-            "#timesteps": data.raw_arrays.get("#timesteps", 0),  # Should be passed in simData
-            "boundary_vol": boundary_vol,
-            "rain_vol": rain_vol,
-            "inf_vol": inf_vol,
-            "inflow_vol": inflow_vol,
-            "losses_vol": losses_vol,
-            "drain_net_vol": drain_net_vol,
-            "domain_vol": new_domain_vol,
-            "created_vol": vol_error,
-            "%error": continuity_error,
+            "simulation_time": data.sim_time,
+            "average_timestep": average_timestep,
+            "#timesteps": data.time_steps_counter,
+            "boundary_volume": boundary_vol,
+            "rain_volume": rain_vol,
+            "infiltration_volume": inf_vol,
+            "inflow_volume": inflow_vol,
+            "losses_volume": losses_vol,
+            "drainage_network_volume": drain_net_vol,
+            "domain_volume": new_domain_vol,
+            "created_volume": vol_error,
+            "percent_error": continuity_error,
         }
         self.mass_balance_logger.log(report_data)
 

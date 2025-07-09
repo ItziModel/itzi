@@ -166,8 +166,8 @@ class SurfaceFlowSimulation:
             arr_bcv=self.dom.get_array("bcval"),
             arr_h=self.dom.get_array("h"),
             arr_hmax=self.dom.get_array("hmax"),
-            arr_hfix=self.dom.get_array("st_bound"),
-            arr_herr=self.dom.get_array("st_herr"),
+            arr_hfix=self.dom.get_array("boundaries_accum"),
+            arr_herr=self.dom.get_array("error_depth_accum"),
             arr_hfe=hflow_east,
             arr_hfw=hflow_west,
             arr_hfn=hflow_north,
@@ -264,10 +264,10 @@ class SurfaceFlowSimulation:
             qboundary=s_boundary_flow,
         )
         # add equivalent water depth passing through the boundaries to the statistic array
-        self.dom.get_array("st_bound")[1:-1, 0] += w_boundary_flow[self.ss] / self._dt / self.dx
-        self.dom.get_array("st_bound")[:, -1] += e_boundary_flow / self._dt / self.dx
-        self.dom.get_array("st_bound")[0, 1:-1] += n_boundary_flow[self.ss] / self._dt / self.dy
-        self.dom.get_array("st_bound")[-1] += s_boundary_flow / self._dt / self.dy
+        self.dom.get_array("boundaries_accum")[1:-1, 0] += w_boundary_flow[self.ss] / self._dt / self.dx
+        self.dom.get_array("boundaries_accum")[:, -1] += e_boundary_flow / self._dt / self.dx
+        self.dom.get_array("boundaries_accum")[0, 1:-1] += n_boundary_flow[self.ss] / self._dt / self.dy
+        self.dom.get_array("boundaries_accum")[-1] += s_boundary_flow / self._dt / self.dy
         return self
 
     def swap_flow_arrays(self):

@@ -53,7 +53,7 @@ class MassBalanceLogger:
         """Writes a single line of data to the CSV file."""
         line_to_write = {}
         if self.temporal_type == "relative":
-            report_data["sim_time"] = report_data["sim_time"] - self.start_time
+            report_data["simulation_time"] = report_data["simulation_time"] - self.start_time
 
         for key, value in report_data.items():
             if key in self.fields:
@@ -62,13 +62,13 @@ class MassBalanceLogger:
                 else:
                     line_to_write[key] = value
 
-        # specific formatting for %error
-        if "%error" in line_to_write:
-            error_val = report_data["%error"]
+        # specific formatting for percent_error
+        if "percent_error" in line_to_write:
+            error_val = report_data["percent_error"]
             if isinstance(error_val, float):
-                line_to_write["%error"] = f"{error_val:.2%}"
+                line_to_write["percent_error"] = f"{error_val:.2%}"
             else:
-                line_to_write["%error"] = "-"
+                line_to_write["percent_error"] = "-"
 
         with open(self.file_name, "a", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=self.fields)

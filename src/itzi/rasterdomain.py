@@ -140,17 +140,17 @@ class RasterDomain:
             "dirs",
         ]
         # arrays gathering the cumulated water depth from corresponding array
-        self.k_stats = [
-            "st_bound",
-            "st_inf",
-            "st_rain",
-            "st_etp",
-            "st_inflow",
-            "st_losses",
-            "st_ndrain",
-            "st_herr",
+        self.k_accum = [
+            "boundaries_accum",
+            "infiltration_accum",
+            "rainfall_accum",
+            "etp_accum",
+            "inflow_accum",
+            "losses_accum",
+            "drainage_network_accum",
+            "error_depth_accum",
         ]
-        self.k_all = self.k_input + self.k_internal + self.k_stats
+        self.k_all = self.k_input + self.k_internal + self.k_accum
 
         self.start_volume = None
 
@@ -253,8 +253,8 @@ class RasterDomain:
         """return unpadded array with NaN"""
         return self.unmask_array(self.arr[k])
 
-    def reset_stats(self):
-        """Set stats arrays to zeros"""
-        for k in self.k_stats:
+    def reset_accumulations(self):
+        """Set accumulation arrays to zeros"""
+        for k in self.k_accum:
             self.arr[k][:] = 0.0
         return self

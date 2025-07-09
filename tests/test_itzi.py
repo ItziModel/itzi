@@ -111,18 +111,18 @@ def test_stats_file(grass_5by5_stats_sim, test_data_temp_path):
     df = pd.read_csv(stats_path)
 
     expected_cols = [
-        "sim_time",
-        "avg_timestep",
+        "simulation_time",
+        "average_timestep",
         "#timesteps",
-        "boundary_vol",
-        "rain_vol",
-        "inf_vol",
-        "inflow_vol",
-        "losses_vol",
-        "drain_net_vol",
-        "domain_vol",
-        "created_vol",
-        "%error",
+        "boundary_volume",
+        "rainfall_volume",
+        "infiltration_volume",
+        "inflow_volume",
+        "losses_volume",
+        "drainage_network_volume",
+        "domain_volume",
+        "created_volume",
+        "percent_error"
     ]
     assert df.columns.to_list() == expected_cols
 
@@ -135,10 +135,10 @@ def test_stats_file(grass_5by5_stats_sim, test_data_temp_path):
     expected_inf_vol = -2.0 / (1000 * 3600) * area
     expected_losses_vol = -1.5 / (1000 * 3600) * area
     expected_inflow_vol = 0.1 * area
-    assert np.all(np.isclose(df["rain_vol"], expected_rain_vol))
-    assert np.all(np.isclose(df["inf_vol"], expected_inf_vol))
-    assert np.all(np.isclose(df["inflow_vol"], expected_inflow_vol))
-    assert np.all(np.isclose(df["losses_vol"], expected_losses_vol))
+    assert np.all(np.isclose(df["rainfall_volume"], expected_rain_vol))
+    assert np.all(np.isclose(df["infiltration_volume"], expected_inf_vol))
+    assert np.all(np.isclose(df["inflow_volume"], expected_inflow_vol))
+    assert np.all(np.isclose(df["losses_volume"], expected_losses_vol))
 
 
 def test_stats_maps(grass_5by5_stats_sim):
