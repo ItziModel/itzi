@@ -56,7 +56,6 @@ def grass_mcdo_norain_sim(grass_mcdo_norain, test_data_path):
     """ """
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     assert current_mapset == "mcdo_norain"
-    # accessible_mapsets = gscript.read_command('g.mapsets', flags='p').rstrip()
     config_file = os.path.join(test_data_path, "McDonald_long_channel_wo_rain", "mcdo_norain.ini")
     sim_runner = SimulationRunner()
     assert isinstance(sim_runner, SimulationRunner)
@@ -144,7 +143,8 @@ class TestMcdo_norain:
             assert float(univar["max"]) == 0
 
 
-def test_mcdo_rain(grass_mcdo_rain_sim, mcdo_rain_reference):
+@pytest.mark.usefixtures("grass_mcdo_rain_sim")
+def test_mcdo_rain(mcdo_rain_reference):
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     assert current_mapset == "mcdo_rain"
     wse = gscript.read_command(
@@ -153,5 +153,6 @@ def test_mcdo_rain(grass_mcdo_rain_sim, mcdo_rain_reference):
     df_wse = pd.read_csv(StringIO(wse), sep="|", names=["wse_model"], usecols=[1])
     df_results = mcdo_rain_reference.join(df_wse)
     df_results["abs_error"] = np.abs(df_results["wse_model"] - df_results["wse"])
+    print(df_results)
     mae = np.mean(df_results["abs_error"])
     assert mae < 0.04

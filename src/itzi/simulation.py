@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 import copy
 from collections import namedtuple
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Self
 import numpy as np
 import pyswmm
 
@@ -45,11 +45,11 @@ class SimulationData:
     """
 
     sim_time: datetime
+    time_step: float
     raw_arrays: Dict[str, np.ndarray]
     statistical_arrays: Dict[str, np.ndarray]
     cell_dx: float  # cell size in east-west direction
     cell_dy: float  # cell size in north-south direction
-    report_interval_seconds: float  # Time since last report
 
 
 DrainageNodeData = namedtuple("DrainageNodeData", ["id", "object", "x", "y", "row", "col"])
@@ -255,6 +255,7 @@ def create_simulation(
         drainage,
         nodes_list,
         report,
+        mass_balance_error_threshold=0.05,
     )
     return (simulation, tarr)
 
@@ -307,7 +308,7 @@ class Simulation:
         drainage_model,
         nodes_list,
         report,
-        mass_balance_error_threshold: float = 0.05,
+        mass_balance_error_threshold: float,
     ):
         self.raster_domain = raster_domain
         self.start_time = start_time
@@ -320,7 +321,7 @@ class Simulation:
         self.nodes_list = nodes_list
         self.surface_flow = surface_flow
         self.report = report
-        # New attributes for real-time error checking
+        # Mass balance error checking
         self.old_domain_volume: float = 0.0
         self.mass_balance_error_threshold = mass_balance_error_threshold
         # Moved from RasterDomain: statistical array management
@@ -355,40 +356,40 @@ class Simulation:
         # Grid spacing (for BMI)
         self.spacing = (self.raster_domain.dy, self.raster_domain.dx)
 
-    def update(self) -> "Simulation":
-        # Reporting #
-        if self.sim_time == self.next_ts["record"]:
-            msgr.verbose(f"{self.sim_time}: Writing output maps...")
+    def initialize(self) -> Self:
+        """Record the initial stage of the simulation, before time-stepping.
+        """
+        self._populate_stat_array("rain", self.sim_time)
+        self._populate_stat_array("inflow", self.sim_time)
+        self._populate_stat_array("inf", self.sim_time)
+        self._populate_stat_array("capped_losses", self.sim_time)
+        # Package data into SimulationData object
+        raw_arrays = {
+            k: self.raster_domain.get_unmasked(k)
+            for k in self.raster_domain.k_all
+            if k not in self.raster_domain.k_stats
+        }
+        statistical_arrays = {
+            k: self.raster_domain.get_unmasked(k) for k in self.raster_domain.k_stats
+        }
+        simulation_data = SimulationData(
+            sim_time=self.sim_time,
+            time_step=self.dt.total_seconds(),
+            raw_arrays=raw_arrays,
+            statistical_arrays=statistical_arrays,
+            cell_dx=self.raster_domain.dx,
+            cell_dy=self.raster_domain.dy,
+        )
+        # Pass data to the reporting module
+        self.report.step(simulation_data)
 
-            # a. Package data into SimulationData object
-            raw_arrays = {
-                k: self.raster_domain.get_unmasked(k)
-                for k in self.raster_domain.k_all
-                if k not in self.raster_domain.k_stats
-            }
-            statistical_arrays = {
-                k: self.raster_domain.get_unmasked(k) for k in self.raster_domain.k_stats
-            }
+        # d. Reset statistical accumulators
+        self.raster_domain.reset_stats()
+        for key in self.stats_update_time:
+            self.stats_update_time[key] = self.sim_time
+        return self
 
-            simulation_data = SimulationData(
-                sim_time=self.sim_time,
-                raw_arrays=raw_arrays,
-                statistical_arrays=statistical_arrays,
-                cell_dx=self.raster_domain.dx,
-                cell_dy=self.raster_domain.dy,
-                report_interval_seconds=(self.sim_time - self.report.last_step).total_seconds(),
-            )
-
-            # b. Pass data to the reporting module
-            self.report.step(simulation_data)
-
-            # c. Reset statistical accumulators
-            self.raster_domain.reset_stats()
-            for key in self.stats_update_time:
-                self.stats_update_time[key] = self.sim_time
-
-            self.next_ts["record"] += self.report.dt
-
+    def update(self) -> Self:
         # hydrology #
         if self.sim_time == self.next_ts["hydrology"]:
             self.hydrology_model.solve_dt()
@@ -444,6 +445,45 @@ class Simulation:
         # 2. Perform a mass balance continuity check.
         self._check_mass_balance_error()
 
+        # Reporting last to get simulated values #
+        if self.sim_time == self.next_ts["record"]:
+            msgr.verbose(f"{self.sim_time}: Writing output maps...")
+
+            # Populate statistical arrays before packaging data
+            self._populate_stat_array("rain", self.sim_time)
+            self._populate_stat_array("inflow", self.sim_time)
+            self._populate_stat_array("inf", self.sim_time)
+            self._populate_stat_array("capped_losses", self.sim_time)
+
+            # Package data into SimulationData object
+            raw_arrays = {
+                k: self.raster_domain.get_unmasked(k)
+                for k in self.raster_domain.k_all
+                if k not in self.raster_domain.k_stats
+            }
+            statistical_arrays = {
+                k: self.raster_domain.get_unmasked(k) for k in self.raster_domain.k_stats
+            }
+
+            simulation_data = SimulationData(
+                sim_time=self.sim_time,
+                time_step=self.dt.total_seconds(),
+                raw_arrays=raw_arrays,
+                statistical_arrays=statistical_arrays,
+                cell_dx=self.raster_domain.dx,
+                cell_dy=self.raster_domain.dy,
+            )
+
+            # Pass data to the reporting module
+            self.report.step(simulation_data)
+
+            # Reset statistical accumulators
+            self.raster_domain.reset_stats()
+            for key in self.stats_update_time:
+                self.stats_update_time[key] = self.sim_time
+            # Update next time step
+            self.next_ts["record"] += self.report.dt
+        # Find next time step
         self.find_dt()
         # update simulation time
         self.sim_time += self.dt
@@ -465,7 +505,11 @@ class Simulation:
         return self
 
     def finalize(self):
-        # a. Package data into SimulationData object
+        self._populate_stat_array("rain", self.sim_time)
+        self._populate_stat_array("inflow", self.sim_time)
+        self._populate_stat_array("inf", self.sim_time)
+        self._populate_stat_array("capped_losses", self.sim_time)
+
         raw_arrays = {
             k: self.raster_domain.get_unmasked(k)
             for k in self.raster_domain.k_all
@@ -477,11 +521,11 @@ class Simulation:
 
         simulation_data = SimulationData(
             sim_time=self.sim_time,
+            time_step=self.dt.total_seconds(),
             raw_arrays=raw_arrays,
             statistical_arrays=statistical_arrays,
             cell_dx=self.raster_domain.dx,
             cell_dy=self.raster_domain.dy,
-            report_interval_seconds=(self.sim_time - self.report.last_step).total_seconds(),
         )
         # write final report
         self.report.end(simulation_data)
@@ -503,10 +547,14 @@ class Simulation:
         return self.raster_domain.get_array(arr_id)
 
     def find_dt(self):
-        """find next step"""
+        """find next time step"""
         self.nextstep = min(self.next_ts.values())
-        # force the surface time-step to the lowest time-step
+        # Surface flow model should always run
         self.next_ts["surface_flow"] = self.nextstep
+        # Force a record step at the end of the simulation
+        self.next_ts["record"] = min(self.next_ts["end"], self.next_ts["record"])
+        # If a Record is due, force hydrology
+        self.next_ts["hydrology"] = min(self.next_ts["hydrology"], self.next_ts["record"])
         self.dt = self.nextstep - self.sim_time
         return self
 
@@ -517,12 +565,8 @@ class Simulation:
         pass
 
     def _populate_stat_array(self, k: str, sim_time: datetime) -> None:
-        """Manage statistical array updates (moved from RasterDomain)
-
-        This method will ONLY be called from Simulation.update(),
-        never from Report class.
+        """Manage statistical array updates.
         """
-        # This replaces RasterDomain.populate_stat_array()
         sk = self.stats_corresp[k]
         if self.stats_update_time[sk] is None:
             self.stats_update_time[sk] = sim_time
@@ -581,16 +625,15 @@ class Report:
             self.save_drainage_values(sim_time)
         self.record_counter += 1
         self.last_step = copy.copy(sim_time)
-        # self.rast_dom.reset_stats(sim_time) # This is now handled by Simulation
         return self
 
     def end(self, final_data: SimulationData):
-        """Perform the last step
+        """
         register maps in gis
         write max level maps
         """
         # do the last step
-        self.step(final_data)
+        # self.step(final_data)
         # Make sure all maps are written in the background process
         self.gis.finalize()
         # register maps and write max maps
@@ -607,7 +650,7 @@ class Report:
         """Returns a dict of arrays to be written to the disk"""
         raw = data.raw_arrays
         stats = data.statistical_arrays
-        interval_s = data.report_interval_seconds
+        interval_s = (data.sim_time - self.last_step).total_seconds()
         cell_dx = data.cell_dx
         cell_dy = data.cell_dy
         cell_area = cell_dx * cell_dy
@@ -633,29 +676,32 @@ class Report:
                 self.output_arrays["verror"] = stats["st_herr"] * cell_area
 
         # --- Averaged statistical arrays ---
-        if interval_s > 0:
-            mmh_to_ms = 1.0 / (1000.0 * 3600.0)  # m/s to mm/h
-            stat_map = {
-                "boundaries": "st_bound",
-                "inflow": "st_inflow",
-                "losses": "st_losses",
-                "drainage_stats": "st_ndrain",
-            }
-            for name, key in stat_map.items():
-                if self.out_map_names.get(name) and key in stats:
-                    self.output_arrays[name] = rastermetrics.calculate_average_rate_from_total(
-                        stats[key], interval_s, 1.0
-                    )
+        if interval_s <= 0:
+            interval_s = data.time_step
 
-            rain_inf_map = {
-                "rainfall": "st_rain",
-                "infiltration": "st_inf",
-            }
-            for name, key in rain_inf_map.items():
-                if self.out_map_names.get(name) and key in stats:
-                    self.output_arrays[name] = rastermetrics.calculate_average_rate_from_total(
-                        stats[key], interval_s, mmh_to_ms
-                    )
+        stat_map = {
+            "boundaries": "st_bound",
+            "inflow": "st_inflow",
+            "losses": "st_losses",
+            "drainage_stats": "st_ndrain",
+        }
+        for name, key in stat_map.items():
+            if self.out_map_names.get(name) and key in stats:
+                map_mean = np.mean(stats[key])
+                self.output_arrays[name] = rastermetrics.calculate_average_rate_from_total(
+                    stats[key], interval_s, 1.0
+                )
+
+        rain_inf_map = {
+            "rainfall": "st_rain",
+            "infiltration": "st_inf",
+        }
+        ms_to_mmh = 1000 * 3600  # m/s to mm/h
+        for name, key in rain_inf_map.items():
+            if self.out_map_names.get(name) and key in stats:
+                self.output_arrays[name] = rastermetrics.calculate_average_rate_from_total(
+                    stats[key], interval_s, ms_to_mmh
+                )
         return self
 
     def write_mass_balance(self, data: SimulationData):

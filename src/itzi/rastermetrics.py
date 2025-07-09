@@ -14,6 +14,7 @@ GNU General Public License for more details.
 """
 
 import numpy as np
+from itzi import flow
 
 
 def calculate_total_volume(depth_array: np.ndarray, cell_surface_area: float) -> float:
@@ -96,4 +97,5 @@ def accumulate_rate_to_total(
     Returns:
         None (modifies stat_array in-place)
     """
-    stat_array += rate_array * time_delta_seconds
+    # stat_array += rate_array * time_delta_seconds
+    flow.populate_stat_array(rate_array, stat_array, time_delta_seconds)

@@ -108,6 +108,7 @@ class SimulationRunner:
             grass_params=self.conf.grass_params,
         )
         self.update_input_arrays()
+        self.sim.initialize()
         return self
 
     def run(self):
@@ -203,6 +204,7 @@ class SimulationRunner:
                     "capillary_pressure",
                     "hydraulic_conductivity",
                     "in_inf",
+                    "losses",
                 ]:
                     new_arr = ta.get(self.sim.sim_time) / (1000 * 3600)
                 else:

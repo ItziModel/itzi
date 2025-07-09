@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2015-2016 Laurent Courty
+Copyright (C) 2015-2025 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -376,7 +376,7 @@ def set_ext_array(DTYPE_t [:, :] arr_qext, DTYPE_t [:, :] arr_drain,
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-def inf_user(DTYPE_t [:, :] arr_h,
+def infiltration_user(DTYPE_t [:, :] arr_h,
              DTYPE_t [:, :] arr_inf_in, DTYPE_t [:, :] arr_inf_out,
              DTYPE_t dt):
     '''Calculate infiltration rate using a user-defined fixed rate
@@ -388,13 +388,13 @@ def inf_user(DTYPE_t [:, :] arr_h,
     for r in prange(rmax, nogil=True):
         for c in range(cmax):
             # cap the rate
-            arr_inf_out[r, c] = cap_inf_rate(dt, arr_h[r, c], arr_inf_in[r, c])
+            arr_inf_out[r, c] = cap_infiltration_rate(dt, arr_h[r, c], arr_inf_in[r, c])
 
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-def inf_ga(DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_eff_por,
+def infiltration_ga(DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_eff_por,
            DTYPE_t [:, :] arr_pressure, DTYPE_t [:, :] arr_conduct,
            DTYPE_t [:, :] arr_inf_amount, DTYPE_t [:, :] arr_water_soil_content,
            DTYPE_t [:, :] arr_inf_out, DTYPE_t dt):
@@ -411,7 +411,7 @@ def inf_ga(DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_eff_por,
             poros_cappress = avail_porosity * (arr_pressure[r, c] + arr_h[r, c])
             infrate = conduct * (1 + (poros_cappress / arr_inf_amount[r, c]))
             # cap the rate
-            infrate = cap_inf_rate(dt, arr_h[r, c], infrate)
+            infrate = cap_infiltration_rate(dt, arr_h[r, c], infrate)
             # update total infiltration amount
             arr_inf_amount[r, c] += infrate * dt
             # populate output infiltration array
@@ -421,7 +421,7 @@ def inf_ga(DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_eff_por,
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-cdef DTYPE_t cap_inf_rate(DTYPE_t dt, DTYPE_t h, DTYPE_t infrate) noexcept nogil:
+cdef DTYPE_t cap_infiltration_rate(DTYPE_t dt, DTYPE_t h, DTYPE_t infrate) noexcept nogil:
     '''Cap the infiltration rate to not generate negative depths
     '''
     return min(h / dt, infrate)

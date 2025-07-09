@@ -164,6 +164,11 @@ def grass_5by5(grass_xy_session, test_data_path):
     gscript.run_command(
         "v.in.ascii", input=control_points, output="control_points", separator="comma"
     )
+    # Rate maps
+    gscript.mapcalc("rainfall=10")
+    gscript.mapcalc("infiltration_rate=2")
+    gscript.mapcalc("loss_rate=1.5")
+    gscript.mapcalc("inflow_rate=0.1")
     return None
 
 
@@ -182,6 +187,17 @@ def grass_5by5_sim(grass_5by5, test_data_path):
 def grass_5by5_max_values_sim(grass_5by5, test_data_path):
     """ """
     config_file = os.path.join(test_data_path, "5by5", "5by5_max_values.ini")
+    sim_runner = SimulationRunner()
+    assert isinstance(sim_runner, SimulationRunner)
+    sim_runner.initialize(config_file)
+    sim_runner.run().finalize()
+    return sim_runner
+
+
+@pytest.fixture(scope="class")
+def grass_5by5_stats_sim(grass_5by5, test_data_path):
+    """ """
+    config_file = os.path.join(test_data_path, "5by5", "5by5_stats.ini")
     sim_runner = SimulationRunner()
     assert isinstance(sim_runner, SimulationRunner)
     sim_runner.initialize(config_file)

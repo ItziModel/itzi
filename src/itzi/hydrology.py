@@ -58,10 +58,9 @@ class Hydrology:
         return self
 
     def cap_losses(self):
-        """Cap losses to water depth on the cell.
-        Input and output are considered to be in mm/h
+        """User-defined losses are treated like user infiltration.
         """
-        flow.inf_user(
+        flow.infiltration_user(
             arr_h=self.dom.get_array("h"),
             arr_inf_in=self.dom.get_array("losses"),
             arr_inf_out=self.dom.get_array("capped_losses"),
