@@ -430,12 +430,12 @@ cdef DTYPE_t cap_infiltration_rate(DTYPE_t dt, DTYPE_t h, DTYPE_t infrate) noexc
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-def populate_stat_array(DTYPE_t [:, :] arr, DTYPE_t [:, :] arr_stat, DTYPE_t time_diff):
-    '''Populate an array of statistics
+def accumulate_array(DTYPE_t [:, :] arr, DTYPE_t [:, :] arr_accum, DTYPE_t time_diff):
+    '''Update an accumulation array from a rate array .
     '''
     cdef int rmax, cmax, r, c
     rmax = arr.shape[0]
     cmax = arr.shape[1]
     for r in prange(rmax, nogil=True):
         for c in range(cmax):
-            arr_stat[r, c] += arr[r, c] * time_diff
+            arr_accum[r, c] += arr[r, c] * time_diff

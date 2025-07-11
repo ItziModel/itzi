@@ -26,6 +26,16 @@ from itzi import flow
 
 
 @dataclass
+class ContinuityData:
+    """Store information about simulation continuity
+    """
+    new_domain_vol: float
+    volume_change: float
+    volume_error: float
+    continuity_error:float
+
+
+@dataclass
 class SimulationData:
     """Immutable data container for passing raw simulation state to Report.
 
@@ -37,6 +47,7 @@ class SimulationData:
     sim_time: datetime
     time_step: float  # time step duration
     time_steps_counter: int  # number of time steps since last update
+    continuity_data: ContinuityData
     raw_arrays: Dict[str, np.ndarray]
     accumulation_arrays: Dict[str, np.ndarray]
     cell_dx: float  # cell size in east-west direction
@@ -72,9 +83,6 @@ class Report:
         self.output_arrays = {}
         self.dt = dt
         self.last_step = copy.copy(self.gis.start_time)
-
-        # For mass balance calculations
-        self.old_domain_volume = None
 
     def step(self, simulation_data: SimulationData):
         """write results at given time-step"""
@@ -149,7 +157,6 @@ class Report:
         }
         for name, key in accum_maps.items():
             if self.out_map_names.get(name) and key in accum_arrays:
-                map_mean = np.mean(accum_arrays[key])
                 self.output_arrays[name] = rastermetrics.calculate_average_rate_from_total(
                     accum_arrays[key], interval_s, 1.0
                 )
@@ -168,53 +175,46 @@ class Report:
 
     def write_mass_balance(self, data: SimulationData):
         """Calculate mass balance and log it."""
-        # This logic is migrated from the old MassBal class
-
+        continuity_data = data.continuity_data
         # 1. Calculate all volumes using rastermetrics
-        cell_area = data.cell_dy * data.cell_dy
-        new_domain_vol = rastermetrics.calculate_total_volume(data.raw_arrays["h"], cell_area)
-        if self.old_domain_volume is None:
-            # On first time step, old_domain_volume is equal to new_domain_volume
-            self.old_domain_volume = new_domain_vol.copy()
+        cell_area = data.cell_dx * data.cell_dy
 
-        boundary_vol = flow.arr_sum(data.accumulation_arrays["boundaries_accum"])
-        rain_vol = flow.arr_sum(data.accumulation_arrays["rainfall_accum"])
-        inf_vol = -flow.arr_sum(data.accumulation_arrays["infiltration_accum"])
-        inflow_vol = flow.arr_sum(data.accumulation_arrays["inflow_accum"])
-        losses_vol = -flow.arr_sum(data.accumulation_arrays["losses_accum"])
-        drain_net_vol = flow.arr_sum(data.accumulation_arrays["drainage_network_accum"])
-        vol_error = rastermetrics.calculate_total_volume(
-            data.accumulation_arrays["error_depth_accum"], cell_area
-        )
-
-        # 2. Calculate continuity error
-        vol_change = new_domain_vol - self.old_domain_volume
-        continuity_error = rastermetrics.calculate_continuity_error(vol_error, vol_change)
+        boundary_vol = rastermetrics.calculate_total_volume(data.accumulation_arrays["boundaries_accum"], cell_area)
+        rain_vol = rastermetrics.calculate_total_volume(data.accumulation_arrays["rainfall_accum"], cell_area)
+        infiltration_vol = rastermetrics.calculate_total_volume(data.accumulation_arrays["infiltration_accum"], cell_area)
+        inflow_vol = rastermetrics.calculate_total_volume(data.accumulation_arrays["inflow_accum"], cell_area)
+        losses_vol = rastermetrics.calculate_total_volume(data.accumulation_arrays["losses_accum"], cell_area)
+        drain_net_vol = rastermetrics.calculate_total_volume(data.accumulation_arrays["drainage_network_accum"], cell_area)
 
         # 3. Assemble data and log
         interval_s = (data.sim_time - self.last_step).total_seconds()
-        if interval_s > 0:
-            average_timestep = str(data.time_steps_counter / interval_s)
+        if data.time_steps_counter > 0:
+            average_timestep = interval_s / data.time_steps_counter
         else:
-            average_timestep = "-"
+            average_timestep = float("nan")
         report_data = {
             "simulation_time": data.sim_time,
             "average_timestep": average_timestep,
             "#timesteps": data.time_steps_counter,
             "boundary_volume": boundary_vol,
-            "rain_volume": rain_vol,
-            "infiltration_volume": inf_vol,
+            "rainfall_volume": rain_vol,
+            "infiltration_volume": infiltration_vol,
             "inflow_volume": inflow_vol,
             "losses_volume": losses_vol,
             "drainage_network_volume": drain_net_vol,
-            "domain_volume": new_domain_vol,
-            "created_volume": vol_error,
-            "percent_error": continuity_error,
+            "domain_volume": continuity_data.new_domain_vol,
+            "volume_change": continuity_data.volume_change,
+            "volume_error": continuity_data.volume_error,
+            "percent_error": continuity_data.continuity_error,
         }
+
+        # print("new_domain_vol | volume_change")
+        # print(f"{continuity_data.new_domain_vol} | {continuity_data.volume_change}")
+        # print(f"{continuity_data.volume_error=}")
+        # print(f"{continuity_data.continuity_error=}")
+        # print(f"{report_data=}")
         self.mass_balance_logger.log(report_data)
 
-        # 4. Update state for next step
-        self.old_domain_volume = new_domain_vol
         return self
 
     def write_results_to_gis(self, sim_time):
@@ -227,6 +227,8 @@ class Report:
                 map_name = "{}_{}".format(self.out_map_names[k], suffix)
                 # Export depth if above hmin. If not, export NaN
                 if k == "h":
+                    # Do not apply nan to the internal array
+                    arr = arr.copy()
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
                         arr[arr <= self.hmin] = np.nan

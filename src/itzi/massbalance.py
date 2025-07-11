@@ -15,6 +15,7 @@ GNU General Public License for more details.
 
 from datetime import datetime
 import csv
+import numbers
 from typing import List, Dict, Any
 
 class MassBalanceLogger:
@@ -56,7 +57,9 @@ class MassBalanceLogger:
 
         for key, value in report_data.items():
             if key in self.fields:
-                if isinstance(value, float):
+                if value != value:  # NaN
+                    line_to_write[key] = "-"
+                elif isinstance(value, numbers.Real) and not isinstance(value, int):
                     line_to_write[key] = f"{value:.3f}"
                 else:
                     line_to_write[key] = value
@@ -64,7 +67,7 @@ class MassBalanceLogger:
         # specific formatting for percent_error
         if "percent_error" in line_to_write:
             error_val = report_data["percent_error"]
-            if isinstance(error_val, float):
+            if error_val == error_val:  # not NaN
                 line_to_write["percent_error"] = f"{error_val:.2%}"
             else:
                 line_to_write["percent_error"] = "-"

@@ -6,6 +6,7 @@ Test itzi against analytic solutions to the shallow water equation.
 """
 
 import os
+from pathlib import Path
 from io import StringIO
 
 import numpy as np
@@ -113,7 +114,7 @@ def grass_mcdo_rain_sim(grass_mcdo_rain, test_data_path):
     return sim_runner
 
 
-@pytest.mark.usefixtures("mcdo_norain_reference", "grass_mcdo_norain_sim")
+@pytest.mark.usefixtures("grass_mcdo_norain_sim")
 class TestMcdo_norain:
     def test_mcdo_norain(self, mcdo_norain_reference):
         current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
@@ -142,17 +143,45 @@ class TestMcdo_norain:
             assert float(univar["min"]) == 0
             assert float(univar["max"]) == 0
 
+    def test_stat_file_is_coherent(self, test_data_temp_path):
+        stat_file_path = Path(test_data_temp_path) / Path("mcdo_norain.csv")
+        df_stats = pd.read_csv(stat_file_path, sep=",")
+        # convert percent string to float
+        df_stats["percent_error"] = (
+            df_stats["percent_error"].str.rstrip("%").astype("float") / 100.0
+        )
+        # Compute the reference error, preventing NaN
+        df_stats["err_ref"] = np.where(
+            df_stats["volume_change"] == 0,
+            0.0,
+            df_stats["volume_error"] / df_stats["volume_change"],
+        )
+        # Check if the error percentage computaion is correct
+        assert np.allclose(df_stats["percent_error"], df_stats["err_ref"], atol=0.0001)
+
+        # Check if the volume change is coherent with the rest of the volumes
+        df_stats["vol_change_ref"] = (
+            df_stats["boundary_volume"]
+            + df_stats["rainfall_volume"]
+            - df_stats["infiltration_volume"]
+            + df_stats["inflow_volume"]
+            - df_stats["losses_volume"]
+            + df_stats["drainage_network_volume"]
+            + df_stats["volume_error"]
+        )
+        print(df_stats.to_string())
+        assert np.allclose(df_stats["vol_change_ref"], df_stats["volume_change"], atol=0.0001)
+
 
 @pytest.mark.usefixtures("grass_mcdo_rain_sim")
 def test_mcdo_rain(mcdo_rain_reference):
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     assert current_mapset == "mcdo_rain"
     wse = gscript.read_command(
-        "v.what.rast", map="axis_points", raster="out_mcdo_rain_wse_0001", flags="p"
+        "v.what.rast", map="axis_points", raster="out_mcdo_rain_wse_0004", flags="p"
     )
     df_wse = pd.read_csv(StringIO(wse), sep="|", names=["wse_model"], usecols=[1])
     df_results = mcdo_rain_reference.join(df_wse)
     df_results["abs_error"] = np.abs(df_results["wse_model"] - df_results["wse"])
-    print(df_results)
     mae = np.mean(df_results["abs_error"])
-    assert mae < 0.04
+    assert mae < 0.035

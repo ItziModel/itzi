@@ -16,19 +16,22 @@ GNU General Public License for more details.
 from datetime import datetime, timedelta
 from collections import namedtuple
 from typing import Self
+import copy
+
 import numpy as np
 import pyswmm
 
 from itzi.surfaceflow import SurfaceFlowSimulation
 import itzi.rasterdomain as rasterdomain
 from itzi.massbalance import MassBalanceLogger
-from itzi.report import SimulationData, Report
+from itzi.report import ContinuityData, SimulationData, Report
 from itzi.drainage import DrainageSimulation, DrainageNode, DrainageLink, CouplingTypes
 from itzi import SwmmInputParser
 import itzi.messenger as msgr
 import itzi.infiltration as infiltration
 from itzi.hydrology import Hydrology
-from itzi.itzi_error import NullError
+from itzi.itzi_error import NullError, MassBalanceError
+from itzi import rastermetrics
 
 
 DrainageNodeData = namedtuple("DrainageNodeData", ["id", "object", "x", "y", "row", "col"])
@@ -187,7 +190,8 @@ def create_simulation(
                 "losses_volume",
                 "drainage_network_volume",
                 "domain_volume",
-                "created_volume",
+                "volume_change",
+                "volume_error",
                 "percent_error"
             ],
         )
@@ -301,7 +305,7 @@ class Simulation:
         self.surface_flow = surface_flow
         self.report = report
         # Mass balance error checking
-        self.old_domain_volume: float = 0.0
+        self.continuity_data: ContinuityData = None
         self.mass_balance_error_threshold = mass_balance_error_threshold
         # Accumulation array management
         self.accum_update_time: dict[str, datetime] = {
@@ -337,11 +341,15 @@ class Simulation:
         # Grid spacing (for BMI)
         self.spacing = (self.raster_domain.dy, self.raster_domain.dx)
         # time step counter
-        self.time_steps_counter: int = 0
+        self.time_steps_counter: int = 1
 
     def initialize(self) -> Self:
         """Record the initial stage of the simulation, before time-stepping.
         """
+        self.old_domain_volume = rastermetrics.calculate_total_volume(
+            depth_array=self.raster_domain.get_array('h'), 
+            cell_surface_area=self.raster_domain.cell_area
+        )
         self._populate_accum_array("rain", self.sim_time)
         self._populate_accum_array("inflow", self.sim_time)
         self._populate_accum_array("inf", self.sim_time)
@@ -359,6 +367,7 @@ class Simulation:
             sim_time=self.sim_time,
             time_step=self.dt.total_seconds(),
             time_steps_counter=0,
+            continuity_data=self.get_continuity_data(),
             raw_arrays=raw_arrays,
             accumulation_arrays=accumulation_arrays,
             cell_dx=self.raster_domain.dx,
@@ -395,7 +404,7 @@ class Simulation:
             for node_id, (row, col) in self.node_id_to_loc.items():
                 surface_states[node_id] = {"z": arr_z[row, col], "h": arr_h[row, col]}
             coupling_flows = self.drainage_model.apply_coupling_to_nodes(surface_states, cell_surf)
-            # update drainage array
+            # update drainage array in m/s
             arr_qd = self.raster_domain.get_array("n_drain")
             for node_id, coupling_flow in coupling_flows.items():
                 row, col = self.node_id_to_loc[node_id]
@@ -422,15 +431,16 @@ class Simulation:
         self.surface_flow.solve_dt()
         self.next_ts["surface_flow"] += self.surface_flow.dt
 
-        # send current time-step duration to mass balance object
-        # if self.report.massbal:
-        #     self.report.massbal.add_value("tstep", self.dt.total_seconds())
-
-        # 2. Perform a mass balance continuity check.
-        self._check_mass_balance_error()
+        # Compute continuity error every x time steps
+        is_first_ts = self.sim_time == self.start_time
+        is_ts_over_threshold = self.time_steps_counter >=500
+        is_record_due = self.sim_time == self.next_ts["record"]
+        is_error_comp_due = is_first_ts or is_ts_over_threshold or is_record_due
+        if is_error_comp_due:
+            self.continuity_data = self.get_continuity_data()
 
         # Reporting last to get simulated values #
-        if self.sim_time == self.next_ts["record"]:
+        if is_record_due:
             msgr.verbose(f"{self.sim_time}: Writing output maps...")
 
             # Populate statistical arrays before packaging data
@@ -453,6 +463,7 @@ class Simulation:
                 sim_time=self.sim_time,
                 time_step=self.dt.total_seconds(),
                 time_steps_counter=self.time_steps_counter,
+                continuity_data=self.continuity_data,
                 raw_arrays=raw_arrays,
                 accumulation_arrays=accumulation_arrays,
                 cell_dx=self.raster_domain.dx,
@@ -463,16 +474,27 @@ class Simulation:
             self.report.step(simulation_data)
 
             # Reset accumulation arrays
-            self.time_steps_counter = 0
+            self.old_domain_volume = copy.deepcopy(self.continuity_data.new_domain_vol)
+            self.time_steps_counter = 1  # There will be at least 1 time step
             self.raster_domain.reset_accumulations()
             for key in self.accum_update_time:
                 self.accum_update_time[key] = self.sim_time
             # Update next time step
             self.next_ts["record"] += self.report.dt
+
+        # Perform a mass balance continuity check.
+        if is_error_comp_due:
+            if self.continuity_data.continuity_error >= self.mass_balance_error_threshold:
+                raise(MassBalanceError(
+                    error=self.continuity_data.continuity_error,
+                    threshold=self.mass_balance_error_threshold)
+                )
+
         # Find next time step
         self.find_dt()
         # update simulation time
         self.sim_time += self.dt
+        self.time_steps_counter += 1
         return self
 
     def update_until(self, then):
@@ -509,6 +531,7 @@ class Simulation:
             sim_time=self.sim_time,
             time_step=self.dt.total_seconds(),
             time_steps_counter=self.time_steps_counter,
+            continuity_data = self.get_continuity_data(),
             raw_arrays=raw_arrays,
             accumulation_arrays=accumulation_arrays,
             cell_dx=self.raster_domain.dx,
@@ -545,11 +568,21 @@ class Simulation:
         self.dt = self.nextstep - self.sim_time
         return self
 
-    def _check_mass_balance_error(self) -> None:
-        # Private method to perform the continuity error check.
-        # It will calculate all volumes using `rastermetrics` and raise
-        # MassBalanceError if the threshold is exceeded.
-        pass
+    def get_continuity_data(self) -> ContinuityData:
+        """
+        """
+        cell_area = self.raster_domain.cell_area
+        new_domain_vol = rastermetrics.calculate_total_volume(
+            depth_array=self.raster_domain.get_array('h'), 
+            cell_surface_area=cell_area
+            )
+        volume_change = new_domain_vol - self.old_domain_volume
+        volume_error = rastermetrics.calculate_total_volume(
+            self.raster_domain.get_array("error_depth_accum"),
+            cell_area
+            )
+        continuity_error = rastermetrics.calculate_continuity_error(volume_error=volume_error, volume_change=volume_change)
+        return ContinuityData(new_domain_vol, volume_change, volume_error, continuity_error)
 
     def _populate_accum_array(self, k: str, sim_time: datetime) -> None:
         """Update the accumulation arrays.

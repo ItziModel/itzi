@@ -55,7 +55,11 @@ def test_log_absolute_time(logger_fixture):
         temporal_type="absolute",
         fields=logger_fixture["fields"],
     )
-    test_data = {"simulation_time": datetime.now(), "volume": 123.456789, "percent_error": 0.123456}
+    test_data = {
+        "simulation_time": datetime.now(),
+        "volume": 123.456789,
+        "percent_error": 0.123456,
+    }
     logger.log(test_data)
     with open(logger_fixture["file_name"], "r") as f:
         lines = f.readlines()

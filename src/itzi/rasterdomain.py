@@ -21,7 +21,7 @@ from itzi import rastermetrics
 
 
 class TimedArray:
-    """A container for np.ndarray with time informations.
+    """A container for np.ndarray with time information.
     Update the array value according to the simulation time.
     array is accessed via get()
     """
@@ -29,7 +29,7 @@ class TimedArray:
     def __init__(self, mkey, igis, f_arr_def):
         assert isinstance(mkey, str), "not a string!"
         assert hasattr(f_arr_def, "__call__"), "not a function!"
-        self.mkey = mkey
+        self.mkey = mkey  # An identifier
         self.igis = igis  # GIS interface
         # A function to generate a default array
         self.f_arr_def = f_arr_def
@@ -87,13 +87,13 @@ class RasterDomain:
         # geographical data
         self.shape = arr_mask.shape
         self.dx, self.dy = cell_shape
-        self.cell_surf = self.dx * self.dy
+        self.cell_area = self.dx * self.dy
         self.mask = arr_mask
 
         # number of cells in a row must be a multiple of that number
-        byte_num = 256 / 8  # AVX2
-        itemsize = np.dtype(self.dtype).itemsize
-        self.row_mul = int(byte_num / itemsize)
+        # byte_num = 256 / 8  # AVX2
+        # itemsize = np.dtype(self.dtype).itemsize
+        # self.row_mul = int(byte_num / itemsize)
 
         # slice for a simple padding (allow stencil calculation on boundary)
         self.simple_pad = (slice(1, -1), slice(1, -1))
@@ -151,9 +151,6 @@ class RasterDomain:
             "error_depth_accum",
         ]
         self.k_all = self.k_input + self.k_internal + self.k_accum
-
-        self.start_volume = None
-
         # Instantiate arrays and padded arrays filled with zeros
         self.arr = dict.fromkeys(self.k_all)
         self.arrp = dict.fromkeys(self.k_all)
@@ -230,8 +227,6 @@ class RasterDomain:
             self.update_mask(arr)
             fill_value = np.finfo(self.dtype).max
         elif k == "h":
-            if self.start_volume is None:
-                self.start_volume = rastermetrics.calculate_total_volume(arr, self.cell_surf)
             fill_value = 0
         elif k == "friction":
             fill_value = 1

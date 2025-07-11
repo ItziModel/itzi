@@ -36,12 +36,14 @@ def calculate_continuity_error(volume_error: float, volume_change: float) -> flo
     Returns:
         Continuity error as a percentage
     """
-    if volume_change == 0:
+    if volume_error == 0:
         return 0.0
-    return (volume_error / volume_change) * 100
+    elif volume_change == 0:
+        return float('nan')
+    return volume_error / volume_change
 
 
-# --- Output Array Calculations (Previously in Report) ---
+# --- Output Array Calculations ---
 
 
 def calculate_wse(h_array: np.ndarray, dem_array: np.ndarray) -> np.ndarray:
@@ -66,7 +68,7 @@ def calculate_flux(flow_array: np.ndarray, cell_size: float) -> np.ndarray:
     return flow_array * cell_size
 
 
-# --- Statistical Calculations (Previously in Report) ---
+# --- Statistical Calculations ---
 
 
 def calculate_average_rate_from_total(
@@ -86,7 +88,7 @@ def calculate_average_rate_from_total(
 
 
 def accumulate_rate_to_total(
-    stat_array: np.ndarray, rate_array: np.ndarray, time_delta_seconds: float
+    accum_array: np.ndarray, rate_array: np.ndarray, time_delta_seconds: float
 ) -> None:
     """Accumulates a rate array into a total array over a time delta.
        The operation is performed in-place on stat_array.
@@ -97,5 +99,4 @@ def accumulate_rate_to_total(
     Returns:
         None (modifies stat_array in-place)
     """
-    # stat_array += rate_array * time_delta_seconds
-    flow.populate_stat_array(rate_array, stat_array, time_delta_seconds)
+    flow.populate_stat_array(rate_array, accum_array, time_delta_seconds)

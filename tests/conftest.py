@@ -155,6 +155,7 @@ def grass_5by5(grass_xy_session, test_data_path):
         use="val",
         value=0.2,
     )
+    # Set null values to 0
     gscript.run_command("r.null", map="start_h", null=0)
     univar_start_h = gscript.parse_command("r.univar", map="start_h", flags="g")
     assert float(univar_start_h["min"]) == 0

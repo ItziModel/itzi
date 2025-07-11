@@ -9,11 +9,13 @@ from io import StringIO
 import pandas as pd
 import numpy as np
 import grass.script as gscript
+import pytest
 
 from itzi import SimulationRunner
 
 
-def test_number_of_output(grass_5by5_sim):
+@pytest.mark.usefixtures("grass_5by5_sim")
+def test_number_of_output():
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     assert current_mapset == "5by5"
 
@@ -42,7 +44,8 @@ def test_number_of_output(grass_5by5_sim):
     assert len(verr_map_list) == 3
 
 
-def test_flow_symmetry(grass_5by5_sim):
+@pytest.mark.usefixtures("grass_5by5_sim")
+def test_flow_symmetry():
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     assert current_mapset == "5by5"
     h_values = gscript.read_command(
@@ -52,7 +55,8 @@ def test_flow_symmetry(grass_5by5_sim):
     assert np.all(np.isclose(s_h[:-1], s_h[1:]))
 
 
-def test_region_mask(grass_5by5, test_data_path):
+@pytest.mark.usefixtures("grass_5by5")
+def test_region_mask(test_data_path):
     """Check if temporary mask and region are set and teared down."""
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     assert current_mapset == "5by5"
@@ -76,7 +80,8 @@ def test_region_mask(grass_5by5, test_data_path):
 # TODO: Add test for asymmetrical cells
 
 
-def test_max_values(grass_5by5_max_values_sim):
+@pytest.mark.usefixtures("grass_5by5_max_values_sim")
+def test_max_values():
     """Check if the maximum values of h and v are properly calculated."""
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     assert current_mapset == "5by5"
@@ -104,7 +109,8 @@ def test_max_values(grass_5by5_max_values_sim):
     assert np.isclose(v_max["max"], v_max_test["max"])
 
 
-def test_stats_file(grass_5by5_stats_sim, test_data_temp_path):
+@pytest.mark.usefixtures("grass_5by5_stats_sim")
+def test_stats_file(test_data_temp_path):
     """Check if the statistics are accurate"""
     stats_path = os.path.join(test_data_temp_path, "5by5_stats.csv")
     assert os.path.exists(stats_path)
@@ -122,7 +128,7 @@ def test_stats_file(grass_5by5_stats_sim, test_data_temp_path):
         "drainage_network_volume",
         "domain_volume",
         "created_volume",
-        "percent_error"
+        "percent_error",
     ]
     assert df.columns.to_list() == expected_cols
 
@@ -132,16 +138,18 @@ def test_stats_file(grass_5by5_stats_sim, test_data_temp_path):
 
     # All rates are in mm/h, except inflow (m/s) and losses (m/s)
     expected_rain_vol = 10.0 / (1000 * 3600) * area
-    expected_inf_vol = -2.0 / (1000 * 3600) * area
-    expected_losses_vol = -1.5 / (1000 * 3600) * area
+    expected_inf_vol = 2.0 / (1000 * 3600) * area
+    expected_losses_vol = 1.5 / (1000 * 3600) * area
     expected_inflow_vol = 0.1 * area
-    assert np.all(np.isclose(df["rainfall_volume"], expected_rain_vol))
-    assert np.all(np.isclose(df["infiltration_volume"], expected_inf_vol))
-    assert np.all(np.isclose(df["inflow_volume"], expected_inflow_vol))
-    assert np.all(np.isclose(df["losses_volume"], expected_losses_vol))
+    # Ignore first values as they are initial state, before time-stepping
+    assert np.all(np.isclose(df["rainfall_volume"][1:], expected_rain_vol))
+    assert np.all(np.isclose(df["infiltration_volume"][1:], expected_inf_vol))
+    assert np.all(np.isclose(df["inflow_volume"][1:], expected_inflow_vol))
+    assert np.all(np.isclose(df["losses_volume"][1:], expected_losses_vol))
 
 
-def test_stats_maps(grass_5by5_stats_sim):
+@pytest.mark.usefixtures("grass_5by5_stats_sim")
+def test_stats_maps():
     """Check if the maps statistics are accurate"""
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     for map_name in ["rainfall", "inflow", "infiltration", "losses"]:
@@ -153,7 +161,7 @@ def test_stats_maps(grass_5by5_stats_sim):
             minimum = float(stats["min"])
             maximum = float(stats["max"])
             # Initial maps are expected to be zero (simulation has not started yet)
-            if raster_map.endswith('0000'):
+            if raster_map.endswith("0000"):
                 assert np.isclose(minimum, 0)
                 assert np.isclose(maximum, 0)
                 continue

@@ -194,7 +194,8 @@ def ea_test8a_sim(ea_test8a, test_data_path):
 
 
 @pytest.mark.slow
-def test_ea8a(ea_test8a_reference, ea_test8a_sim):
+@pytest.mark.usefixtures("ea_test8a_sim")
+def test_ea8a(ea_test8a_reference):
     """Compare results with LISFLOOD-FP"""
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     assert current_mapset == "ea8a"
