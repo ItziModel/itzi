@@ -19,11 +19,15 @@ You can install itzi with pip or pipx.
 However, we recommend you use `uv <https://docs.astral.sh/uv>`__.
 Install *uv* by following the instructions on the `uv website <https://docs.astral.sh/uv>`__.
 
-Once you have *uv* installed, you can install Itzï with the following command::
+Once you have *uv* installed, you can install Itzï with the following command:
 
     uv tool install itzi
 
-This will automatically download itzi and install it in its own python environment.
+This will automatically download Itzï and install it in its own python environment.
+
+When it is time to update Itzï to its last version, you can use:
+
+    uv tool update itzi
 
 Installation on Windows
 -------------------------

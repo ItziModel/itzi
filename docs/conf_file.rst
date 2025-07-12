@@ -135,7 +135,6 @@ The possible values to be exported are the following:
 |              | last record                                             |        |
 +--------------+---------------------------------------------------------+--------+
 | infiltration | Infiltration rate. Average since the last record        | mm/h   |
-|              |                                                         |        |
 +--------------+---------------------------------------------------------+--------+
 | rainfall     | Rainfall rate. Average since the last record            | mm/h   |
 +--------------+---------------------------------------------------------+--------+
@@ -154,15 +153,12 @@ The possible values to be exported are the following:
 .. versionadded:: 25.7
     *froude* is added.
 
-.. versionchanged:: 17.7
-    *drainage_cap* is renamed to *losses*
-
-Additionally to output a map at each *record\_step*, *h* and *v* also
+In addition to output a map at each *record\_step*, *h* and *v* also
 produce a map of maximum values.
 
 .. note:: Water depth maps, apart from map of maximum values,
-    do not display values under the *hmin* threshold (See below).
-    When the exported map is totally empty, it is deleted at the end of the simulation.
+    do not contain values under the *hmin* threshold (See below).
+    If an exported map is totally empty, it is deleted at the end of the simulation.
 
 [statistics]
 ------------
@@ -175,57 +171,51 @@ produce a map of maximum values.
 
 Statistics file
 ^^^^^^^^^^^^^^^
-.. versionchanged:: 17.1
-    Mass balance calculation now takes into account the volume from losses.
-    Created volume calculation is changed.
-
-The statistic file is presented as a CSV file and updated at each *record_step*.
+The statistic file is a CSV file updated at each *record_step*.
 The values exported are shown in the table below.
-
 Water entering the domain is represented by a positive value.
-Water that leaves the domain is negative.
-Volumes are in m³.
+Water leaving the domain is negative.
 
-+-----------------+------------------------------------------------------------------+
-| Keyword         | Description                                                      |
-+=================+==================================================================+
-| sim\_time       | Elapsed simulation time                                          |
-+-----------------+------------------------------------------------------------------+
-| avg\_timestep   | Average time-step duration since last record                     |
-+-----------------+------------------------------------------------------------------+
-| #timesteps      | Number of time-steps since the last record                       |
-+-----------------+------------------------------------------------------------------+
-| boundary\_vol   | Water volume that passed the domain boundaries since last record |
-+-----------------+------------------------------------------------------------------+
-| rain\_vol       | Rain volume that entered the domain since last record            |
-+-----------------+------------------------------------------------------------------+
-| inf\_vol        | Water volume that left the domain due to infiltration since      |
-|                 | last record                                                      |
-+-----------------+------------------------------------------------------------------+
-| inflow\_vol     | Water volume that entered or left the domain due to user         |
-|                 | inflow since last record                                         |
-+-----------------+------------------------------------------------------------------+
-| losses\_vol     | Water volume that entered or left the domain due to              |
-|                 | losses since last record                                         |
-+-----------------+------------------------------------------------------------------+
-| drain\_net\_vol | Water volume that entered or left the surface domain since       |
-|                 | last record due to exchanges with the drainage network           |
-+-----------------+------------------------------------------------------------------+
-| domain\_vol     | Total water volume in the domain at this time-step               |
-+-----------------+------------------------------------------------------------------+
-| created\_vol    | Water volume created due to numerical errors since last record   |
-|                 | record                                                           |
-+-----------------+------------------------------------------------------------------+
-| %error          | Percentage of the domain volume variation due to numerical       |
-|                 | error. Corresponds to *created\_vol* / (*domain\_vol* -          |
-|                 | *old\_domain\_vol*) \* 100                                       |
-+-----------------+------------------------------------------------------------------+
++-------------------------+------------------------------------------------------------------+--------+
+| Keyword                 | Description                                                      | Unit   |
++=========================+==================================================================+========+
+| simulation\_time        | Total elapsed simulation time.                                   | time   |
++-------------------------+------------------------------------------------------------------+--------+
+| average\_timestep       | Average time-step duration since last record.                    | s      |
++-------------------------+------------------------------------------------------------------+--------+
+| #timesteps              | Number of time-steps since the last record.                      | none   |
++-------------------------+------------------------------------------------------------------+--------+
+| boundary\_volume        | Water volume that passed the domain boundaries since last record.| m³     |
++-------------------------+------------------------------------------------------------------+--------+
+| rainfall\_volume        | Rain volume that entered the domain since last record.           | m³     |
++-------------------------+------------------------------------------------------------------+--------+
+| infiltration\_volume    | Water volume that left the domain due to infiltration since      | m³     |
+|                         | last record.                                                     |        |
++-------------------------+------------------------------------------------------------------+--------+
+| inflow\_volume          | Water volume that entered or left the domain due to user         | m³     |
+|                         | inflow since last record.                                        |        |
++-------------------------+------------------------------------------------------------------+--------+
+| losses\_volume          | Water volume that entered or left the domain due to              | m³     |
+|                         | losses since last record.                                        |        |
++-------------------------+------------------------------------------------------------------+--------+
+| drainage_network_volume | Water volume that entered or left the surface domain since       | m³     |
+|                         | last record due to exchanges with the drainage network.          |        |
++-------------------------+------------------------------------------------------------------+--------+
+| domain\_volume          | Total water volume in the domain at this time-step.              | m³     |
++-------------------------+------------------------------------------------------------------+--------+
+| volume\_change          | Changes in volume since the last record.                         | m³     |
++-------------------------+------------------------------------------------------------------+--------+
+| volume\_error           | Water volume created due to numerical errors since last record.  | m³     |
++-------------------------+------------------------------------------------------------------+--------+
+| percent_error           | Percentage of the domain volume change due to numerical          | %      |
+|                         | error. Corresponds to *volume\_error* / *volume\_change* \* 100  |        |
++-------------------------+------------------------------------------------------------------+--------+
 
-.. versionchanged:: 17.7
-    *drain_cap_vol* is renamed to *losses_vol*
+*volume\_change* is equal to the sum of *boundary\_volume*, *rainfall\_volume*, *infiltration\_volume*, *inflow_volume*, *losses\_volume*, *drainage\_network_volume*, and *volume\_error*.
+However, due to the way the volumes are computed internally, small variations could occur.
 
-.. versionadded:: 17.7
-    *drain_net_vol* is added.
+.. versionchanged:: 25.7
+    Columns numbers are more explicit. *volume_change* is added.
 
 
 [options]
