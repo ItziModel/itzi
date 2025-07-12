@@ -237,6 +237,9 @@ However, due to the way the volumes are computed internally, small variations co
 +----------+----------------------------------------------+----------------+---------------+
 | dtinf    | Time-step of infiltration and losses, in s   | positive float | 60.0          |
 +----------+----------------------------------------------+----------------+---------------+
+| max_error| Maximum relative volume error.               | positive float | 0.05          |
+|          | Simulation will stop if above.               |                |               |
++----------+----------------------------------------------+----------------+---------------+
 
 When water depth is under *hmin*, the flow is routed at the fixed velocity defined by *vrouting*.
 

@@ -86,6 +86,7 @@ class ConfigReader:
             "dtmax": DefaultValues.DTMAX,
             "slmax": DefaultValues.SLMAX,
             "dtinf": DefaultValues.DTINF,
+            "max_error": DefaultValues.MAX_ERROR,
             "inf_model": None,
         }
         self.grass_mandatory = ["grassdata", "location", "mapset"]

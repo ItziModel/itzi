@@ -238,7 +238,7 @@ def create_simulation(
         drainage,
         nodes_list,
         report,
-        mass_balance_error_threshold=0.05,
+        mass_balance_error_threshold=sim_param['max_error'],
     )
     return (simulation, tarr)
 

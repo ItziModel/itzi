@@ -33,6 +33,8 @@ class DefaultValues:
     SLMAX = 0.1
     # Hydrology time step (s)
     DTINF = 60.0
+    # Maximum continuity error allowed
+    MAX_ERROR = 0.05
     # maximum Froude number. Not used yet.
     FRMAX = 1.0
     # coefficients taken from Rubinato et al. (2017)
