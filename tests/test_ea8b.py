@@ -4,11 +4,13 @@ The results from itzi are compared with the those from XPSTORM.
 """
 
 import os
+from pathlib import Path
 import zipfile
 from io import StringIO
 from configparser import ConfigParser
 
 import pandas as pd
+import numpy as np
 import requests
 import pytest
 import grass.script as gscript
@@ -41,7 +43,7 @@ def test8b_file(test_data_temp_path, helpers):
     return file_path
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def ea_test8b(grass_xy_session, test8b_file, test_data_temp_path):
     """Create the GRASS env for ea test 8a."""
     # Keep all generated files in the test_data_temp_path
@@ -114,7 +116,7 @@ def ea_test8b_reference(test_data_path):
     return ds_ref
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def ea_test8b_sim(ea_test8b, test_data_path, test_data_temp_path):
     """ """
     # Keep all generated files in the test_data_temp_path
@@ -126,6 +128,7 @@ def ea_test8b_sim(ea_test8b, test_data_path, test_data_temp_path):
         "time": {"duration": "03:20:00", "record_step": "00:00:30"},
         "input": {"dem": "dem2m_buildings", "friction": "n"},
         "output": {"prefix": "out", "values": "h, drainage_stats"},
+        "statistics": {"stats_file": "ea8b.csv"},
         "options": {"theta": 0.7, "cfl": 0.5},
         "drainage": {
             "swmm_inp": inp_file,
@@ -144,7 +147,7 @@ def ea_test8b_sim(ea_test8b, test_data_path, test_data_temp_path):
     return sim_runner
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def ea8b_itzi_drainage_results(ea_test8b_sim):
     """Extract linkage flow from the drainage network"""
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
@@ -163,16 +166,44 @@ def ea8b_itzi_drainage_results(ea_test8b_sim):
 
 
 @pytest.mark.slow
-def test_ea8b(ea_test8b_reference, ea8b_itzi_drainage_results, helpers):
-    """Compare results with XPSTORM"""
-    # Extract results at output points
-    # itzi_results = gscript.read_command('t.rast.what', points='manhole_location',
-    #                                     strds='out_drainage_stats', null_value='*',
-    #                                     separator='comma', layout='col')
+def test_ea8b(ea_test8b_reference, ea8b_itzi_drainage_results, helpers, test_data_temp_path):
+    """
+    """
     ds_itzi_results = ea8b_itzi_drainage_results
     ds_ref = ea_test8b_reference
-    # calculate NSE
+    # Check if results are comparable to XPSTORM
     nse = helpers.get_nse(ds_itzi_results, ds_ref)
     rsr = helpers.get_rsr(ds_itzi_results, ds_ref)
     assert nse > 0.99
     assert rsr < 0.01
+
+    ## Check if stat file is coherent ##
+    # This shares the test for now to not run twice the simulation when using --forked
+    # TODO: move in its own test when possible
+    stat_file_path = Path(test_data_temp_path) / Path("ea8b.csv")
+    df_stats = pd.read_csv(stat_file_path, sep=",")
+    # convert percent string to float
+    df_stats["percent_error"] = (
+        df_stats["percent_error"].str.rstrip("%").astype("float") / 100.0
+    )
+    # Compute the reference error, preventing NaN
+    df_stats["err_ref"] = np.where(
+        df_stats["volume_change"] == 0,
+        0.0,
+        df_stats["volume_error"] / df_stats["volume_change"],
+    )
+    # Check if the error percentage computation is correct
+    assert np.allclose(df_stats["percent_error"], df_stats["err_ref"], atol=0.0005)
+
+    # Check if the volume change is coherent with the rest of the volumes
+    df_stats["vol_change_ref"] = (
+        df_stats["boundary_volume"]
+        + df_stats["rainfall_volume"]
+        + df_stats["infiltration_volume"]
+        + df_stats["inflow_volume"]
+        + df_stats["losses_volume"]
+        + df_stats["drainage_network_volume"]
+        + df_stats["volume_error"]
+    )
+    print(df_stats.to_string())
+    assert np.allclose(df_stats["vol_change_ref"], df_stats["volume_change"], atol=1, rtol=0.01)

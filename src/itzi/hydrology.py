@@ -68,7 +68,7 @@ class Hydrology:
         )
 
     def apply_hydrology(self):
-        """Update water depth (h) by adding/removing volume from:
+        """Update effective precipitation (eff_precip) by adding/removing depth from:
         rainfall, infiltration, evapotranspiration and lump-sum drainage.
         """
         flow.apply_hydrology(

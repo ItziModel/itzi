@@ -20,6 +20,7 @@ from libc.math cimport sqrt as c_sqrt
 from libc.math cimport fabs as c_abs
 from libc.math cimport atan2 as c_atan
 
+# ctypedef double DTYPE_t
 ctypedef cython.floating DTYPE_t
 cdef float PI = 3.1415926535898
 
@@ -57,7 +58,7 @@ def apply_hydrology(DTYPE_t [:, :] arr_rain, DTYPE_t [:, :] arr_inf,
                     DTYPE_t [:, :] arr_etp, DTYPE_t [:, :] arr_capped_losses,
                     DTYPE_t [:, :] arr_h,
                     DTYPE_t [:, :] arr_eff_precip, DTYPE_t dt):
-    '''Populate arr_hydrology in m/s
+    '''Update arr_eff_precip in m/s
     rain and infiltration in m/s, deph in m, dt in seconds'''
     cdef int rmax, cmax, r, c
     cdef DTYPE_t hydro_raw, hydro_capped, losses_limit
@@ -75,7 +76,7 @@ def apply_hydrology(DTYPE_t [:, :] arr_rain, DTYPE_t [:, :] arr_inf,
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
 def flow_dir(DTYPE_t [:, :] arr_max_dz, DTYPE_t [:, :] arr_dz0,
              DTYPE_t [:, :] arr_dz1, DTYPE_t [:, :] arr_dir):
-    '''Populate arr_dir with a rain-routing direction:
+    '''Update arr_dir with a rain-routing direction:
     0: the flow is going dowstream, index-wise
     1: the flow is going upstream, index-wise
     -1: no routing happening on that face

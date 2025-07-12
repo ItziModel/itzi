@@ -198,21 +198,15 @@ class Report:
             "#timesteps": data.time_steps_counter,
             "boundary_volume": boundary_vol,
             "rainfall_volume": rain_vol,
-            "infiltration_volume": infiltration_vol,
+            "infiltration_volume": - infiltration_vol,  # negative because it leaves the domain
             "inflow_volume": inflow_vol,
-            "losses_volume": losses_vol,
+            "losses_volume": - losses_vol,  # negative because it leaves the domain
             "drainage_network_volume": drain_net_vol,
             "domain_volume": continuity_data.new_domain_vol,
             "volume_change": continuity_data.volume_change,
             "volume_error": continuity_data.volume_error,
             "percent_error": continuity_data.continuity_error,
         }
-
-        # print("new_domain_vol | volume_change")
-        # print(f"{continuity_data.new_domain_vol} | {continuity_data.volume_change}")
-        # print(f"{continuity_data.volume_error=}")
-        # print(f"{continuity_data.continuity_error=}")
-        # print(f"{report_data=}")
         self.mass_balance_logger.log(report_data)
 
         return self

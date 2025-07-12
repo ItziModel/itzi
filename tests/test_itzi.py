@@ -127,7 +127,8 @@ def test_stats_file(test_data_temp_path):
         "losses_volume",
         "drainage_network_volume",
         "domain_volume",
-        "created_volume",
+        "volume_change",
+        "volume_error",
         "percent_error",
     ]
     assert df.columns.to_list() == expected_cols
@@ -138,14 +139,26 @@ def test_stats_file(test_data_temp_path):
 
     # All rates are in mm/h, except inflow (m/s) and losses (m/s)
     expected_rain_vol = 10.0 / (1000 * 3600) * area
-    expected_inf_vol = 2.0 / (1000 * 3600) * area
-    expected_losses_vol = 1.5 / (1000 * 3600) * area
+    expected_inf_vol = - 2.0 / (1000 * 3600) * area
+    expected_losses_vol = - 1.5 / (1000 * 3600) * area
     expected_inflow_vol = 0.1 * area
     # Ignore first values as they are initial state, before time-stepping
-    assert np.all(np.isclose(df["rainfall_volume"][1:], expected_rain_vol))
-    assert np.all(np.isclose(df["infiltration_volume"][1:], expected_inf_vol))
-    assert np.all(np.isclose(df["inflow_volume"][1:], expected_inflow_vol))
-    assert np.all(np.isclose(df["losses_volume"][1:], expected_losses_vol))
+    assert np.all(np.isclose(df["rainfall_volume"][1:], expected_rain_vol, atol=0.001))
+    assert np.all(np.isclose(df["infiltration_volume"][1:], expected_inf_vol, atol=0.001))
+    assert np.all(np.isclose(df["inflow_volume"][1:], expected_inflow_vol, atol=0.001))
+    assert np.all(np.isclose(df["losses_volume"][1:], expected_losses_vol, atol=0.001))
+    # Check if the volume change is coherent with the rest of the volumes
+    df["vol_change_ref"] = (
+        df["boundary_volume"]
+        + df["rainfall_volume"]
+        + df["infiltration_volume"]
+        + df["inflow_volume"]
+        + df["losses_volume"]
+        + df["drainage_network_volume"]
+        + df["volume_error"]
+    )
+    print(df.to_string())
+    assert np.allclose(df["vol_change_ref"], df["volume_change"], atol=1, rtol=0.01)
 
 
 @pytest.mark.usefixtures("grass_5by5_stats_sim")

@@ -23,13 +23,13 @@ def test_calculate_continuity_error():
     # Test case 1: Positive volume error and change
     volume_error = 0.5
     volume_change = 10.0
-    expected_error = (volume_error / volume_change) * 100
+    expected_error = (volume_error / volume_change)
     result = rastermetrics.calculate_continuity_error(volume_error, volume_change)
     assert np.isclose(result, expected_error)
 
-    # Test case 2: Zero volume change (should return 0)
+    # Test case 2: Zero volume change (should return nan)
     result = rastermetrics.calculate_continuity_error(volume_error, 0.0)
-    assert np.isclose(result, 0.0)
+    assert np.isnan(result)
 
     # Test case 3: Negative volume error
     result = rastermetrics.calculate_continuity_error(-0.5, volume_change)

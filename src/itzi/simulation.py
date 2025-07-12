@@ -341,7 +341,7 @@ class Simulation:
         # Grid spacing (for BMI)
         self.spacing = (self.raster_domain.dy, self.raster_domain.dx)
         # time step counter
-        self.time_steps_counter: int = 1
+        self.time_steps_counter: int = 0
 
     def initialize(self) -> Self:
         """Record the initial stage of the simulation, before time-stepping.
@@ -350,10 +350,8 @@ class Simulation:
             depth_array=self.raster_domain.get_array('h'), 
             cell_surface_area=self.raster_domain.cell_area
         )
-        self._populate_accum_array("rain", self.sim_time)
-        self._populate_accum_array("inflow", self.sim_time)
-        self._populate_accum_array("inf", self.sim_time)
-        self._populate_accum_array("capped_losses", self.sim_time)
+        for arr_key in self.accum_corresp.keys():
+            self._update_accum_array(arr_key, self.sim_time)
         # Package data into SimulationData object
         raw_arrays = {
             k: self.raster_domain.get_unmasked(k)
@@ -389,28 +387,23 @@ class Simulation:
             # calculate when will happen the next time-step
             self.next_ts["hydrology"] += self.hydrology_model.dt
             self.hydrology_model.step()
-            # update accumulation array
-            self._populate_accum_array("inf", self.sim_time)
-            self._populate_accum_array("capped_losses", self.sim_time)
 
         # drainage #
         if self.sim_time == self.next_ts["drainage"] and self.drainage_model:
             self.drainage_model.step()
             # Update drainage nodes
             surface_states = {}
-            cell_surf = self.raster_domain.cell_surf
+            cell_area = self.raster_domain.cell_area
             arr_z = self.raster_domain.get_array("dem")
             arr_h = self.raster_domain.get_array("h")
             for node_id, (row, col) in self.node_id_to_loc.items():
                 surface_states[node_id] = {"z": arr_z[row, col], "h": arr_h[row, col]}
-            coupling_flows = self.drainage_model.apply_coupling_to_nodes(surface_states, cell_surf)
-            # update drainage array in m/s
+            coupling_flows = self.drainage_model.apply_coupling_to_nodes(surface_states, cell_area)
+            # update drainage array with flux in m/s
             arr_qd = self.raster_domain.get_array("n_drain")
             for node_id, coupling_flow in coupling_flows.items():
                 row, col = self.node_id_to_loc[node_id]
-                arr_qd[row, col] = coupling_flow / cell_surf
-            # update accumulation array
-            self._populate_accum_array("n_drain", self.sim_time)
+                arr_qd[row, col] = coupling_flow / cell_area
             # calculate when will happen the next time-step
             self.next_ts["drainage"] += self.drainage_model.dt
 
@@ -431,6 +424,10 @@ class Simulation:
         self.surface_flow.solve_dt()
         self.next_ts["surface_flow"] += self.surface_flow.dt
 
+        # Update accumulation arrays
+        for arr_key in self.accum_corresp.keys():
+            self._update_accum_array(arr_key, self.sim_time)
+
         # Compute continuity error every x time steps
         is_first_ts = self.sim_time == self.start_time
         is_ts_over_threshold = self.time_steps_counter >=500
@@ -442,12 +439,6 @@ class Simulation:
         # Reporting last to get simulated values #
         if is_record_due:
             msgr.verbose(f"{self.sim_time}: Writing output maps...")
-
-            # Populate statistical arrays before packaging data
-            self._populate_accum_array("rain", self.sim_time)
-            self._populate_accum_array("inflow", self.sim_time)
-            self._populate_accum_array("inf", self.sim_time)
-            self._populate_accum_array("capped_losses", self.sim_time)
 
             # Package data into SimulationData object
             raw_arrays = {
@@ -475,7 +466,7 @@ class Simulation:
 
             # Reset accumulation arrays
             self.old_domain_volume = copy.deepcopy(self.continuity_data.new_domain_vol)
-            self.time_steps_counter = 1  # There will be at least 1 time step
+            self.time_steps_counter = 0
             self.raster_domain.reset_accumulations()
             for key in self.accum_update_time:
                 self.accum_update_time[key] = self.sim_time
@@ -486,7 +477,7 @@ class Simulation:
         if is_error_comp_due:
             if self.continuity_data.continuity_error >= self.mass_balance_error_threshold:
                 raise(MassBalanceError(
-                    error=self.continuity_data.continuity_error,
+                    error_percentage=self.continuity_data.continuity_error,
                     threshold=self.mass_balance_error_threshold)
                 )
 
@@ -513,11 +504,16 @@ class Simulation:
         return self
 
     def finalize(self):
-        self._populate_accum_array("rain", self.sim_time)
-        self._populate_accum_array("inflow", self.sim_time)
-        self._populate_accum_array("inf", self.sim_time)
-        self._populate_accum_array("capped_losses", self.sim_time)
-
+        """
+        """
+        # run surface flow simulation to get correct final volume
+        self.raster_domain.update_ext_array()
+        self.surface_flow.dt = self.dt
+        self.surface_flow.step()
+        # Update accumulation arrays
+        for arr_key in self.accum_corresp.keys():
+            self._update_accum_array(arr_key, self.sim_time)
+        # Prepare SimulationData
         raw_arrays = {
             k: self.raster_domain.get_unmasked(k)
             for k in self.raster_domain.k_all
@@ -526,7 +522,6 @@ class Simulation:
         accumulation_arrays = {
             k: self.raster_domain.get_unmasked(k) for k in self.raster_domain.k_accum
         }
-
         simulation_data = SimulationData(
             sim_time=self.sim_time,
             time_step=self.dt.total_seconds(),
@@ -537,7 +532,7 @@ class Simulation:
             cell_dx=self.raster_domain.dx,
             cell_dy=self.raster_domain.dy,
         )
-        # write final report
+        # write final report. 
         self.report.end(simulation_data)
 
     def set_array(self, arr_id, arr):
@@ -545,7 +540,7 @@ class Simulation:
         assert isinstance(arr_id, str)
         assert isinstance(arr, np.ndarray)
         if arr_id in ["inflow", "rain"]:
-            self._populate_accum_array(arr_id, self.sim_time)
+            self._update_accum_array(arr_id, self.sim_time)
         self.raster_domain.update_array(arr_id, arr)
         if arr_id == "dem":
             self.surface_flow.update_flow_dir()
@@ -562,6 +557,7 @@ class Simulation:
         # Surface flow model should always run
         self.next_ts["surface_flow"] = self.nextstep
         # Force a record step at the end of the simulation
+        # The final step is taken in finalize() because the loop stops at the penultimate step
         self.next_ts["record"] = min(self.next_ts["end"], self.next_ts["record"])
         # If a Record is due, force hydrology
         self.next_ts["hydrology"] = min(self.next_ts["hydrology"], self.next_ts["record"])
@@ -584,18 +580,15 @@ class Simulation:
         continuity_error = rastermetrics.calculate_continuity_error(volume_error=volume_error, volume_change=volume_change)
         return ContinuityData(new_domain_vol, volume_change, volume_error, continuity_error)
 
-    def _populate_accum_array(self, k: str, sim_time: datetime) -> None:
+    def _update_accum_array(self, k: str, sim_time: datetime) -> None:
         """Update the accumulation arrays.
         """
         ak = self.accum_corresp[k]
         if self.accum_update_time[ak] is None:
             self.accum_update_time[ak] = sim_time
         time_diff = (sim_time - self.accum_update_time[ak]).total_seconds()
-        if time_diff >= 0:
-            from itzi.rastermetrics import accumulate_rate_to_total
-
+        if time_diff > 0:
             rate_array = self.raster_domain.get_array(k)
             accum_array = self.raster_domain.get_array(ak)
-            accumulate_rate_to_total(accum_array, rate_array, time_diff)
+            rastermetrics.accumulate_rate_to_total(accum_array, rate_array, time_diff)
             self.accum_update_time[ak] = sim_time
-

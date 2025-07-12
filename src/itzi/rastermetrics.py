@@ -99,4 +99,4 @@ def accumulate_rate_to_total(
     Returns:
         None (modifies stat_array in-place)
     """
-    flow.populate_stat_array(rate_array, accum_array, time_delta_seconds)
+    flow.accumulate_array(rate_array, accum_array, time_delta_seconds)

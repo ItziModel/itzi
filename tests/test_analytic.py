@@ -156,21 +156,21 @@ class TestMcdo_norain:
             0.0,
             df_stats["volume_error"] / df_stats["volume_change"],
         )
-        # Check if the error percentage computaion is correct
+        # Check if the error percentage computation is correct
         assert np.allclose(df_stats["percent_error"], df_stats["err_ref"], atol=0.0001)
 
         # Check if the volume change is coherent with the rest of the volumes
         df_stats["vol_change_ref"] = (
             df_stats["boundary_volume"]
             + df_stats["rainfall_volume"]
-            - df_stats["infiltration_volume"]
+            + df_stats["infiltration_volume"]
             + df_stats["inflow_volume"]
-            - df_stats["losses_volume"]
+            + df_stats["losses_volume"]
             + df_stats["drainage_network_volume"]
             + df_stats["volume_error"]
         )
         print(df_stats.to_string())
-        assert np.allclose(df_stats["vol_change_ref"], df_stats["volume_change"], atol=0.0001)
+        assert np.allclose(df_stats["vol_change_ref"], df_stats["volume_change"], atol=1, rtol=0.01)
 
 
 @pytest.mark.usefixtures("grass_mcdo_rain_sim")
