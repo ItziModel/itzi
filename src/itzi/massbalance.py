@@ -18,6 +18,7 @@ import csv
 import numbers
 from typing import List, Dict, Any
 
+
 class MassBalanceLogger:
     """Writes pre-calculated mass balance data to a CSV file."""
 

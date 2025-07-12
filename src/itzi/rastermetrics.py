@@ -39,7 +39,7 @@ def calculate_continuity_error(volume_error: float, volume_change: float) -> flo
     if volume_error == 0:
         return 0.0
     elif volume_change == 0:
-        return float('nan')
+        return float("nan")
     return volume_error / volume_change
 
 

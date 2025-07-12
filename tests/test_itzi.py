@@ -139,8 +139,8 @@ def test_stats_file(test_data_temp_path):
 
     # All rates are in mm/h, except inflow (m/s) and losses (m/s)
     expected_rain_vol = 10.0 / (1000 * 3600) * area
-    expected_inf_vol = - 2.0 / (1000 * 3600) * area
-    expected_losses_vol = - 1.5 / (1000 * 3600) * area
+    expected_inf_vol = -2.0 / (1000 * 3600) * area
+    expected_losses_vol = -1.5 / (1000 * 3600) * area
     expected_inflow_vol = 0.1 * area
     # Ignore first values as they are initial state, before time-stepping
     assert np.all(np.isclose(df["rainfall_volume"][1:], expected_rain_vol, atol=0.001))

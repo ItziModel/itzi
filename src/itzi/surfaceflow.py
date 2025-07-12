@@ -154,7 +154,12 @@ class SurfaceFlowSimulation:
         flow_depth_east = self.dom.get_array("hfe")
         flow_depth_north = self.dom.get_padded("hfs")[self.su, self.ss]
         flow_depth_south = self.dom.get_array("hfs")
-        assert flow_depth_west.shape == flow_depth_east.shape == flow_depth_north.shape == flow_depth_south.shape
+        assert (
+            flow_depth_west.shape
+            == flow_depth_east.shape
+            == flow_depth_north.shape
+            == flow_depth_south.shape
+        )
 
         flow.solve_h(
             arr_ext=self.dom.get_array("ext"),
@@ -266,11 +271,15 @@ class SurfaceFlowSimulation:
         # add to the accumulation array the equivalent water depth passing through the boundaries
         # Inflow is positive, outflow is negative
         # West (upstream) is inflow (+q)
-        self.dom.get_array("boundaries_accum")[1:-1, 0] += w_boundary_flow[self.ss] * self._dt / self.dx
+        self.dom.get_array("boundaries_accum")[1:-1, 0] += (
+            w_boundary_flow[self.ss] * self._dt / self.dx
+        )
         # East (downstream) is outflow (-q)
         self.dom.get_array("boundaries_accum")[:, -1] -= e_boundary_flow * self._dt / self.dx
         # North (upstream) is inflow (+q)
-        self.dom.get_array("boundaries_accum")[0, 1:-1] += n_boundary_flow[self.ss] * self._dt / self.dy
+        self.dom.get_array("boundaries_accum")[0, 1:-1] += (
+            n_boundary_flow[self.ss] * self._dt / self.dy
+        )
         # South (downstream) is outflow (-q)
         self.dom.get_array("boundaries_accum")[-1] -= s_boundary_flow * self._dt / self.dy
         return self
@@ -341,7 +350,9 @@ class Boundary(object):
         """
         result = np.zeros_like(qin)
         slice_over = np.where(flow_depth > 0)
-        result[slice_over] = qin[slice_over] / flow_depth[slice_over] * flow_depth_boundary[slice_over]
+        result[slice_over] = (
+            qin[slice_over] / flow_depth[slice_over] * flow_depth_boundary[slice_over]
+        )
         return result
 
     def get_slope(self, h, z, user_wse):

@@ -58,8 +58,7 @@ class Hydrology:
         return self
 
     def cap_losses(self):
-        """User-defined losses are treated like user infiltration.
-        """
+        """User-defined losses are treated like user infiltration."""
         flow.infiltration_user(
             arr_h=self.dom.get_array("h"),
             arr_inf_in=self.dom.get_array("losses"),

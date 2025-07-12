@@ -170,7 +170,9 @@ class TestMcdo_norain:
             + df_stats["volume_error"]
         )
         print(df_stats.to_string())
-        assert np.allclose(df_stats["vol_change_ref"], df_stats["volume_change"], atol=1, rtol=0.01)
+        assert np.allclose(
+            df_stats["vol_change_ref"], df_stats["volume_change"], atol=1, rtol=0.01
+        )
 
 
 @pytest.mark.usefixtures("grass_mcdo_rain_sim")

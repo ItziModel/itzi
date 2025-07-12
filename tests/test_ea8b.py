@@ -167,8 +167,7 @@ def ea8b_itzi_drainage_results(ea_test8b_sim):
 
 @pytest.mark.slow
 def test_ea8b(ea_test8b_reference, ea8b_itzi_drainage_results, helpers, test_data_temp_path):
-    """
-    """
+    """ """
     ds_itzi_results = ea8b_itzi_drainage_results
     ds_ref = ea_test8b_reference
     # Check if results are comparable to XPSTORM
@@ -183,9 +182,7 @@ def test_ea8b(ea_test8b_reference, ea8b_itzi_drainage_results, helpers, test_dat
     stat_file_path = Path(test_data_temp_path) / Path("ea8b.csv")
     df_stats = pd.read_csv(stat_file_path, sep=",")
     # convert percent string to float
-    df_stats["percent_error"] = (
-        df_stats["percent_error"].str.rstrip("%").astype("float") / 100.0
-    )
+    df_stats["percent_error"] = df_stats["percent_error"].str.rstrip("%").astype("float") / 100.0
     # Compute the reference error, preventing NaN
     df_stats["err_ref"] = np.where(
         df_stats["volume_change"] == 0,

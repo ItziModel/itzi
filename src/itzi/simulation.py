@@ -192,7 +192,7 @@ def create_simulation(
                 "domain_volume",
                 "volume_change",
                 "volume_error",
-                "percent_error"
+                "percent_error",
             ],
         )
     else:
@@ -344,11 +344,10 @@ class Simulation:
         self.time_steps_counter: int = 0
 
     def initialize(self) -> Self:
-        """Record the initial stage of the simulation, before time-stepping.
-        """
+        """Record the initial stage of the simulation, before time-stepping."""
         self.old_domain_volume = rastermetrics.calculate_total_volume(
-            depth_array=self.raster_domain.get_array('h'), 
-            cell_surface_area=self.raster_domain.cell_area
+            depth_array=self.raster_domain.get_array("h"),
+            cell_surface_area=self.raster_domain.cell_area,
         )
         for arr_key in self.accum_corresp.keys():
             self._update_accum_array(arr_key, self.sim_time)
@@ -430,7 +429,7 @@ class Simulation:
 
         # Compute continuity error every x time steps
         is_first_ts = self.sim_time == self.start_time
-        is_ts_over_threshold = self.time_steps_counter >=500
+        is_ts_over_threshold = self.time_steps_counter >= 500
         is_record_due = self.sim_time == self.next_ts["record"]
         is_error_comp_due = is_first_ts or is_ts_over_threshold or is_record_due
         if is_error_comp_due:
@@ -476,9 +475,11 @@ class Simulation:
         # Perform a mass balance continuity check.
         if is_error_comp_due:
             if self.continuity_data.continuity_error >= self.mass_balance_error_threshold:
-                raise(MassBalanceError(
-                    error_percentage=self.continuity_data.continuity_error,
-                    threshold=self.mass_balance_error_threshold)
+                raise (
+                    MassBalanceError(
+                        error_percentage=self.continuity_data.continuity_error,
+                        threshold=self.mass_balance_error_threshold,
+                    )
                 )
 
         # Find next time step
@@ -504,8 +505,7 @@ class Simulation:
         return self
 
     def finalize(self):
-        """
-        """
+        """ """
         # run surface flow simulation to get correct final volume
         self.raster_domain.update_ext_array()
         self.surface_flow.dt = self.dt
@@ -526,13 +526,13 @@ class Simulation:
             sim_time=self.sim_time,
             time_step=self.dt.total_seconds(),
             time_steps_counter=self.time_steps_counter,
-            continuity_data = self.get_continuity_data(),
+            continuity_data=self.get_continuity_data(),
             raw_arrays=raw_arrays,
             accumulation_arrays=accumulation_arrays,
             cell_dx=self.raster_domain.dx,
             cell_dy=self.raster_domain.dy,
         )
-        # write final report. 
+        # write final report.
         self.report.end(simulation_data)
 
     def set_array(self, arr_id, arr):
@@ -565,24 +565,22 @@ class Simulation:
         return self
 
     def get_continuity_data(self) -> ContinuityData:
-        """
-        """
+        """ """
         cell_area = self.raster_domain.cell_area
         new_domain_vol = rastermetrics.calculate_total_volume(
-            depth_array=self.raster_domain.get_array('h'), 
-            cell_surface_area=cell_area
-            )
+            depth_array=self.raster_domain.get_array("h"), cell_surface_area=cell_area
+        )
         volume_change = new_domain_vol - self.old_domain_volume
         volume_error = rastermetrics.calculate_total_volume(
-            self.raster_domain.get_array("error_depth_accum"),
-            cell_area
-            )
-        continuity_error = rastermetrics.calculate_continuity_error(volume_error=volume_error, volume_change=volume_change)
+            self.raster_domain.get_array("error_depth_accum"), cell_area
+        )
+        continuity_error = rastermetrics.calculate_continuity_error(
+            volume_error=volume_error, volume_change=volume_change
+        )
         return ContinuityData(new_domain_vol, volume_change, volume_error, continuity_error)
 
     def _update_accum_array(self, k: str, sim_time: datetime) -> None:
-        """Update the accumulation arrays.
-        """
+        """Update the accumulation arrays."""
         ak = self.accum_corresp[k]
         if self.accum_update_time[ak] is None:
             self.accum_update_time[ak] = sim_time

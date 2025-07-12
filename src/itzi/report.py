@@ -27,12 +27,12 @@ from itzi import flow
 
 @dataclass
 class ContinuityData:
-    """Store information about simulation continuity
-    """
+    """Store information about simulation continuity"""
+
     new_domain_vol: float
     volume_change: float
     volume_error: float
-    continuity_error:float
+    continuity_error: float
 
 
 @dataclass
@@ -179,12 +179,24 @@ class Report:
         # 1. Calculate all volumes using rastermetrics
         cell_area = data.cell_dx * data.cell_dy
 
-        boundary_vol = rastermetrics.calculate_total_volume(data.accumulation_arrays["boundaries_accum"], cell_area)
-        rain_vol = rastermetrics.calculate_total_volume(data.accumulation_arrays["rainfall_accum"], cell_area)
-        infiltration_vol = rastermetrics.calculate_total_volume(data.accumulation_arrays["infiltration_accum"], cell_area)
-        inflow_vol = rastermetrics.calculate_total_volume(data.accumulation_arrays["inflow_accum"], cell_area)
-        losses_vol = rastermetrics.calculate_total_volume(data.accumulation_arrays["losses_accum"], cell_area)
-        drain_net_vol = rastermetrics.calculate_total_volume(data.accumulation_arrays["drainage_network_accum"], cell_area)
+        boundary_vol = rastermetrics.calculate_total_volume(
+            data.accumulation_arrays["boundaries_accum"], cell_area
+        )
+        rain_vol = rastermetrics.calculate_total_volume(
+            data.accumulation_arrays["rainfall_accum"], cell_area
+        )
+        infiltration_vol = rastermetrics.calculate_total_volume(
+            data.accumulation_arrays["infiltration_accum"], cell_area
+        )
+        inflow_vol = rastermetrics.calculate_total_volume(
+            data.accumulation_arrays["inflow_accum"], cell_area
+        )
+        losses_vol = rastermetrics.calculate_total_volume(
+            data.accumulation_arrays["losses_accum"], cell_area
+        )
+        drain_net_vol = rastermetrics.calculate_total_volume(
+            data.accumulation_arrays["drainage_network_accum"], cell_area
+        )
 
         # 3. Assemble data and log
         interval_s = (data.sim_time - self.last_step).total_seconds()
@@ -198,9 +210,9 @@ class Report:
             "#timesteps": data.time_steps_counter,
             "boundary_volume": boundary_vol,
             "rainfall_volume": rain_vol,
-            "infiltration_volume": - infiltration_vol,  # negative because it leaves the domain
+            "infiltration_volume": -infiltration_vol,  # negative because it leaves the domain
             "inflow_volume": inflow_vol,
-            "losses_volume": - losses_vol,  # negative because it leaves the domain
+            "losses_volume": -losses_vol,  # negative because it leaves the domain
             "drainage_network_volume": drain_net_vol,
             "domain_volume": continuity_data.new_domain_vol,
             "volume_change": continuity_data.volume_change,
