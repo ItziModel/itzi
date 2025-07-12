@@ -148,9 +148,7 @@ class DrainageNode(object):
         return self.surface_area * self.pyswmm_node.full_depth
 
     def get_overflow(self):
-        return self._model.getNodeResult(
-            self.node_id, pyswmm.toolkitapi.NodeResults.overflow
-        )
+        return self._model.getNodeResult(self.node_id, pyswmm.toolkitapi.NodeResults.overflow)
 
     def get_crest_elev(self):
         """Return the crest elevation of the node."""
@@ -240,12 +238,8 @@ class DrainageNode(object):
         overflow = node_head > wse
         drainage = node_head < wse
         free_weir = drainage and (node_head < crest_elev)
-        submerged_weir = (
-            drainage and (node_head > crest_elev) and (depth_2d < weir_ratio)
-        )
-        drainage_orifice = (
-            drainage and (node_head > crest_elev) and (depth_2d > weir_ratio)
-        )
+        submerged_weir = drainage and (node_head > crest_elev) and (depth_2d < weir_ratio)
+        drainage_orifice = drainage and (node_head > crest_elev) and (depth_2d > weir_ratio)
         # orifice
         if overflow or drainage_orifice:
             new_coupling_type = CouplingTypes.ORIFICE
@@ -278,9 +272,7 @@ class DrainageNode(object):
             unsigned_q = 0.0
         elif self.coupling_type == CouplingTypes.ORIFICE:
             unsigned_q = (
-                self.orifice_coeff
-                * self.surface_area
-                * math.sqrt(2.0 * self.g * head_diff)
+                self.orifice_coeff * self.surface_area * math.sqrt(2.0 * self.g * head_diff)
             )
         elif self.coupling_type == CouplingTypes.FREE_WEIR:
             unsigned_q = (

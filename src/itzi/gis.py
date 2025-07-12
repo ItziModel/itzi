@@ -44,7 +44,7 @@ RULE_V = os.path.join(_DIR, "velocity.txt")
 RULE_VDIR = os.path.join(_DIR, "vdir.txt")
 RULE_FR = os.path.join(_DIR, "froude.txt")
 RULE_DEF = os.path.join(_DIR, "default.txt")
-colors_rules_dict = {"h": RULE_H, "v": RULE_V, "vdir": RULE_VDIR, "fr": RULE_FR}
+colors_rules_dict = {"h": RULE_H, "v": RULE_V, "vdir": RULE_VDIR, "froude": RULE_FR}
 # Check if color rule paths are OK
 for f in colors_rules_dict.values():
     assert os.path.isfile(f)
@@ -195,9 +195,7 @@ class Igis:
 
         # LatLon is not supported
         if gscript.locn_is_latlong():
-            msgr.fatal(
-                "latlong location is not supported. Please use a projected location"
-            )
+            msgr.fatal("latlong location is not supported. Please use a projected location")
         # Set region
         if self.region_id:
             gscript.use_temp_region()
@@ -585,9 +583,7 @@ class Igis:
                     line_object = Line(link.vertices)
                     # set category and layer link
                     map_layer, dbtable = dblinks["link"]
-                    self.write_vector_geometry(
-                        vect_map, line_object, cat_num, map_layer
-                    )
+                    self.write_vector_geometry(vect_map, line_object, cat_num, map_layer)
                     # keep DB info
                     attrs = tuple([cat_num] + link.get_attrs())
                     db_info["link"].append(attrs)
@@ -627,9 +623,7 @@ class Igis:
                     arr = self.read_raster_map(m.id)
                     return arr, m.start_time, m.end_time
             else:
-                assert None, "No map found for {k} at time {t}".format(
-                    k=mkey, t=sim_time
-                )
+                assert None, "No map found for {k} at time {t}".format(k=mkey, t=sim_time)
 
     def register_maps_in_stds(self, stds_title, stds_name, map_list, stds_type, t_type):
         """Create a STDS, create one mapdataset for each map and

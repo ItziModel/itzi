@@ -58,10 +58,8 @@ class Hydrology:
         return self
 
     def cap_losses(self):
-        """Cap losses to water depth on the cell.
-        Input and output are considered to be in mm/h
-        """
-        flow.inf_user(
+        """User-defined losses are treated like user infiltration."""
+        flow.infiltration_user(
             arr_h=self.dom.get_array("h"),
             arr_inf_in=self.dom.get_array("losses"),
             arr_inf_out=self.dom.get_array("capped_losses"),
@@ -69,7 +67,7 @@ class Hydrology:
         )
 
     def apply_hydrology(self):
-        """Update water depth (h) by adding/removing volume from:
+        """Update effective precipitation (eff_precip) by adding/removing depth from:
         rainfall, infiltration, evapotranspiration and lump-sum drainage.
         """
         flow.apply_hydrology(

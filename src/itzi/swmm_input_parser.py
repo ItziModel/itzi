@@ -113,9 +113,7 @@ class SwmmInputParser(object):
         coords_dict = {}
         if self.inp["coordinate"]:
             for coords in self.inp["coordinate"]:
-                coords_dict[coords[0]] = self.Coordinates(
-                    float(coords[1]), float(coords[2])
-                )
+                coords_dict[coords[0]] = self.Coordinates(float(coords[1]), float(coords[2]))
         # fill the dict
         node_dict = {}
         for node_id in nodes:
@@ -136,9 +134,7 @@ class SwmmInputParser(object):
                     ID = ln[0]
                     vertices = self.get_vertices(ID)
                     # names of link, inlet and outlet nodes
-                    links_dict[ID] = self.Link(
-                        in_node=ln[1], out_node=ln[2], vertices=vertices
-                    )
+                    links_dict[ID] = self.Link(in_node=ln[1], out_node=ln[2], vertices=vertices)
         return links_dict
 
     def get_vertices(self, link_name):

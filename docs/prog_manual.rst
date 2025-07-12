@@ -92,7 +92,7 @@ The documentation is written in reStructuredText and is built with Sphinx.
 It is located in the *docs* directory.
 It is automatically built and published on `readthedocs <https://itzi.readthedocs.io>`__.
 To build the documentation locally, you first need to install sphinx, along with sphinx-argparse and sphinx_rtd_theme.
-Then you can build the documentation locally:
+You can then build the documentation locally:
 
 .. code:: sh
 

@@ -55,7 +55,7 @@ class BmiItzi(Bmi):
         "land_surface_water__mean_of_losses_volume_flux": "st_losses",
         "land_surface_water__mean_of_drainage_volume_flux": "st_ndrain",
         "land_surface_water__time_integral_of_error_volume": "st_herr",
-        "land_surface_water_flow__froude_number": "fr",
+        "land_surface_water_flow__froude_number": "froude",
     }
 
     _var_names = {**_input_var_names, **_output_var_names}

@@ -61,7 +61,7 @@ class ConfigReader:
             "vdir",
             "qx",
             "qy",
-            "fr",
+            "froude",
             "boundaries",
             "infiltration",
             "rainfall",
@@ -86,6 +86,7 @@ class ConfigReader:
             "dtmax": DefaultValues.DTMAX,
             "slmax": DefaultValues.SLMAX,
             "dtinf": DefaultValues.DTINF,
+            "max_error": DefaultValues.MAX_ERROR,
             "inf_model": None,
         }
         self.grass_mandatory = ["grassdata", "location", "mapset"]
@@ -138,10 +139,7 @@ class ConfigReader:
             msgr.warning("'drainage_capacity' is deprecated. Use 'losses' instead.")
             self.input_map_names["losses"] = params.get("input", "drainage_capacity")
         if params.has_option("input", "effective_pororosity"):
-            msgr.warning(
-                "'effective_pororosity' is deprecated. "
-                "Use 'effective_porosity' instead."
-            )
+            msgr.warning("'effective_pororosity' is deprecated. Use 'effective_porosity' instead.")
             self.input_map_names["effective_porosity"] = params.get(
                 "input", "effective_pororosity"
             )
@@ -325,9 +323,9 @@ class SimulationTimes:
         """Verifies if the given input times combination is valid.
         Sets temporal type.
         """
-        comb_err_msg = (
-            "accepted combinations: {d} alone, {s} and {d}, {s} and {e}"
-        ).format(d="duration", s="start_time", e="end_time")
+        comb_err_msg = ("accepted combinations: {d} alone, {s} and {d}, {s} and {e}").format(
+            d="duration", s="start_time", e="end_time"
+        )
         b_dur = self.raw_duration and not self.raw_start and not self.raw_end
         b_start_dur = self.raw_start and self.raw_duration and not self.raw_end
         b_start_end = self.raw_start and self.raw_end and not self.raw_duration

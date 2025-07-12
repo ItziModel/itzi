@@ -45,8 +45,7 @@ def ga_barry2009(inf_params):
     total_head = inf_params.cap_pressure + inf_params.pond_depth
     sorptivity = math.sqrt(2 * inf_params.hydr_cond * total_head * available_porosity)
     total_inf = (
-        sorptivity * math.sqrt(inf_params.time)
-        + 2 * inf_params.hydr_cond * inf_params.time / 3
+        sorptivity * math.sqrt(inf_params.time) + 2 * inf_params.hydr_cond * inf_params.time / 3
     )
     return total_inf
 
@@ -94,9 +93,7 @@ def infiltration_sim(infiltration_parameters):
     arr_por = np.full(shape=array_shape, fill_value=inf_params.eff_porosity)
     arr_cond = np.full(shape=array_shape, fill_value=inf_params.hydr_cond)
     arr_cap_pressure = np.full(shape=array_shape, fill_value=inf_params.cap_pressure)
-    arr_water_content = np.full(
-        shape=array_shape, fill_value=inf_params.init_wat_content
-    )
+    arr_water_content = np.full(shape=array_shape, fill_value=inf_params.init_wat_content)
     raster_domain = RasterDomain(dtype=dtype, cell_shape=cell_shape, arr_mask=mask)
     raster_domain.update_array("h", arr_depth)
     raster_domain.update_array("effective_porosity", arr_por)

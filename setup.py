@@ -61,8 +61,6 @@ file_ext = "pyx" if use_cython else "c"
 extensions = [Extension("itzi.flow", sources=[f"src/itzi/flow.{file_ext}"])]
 if use_cython:
     from Cython.Build import cythonize
-
     extensions = cythonize(extensions)
-
 
 setup(ext_modules=extensions, cmdclass={"build_ext": build_ext_compiler_check})
