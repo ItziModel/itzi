@@ -65,13 +65,13 @@ the tests must be run in separate processes using *pytest-forked*.
 
 .. code:: sh
 
-    pdm run pytest --forked -v
+    pdm run pytest --forked -v tests/
 
 To estimate the test coverage:
 
 .. code:: sh
 
-    pdm run pytest --cov=itzi --forked -v
+    pdm run pytest --cov=itzi --forked -v tests/
 
 Select the python version to test against with *pdm use*.
 Test against the 3 `last versions of python <https://devguide.python.org/versions/>`__.

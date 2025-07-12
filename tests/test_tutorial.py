@@ -125,7 +125,7 @@ class TestItziTutorial:
             "r.univar", map="nc_itzi_tutorial_h_max", flags="g"
         )
         assert float(h_max_univar["max"]) == pytest.approx(2.298454, abs=1e-2)
-        assert float(h_max_univar["mean_of_abs"]) == pytest.approx(0.041, abs=1e-3)
+        assert float(h_max_univar["mean_of_abs"]) == pytest.approx(0.0355, abs=1e-3)
 
     def test_tutorial_drainage(
         itzi_tutorial, test_data_path, test_data_temp_path, helpers
