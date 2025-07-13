@@ -271,17 +271,13 @@ class SurfaceFlowSimulation:
         # add to the accumulation array the equivalent water depth passing through the boundaries
         # Inflow is positive, outflow is negative
         # West (upstream) is inflow (+q)
-        self.dom.get_array("boundaries_accum")[1:-1, 0] += (
-            w_boundary_flow[self.ss] * self._dt / self.dx
-        )
+        self.dom.get_array("boundaries_accum")[:, 0] += w_boundary_flow * self._dt / self.dx
         # East (downstream) is outflow (-q)
         self.dom.get_array("boundaries_accum")[:, -1] -= e_boundary_flow * self._dt / self.dx
         # North (upstream) is inflow (+q)
-        self.dom.get_array("boundaries_accum")[0, 1:-1] += (
-            n_boundary_flow[self.ss] * self._dt / self.dy
-        )
+        self.dom.get_array("boundaries_accum")[0, :] += n_boundary_flow * self._dt / self.dy
         # South (downstream) is outflow (-q)
-        self.dom.get_array("boundaries_accum")[-1] -= s_boundary_flow * self._dt / self.dy
+        self.dom.get_array("boundaries_accum")[-1, :] -= s_boundary_flow * self._dt / self.dy
         return self
 
     def swap_flow_arrays(self):

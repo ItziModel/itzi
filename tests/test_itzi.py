@@ -205,3 +205,41 @@ def test_stats_maps():
     assert np.isclose(depth_mean, 0.2)
     assert np.isclose(depth_min, 0.2)
     assert np.isclose(depth_max, 0.2)
+
+
+@pytest.mark.usefixtures("grass_5by5_open_boundaries_sim")
+def test_open_boundaries():
+    """Check if the open boundary condition works on all sides"""
+    current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
+    g_region = gscript.parse_command("g.region", flags="pg")
+    # Works only if the the south-west corner is [0,0]
+    max_x = float(g_region["e"])
+    max_y = float(g_region["n"])
+    boundaries_coords = gscript.read_command(
+        "v.out.ascii", input="boundary_points", type="point", flags="c"
+    )
+    df_coords = pd.read_csv(
+        StringIO(boundaries_coords), sep="|", header=0, names=["x", "y", "id"], index_col=2
+    )
+
+    boundaries_map_list = gscript.list_grouped(
+        "raster", pattern="out_5by5_open_boundaries_boundaries_*"
+    )[current_mapset]
+    for boundary_map in boundaries_map_list:
+        boundaries_values = gscript.read_command(
+            "v.what.rast", map="boundary_points", flags="p", raster=boundary_map
+        )
+        if not boundaries_values.strip():
+            continue
+        df_values = pd.read_csv(
+            StringIO(boundaries_values), sep="|", names=["id", "flow_rate"], index_col=0
+        )
+        df_merged = df_coords.join(df_values).dropna()
+
+        coord_to_flow = df_merged.set_index(["x", "y"])["flow_rate"]
+        for _, row in df_merged.iterrows():
+            sym_x = max_x - row["x"]
+            sym_y = max_y - row["y"]
+            sym_flow = coord_to_flow.get((sym_x, sym_y))
+            if sym_flow is not None:
+                assert np.isclose(row["flow_rate"], sym_flow)
