@@ -46,6 +46,7 @@ dev = [
     "scipy>=1.15.2",
     "pre-commit>=4.2.0",
     "ruff>=0.11.6",
+    "ty>=0.0.1a13",
 ]
 
 [build-system]
@@ -65,3 +66,10 @@ addopts = ["--import-mode=importlib", "--benchmark-min-rounds=7"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
+
+[tool.ruff]
+line-length = 99
+
+[tool.ty.rules]
+# GRASS imports are resolved at runtime
+unresolved-import = "ignore"

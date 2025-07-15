@@ -37,9 +37,7 @@ def drainage_sim_results(test_data_path):
     nodes_list = [coupling_node]
     # Create Link objects
     links_vertices_dict = swmm_inp.get_links_id_as_dict()
-    links_list = get_links_list(
-        pyswmm.Links(swmm_sim), links_vertices_dict, nodes_coors_dict
-    )
+    links_list = get_links_list(pyswmm.Links(swmm_sim), links_vertices_dict, nodes_coors_dict)
     # Create simulation object
     drainage = DrainageSimulation(swmm_sim, nodes_list, links_list)
 

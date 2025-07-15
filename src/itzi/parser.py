@@ -24,6 +24,4 @@ verbosity_parser.add_argument("-q", action="count", help="decrease verbosity")
 
 
 # display version
-version_parser = subparsers.add_parser(
-    "version", help="display software version number"
-)
+version_parser = subparsers.add_parser("version", help="display software version number")

@@ -123,9 +123,7 @@ def grass_5by5(grass_xy_session, test_data_path):
     # Create new mapset
     gscript.run_command("g.mapset", mapset="5by5", flags="c")
     # Create 3by5 named region
-    gscript.run_command(
-        "g.region", res=resolution, s=10, n=40, w=0, e=50, save="3by5", flags="o"
-    )
+    gscript.run_command("g.region", res=resolution, s=10, n=40, w=0, e=50, save="3by5", flags="o")
     region = gscript.parse_command("g.region", flags="pg")
     assert int(region["cells"]) == 15
     # Create raster for mask (do not apply mask)
@@ -157,6 +155,7 @@ def grass_5by5(grass_xy_session, test_data_path):
         use="val",
         value=0.2,
     )
+    # Set null values to 0
     gscript.run_command("r.null", map="start_h", null=0)
     univar_start_h = gscript.parse_command("r.univar", map="start_h", flags="g")
     assert float(univar_start_h["min"]) == 0
@@ -166,6 +165,46 @@ def grass_5by5(grass_xy_session, test_data_path):
     gscript.run_command(
         "v.in.ascii", input=control_points, output="control_points", separator="comma"
     )
+    # Boundary condition map
+    boundary_points = f"""
+    {resolution / 2},{resolution / 2}
+    {resolution / 2},{resolution / 2 + resolution * 1}
+    {resolution / 2},{resolution / 2 + resolution * 2}
+    {resolution / 2},{resolution / 2 + resolution * 3}
+    {resolution / 2},{resolution / 2 + resolution * 4}
+    {resolution / 2 + resolution * 1},{resolution / 2}
+    {resolution / 2 + resolution * 2},{resolution / 2}
+    {resolution / 2 + resolution * 3},{resolution / 2}
+    {resolution / 2 + resolution * 4},{resolution / 2}
+    {resolution / 2 + resolution * 4},{resolution / 2 + resolution * 1}
+    {resolution / 2 + resolution * 4},{resolution / 2 + resolution * 2}
+    {resolution / 2 + resolution * 4},{resolution / 2 + resolution * 3}
+    {resolution / 2 + resolution * 4},{resolution / 2 + resolution * 4}
+    {resolution / 2 + resolution * 3},{resolution / 2 + resolution * 4}
+    {resolution / 2 + resolution * 2},{resolution / 2 + resolution * 4}
+    {resolution / 2 + resolution * 1},{resolution / 2 + resolution * 4}"""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=True) as boundary_points_file:
+        boundary_points_file.write(boundary_points)
+        boundary_points_file.flush()  # Ensure data is written
+        gscript.run_command(
+            "v.in.ascii",
+            input=boundary_points_file.name,
+            output="boundary_points",
+            separator="comma",
+        )
+    gscript.run_command(
+        "v.to.rast",
+        input="boundary_points",
+        output="open_boundaries",
+        type="point",
+        use="val",
+        value=2,
+    )
+    # Rate maps
+    gscript.mapcalc("rainfall=10")
+    gscript.mapcalc("infiltration_rate=2")
+    gscript.mapcalc("loss_rate=1.5")
+    gscript.mapcalc("inflow_rate=0.1")
     return None
 
 
@@ -173,6 +212,39 @@ def grass_5by5(grass_xy_session, test_data_path):
 def grass_5by5_sim(grass_5by5, test_data_path):
     """ """
     config_file = os.path.join(test_data_path, "5by5", "5by5.ini")
+    sim_runner = SimulationRunner()
+    assert isinstance(sim_runner, SimulationRunner)
+    sim_runner.initialize(config_file)
+    sim_runner.run().finalize()
+    return sim_runner
+
+
+@pytest.fixture(scope="class")
+def grass_5by5_max_values_sim(grass_5by5, test_data_path):
+    """ """
+    config_file = os.path.join(test_data_path, "5by5", "5by5_max_values.ini")
+    sim_runner = SimulationRunner()
+    assert isinstance(sim_runner, SimulationRunner)
+    sim_runner.initialize(config_file)
+    sim_runner.run().finalize()
+    return sim_runner
+
+
+@pytest.fixture(scope="class")
+def grass_5by5_stats_sim(grass_5by5, test_data_path):
+    """ """
+    config_file = os.path.join(test_data_path, "5by5", "5by5_stats.ini")
+    sim_runner = SimulationRunner()
+    assert isinstance(sim_runner, SimulationRunner)
+    sim_runner.initialize(config_file)
+    sim_runner.run().finalize()
+    return sim_runner
+
+
+@pytest.fixture(scope="class")
+def grass_5by5_open_boundaries_sim(grass_5by5, test_data_path):
+    """ """
+    config_file = os.path.join(test_data_path, "5by5", "5by5_open_boundaries.ini")
     sim_runner = SimulationRunner()
     assert isinstance(sim_runner, SimulationRunner)
     sim_runner.initialize(config_file)

@@ -66,9 +66,7 @@ def itzi_tutorial(grass_tutorial_session, tutorial_test_file):
     # Adjust the region
     gscript.run_command("g.region", raster="elev_lid792_1m", res="5")
     # Resample DEM
-    gscript.run_command(
-        "r.resamp.interp", input="elev_lid792_1m", output="elev_lid792_5m"
-    )
+    gscript.run_command("r.resamp.interp", input="elev_lid792_1m", output="elev_lid792_5m")
     univar_dem = gscript.parse_command("r.univar", map="elev_lid792_5m", flags="g")
     assert int(univar_dem["null_cells"]) == 0
     # Create raster mask
@@ -121,20 +119,14 @@ class TestItziTutorial:
         sim_runner.initialize(config_file)
         sim_runner.run().finalize()
         # Check the results
-        h_max_univar = gscript.parse_command(
-            "r.univar", map="nc_itzi_tutorial_h_max", flags="g"
-        )
+        h_max_univar = gscript.parse_command("r.univar", map="nc_itzi_tutorial_h_max", flags="g")
         assert float(h_max_univar["max"]) == pytest.approx(2.298454, abs=1e-2)
         assert float(h_max_univar["mean_of_abs"]) == pytest.approx(0.0355, abs=1e-3)
 
-    def test_tutorial_drainage(
-        itzi_tutorial, test_data_path, test_data_temp_path, helpers
-    ):
+    def test_tutorial_drainage(itzi_tutorial, test_data_path, test_data_temp_path, helpers):
         """Run the tutorial simulation with drainage."""
         # Set the config file dynamically to make sure it can find the INP file
-        inp_file = os.path.join(
-            test_data_path, "tutorial_files", "tutorial_drainage.inp"
-        )
+        inp_file = os.path.join(test_data_path, "tutorial_files", "tutorial_drainage.inp")
         config_dict = {
             "time": {"duration": "00:30:00", "record_step": "00:00:30"},
             "input": {
@@ -169,9 +161,7 @@ class TestItziTutorial:
         )
         # To pandas
         df_drainage = pd.read_csv(StringIO(drainage_results), sep="|")[select_cols]
-        df_drainage.set_index(
-            "start_time", drop=True, inplace=True, verify_integrity=True
-        )
+        df_drainage.set_index("start_time", drop=True, inplace=True, verify_integrity=True)
         # convert indices to timedelta
         df_drainage.index = pd.to_timedelta(df_drainage.index, unit="s")
         # to series

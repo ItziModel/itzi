@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2015-2016 Laurent Courty
+Copyright (C) 2015-2025 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -20,6 +20,7 @@ from libc.math cimport sqrt as c_sqrt
 from libc.math cimport fabs as c_abs
 from libc.math cimport atan2 as c_atan
 
+# ctypedef double DTYPE_t
 ctypedef cython.floating DTYPE_t
 cdef float PI = 3.1415926535898
 
@@ -57,7 +58,7 @@ def apply_hydrology(DTYPE_t [:, :] arr_rain, DTYPE_t [:, :] arr_inf,
                     DTYPE_t [:, :] arr_etp, DTYPE_t [:, :] arr_capped_losses,
                     DTYPE_t [:, :] arr_h,
                     DTYPE_t [:, :] arr_eff_precip, DTYPE_t dt):
-    '''Populate arr_hydrology in m/s
+    '''Update arr_eff_precip in m/s
     rain and infiltration in m/s, deph in m, dt in seconds'''
     cdef int rmax, cmax, r, c
     cdef DTYPE_t hydro_raw, hydro_capped, losses_limit
@@ -75,7 +76,7 @@ def apply_hydrology(DTYPE_t [:, :] arr_rain, DTYPE_t [:, :] arr_inf,
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
 def flow_dir(DTYPE_t [:, :] arr_max_dz, DTYPE_t [:, :] arr_dz0,
              DTYPE_t [:, :] arr_dz1, DTYPE_t [:, :] arr_dir):
-    '''Populate arr_dir with a rain-routing direction:
+    '''Update arr_dir with a rain-routing direction:
     0: the flow is going dowstream, index-wise
     1: the flow is going upstream, index-wise
     -1: no routing happening on that face
@@ -376,7 +377,7 @@ def set_ext_array(DTYPE_t [:, :] arr_qext, DTYPE_t [:, :] arr_drain,
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-def inf_user(DTYPE_t [:, :] arr_h,
+def infiltration_user(DTYPE_t [:, :] arr_h,
              DTYPE_t [:, :] arr_inf_in, DTYPE_t [:, :] arr_inf_out,
              DTYPE_t dt):
     '''Calculate infiltration rate using a user-defined fixed rate
@@ -388,13 +389,13 @@ def inf_user(DTYPE_t [:, :] arr_h,
     for r in prange(rmax, nogil=True):
         for c in range(cmax):
             # cap the rate
-            arr_inf_out[r, c] = cap_inf_rate(dt, arr_h[r, c], arr_inf_in[r, c])
+            arr_inf_out[r, c] = cap_infiltration_rate(dt, arr_h[r, c], arr_inf_in[r, c])
 
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-def inf_ga(DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_eff_por,
+def infiltration_ga(DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_eff_por,
            DTYPE_t [:, :] arr_pressure, DTYPE_t [:, :] arr_conduct,
            DTYPE_t [:, :] arr_inf_amount, DTYPE_t [:, :] arr_water_soil_content,
            DTYPE_t [:, :] arr_inf_out, DTYPE_t dt):
@@ -411,7 +412,7 @@ def inf_ga(DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_eff_por,
             poros_cappress = avail_porosity * (arr_pressure[r, c] + arr_h[r, c])
             infrate = conduct * (1 + (poros_cappress / arr_inf_amount[r, c]))
             # cap the rate
-            infrate = cap_inf_rate(dt, arr_h[r, c], infrate)
+            infrate = cap_infiltration_rate(dt, arr_h[r, c], infrate)
             # update total infiltration amount
             arr_inf_amount[r, c] += infrate * dt
             # populate output infiltration array
@@ -421,7 +422,7 @@ def inf_ga(DTYPE_t [:, :] arr_h, DTYPE_t [:, :] arr_eff_por,
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-cdef DTYPE_t cap_inf_rate(DTYPE_t dt, DTYPE_t h, DTYPE_t infrate) noexcept nogil:
+cdef DTYPE_t cap_infiltration_rate(DTYPE_t dt, DTYPE_t h, DTYPE_t infrate) noexcept nogil:
     '''Cap the infiltration rate to not generate negative depths
     '''
     return min(h / dt, infrate)
@@ -430,12 +431,12 @@ cdef DTYPE_t cap_inf_rate(DTYPE_t dt, DTYPE_t h, DTYPE_t infrate) noexcept nogil
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-def populate_stat_array(DTYPE_t [:, :] arr, DTYPE_t [:, :] arr_stat, DTYPE_t time_diff):
-    '''Populate an array of statistics
+def accumulate_array(DTYPE_t [:, :] arr, DTYPE_t [:, :] arr_accum, DTYPE_t time_diff):
+    '''Update an accumulation array from a rate array .
     '''
     cdef int rmax, cmax, r, c
     rmax = arr.shape[0]
     cmax = arr.shape[1]
     for r in prange(rmax, nogil=True):
         for c in range(cmax):
-            arr_stat[r, c] += arr[r, c] * time_diff
+            arr_accum[r, c] += arr[r, c] * time_diff
