@@ -192,15 +192,6 @@ class Report:
                 self.raster_provider.write_array(array=arr, map_key=k, sim_time=sim_time)
         return self
 
-    def write_error_to_gis(self, arr_error):
-        """Write a given boolean array to the GIS.
-        ⚠️ a boolean array does not belong with arrays of floats"""
-        map_h_name = "{}_error".format(self.out_map_names["h"])
-        self.gis.write_raster_map(arr_error, map_h_name, "h")
-        # add map name to the revelant list
-        self.output_maplist["h"].append(map_h_name)
-        return self
-
     def register_results_in_gis(self, has_drainage_sim: bool):
         """Register the generated maps in the temporal database
         Loop through output names

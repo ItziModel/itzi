@@ -422,7 +422,6 @@ class Simulation:
         try:
             self.surface_flow.step()
         except NullError:
-            self.report.write_error_to_gis(self.surface_flow.arr_err)
             msgr.fatal("{}: Null value detected in simulation, terminating".format(self.sim_time))
         # calculate when should happen the next surface time-step
         self.surface_flow.solve_dt()
