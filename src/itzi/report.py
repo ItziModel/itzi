@@ -41,7 +41,7 @@ class Report:
         self.out_map_names = out_map_names
         self.hmin = hmin
         self.mass_balance_logger = mass_balance_logger
-        self.drainage_out = drainage_out
+        self.drainage_out = drainage_out  # name of output map for the drainage data
         self.drainage_values = {"records": []}
         # a dict containing lists of maps written to gis to be registered
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}

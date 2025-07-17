@@ -141,6 +141,7 @@ class SimulationRunner:
         return self
 
     def step(self):
+        """Do one simulation step."""
         self.sim.update()
         self.update_input_arrays()
         return self
