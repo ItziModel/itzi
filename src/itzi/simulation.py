@@ -25,10 +25,7 @@ from itzi.surfaceflow import SurfaceFlowSimulation
 import itzi.rasterdomain as rasterdomain
 from itzi.massbalance import MassBalanceLogger
 from itzi.report import Report
-from itzi.data_containers import (
-    ContinuityData,
-    SimulationData,
-)
+from itzi.data_containers import ContinuityData, SimulationData
 from itzi.drainage import DrainageSimulation, DrainageNode, DrainageLink, CouplingTypes
 from itzi import SwmmInputParser
 import itzi.messenger as msgr
@@ -119,43 +116,31 @@ def create_simulation(
     output_maps,
     sim_param,
     drainage_params,
-    grass_params,
+    grass_interface,
     dtype=np.float32,
     stats_file=None,
 ):
     """A factory function that returns a Simulation object."""
-    import itzi.gis as gis
-
     msgr.verbose("Setting up models...")
-    # return error if output files exist
-    gis.check_output_files(output_maps.values())
+
     msgr.debug("Output files OK")
-    # GIS interface
-    igis = gis.Igis(
-        start_time=sim_times.start,
-        end_time=sim_times.end,
-        dtype=dtype,
-        mkeys=input_maps.keys(),
-        region_id=grass_params["region"],
-        raster_mask_id=grass_params["mask"],
-    )
-    arr_mask = igis.get_npmask()
+    arr_mask = grass_interface.get_npmask()
     msgr.verbose("Reading maps information from GIS...")
-    igis.read(input_maps)
+    grass_interface.read(input_maps)
     # Timed arrays
     tarr = {}
     # TimedArray expects a function as an init parameter
     zeros_array = lambda: np.zeros(shape=raster_shape, dtype=dtype)  # noqa: E731
     for k in in_k_corresp.keys():
-        tarr[k] = rasterdomain.TimedArray(in_k_corresp[k], igis, zeros_array)
+        tarr[k] = rasterdomain.TimedArray(in_k_corresp[k], grass_interface, zeros_array)
     msgr.debug("Setting up raster domain...")
     # RasterDomain
-    raster_shape = (igis.yr, igis.xr)
+    raster_shape = (grass_interface.yr, grass_interface.xr)
     try:
         raster_domain = rasterdomain.RasterDomain(
             dtype=dtype,
             arr_mask=arr_mask,
-            cell_shape=(igis.dx, igis.dy),
+            cell_shape=(grass_interface.dx, grass_interface.dy),
         )
     except MemoryError:
         msgr.fatal("Out of memory.")
@@ -212,7 +197,7 @@ def create_simulation(
         all_nodes = pyswmm.Nodes(swmm_sim)
         nodes_coors_dict = swmm_inp.get_nodes_id_as_dict()
         nodes_list = get_nodes_list(
-            all_nodes, nodes_coors_dict, drainage_params, igis, sim_param["g"]
+            all_nodes, nodes_coors_dict, drainage_params, grass_interface, sim_param["g"]
         )
         # Create Link objects
         links_vertices_dict = swmm_inp.get_links_id_as_dict()
@@ -225,7 +210,7 @@ def create_simulation(
     # reporting object
     msgr.debug("Setting up reporting object...")
     report = Report(
-        igis,
+        grass_interface,
         sim_times.temporal_type,
         sim_param["hmin"],
         massbal,

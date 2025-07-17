@@ -80,8 +80,6 @@ class Report:
             self.write_hmax_to_gis(final_data.raw_arrays["hmax"])
         if self.out_map_names["v"]:
             self.write_vmax_to_gis(final_data.raw_arrays["vmax"])
-        # Cleanup the GIS state
-        self.gis.cleanup()
         return self
 
     def get_output_arrays(self, data: SimulationData):
@@ -213,7 +211,8 @@ class Report:
         return self
 
     def write_error_to_gis(self, arr_error):
-        """Write a given boolean array to the GIS"""
+        """Write a given boolean array to the GIS.
+        TODO: a boolean array does not belong with arrays of floats"""
         map_h_name = "{}_error".format(self.out_map_names["h"])
         self.gis.write_raster_map(arr_error, map_h_name, "h")
         # add map name to the revelant list
