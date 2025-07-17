@@ -325,6 +325,10 @@ class Igis:
         """
         return bool(gscript.find_file(name=map_id, element="cell").get("file"))
 
+    def set_null(map_id, threshold) -> None:
+        """Set null values under a given threshold"""
+        gscript.run_command("r.null", flags="f", map=map_id, setnull=f"0.0-{threshold}")
+
     def get_sim_extend_in_stds_unit(self, strds):
         """Take a strds object as input
         Return the simulation start_time and end_time, expressed in
