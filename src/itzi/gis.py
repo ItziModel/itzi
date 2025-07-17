@@ -137,7 +137,16 @@ class Igis:
         ),
     }
 
-    def __init__(self, start_time, end_time, dtype, mkeys, region_id, raster_mask_id):
+    def __init__(
+        self,
+        start_time,
+        end_time,
+        dtype,
+        mkeys,
+        region_id,
+        raster_mask_id,
+        non_blocking_write=False,
+    ):
         assert isinstance(start_time, datetime), "start_time not a datetime object!"
         assert isinstance(end_time, datetime), "end_time not a datetime object!"
         assert start_time <= end_time, "start_time > end_time!"
@@ -147,6 +156,7 @@ class Igis:
         self.start_time = start_time
         self.end_time = end_time
         self.dtype = dtype
+        self.non_blocking_write = non_blocking_write
 
         self.old_mask_name = None
 
@@ -181,13 +191,14 @@ class Igis:
         # init temporal module
         tgis.init()
         # Create thread and queue for writing raster maps
-        self.raster_lock = Lock()
-        self.raster_writer_queue = Queue(maxsize=15)
-        worker_args = (self.raster_writer_queue, self.raster_lock)
-        self.raster_writer_thread = Thread(
-            name="RasterWriter", target=raster_writer, args=worker_args
-        )
-        self.raster_writer_thread.start()
+        if self.non_blocking_write:
+            self.raster_lock = Lock()
+            self.raster_writer_queue = Queue(maxsize=15)
+            worker_args = (self.raster_writer_queue, self.raster_lock)
+            self.raster_writer_thread = Thread(
+                name="RasterWriter", target=raster_writer, args=worker_args
+            )
+            self.raster_writer_thread.start()
 
     def __enter__(self):
         return self
@@ -198,8 +209,9 @@ class Igis:
 
     def finalize(self):
         """Make sure that all maps are written."""
-        msgr.debug("Writing last maps...")
-        self.raster_writer_queue.join()
+        if self.non_blocking_write:
+            msgr.debug("Writing last maps...")
+            self.raster_writer_queue.join()
 
     def cleanup(self):
         """Remove temporary region and mask."""
@@ -211,8 +223,9 @@ class Igis:
             msgr.debug("Remove temp region...")
             gscript.del_temp_region()
         # Thread killswitch
-        self.raster_writer_queue.put(None)
-        self.raster_writer_thread.join()
+        if self.non_blocking_write:
+            self.raster_writer_queue.put(None)
+            self.raster_writer_thread.join()
 
     def grass_dtype(self, dtype):
         if dtype in self.dtype_conv["DCELL"]:
@@ -325,6 +338,7 @@ class Igis:
         """
         return bool(gscript.find_file(name=map_id, element="cell").get("file"))
 
+    @staticmethod
     def set_null(map_id, threshold) -> None:
         """Set null values under a given threshold"""
         gscript.run_command("r.null", flags="f", map=map_id, setnull=f"0.0-{threshold}")
@@ -448,7 +462,11 @@ class Igis:
 
     def read_raster_map(self, rast_name):
         """Read a GRASS raster and return a numpy array"""
-        with self.raster_lock:
+        if self.non_blocking_write:
+            with self.raster_lock:
+                with raster.RasterRow(rast_name, mode="r") as rast:
+                    array = np.array(rast, dtype=self.dtype)
+        else:
             with raster.RasterRow(rast_name, mode="r") as rast:
                 array = np.array(rast, dtype=self.dtype)
         return array
@@ -458,8 +476,10 @@ class Igis:
         assert isinstance(arr, np.ndarray), "arr not a np array!"
         assert isinstance(rast_name, str), "not a string!"
         assert isinstance(mkey, str), "not a string!"
-        # self.write_raster_map_blocking(arr, rast_name, mkey)
-        self.write_raster_map_nonblocking(arr, rast_name, mkey)
+        if self.non_blocking_write:
+            self.write_raster_map_nonblocking(arr, rast_name, mkey)
+        else:
+            self.write_raster_map_blocking(arr, rast_name, mkey)
         return self
 
     def write_raster_map_nonblocking(self, arr, rast_name, mkey):
