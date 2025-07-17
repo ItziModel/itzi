@@ -13,45 +13,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-from datetime import datetime
 import copy
 import warnings
-from typing import Dict
-from dataclasses import dataclass
 
 import numpy as np
 
 from itzi import rastermetrics
-from itzi import flow
-
-
-@dataclass
-class ContinuityData:
-    """Store information about simulation continuity"""
-
-    new_domain_vol: float
-    volume_change: float
-    volume_error: float
-    continuity_error: float
-
-
-@dataclass
-class SimulationData:
-    """Immutable data container for passing raw simulation state to Report.
-
-    This is a pure data structure containing only the "raw ingredients"
-    needed for a report. All report-specific calculations (e.g., WSE,
-    average rates) are performed by the Report class itself.
-    """
-
-    sim_time: datetime
-    time_step: float  # time step duration
-    time_steps_counter: int  # number of time steps since last update
-    continuity_data: ContinuityData
-    raw_arrays: Dict[str, np.ndarray]
-    accumulation_arrays: Dict[str, np.ndarray]
-    cell_dx: float  # cell size in east-west direction
-    cell_dy: float  # cell size in north-south direction
+from itzi.data_containers import SimulationData
 
 
 class Report:
@@ -64,7 +32,6 @@ class Report:
         hmin,
         mass_balance_logger,
         out_map_names,
-        drainage_sim,
         drainage_out,
         dt,
     ):
@@ -74,7 +41,6 @@ class Report:
         self.out_map_names = out_map_names
         self.hmin = hmin
         self.mass_balance_logger = mass_balance_logger
-        self.drainage_sim = drainage_sim
         self.drainage_out = drainage_out
         self.drainage_values = {"records": []}
         # a dict containing lists of maps written to gis to be registered
@@ -91,8 +57,9 @@ class Report:
         self.write_results_to_gis(sim_time)
         if self.mass_balance_logger:
             self.write_mass_balance(simulation_data)
-        if self.drainage_sim and self.drainage_out:
-            self.save_drainage_values(sim_time)
+        drainage_data = simulation_data.drainage_network_data
+        if drainage_data and self.drainage_out:
+            self.save_drainage_values(sim_time, drainage_data)
         self.record_counter += 1
         self.last_step = copy.copy(sim_time)
         return self
@@ -107,7 +74,8 @@ class Report:
         # Make sure all maps are written in the background process
         self.gis.finalize()
         # register maps and write max maps
-        self.register_results_in_gis()
+        has_drainage_sim = bool(final_data.drainage_network_data)
+        self.register_results_in_gis(has_drainage_sim)
         if self.out_map_names["h"]:
             self.write_hmax_to_gis(final_data.raw_arrays["hmax"])
         if self.out_map_names["v"]:
@@ -264,7 +232,7 @@ class Report:
         self.gis.write_raster_map(arr_vmax, map_vmax_name, "v")
         return self
 
-    def register_results_in_gis(self):
+    def register_results_in_gis(self, has_drainage_sim: bool):
         """Register the generated maps in the temporal database
         Loop through output names
         if no output name is provided, don't do anything
@@ -278,7 +246,7 @@ class Report:
                 continue
             self.gis.register_maps_in_stds(mkey, strds_name, lst, "strds", self.temporal_type)
         # vector
-        if self.drainage_sim and self.drainage_out:
+        if has_drainage_sim and self.drainage_out:
             self.gis.register_maps_in_stds(
                 stds_title="Itzï drainage results",
                 stds_name=self.drainage_out,
@@ -288,13 +256,13 @@ class Report:
             )
         return self
 
-    def save_drainage_values(self, sim_time):
+    def save_drainage_values(self, sim_time, drainage_data):
         """Write vector map of drainage network"""
         # format map name
         suffix = str(self.record_counter).zfill(4)
         map_name = f"{self.drainage_out}_{suffix}"
         # write the map
-        self.gis.write_vector_map(self.drainage_sim, map_name)
+        self.gis.write_vector_map(drainage_data, map_name)
         # add map name and time to the list
         self.vector_drainage_maplist.append((map_name, sim_time))
         return self

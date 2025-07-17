@@ -25,6 +25,7 @@ import copy
 import numpy as np
 
 import itzi.messenger as msgr
+from itzi.data_containers import DrainageNetworkData
 
 import grass.script as gscript
 import grass.temporal as tgis
@@ -113,50 +114,6 @@ class Igis:
     MapData = namedtuple("MapData", strds_cols)
     LinkDescr = namedtuple("LinkDescr", ["layer", "table"])
     LayerDescr = namedtuple("LayerDescr", ["table_suffix", "cols", "layer_number"])
-
-    node_columns_def = [
-        ("cat", "INTEGER PRIMARY KEY"),
-        ("node_id", "TEXT"),
-        ("type", "TEXT"),
-        ("linkage_type", "TEXT"),
-        ("linkage_flow", "REAL"),
-        ("inflow", "REAL"),
-        ("outflow", "REAL"),
-        ("latFlow", "REAL"),
-        ("losses", "REAL"),
-        ("overflow", "REAL"),
-        ("depth", "REAL"),
-        ("head", "REAL"),
-        #    (u'crownElev', 'REAL'),
-        ("crestElev", "REAL"),
-        ("invertElev", "REAL"),
-        ("initDepth", "REAL"),
-        ("fullDepth", "REAL"),
-        ("surDepth", "REAL"),
-        ("pondedArea", "REAL"),
-        #    (u'degree', 'INT'),
-        ("newVolume", "REAL"),
-        ("fullVolume", "REAL"),
-    ]
-
-    link_columns_def = [
-        ("cat", "INTEGER PRIMARY KEY"),
-        ("link_id", "TEXT"),
-        ("type", "TEXT"),
-        ("flow", "REAL"),
-        ("depth", "REAL"),
-        #    (u'velocity', 'REAL'),
-        ("volume", "REAL"),
-        ("offset1", "REAL"),
-        ("offset2", "REAL"),
-        #    (u'yFull', 'REAL'),
-        ("froude", "REAL"),
-    ]
-
-    linking_elements = {
-        "node": LayerDescr(table_suffix="_node", cols=node_columns_def, layer_number=1),
-        "link": LayerDescr(table_suffix="_link", cols=link_columns_def, layer_number=2),
-    }
 
     # a unit convertion table relative to seconds
     t_unit_conv = {"seconds": 1, "minutes": 60, "hours": 3600, "days": 86400}
@@ -548,36 +505,44 @@ class Igis:
             dblinks[layer_name] = self.LinkDescr(dblink.layer, dbtable)
         return dblinks
 
-    def write_vector_map(self, drainage_network, map_name):
-        """Write a vector map to GRASS GIS using
-        drainage_network is a DrainageSimulation object
-        """
+    def write_vector_map(self, drainage_data: DrainageNetworkData, map_name: str):
+        """Write a vector map to GRASS GIS"""
 
         with VectorTopo(map_name, mode="w", overwrite=self.overwrite) as vect_map:
             # create db links and tables
-            dblinks = self.create_db_links(vect_map, self.linking_elements)
+            node_columns_def = drainage_data.nodes[0].columns_definition
+            link_columns_def = drainage_data.links[0].columns_definition
+            linking_elements = {
+                "node": self.LayerDescr(
+                    table_suffix="_node", cols=node_columns_def, layer_number=1
+                ),
+                "link": self.LayerDescr(
+                    table_suffix="_link", cols=link_columns_def, layer_number=2
+                ),
+            }
+            dblinks = self.create_db_links(vect_map, linking_elements)
 
             # set category manually
             cat_num = 1
 
             # dict to keep DB infos to write DB after geometries
-            db_info = {k: [] for k in self.linking_elements}
+            db_info = {k: [] for k in linking_elements}
 
             # Points
-            for node in drainage_network.nodes:
+            for node in drainage_data.nodes:
                 if node.coordinates:
                     point = Point(*node.coordinates)
                     # add values
                     map_layer, dbtable = dblinks["node"]
                     self.write_vector_geometry(vect_map, point, cat_num, map_layer)
                     # Get DB attributes
-                    attrs = tuple([cat_num] + node.get_attrs())
+                    attrs = (cat_num,) + node.attributes
                     db_info["node"].append(attrs)
                     # bump cat
                     cat_num += 1
 
             # Lines
-            for link in drainage_network.links:
+            for link in drainage_data.links:
                 # assemble geometry
                 if all(link.vertices):
                     line_object = Line(link.vertices)
@@ -585,7 +550,7 @@ class Igis:
                     map_layer, dbtable = dblinks["link"]
                     self.write_vector_geometry(vect_map, line_object, cat_num, map_layer)
                     # keep DB info
-                    attrs = tuple([cat_num] + link.get_attrs())
+                    attrs = (cat_num,) + link.attributes
                     db_info["link"].append(attrs)
                     # bump cat
                     cat_num += 1

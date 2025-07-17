@@ -24,7 +24,11 @@ import pyswmm
 from itzi.surfaceflow import SurfaceFlowSimulation
 import itzi.rasterdomain as rasterdomain
 from itzi.massbalance import MassBalanceLogger
-from itzi.report import ContinuityData, SimulationData, Report
+from itzi.report import Report
+from itzi.data_containers import (
+    ContinuityData,
+    SimulationData,
+)
 from itzi.drainage import DrainageSimulation, DrainageNode, DrainageLink, CouplingTypes
 from itzi import SwmmInputParser
 import itzi.messenger as msgr
@@ -34,12 +38,14 @@ from itzi.itzi_error import NullError, MassBalanceError
 from itzi import rastermetrics
 
 
-DrainageNodeData = namedtuple("DrainageNodeData", ["id", "object", "x", "y", "row", "col"])
+DrainageNodeCouplingData = namedtuple(
+    "DrainageNodeCouplingData", ["id", "object", "x", "y", "row", "col"]
+)
 
 
 def get_nodes_list(pswmm_nodes, nodes_coor_dict, drainage_params, igis, g):
     """Check if the drainage nodes are inside the region and can be coupled.
-    Return a list of DrainageNodeData
+    Return a list of DrainageNodeCouplingData
     """
     nodes_list = []
     for pyswmm_node in pswmm_nodes:
@@ -66,7 +72,7 @@ def get_nodes_list(pswmm_nodes, nodes_coor_dict, drainage_params, igis, g):
             y_coor = coors.y
             row, col = igis.coor2pixel(coors)
         # populate list
-        drainage_node_data = DrainageNodeData(
+        drainage_node_data = DrainageNodeCouplingData(
             id=pyswmm_node.nodeid, object=node, x=x_coor, y=y_coor, row=row, col=col
         )
         nodes_list.append(drainage_node_data)
@@ -212,10 +218,10 @@ def create_simulation(
         links_vertices_dict = swmm_inp.get_links_id_as_dict()
         links_list = get_links_list(pyswmm.Links(swmm_sim), links_vertices_dict, nodes_coors_dict)
         node_objects_only = [i.object for i in nodes_list]
-        drainage = DrainageSimulation(swmm_sim, node_objects_only, links_list)
+        drainage_sim = DrainageSimulation(swmm_sim, node_objects_only, links_list)
     else:
         nodes_list = None
-        drainage = None
+        drainage_sim = None
     # reporting object
     msgr.debug("Setting up reporting object...")
     report = Report(
@@ -224,7 +230,6 @@ def create_simulation(
         sim_param["hmin"],
         massbal,
         output_maps,
-        drainage,
         drainage_params["output"],
         sim_times.record_step,
     )
@@ -235,10 +240,10 @@ def create_simulation(
         raster_domain,
         hydrology_model,
         surface_flow,
-        drainage,
+        drainage_sim,
         nodes_list,
         report,
-        mass_balance_error_threshold=sim_param['max_error'],
+        mass_balance_error_threshold=sim_param["max_error"],
     )
     return (simulation, tarr)
 
@@ -360,6 +365,10 @@ class Simulation:
         accumulation_arrays = {
             k: self.raster_domain.get_unmasked(k) for k in self.raster_domain.k_accum
         }
+        if self.drainage_model:
+            drainage_network_data = self.drainage_model.get_drainage_network_data()
+        else:
+            drainage_network_data = None
         simulation_data = SimulationData(
             sim_time=self.sim_time,
             time_step=self.dt.total_seconds(),
@@ -369,6 +378,7 @@ class Simulation:
             accumulation_arrays=accumulation_arrays,
             cell_dx=self.raster_domain.dx,
             cell_dy=self.raster_domain.dy,
+            drainage_network_data=drainage_network_data,
         )
         # Pass data to the reporting module
         self.report.step(simulation_data)
@@ -448,7 +458,10 @@ class Simulation:
             accumulation_arrays = {
                 k: self.raster_domain.get_unmasked(k) for k in self.raster_domain.k_accum
             }
-
+            if self.drainage_model:
+                drainage_network_data = self.drainage_model.get_drainage_network_data()
+            else:
+                drainage_network_data = None
             simulation_data = SimulationData(
                 sim_time=self.sim_time,
                 time_step=self.dt.total_seconds(),
@@ -458,6 +471,7 @@ class Simulation:
                 accumulation_arrays=accumulation_arrays,
                 cell_dx=self.raster_domain.dx,
                 cell_dy=self.raster_domain.dy,
+                drainage_network_data=drainage_network_data,
             )
 
             # Pass data to the reporting module
@@ -522,6 +536,10 @@ class Simulation:
         accumulation_arrays = {
             k: self.raster_domain.get_unmasked(k) for k in self.raster_domain.k_accum
         }
+        if self.drainage_model:
+            drainage_network_data = self.drainage_model.get_drainage_network_data()
+        else:
+            drainage_network_data = None
         simulation_data = SimulationData(
             sim_time=self.sim_time,
             time_step=self.dt.total_seconds(),
@@ -531,6 +549,7 @@ class Simulation:
             accumulation_arrays=accumulation_arrays,
             cell_dx=self.raster_domain.dx,
             cell_dy=self.raster_domain.dy,
+            drainage_network_data=drainage_network_data,
         )
         # write final report.
         self.report.end(simulation_data)
