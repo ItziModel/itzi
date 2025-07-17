@@ -33,6 +33,7 @@ import itzi.infiltration as infiltration
 from itzi.hydrology import Hydrology
 from itzi.itzi_error import NullError, MassBalanceError
 from itzi import rastermetrics
+from itzi.providers import GrassRasterOutputProvider
 
 
 DrainageNodeCouplingData = namedtuple(
@@ -209,14 +210,23 @@ def create_simulation(
         drainage_sim = None
     # reporting object
     msgr.debug("Setting up reporting object...")
+    raster_output_provider = GrassRasterOutputProvider()
+    raster_output_provider.initialize(
+        {
+            "grass_interface": grass_interface,
+            "out_map_names": output_maps,
+            "hmin": sim_param["hmin"],
+            "temporal_type": sim_times.temporal_type,
+        }
+    )
     report = Report(
-        grass_interface,
-        sim_times.temporal_type,
-        sim_param["hmin"],
-        massbal,
-        output_maps,
-        drainage_params["output"],
-        sim_times.record_step,
+        igis=grass_interface,
+        raster_output_provider=raster_output_provider,
+        temporal_type=sim_times.temporal_type,
+        mass_balance_logger=massbal,
+        out_map_names=output_maps,
+        drainage_out=drainage_params["output"],
+        dt=sim_times.record_step,
     )
     msgr.verbose("Models set up")
     simulation = Simulation(

@@ -14,7 +14,6 @@ GNU General Public License for more details.
 """
 
 import copy
-import warnings
 
 import numpy as np
 
@@ -28,8 +27,8 @@ class Report:
     def __init__(
         self,
         igis,
+        raster_output_provider,
         temporal_type,
-        hmin,
         mass_balance_logger,
         out_map_names,
         drainage_out,
@@ -37,9 +36,9 @@ class Report:
     ):
         self.record_counter = 0
         self.gis = igis
+        self.raster_provider = raster_output_provider
         self.temporal_type = temporal_type
         self.out_map_names = out_map_names
-        self.hmin = hmin
         self.mass_balance_logger = mass_balance_logger
         self.drainage_out = drainage_out  # name of output map for the drainage data
         self.drainage_values = {"records": []}
@@ -71,15 +70,10 @@ class Report:
         """
         # do the last step
         self.step(final_data)
-        # Make sure all maps are written in the background process
-        self.gis.finalize()
-        # register maps and write max maps
+        # Write last maps
+        self.raster_provider.finalize(final_data)
         has_drainage_sim = bool(final_data.drainage_network_data)
         self.register_results_in_gis(has_drainage_sim)
-        if self.out_map_names["h"]:
-            self.write_hmax_to_gis(final_data.raw_arrays["hmax"])
-        if self.out_map_names["v"]:
-            self.write_vmax_to_gis(final_data.raw_arrays["vmax"])
         return self
 
     def get_output_arrays(self, data: SimulationData):
@@ -195,40 +189,16 @@ class Report:
         """
         for k, arr in self.output_arrays.items():
             if isinstance(arr, np.ndarray):
-                suffix = str(self.record_counter).zfill(4)
-                map_name = "{}_{}".format(self.out_map_names[k], suffix)
-                # Export depth if above hmin. If not, export NaN
-                if k == "h":
-                    # Do not apply nan to the internal array
-                    arr = arr.copy()
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore")
-                        arr[arr <= self.hmin] = np.nan
-                # write the raster
-                self.gis.write_raster_map(arr, map_name, k)
-                # add map name and time to the corresponding list
-                self.output_maplist[k].append((map_name, sim_time))
+                self.raster_provider.write_array(array=arr, map_key=k, sim_time=sim_time)
         return self
 
     def write_error_to_gis(self, arr_error):
         """Write a given boolean array to the GIS.
-        TODO: a boolean array does not belong with arrays of floats"""
+        ⚠️ a boolean array does not belong with arrays of floats"""
         map_h_name = "{}_error".format(self.out_map_names["h"])
         self.gis.write_raster_map(arr_error, map_h_name, "h")
         # add map name to the revelant list
         self.output_maplist["h"].append(map_h_name)
-        return self
-
-    def write_hmax_to_gis(self, arr_hmax):
-        """Write a max depth array to the GIS"""
-        map_hmax_name = "{}_max".format(self.out_map_names["h"])
-        self.gis.write_raster_map(arr_hmax, map_hmax_name, "h")
-        return self
-
-    def write_vmax_to_gis(self, arr_vmax):
-        """Write a max flow speed array to the GIS"""
-        map_vmax_name = "{}_max".format(self.out_map_names["v"])
-        self.gis.write_raster_map(arr_vmax, map_vmax_name, "v")
         return self
 
     def register_results_in_gis(self, has_drainage_sim: bool):
@@ -238,12 +208,7 @@ class Report:
         if name is populated, create a strds of the right temporal type
         and register the corresponding listed maps
         """
-        # rasters
-        for mkey, lst in self.output_maplist.items():
-            strds_name = self.out_map_names[mkey]
-            if strds_name is None:
-                continue
-            self.gis.register_maps_in_stds(mkey, strds_name, lst, "strds", self.temporal_type)
+        # rasters done by the provider
         # vector
         if has_drainage_sim and self.drainage_out:
             self.gis.register_maps_in_stds(

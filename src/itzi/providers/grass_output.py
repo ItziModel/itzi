@@ -30,14 +30,15 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         self.grass_interface = config["grass_interface"]
         self.out_map_names = config["out_map_names"]
         self.hmin = config["hmin"]
+        self.temporal_type = config["temporal_type"]
 
-        self.record_counter = 0
+        self.record_counter = {k: 0 for k in self.out_map_names.keys()}
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
         return self
 
     def write_array(self, array: np.ndarray, map_key: str, sim_time: datetime | timedelta) -> None:
         """Write simulation data for current time step."""
-        suffix = str(self.record_counter).zfill(4)
+        suffix = str(self.record_counter[map_key]).zfill(4)
         map_name = "{}_{}".format(self.out_map_names[map_key], suffix)
         # write the raster
         self.grass_interface.write_raster_map(array, map_name, map_key)
@@ -46,6 +47,7 @@ class GrassRasterOutputProvider(RasterOutputProvider):
             self.grass_interface.set_null(map_name, self.hmin)
         # add map name and time to the corresponding list
         self.output_maplist[map_key].append((map_name, sim_time))
+        self.record_counter[map_key] += 1
 
     def write_max_array(self, arr_max, map_key):
         map_max_name = f"{self.out_map_names[map_key]}_max"
@@ -61,13 +63,11 @@ class GrassRasterOutputProvider(RasterOutputProvider):
             strds_name = self.out_map_names[map_key]
             if strds_name is None:
                 continue
-            self.gis.register_maps_in_stds(map_key, strds_name, lst, "strds", self.temporal_type)
+            self.grass_interface.register_maps_in_stds(
+                map_key, strds_name, lst, "strds", self.temporal_type
+            )
         # write maps of maximal values
         if self.out_map_names["h"]:
             self.write_max_array(final_data.raw_arrays["hmax"], "h")
         if self.out_map_names["v"]:
             self.write_max_array(final_data.raw_arrays["vmax"], "v")
-        # Cleanup the GIS state
-        # ⚠️ possible race condition with the vector provider
-        # The object responsible for creating the object should tear it down too
-        self.grass_interface.cleanup()
