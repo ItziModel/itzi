@@ -24,7 +24,8 @@ import pyswmm
 from itzi.surfaceflow import SurfaceFlowSimulation
 import itzi.rasterdomain as rasterdomain
 from itzi.massbalance import MassBalanceLogger
-from itzi.report import ContinuityData, SimulationData, Report
+from itzi.report import Report
+from itzi.data_containers import ContinuityData, SimulationData, DrainageLinkData, DrainageNodeData, DrainageNetworkData
 from itzi.drainage import DrainageSimulation, DrainageNode, DrainageLink, CouplingTypes
 from itzi import SwmmInputParser
 import itzi.messenger as msgr
@@ -34,12 +35,12 @@ from itzi.itzi_error import NullError, MassBalanceError
 from itzi import rastermetrics
 
 
-DrainageNodeData = namedtuple("DrainageNodeData", ["id", "object", "x", "y", "row", "col"])
+DrainageNodeCouplingData = namedtuple("DrainageNodeCouplingData", ["id", "object", "x", "y", "row", "col"])
 
 
 def get_nodes_list(pswmm_nodes, nodes_coor_dict, drainage_params, igis, g):
     """Check if the drainage nodes are inside the region and can be coupled.
-    Return a list of DrainageNodeData
+    Return a list of DrainageNodeCouplingData
     """
     nodes_list = []
     for pyswmm_node in pswmm_nodes:
@@ -66,7 +67,7 @@ def get_nodes_list(pswmm_nodes, nodes_coor_dict, drainage_params, igis, g):
             y_coor = coors.y
             row, col = igis.coor2pixel(coors)
         # populate list
-        drainage_node_data = DrainageNodeData(
+        drainage_node_data = DrainageNodeCouplingData(
             id=pyswmm_node.nodeid, object=node, x=x_coor, y=y_coor, row=row, col=col
         )
         nodes_list.append(drainage_node_data)

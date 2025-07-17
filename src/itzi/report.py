@@ -13,46 +13,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-from datetime import datetime
 import copy
 import warnings
-from typing import Dict
-from dataclasses import dataclass
 
 import numpy as np
 
 from itzi import rastermetrics
 from itzi import flow
-
-
-@dataclass
-class ContinuityData:
-    """Store information about simulation continuity"""
-
-    new_domain_vol: float
-    volume_change: float
-    volume_error: float
-    continuity_error: float
-
-
-@dataclass
-class SimulationData:
-    """Immutable data container for passing raw simulation state to Report.
-
-    This is a pure data structure containing only the "raw ingredients"
-    needed for a report. All report-specific calculations (e.g., WSE,
-    average rates) are performed by the Report class itself.
-    """
-
-    sim_time: datetime
-    time_step: float  # time step duration
-    time_steps_counter: int  # number of time steps since last update
-    continuity_data: ContinuityData
-    raw_arrays: Dict[str, np.ndarray]
-    accumulation_arrays: Dict[str, np.ndarray]
-    cell_dx: float  # cell size in east-west direction
-    cell_dy: float  # cell size in north-south direction
-
+from itzi.data_containers import SimulationData
 
 class Report:
     """In charge of results reporting and writing"""
