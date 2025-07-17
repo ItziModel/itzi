@@ -101,6 +101,7 @@ class SimulationRunner:
 
         # return error if output files exist
         gis.check_output_files(self.conf.output_map_names.values())
+        msgr.debug("Output files OK")
         data_type = np.float32
         # Create the grass_interface object
         self.grass_interface = gis.Igis(

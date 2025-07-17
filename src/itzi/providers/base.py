@@ -15,27 +15,29 @@ GNU General Public License for more details.
 
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Dict
+from typing import Dict, Self
 import numpy as np
+
+from itzi.data_containers import SimulationData, DrainageNetworkData
 
 
 class RasterOutputProvider(ABC):
     """Abstract base class for handling raster simulation outputs."""
 
     @abstractmethod
-    def initialize(self, config: Dict) -> None:
+    def initialize(self, config: Dict) -> Self:
         """Initialize output provider with simulation configuration."""
         pass
 
     @abstractmethod
     def write_array(
-        self, arr: np.ndarray, map_name: str, map_key: str, sim_time: datetime | timedelta
+        self, array: np.ndarray, map_name: str, map_key: str, sim_time: datetime | timedelta
     ) -> None:
         """Write simulation data for current time step."""
         pass
 
     @abstractmethod
-    def finalize(self) -> None:
+    def finalize(self, final_data: SimulationData) -> None:
         """Finalize outputs and cleanup."""
         pass
 
@@ -44,7 +46,14 @@ class VectorOutputProvider(ABC):
     """Abstract base class for drainage simulation outputs."""
 
     @abstractmethod
-    def write_vector(self) -> None:
+    def initialize(self, config: Dict) -> Self:
+        """Initialize output provider with simulation configuration."""
+        pass
+
+    @abstractmethod
+    def write_vector(
+        self, drainage_data: DrainageNetworkData, sim_time: datetime | timedelta
+    ) -> None:
         """Write simulation data for current time step."""
         pass
 

@@ -26,28 +26,23 @@ class Report:
 
     def __init__(
         self,
-        igis,
+        start_time,
         raster_output_provider,
-        temporal_type,
+        vector_output_provider,
         mass_balance_logger,
         out_map_names,
-        drainage_out,
         dt,
     ):
         self.record_counter = 0
-        self.gis = igis
         self.raster_provider = raster_output_provider
-        self.temporal_type = temporal_type
+        self.vector_provider = vector_output_provider
         self.out_map_names = out_map_names
         self.mass_balance_logger = mass_balance_logger
-        self.drainage_out = drainage_out  # name of output map for the drainage data
-        self.drainage_values = {"records": []}
         # a dict containing lists of maps written to gis to be registered
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
-        self.vector_drainage_maplist = []
         self.output_arrays = {}
         self.dt = dt
-        self.last_step = copy.copy(self.gis.start_time)
+        self.last_step = copy.copy(start_time)
 
     def step(self, simulation_data: SimulationData):
         """write results at given time-step"""
@@ -57,8 +52,7 @@ class Report:
         if self.mass_balance_logger:
             self.write_mass_balance(simulation_data)
         drainage_data = simulation_data.drainage_network_data
-        if drainage_data and self.drainage_out:
-            self.save_drainage_values(sim_time, drainage_data)
+        self.save_drainage_values(sim_time, drainage_data)
         self.record_counter += 1
         self.last_step = copy.copy(sim_time)
         return self
@@ -72,8 +66,7 @@ class Report:
         self.step(final_data)
         # Write last maps
         self.raster_provider.finalize(final_data)
-        has_drainage_sim = bool(final_data.drainage_network_data)
-        self.register_results_in_gis(has_drainage_sim)
+        self.vector_provider.finalize(final_data.drainage_network_data)
         return self
 
     def get_output_arrays(self, data: SimulationData):
@@ -190,32 +183,7 @@ class Report:
                 self.raster_provider.write_array(array=arr, map_key=k, sim_time=sim_time)
         return self
 
-    def register_results_in_gis(self, has_drainage_sim: bool):
-        """Register the generated maps in the temporal database
-        Loop through output names
-        if no output name is provided, don't do anything
-        if name is populated, create a strds of the right temporal type
-        and register the corresponding listed maps
-        """
-        # rasters done by the provider
-        # vector
-        if has_drainage_sim and self.drainage_out:
-            self.gis.register_maps_in_stds(
-                stds_title="Itzï drainage results",
-                stds_name=self.drainage_out,
-                map_list=self.vector_drainage_maplist,
-                stds_type="stvds",
-                t_type=self.temporal_type,
-            )
-        return self
-
     def save_drainage_values(self, sim_time, drainage_data):
         """Write vector map of drainage network"""
-        # format map name
-        suffix = str(self.record_counter).zfill(4)
-        map_name = f"{self.drainage_out}_{suffix}"
-        # write the map
-        self.gis.write_vector_map(drainage_data, map_name)
-        # add map name and time to the list
-        self.vector_drainage_maplist.append((map_name, sim_time))
+        self.vector_provider.write_vector(drainage_data, sim_time)
         return self

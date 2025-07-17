@@ -18,8 +18,8 @@ from typing import Dict, Self
 
 import numpy as np
 
-from itzi.providers.base import RasterOutputProvider
-from itzi.data_containers import SimulationData
+from itzi.providers.base import RasterOutputProvider, VectorOutputProvider
+from itzi.data_containers import SimulationData, DrainageNetworkData
 
 
 class GrassRasterOutputProvider(RasterOutputProvider):
@@ -49,7 +49,7 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         self.output_maplist[map_key].append((map_name, sim_time))
         self.record_counter[map_key] += 1
 
-    def write_max_array(self, arr_max, map_key):
+    def _write_max_array(self, arr_max, map_key):
         map_max_name = f"{self.out_map_names[map_key]}_max"
         self.grass_interface.write_raster_map(arr_max, map_max_name, map_key)
 
@@ -68,6 +68,45 @@ class GrassRasterOutputProvider(RasterOutputProvider):
             )
         # write maps of maximal values
         if self.out_map_names["h"]:
-            self.write_max_array(final_data.raw_arrays["hmax"], "h")
+            self._write_max_array(final_data.raw_arrays["hmax"], "h")
         if self.out_map_names["v"]:
-            self.write_max_array(final_data.raw_arrays["vmax"], "v")
+            self._write_max_array(final_data.raw_arrays["vmax"], "v")
+
+
+class GrassVectorOutputProvider(VectorOutputProvider):
+    """Write drainage simulation outputs to GRASS."""
+
+    def initialize(self, config: Dict) -> Self:
+        """Initialize output provider with simulation configuration."""
+        self.grass_interface = config["grass_interface"]
+        self.drainage_map_name = config["drainage_map_name"]
+        self.temporal_type = config["temporal_type"]
+
+        self.record_counter = 0
+        self.vector_drainage_maplist = []
+        return self
+
+    def write_vector(
+        self, drainage_data: DrainageNetworkData, sim_time: datetime | timedelta
+    ) -> None:
+        """Write drainage simulation data for current time step."""
+        if self.drainage_map_name and drainage_data:
+            # format map name
+            suffix = str(self.record_counter).zfill(4)
+            map_name = f"{self.drainage_map_name}_{suffix}"
+            # write the map
+            self.grass_interface.write_vector_map(drainage_data, map_name)
+            # add map name and time to the list
+            self.vector_drainage_maplist.append((map_name, sim_time))
+            self.record_counter += 1
+
+    def finalize(self, drainage_data: DrainageNetworkData) -> None:
+        """Finalize outputs and cleanup."""
+        if self.drainage_map_name and drainage_data:
+            self.grass_interface.register_maps_in_stds(
+                stds_title="Itzï drainage results",
+                stds_name=self.drainage_map_name,
+                map_list=self.vector_drainage_maplist,
+                stds_type="stvds",
+                t_type=self.temporal_type,
+            )
