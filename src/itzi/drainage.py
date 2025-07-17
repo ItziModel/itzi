@@ -22,6 +22,7 @@ import numpy as np
 
 from itzi import DefaultValues
 from itzi import messenger as msgr
+from itzi.data_containers import DrainageNodeData, DrainageLinkData, DrainageNetworkData
 
 
 class CouplingTypes(StrEnum):
@@ -90,6 +91,15 @@ class DrainageSimulation:
                 node.apply_coupling(state["z"], state["h"], self._dt, cell_surf)
                 calculated_flows[node_id] = node.coupling_flow
         return calculated_flows
+
+    def get_drainage_network_data(self) -> DrainageNetworkData:
+        nodes_data = []
+        links_data = []
+        for node in self.nodes:
+            nodes_data.append(node.get_data())
+        for link in self.links:
+            links_data.append(link.get_data())
+        return DrainageNetworkData(nodes=tuple(nodes_data), links=tuple(links_data))
 
 
 class DrainageNode(object):
@@ -186,6 +196,9 @@ class DrainageNode(object):
             self.get_full_volume(),
         ]
         return attrs
+
+    def get_data(self) -> DrainageNodeData:
+        return DrainageNodeData(coordinates=self.coordinates, attributes=tuple(self.get_attrs()))
 
     def apply_coupling(self, z, h, dt_drainage, cell_surf):
         """Apply the coupling to the node"""
@@ -337,3 +350,6 @@ class DrainageLink(object):
             self.pyswmm_link.froude,
         ]
         return attrs
+
+    def get_data(self) -> DrainageLinkData:
+        return DrainageLinkData(vertices=self.vertices, attributes=tuple(self.get_attrs()))

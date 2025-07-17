@@ -16,15 +16,14 @@ GNU General Public License for more details.
 from typing import Dict, Tuple, ClassVar
 from dataclasses import dataclass
 from datetime import datetime
-from collections import namedtuple
 
 import numpy as np
 
 
 @dataclass(frozen=True)
 class DrainageLinkData:
-    """Store the instantaneous state of a node during a drainage simulation
-    """
+    """Store the instantaneous state of a node during a drainage simulation"""
+
     vertices: Tuple[Tuple[float, float], ...]
     attributes: Tuple  # one values for each columns, minus "cat"
     columns_definition: ClassVar[Tuple[Tuple[str, str], ...]] = (
@@ -53,8 +52,8 @@ class DrainageLinkData:
 
 @dataclass(frozen=True)
 class DrainageNodeData:
-    """Store the instantaneous state of a node during a drainage simulation
-    """
+    """Store the instantaneous state of a node during a drainage simulation"""
+
     coordinates: Tuple[float, float]
     attributes: Tuple  # one values for each columns, minus "cat"
     columns_definition: ClassVar[Tuple[Tuple[str, str], ...]] = (
@@ -90,7 +89,7 @@ class DrainageNodeData:
                 f"DrainageNodeData: Incorrect number of attributes. "
                 f"Expected {expected_len}, got {len(self.attributes)}"
             )
-    
+
 
 @dataclass(frozen=True)
 class DrainageNetworkData:
