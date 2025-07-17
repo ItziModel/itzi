@@ -53,7 +53,7 @@ class Report:
         """write results at given time-step"""
         sim_time = simulation_data.sim_time
         self.get_output_arrays(simulation_data)
-        self.write_results_to_gis(sim_time)
+        self.save_array(sim_time)
         if self.mass_balance_logger:
             self.write_mass_balance(simulation_data)
         drainage_data = simulation_data.drainage_network_data
@@ -183,10 +183,8 @@ class Report:
 
         return self
 
-    def write_results_to_gis(self, sim_time):
-        """Format the name of each maps using the record number as suffix
-        Send a tuple (array, name, key) to the GIS writing function.
-        """
+    def save_array(self, sim_time):
+        """ """
         for k, arr in self.output_arrays.items():
             if isinstance(arr, np.ndarray):
                 self.raster_provider.write_array(array=arr, map_key=k, sim_time=sim_time)
