@@ -86,7 +86,7 @@ def raster_writer(q, lock):
         next_object = q.get()
         if next_object is None:
             break
-        arr, rast_name, mtype, mkey, overwrite = next_object
+        arr, rast_name, mtype, mkey, hmin, overwrite = next_object
         # Write raster
         with lock:
             with raster.RasterRow(
@@ -98,6 +98,9 @@ def raster_writer(q, lock):
                     newraster.put_row(newrow)
             # Apply colour table
             apply_color_table(rast_name, mkey)
+            # set null values
+            if mkey == "h" and hmin > 0:
+                Igis.set_null(rast_name, hmin)
         # Signal end of task
         q.task_done()
 
@@ -145,7 +148,7 @@ class Igis:
         mkeys,
         region_id,
         raster_mask_id,
-        non_blocking_write=False,
+        non_blocking_write=True,
     ):
         assert isinstance(start_time, datetime), "start_time not a datetime object!"
         assert isinstance(end_time, datetime), "end_time not a datetime object!"
@@ -471,18 +474,18 @@ class Igis:
                 array = np.array(rast, dtype=self.dtype)
         return array
 
-    def write_raster_map(self, arr, rast_name, mkey):
+    def write_raster_map(self, arr, rast_name, mkey, hmin):
         """Take a numpy array and write it to GRASS DB"""
         assert isinstance(arr, np.ndarray), "arr not a np array!"
         assert isinstance(rast_name, str), "not a string!"
         assert isinstance(mkey, str), "not a string!"
         if self.non_blocking_write:
-            self.write_raster_map_nonblocking(arr, rast_name, mkey)
+            self.write_raster_map_nonblocking(arr, rast_name, mkey, hmin)
         else:
-            self.write_raster_map_blocking(arr, rast_name, mkey)
+            self.write_raster_map_blocking(arr, rast_name, mkey, hmin)
         return self
 
-    def write_raster_map_nonblocking(self, arr, rast_name, mkey):
+    def write_raster_map_nonblocking(self, arr, rast_name, mkey, hmin):
         mtype = self.grass_dtype(arr.dtype)
         assert isinstance(mtype, str), "not a string!"
         q_obj = (
@@ -490,12 +493,13 @@ class Igis:
             copy.deepcopy(rast_name),
             copy.deepcopy(mtype),
             copy.deepcopy(mkey),
+            copy.deepcopy(hmin),
             self.overwrite,
         )
         self.raster_writer_queue.put(q_obj)
         return self
 
-    def write_raster_map_blocking(self, arr, rast_name, mkey):
+    def write_raster_map_blocking(self, arr, rast_name, mkey, hmin):
         mtype = self.grass_dtype(arr.dtype)
         assert isinstance(mtype, str), "not a string!"
         with raster.RasterRow(
@@ -507,6 +511,9 @@ class Igis:
                 newraster.put_row(newrow)
         # apply color table
         apply_color_table(rast_name, mkey)
+        # set null values
+        if mkey == "h":
+            Igis.set_null(rast_name, hmin)
         return self
 
     def create_db_links(self, vect_map, linking_elem):

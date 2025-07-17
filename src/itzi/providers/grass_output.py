@@ -41,17 +41,17 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         suffix = str(self.record_counter[map_key]).zfill(4)
         map_name = "{}_{}".format(self.out_map_names[map_key], suffix)
         # write the raster
-        self.grass_interface.write_raster_map(array, map_name, map_key)
-        # Set depth values to null under the given threshold
-        if map_key == "h":
-            self.grass_interface.set_null(map_name, self.hmin)
+        self.grass_interface.write_raster_map(array, map_name, map_key, self.hmin)
+        # Set depth values to null under the given threshold. Temporarily in gis.py
+        # if map_key == "h":
+        #     self.grass_interface.set_null(map_name, self.hmin)
         # add map name and time to the corresponding list
         self.output_maplist[map_key].append((map_name, sim_time))
         self.record_counter[map_key] += 1
 
     def _write_max_array(self, arr_max, map_key):
         map_max_name = f"{self.out_map_names[map_key]}_max"
-        self.grass_interface.write_raster_map(arr_max, map_max_name, map_key)
+        self.grass_interface.write_raster_map(arr_max, map_max_name, map_key, hmin=0.0)
 
     def finalize(self, final_data: SimulationData) -> None:
         """Finalize outputs and cleanup."""
