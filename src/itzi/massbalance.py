@@ -16,7 +16,9 @@ GNU General Public License for more details.
 from datetime import datetime
 import csv
 import numbers
-from typing import List, Dict, Any
+import dataclasses
+
+from itzi.data_containers import MassBalanceData
 
 
 class MassBalanceLogger:
@@ -27,14 +29,13 @@ class MassBalanceLogger:
         file_name: str,
         start_time: datetime,
         temporal_type: str,
-        fields: List[str],
     ):
         """Initializes the logger and creates the output file with headers."""
         if temporal_type not in ["absolute", "relative"]:
             raise ValueError(f"unknown temporal type <{temporal_type}>")
         self.temporal_type = temporal_type
         self.start_time = start_time
-        self.fields = fields
+        self.fields = [f.name for f in dataclasses.fields(MassBalanceData)]
         self.file_name = self._set_file_name(file_name)
         self._create_file()
 
@@ -50,28 +51,21 @@ class MassBalanceLogger:
             writer = csv.DictWriter(f, fieldnames=self.fields)
             writer.writeheader()
 
-    def log(self, report_data: Dict[str, Any]) -> None:
+    def log(self, report_data: MassBalanceData) -> None:
         """Writes a single line of data to the CSV file."""
         line_to_write = {}
-        if self.temporal_type == "relative":
-            report_data["simulation_time"] = report_data["simulation_time"] - self.start_time
 
-        for key, value in report_data.items():
-            if key in self.fields:
-                if value != value:  # NaN
-                    line_to_write[key] = "-"
-                elif isinstance(value, numbers.Real) and not isinstance(value, int):
-                    line_to_write[key] = f"{value:.3f}"
-                else:
-                    line_to_write[key] = value
-
-        # specific formatting for percent_error
-        if "percent_error" in line_to_write:
-            error_val = report_data["percent_error"]
-            if error_val == error_val:  # not NaN
-                line_to_write["percent_error"] = f"{error_val:.2%}"
+        for key, value in dataclasses.asdict(report_data).items():
+            if value != value:  # test for NaN
+                line_to_write[key] = "-"
+            elif "percent_error" == key:
+                line_to_write[key] = f"{value:.2%}"
+            elif "simulation_time" == key and "relative" == self.temporal_type:
+                line_to_write[key] = report_data.simulation_time - self.start_time
+            elif isinstance(value, numbers.Real) and not isinstance(value, int):
+                line_to_write[key] = f"{value:.3f}"
             else:
-                line_to_write["percent_error"] = "-"
+                line_to_write[key] = value
 
         with open(self.file_name, "a", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=self.fields)

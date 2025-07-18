@@ -183,7 +183,7 @@ Water leaving the domain is negative.
 +-------------------------+------------------------------------------------------------------+--------+
 | average\_timestep       | Average time-step duration since last record.                    | s      |
 +-------------------------+------------------------------------------------------------------+--------+
-| #timesteps              | Number of time-steps since the last record.                      | none   |
+| timesteps               | Number of time-steps since the last record.                      | none   |
 +-------------------------+------------------------------------------------------------------+--------+
 | boundary\_volume        | Water volume that passed the domain boundaries since last record.| m³     |
 +-------------------------+------------------------------------------------------------------+--------+
