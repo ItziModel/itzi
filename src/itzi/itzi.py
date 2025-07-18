@@ -81,10 +81,8 @@ class SimulationRunner:
         # If run outside of grass, set session
         try:
             import grass.script as gscript
-            from itzi.simulation import create_simulation
         except ImportError:
             self.set_grass_session()
-            from itzi.simulation import create_simulation
         # Check GRASS version
         grass_version = gscript.parse_command("g.version", flags="g")["version"]
         if grass_version < self.grass_required_version:
@@ -96,16 +94,33 @@ class SimulationRunner:
             )
         msgr.debug("GRASS session set")
 
+        # return error if output files exist
+        from itzi.providers import grass_interface
+
+        grass_interface.check_output_files(self.conf.output_map_names.values())
+        msgr.debug("Output files OK")
+        data_type = np.float32
+        # Create the grass_interface object
+        self.g_interface = grass_interface.GrassInterface(
+            start_time=self.conf.sim_times.start,
+            end_time=self.conf.sim_times.end,
+            dtype=data_type,
+            mkeys=self.conf.input_map_names.keys(),
+            region_id=self.conf.grass_params["region"],
+            raster_mask_id=self.conf.grass_params["mask"],
+        )
         # Instantiate Simulation object and initialize it
+        from itzi.simulation_factories import create_simulation
+
         self.sim, self.tarr = create_simulation(
             sim_times=self.conf.sim_times,
             stats_file=self.conf.stats_file,
-            dtype=np.float32,
             input_maps=self.conf.input_map_names,
             output_maps=self.conf.output_map_names,
             sim_param=self.conf.sim_param,
             drainage_params=self.conf.drainage_params,
-            grass_params=self.conf.grass_params,
+            grass_interface=self.g_interface,
+            dtype=data_type,
         )
         self.update_input_arrays()
         self.sim.initialize()
@@ -135,12 +150,16 @@ class SimulationRunner:
     def finalize(self):
         """Tear down the simulation and return to previous state."""
         self.sim.finalize()
+        # Cleanup the grass interface object
+        self.g_interface.finalize()
+        self.g_interface.cleanup()
         # Close GRASS session
         if self.grass_session is not None:
             self.grass_session.finish()
         return self
 
     def step(self):
+        """Do one simulation step."""
         self.sim.update()
         self.update_input_arrays()
         return self

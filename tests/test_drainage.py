@@ -9,7 +9,7 @@ import pyswmm
 
 from itzi import SwmmInputParser
 from itzi.drainage import DrainageNode, CouplingTypes, DrainageSimulation
-from itzi.simulation import get_links_list
+from itzi.simulation_factories import get_links_list
 
 
 @pytest.fixture(scope="class")

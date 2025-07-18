@@ -14,238 +14,20 @@ GNU General Public License for more details.
 """
 
 from datetime import datetime, timedelta
-from collections import namedtuple
 from typing import Self
 import copy
 
 import numpy as np
-import pyswmm
 
 from itzi.surfaceflow import SurfaceFlowSimulation
 import itzi.rasterdomain as rasterdomain
-from itzi.massbalance import MassBalanceLogger
 from itzi.report import Report
-from itzi.data_containers import (
-    ContinuityData,
-    SimulationData,
-)
-from itzi.drainage import DrainageSimulation, DrainageNode, DrainageLink, CouplingTypes
-from itzi import SwmmInputParser
+from itzi.data_containers import ContinuityData, SimulationData
+from itzi.drainage import DrainageSimulation
 import itzi.messenger as msgr
-import itzi.infiltration as infiltration
 from itzi.hydrology import Hydrology
 from itzi.itzi_error import NullError, MassBalanceError
 from itzi import rastermetrics
-
-
-DrainageNodeCouplingData = namedtuple(
-    "DrainageNodeCouplingData", ["id", "object", "x", "y", "row", "col"]
-)
-
-
-def get_nodes_list(pswmm_nodes, nodes_coor_dict, drainage_params, igis, g):
-    """Check if the drainage nodes are inside the region and can be coupled.
-    Return a list of DrainageNodeCouplingData
-    """
-    nodes_list = []
-    for pyswmm_node in pswmm_nodes:
-        coors = nodes_coor_dict[pyswmm_node.nodeid]
-        node = DrainageNode(
-            node_object=pyswmm_node,
-            coordinates=coors,
-            coupling_type=CouplingTypes.NOT_COUPLED,
-            orifice_coeff=drainage_params["orifice_coeff"],
-            free_weir_coeff=drainage_params["free_weir_coeff"],
-            submerged_weir_coeff=drainage_params["submerged_weir_coeff"],
-            g=g,
-        )
-        # a node without coordinates cannot be coupled
-        if coors is None or not igis.is_in_region(coors.x, coors.y):
-            x_coor = None
-            y_coor = None
-            row = None
-            col = None
-        else:
-            # Set node as coupled with no flow
-            node.coupling_type = CouplingTypes.COUPLED_NO_FLOW
-            x_coor = coors.x
-            y_coor = coors.y
-            row, col = igis.coor2pixel(coors)
-        # populate list
-        drainage_node_data = DrainageNodeCouplingData(
-            id=pyswmm_node.nodeid, object=node, x=x_coor, y=y_coor, row=row, col=col
-        )
-        nodes_list.append(drainage_node_data)
-    return nodes_list
-
-
-def get_links_list(pyswmm_links, links_vertices_dict, nodes_coor_dict):
-    """ """
-    links_list = []
-    for pyswmm_link in pyswmm_links:
-        # Add nodes coordinates to the vertices list
-        in_node_coor = nodes_coor_dict[pyswmm_link.inlet_node]
-        out_node_coor = nodes_coor_dict[pyswmm_link.outlet_node]
-        vertices = [in_node_coor]
-        vertices.extend(links_vertices_dict[pyswmm_link.linkid].vertices)
-        vertices.append(out_node_coor)
-        link = DrainageLink(link_object=pyswmm_link, vertices=vertices)
-        # add link to the list
-        links_list.append(link)
-    return links_list
-
-
-# correspondance between internal numpy arrays and map names
-in_k_corresp = {
-    "dem": "dem",
-    "friction": "friction",
-    "h": "start_h",
-    "y": "start_y",
-    "effective_porosity": "effective_porosity",
-    "capillary_pressure": "capillary_pressure",
-    "hydraulic_conductivity": "hydraulic_conductivity",
-    "in_inf": "infiltration",
-    "losses": "losses",
-    "rain": "rain",
-    "inflow": "inflow",
-    "bcval": "bcval",
-    "bctype": "bctype",
-}
-
-
-def create_simulation(
-    sim_times,
-    input_maps,
-    output_maps,
-    sim_param,
-    drainage_params,
-    grass_params,
-    dtype=np.float32,
-    stats_file=None,
-):
-    """A factory function that returns a Simulation object."""
-    import itzi.gis as gis
-
-    msgr.verbose("Setting up models...")
-    # return error if output files exist
-    gis.check_output_files(output_maps.values())
-    msgr.debug("Output files OK")
-    # GIS interface
-    igis = gis.Igis(
-        start_time=sim_times.start,
-        end_time=sim_times.end,
-        dtype=dtype,
-        mkeys=input_maps.keys(),
-        region_id=grass_params["region"],
-        raster_mask_id=grass_params["mask"],
-    )
-    arr_mask = igis.get_npmask()
-    msgr.verbose("Reading maps information from GIS...")
-    igis.read(input_maps)
-    # Timed arrays
-    tarr = {}
-    # TimedArray expects a function as an init parameter
-    zeros_array = lambda: np.zeros(shape=raster_shape, dtype=dtype)  # noqa: E731
-    for k in in_k_corresp.keys():
-        tarr[k] = rasterdomain.TimedArray(in_k_corresp[k], igis, zeros_array)
-    msgr.debug("Setting up raster domain...")
-    # RasterDomain
-    raster_shape = (igis.yr, igis.xr)
-    try:
-        raster_domain = rasterdomain.RasterDomain(
-            dtype=dtype,
-            arr_mask=arr_mask,
-            cell_shape=(igis.dx, igis.dy),
-        )
-    except MemoryError:
-        msgr.fatal("Out of memory.")
-    # Infiltration
-    inf_model = sim_param["inf_model"]
-    dtinf = sim_param["dtinf"]
-    msgr.debug("Setting up raster infiltration...")
-    inf_class = {
-        "constant": infiltration.InfConstantRate,
-        "green-ampt": infiltration.InfGreenAmpt,
-        "null": infiltration.InfNull,
-    }
-    try:
-        infiltration_model = inf_class[inf_model](raster_domain, dtinf)
-    except KeyError:
-        assert False, f"Unknow infiltration model: {inf_model}"
-    # Hydrology
-    msgr.debug("Setting up hydrologic model...")
-    hydrology_model = Hydrology(raster_domain, dtinf, infiltration_model)
-    # Surface flows simulation
-    msgr.debug("Setting up surface model...")
-    surface_flow = SurfaceFlowSimulation(raster_domain, sim_param)
-    # Instantiate Massbal object
-    if stats_file:
-        msgr.debug("Setting up mass balance object...")
-        massbal = MassBalanceLogger(
-            file_name=stats_file,
-            start_time=sim_times.start,
-            temporal_type=sim_times.temporal_type,
-            fields=[
-                "simulation_time",
-                "average_timestep",
-                "#timesteps",
-                "boundary_volume",
-                "rainfall_volume",
-                "infiltration_volume",
-                "inflow_volume",
-                "losses_volume",
-                "drainage_network_volume",
-                "domain_volume",
-                "volume_change",
-                "volume_error",
-                "percent_error",
-            ],
-        )
-    else:
-        massbal = None
-    # Drainage
-    if drainage_params["swmm_inp"]:
-        msgr.debug("Setting up drainage model...")
-        swmm_sim = pyswmm.Simulation(drainage_params["swmm_inp"])
-        swmm_inp = SwmmInputParser(drainage_params["swmm_inp"])
-        # Create Node objects
-        all_nodes = pyswmm.Nodes(swmm_sim)
-        nodes_coors_dict = swmm_inp.get_nodes_id_as_dict()
-        nodes_list = get_nodes_list(
-            all_nodes, nodes_coors_dict, drainage_params, igis, sim_param["g"]
-        )
-        # Create Link objects
-        links_vertices_dict = swmm_inp.get_links_id_as_dict()
-        links_list = get_links_list(pyswmm.Links(swmm_sim), links_vertices_dict, nodes_coors_dict)
-        node_objects_only = [i.object for i in nodes_list]
-        drainage_sim = DrainageSimulation(swmm_sim, node_objects_only, links_list)
-    else:
-        nodes_list = None
-        drainage_sim = None
-    # reporting object
-    msgr.debug("Setting up reporting object...")
-    report = Report(
-        igis,
-        sim_times.temporal_type,
-        sim_param["hmin"],
-        massbal,
-        output_maps,
-        drainage_params["output"],
-        sim_times.record_step,
-    )
-    msgr.verbose("Models set up")
-    simulation = Simulation(
-        sim_times.start,
-        sim_times.end,
-        raster_domain,
-        hydrology_model,
-        surface_flow,
-        drainage_sim,
-        nodes_list,
-        report,
-        mass_balance_error_threshold=sim_param["max_error"],
-    )
-    return (simulation, tarr)
 
 
 class Simulation:
@@ -288,14 +70,14 @@ class Simulation:
 
     def __init__(
         self,
-        start_time,
-        end_time,
-        raster_domain,
-        hydrology_model,
-        surface_flow,
-        drainage_model,
-        nodes_list,
-        report,
+        start_time: datetime,
+        end_time: datetime,
+        raster_domain: rasterdomain.RasterDomain,
+        hydrology_model: Hydrology,
+        surface_flow: SurfaceFlowSimulation,
+        drainage_model: DrainageSimulation | None,
+        nodes_list: list | None,
+        report: Report,
         mass_balance_error_threshold: float,
     ):
         self.raster_domain = raster_domain
@@ -427,7 +209,6 @@ class Simulation:
         try:
             self.surface_flow.step()
         except NullError:
-            self.report.write_error_to_gis(self.surface_flow.arr_err)
             msgr.fatal("{}: Null value detected in simulation, terminating".format(self.sim_time))
         # calculate when should happen the next surface time-step
         self.surface_flow.solve_dt()

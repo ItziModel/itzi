@@ -65,6 +65,7 @@ class SwmmInputParser(object):
 
     def read_inp(self, input_file):
         """Read the inp file and generate a dictionary of lists"""
+        current_section = None
         with open(input_file, "r") as inp:
             for line in inp:
                 # got directly to next line if comment or empty

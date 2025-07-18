@@ -14,6 +14,7 @@ GNU General Public License for more details.
 """
 
 import os
+from pathlib import Path
 from collections import namedtuple
 from datetime import datetime, timedelta
 
@@ -38,17 +39,22 @@ from grass.pygrass.vector.basic import Cats
 from grass.pygrass.vector.table import Link
 
 # color rules
-_ROOT = os.path.dirname(__file__)
-_DIR = os.path.join(_ROOT, "data", "colortable")
-RULE_H = os.path.join(_DIR, "depth.txt")
-RULE_V = os.path.join(_DIR, "velocity.txt")
-RULE_VDIR = os.path.join(_DIR, "vdir.txt")
-RULE_FR = os.path.join(_DIR, "froude.txt")
-RULE_DEF = os.path.join(_DIR, "default.txt")
-colors_rules_dict = {"h": RULE_H, "v": RULE_V, "vdir": RULE_VDIR, "froude": RULE_FR}
+_ROOT = Path(__file__).parent.parent
+_DIR = _ROOT / "data" / "colortable"
+RULE_H = _DIR / "depth.txt"
+RULE_V = _DIR / "velocity.txt"
+RULE_VDIR = _DIR / "vdir.txt"
+RULE_FR = _DIR / "froude.txt"
+RULE_DEF = _DIR / "default.txt"
+colors_rules_dict = {
+    "h": str(RULE_H),
+    "v": str(RULE_V),
+    "vdir": str(RULE_VDIR),
+    "froude": str(RULE_FR),
+}
 # Check if color rule paths are OK
 for f in colors_rules_dict.values():
-    assert os.path.isfile(f)
+    assert Path(f).is_file()
 
 
 def file_exists(name):
@@ -56,8 +62,8 @@ def file_exists(name):
     if not name:
         return False
     else:
-        _id = Igis.format_id(name)
-        return Igis.name_is_map(_id) or Igis.name_is_stds(_id)
+        _id = GrassInterface.format_id(name)
+        return GrassInterface.name_is_map(_id) or GrassInterface.name_is_stds(_id)
 
 
 def check_output_files(file_list):
@@ -86,7 +92,7 @@ def raster_writer(q, lock):
         next_object = q.get()
         if next_object is None:
             break
-        arr, rast_name, mtype, mkey, overwrite = next_object
+        arr, rast_name, mtype, mkey, hmin, overwrite = next_object
         # Write raster
         with lock:
             with raster.RasterRow(
@@ -98,11 +104,14 @@ def raster_writer(q, lock):
                     newraster.put_row(newrow)
             # Apply colour table
             apply_color_table(rast_name, mkey)
+            # set null values
+            if mkey == "h" and hmin > 0:
+                GrassInterface.set_null(rast_name, hmin)
         # Signal end of task
         q.task_done()
 
 
-class Igis:
+class GrassInterface:
     """
     A class providing an access to GRASS GIS Python interfaces:
     scripting, pygrass, temporal GIS
@@ -137,7 +146,16 @@ class Igis:
         ),
     }
 
-    def __init__(self, start_time, end_time, dtype, mkeys, region_id, raster_mask_id):
+    def __init__(
+        self,
+        start_time,
+        end_time,
+        dtype,
+        mkeys,
+        region_id,
+        raster_mask_id,
+        non_blocking_write=True,
+    ):
         assert isinstance(start_time, datetime), "start_time not a datetime object!"
         assert isinstance(end_time, datetime), "end_time not a datetime object!"
         assert start_time <= end_time, "start_time > end_time!"
@@ -147,6 +165,7 @@ class Igis:
         self.start_time = start_time
         self.end_time = end_time
         self.dtype = dtype
+        self.non_blocking_write = non_blocking_write
 
         self.old_mask_name = None
 
@@ -181,13 +200,14 @@ class Igis:
         # init temporal module
         tgis.init()
         # Create thread and queue for writing raster maps
-        self.raster_lock = Lock()
-        self.raster_writer_queue = Queue(maxsize=15)
-        worker_args = (self.raster_writer_queue, self.raster_lock)
-        self.raster_writer_thread = Thread(
-            name="RasterWriter", target=raster_writer, args=worker_args
-        )
-        self.raster_writer_thread.start()
+        if self.non_blocking_write:
+            self.raster_lock = Lock()
+            self.raster_writer_queue = Queue(maxsize=15)
+            worker_args = (self.raster_writer_queue, self.raster_lock)
+            self.raster_writer_thread = Thread(
+                name="RasterWriter", target=raster_writer, args=worker_args
+            )
+            self.raster_writer_thread.start()
 
     def __enter__(self):
         return self
@@ -198,8 +218,9 @@ class Igis:
 
     def finalize(self):
         """Make sure that all maps are written."""
-        msgr.debug("Writing last maps...")
-        self.raster_writer_queue.join()
+        if self.non_blocking_write:
+            msgr.debug("Writing last maps...")
+            self.raster_writer_queue.join()
 
     def cleanup(self):
         """Remove temporary region and mask."""
@@ -211,8 +232,9 @@ class Igis:
             msgr.debug("Remove temp region...")
             gscript.del_temp_region()
         # Thread killswitch
-        self.raster_writer_queue.put(None)
-        self.raster_writer_thread.join()
+        if self.non_blocking_write:
+            self.raster_writer_queue.put(None)
+            self.raster_writer_thread.join()
 
     def grass_dtype(self, dtype):
         if dtype in self.dtype_conv["DCELL"]:
@@ -324,6 +346,11 @@ class Igis:
         False if not
         """
         return bool(gscript.find_file(name=map_id, element="cell").get("file"))
+
+    @staticmethod
+    def set_null(map_id, threshold) -> None:
+        """Set null values under a given threshold"""
+        gscript.run_command("r.null", flags="f", map=map_id, setnull=f"0.0-{threshold}")
 
     def get_sim_extend_in_stds_unit(self, strds):
         """Take a strds object as input
@@ -444,21 +471,27 @@ class Igis:
 
     def read_raster_map(self, rast_name):
         """Read a GRASS raster and return a numpy array"""
-        with self.raster_lock:
+        if self.non_blocking_write:
+            with self.raster_lock:
+                with raster.RasterRow(rast_name, mode="r") as rast:
+                    array = np.array(rast, dtype=self.dtype)
+        else:
             with raster.RasterRow(rast_name, mode="r") as rast:
                 array = np.array(rast, dtype=self.dtype)
         return array
 
-    def write_raster_map(self, arr, rast_name, mkey):
+    def write_raster_map(self, arr, rast_name, mkey, hmin):
         """Take a numpy array and write it to GRASS DB"""
         assert isinstance(arr, np.ndarray), "arr not a np array!"
         assert isinstance(rast_name, str), "not a string!"
         assert isinstance(mkey, str), "not a string!"
-        # self.write_raster_map_blocking(arr, rast_name, mkey)
-        self.write_raster_map_nonblocking(arr, rast_name, mkey)
+        if self.non_blocking_write:
+            self.write_raster_map_nonblocking(arr, rast_name, mkey, hmin)
+        else:
+            self.write_raster_map_blocking(arr, rast_name, mkey, hmin)
         return self
 
-    def write_raster_map_nonblocking(self, arr, rast_name, mkey):
+    def write_raster_map_nonblocking(self, arr, rast_name, mkey, hmin):
         mtype = self.grass_dtype(arr.dtype)
         assert isinstance(mtype, str), "not a string!"
         q_obj = (
@@ -466,12 +499,13 @@ class Igis:
             copy.deepcopy(rast_name),
             copy.deepcopy(mtype),
             copy.deepcopy(mkey),
+            copy.deepcopy(hmin),
             self.overwrite,
         )
         self.raster_writer_queue.put(q_obj)
         return self
 
-    def write_raster_map_blocking(self, arr, rast_name, mkey):
+    def write_raster_map_blocking(self, arr, rast_name, mkey, hmin):
         mtype = self.grass_dtype(arr.dtype)
         assert isinstance(mtype, str), "not a string!"
         with raster.RasterRow(
@@ -483,6 +517,9 @@ class Igis:
                 newraster.put_row(newrow)
         # apply color table
         apply_color_table(rast_name, mkey)
+        # set null values
+        if mkey == "h":
+            GrassInterface.set_null(rast_name, hmin)
         return self
 
     def create_db_links(self, vect_map, linking_elem):

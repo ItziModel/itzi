@@ -12,6 +12,7 @@ pdm.lock
 build/
 dist/
 *.egg-info/
+wheelhouse/
 src/itzi/flow.c
 docs/_build/
 tests/test_data_temp/
