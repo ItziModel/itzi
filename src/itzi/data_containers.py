@@ -124,4 +124,4 @@ class SimulationData:
     accumulation_arrays: Dict[str, np.ndarray]
     cell_dx: float  # cell size in east-west direction
     cell_dy: float  # cell size in north-south direction
-    drainage_network_data: DrainageNetworkData
+    drainage_network_data: DrainageNetworkData | None

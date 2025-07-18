@@ -76,7 +76,7 @@ class Simulation:
         hydrology_model: Hydrology,
         surface_flow: SurfaceFlowSimulation,
         drainage_model: DrainageSimulation | None,
-        nodes_list: list,
+        nodes_list: list | None,
         report: Report,
         mass_balance_error_threshold: float,
     ):

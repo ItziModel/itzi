@@ -36,7 +36,9 @@ DrainageNodeCouplingData = namedtuple(
 )
 
 
-def get_nodes_list(pswmm_nodes, nodes_coor_dict, drainage_params, g_interface, g):
+def get_nodes_list(
+    pswmm_nodes, nodes_coor_dict, drainage_params, g_interface, g
+) -> list[DrainageNodeCouplingData]:
     """Check if the drainage nodes are inside the region and can be coupled.
     Return a list of DrainageNodeCouplingData
     """
