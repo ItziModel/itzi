@@ -13,91 +13,87 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-from typing import Dict, Tuple, ClassVar
-from dataclasses import dataclass
+from typing import Dict, Tuple
+import dataclasses
 from datetime import datetime
 
 import numpy as np
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
+class DrainageAttributes:
+    """A base class for drainage data attributes."""
+
+    def get_columns_definition(self) -> list[tuple[str, str]]:
+        """Return a list of tuples to create DB columns"""
+        type_corresp = {str: "TEXT", int: "INT", float: "REAL"}
+        db_columns_def = [("cat", "INTEGER PRIMARY KEY")]
+        for f in dataclasses.fields(self):
+            db_field = (f.name, type_corresp[f.type])
+            db_columns_def.append(db_field)
+        return db_columns_def
+
+
+@dataclasses.dataclass(frozen=True)
+class DrainageLinkAttributes(DrainageAttributes):
+    link_id: str
+    link_type: str
+    flow: float
+    depth: float
+    volume: float
+    inlet_offset: float
+    outlet_offset: float
+    froude: float
+
+
+@dataclasses.dataclass(frozen=True)
 class DrainageLinkData:
     """Store the instantaneous state of a node during a drainage simulation"""
 
     vertices: Tuple[Tuple[float, float], ...]
-    attributes: Tuple  # one values for each columns, minus "cat"
-    columns_definition: ClassVar[Tuple[Tuple[str, str], ...]] = (
-        ("cat", "INTEGER PRIMARY KEY"),
-        ("link_id", "TEXT"),
-        ("type", "TEXT"),
-        ("flow", "REAL"),
-        ("depth", "REAL"),
-        #    (u'velocity', 'REAL'),
-        ("volume", "REAL"),
-        ("offset1", "REAL"),
-        ("offset2", "REAL"),
-        #    (u'yFull', 'REAL'),
-        ("froude", "REAL"),
-    )
-
-    def __post_init__(self):
-        """Validate attributes length after initialization."""
-        expected_len = len(self.columns_definition) - 1
-        if len(self.attributes) != expected_len:
-            raise ValueError(
-                f"DrainageLinkData: Incorrect number of attributes. "
-                f"Expected {expected_len}, got {len(self.attributes)}"
-            )
+    attributes: DrainageLinkAttributes
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
+class DrainageNodeAttributes(DrainageAttributes):
+    node_id: str
+    node_type: str
+    coupling_type: str
+    coupling_flow: float
+    inflow: float
+    outflow: float
+    lateral_inflow: float
+    losses: float
+    overflow: float
+    depth: float
+    head: float
+    # crownElev: float
+    crest_elevation: float
+    invert_elevation: float
+    initial_depth: float
+    full_depth: float
+    surcharge_depth: float
+    ponding_area: float
+    # degree: int
+    volume: float
+    full_volume: float
+
+
+@dataclasses.dataclass(frozen=True)
 class DrainageNodeData:
     """Store the instantaneous state of a node during a drainage simulation"""
 
     coordinates: Tuple[float, float]
-    attributes: Tuple  # one values for each columns, minus "cat"
-    columns_definition: ClassVar[Tuple[Tuple[str, str], ...]] = (
-        ("cat", "INTEGER PRIMARY KEY"),
-        ("node_id", "TEXT"),
-        ("type", "TEXT"),
-        ("linkage_type", "TEXT"),
-        ("linkage_flow", "REAL"),
-        ("inflow", "REAL"),
-        ("outflow", "REAL"),
-        ("latFlow", "REAL"),
-        ("losses", "REAL"),
-        ("overflow", "REAL"),
-        ("depth", "REAL"),
-        ("head", "REAL"),
-        #    (u'crownElev', 'REAL'),
-        ("crestElev", "REAL"),
-        ("invertElev", "REAL"),
-        ("initDepth", "REAL"),
-        ("fullDepth", "REAL"),
-        ("surDepth", "REAL"),
-        ("pondedArea", "REAL"),
-        #    (u'degree', 'INT'),
-        ("newVolume", "REAL"),
-        ("fullVolume", "REAL"),
-    )
-
-    def __post_init__(self):
-        """Validate attributes length after initialization."""
-        expected_len = len(self.columns_definition) - 1
-        if len(self.attributes) != expected_len:
-            raise ValueError(
-                f"DrainageNodeData: Incorrect number of attributes. "
-                f"Expected {expected_len}, got {len(self.attributes)}"
-            )
+    attributes: DrainageNodeAttributes
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class DrainageNetworkData:
     nodes: Tuple[DrainageNodeData, ...]
     links: Tuple[DrainageLinkData, ...]
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class ContinuityData:
     """Store information about simulation continuity"""
 
@@ -107,7 +103,7 @@ class ContinuityData:
     continuity_error: float
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class SimulationData:
     """Immutable data container for passing raw simulation state to Report.
 
@@ -127,7 +123,7 @@ class SimulationData:
     drainage_network_data: DrainageNetworkData | None
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class MassBalanceData:
     """Contains the fields written to the mass balance file"""
 

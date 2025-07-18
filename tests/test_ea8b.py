@@ -149,12 +149,12 @@ def ea_test8b_sim(ea_test8b, test_data_path, test_data_temp_path):
 
 @pytest.fixture(scope="module")
 def ea8b_itzi_drainage_results(ea_test8b_sim):
-    """Extract linkage flow from the drainage network"""
+    """Extract coupling flow from the drainage network"""
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     assert current_mapset == "ea8b"
-    select_col = ["start_time", "linkage_flow"]
+    select_col = ["start_time", "coupling_flow"]
     itzi_results = gscript.read_command("t.vect.db.select", input="out_drainage")
-    # translate to Pandas dataframe and keep only linkage_flow with start_time over 3000
+    # translate to Pandas dataframe and keep only coupling_flow with start_time over 3000
     df_itzi_results = pd.read_csv(StringIO(itzi_results), sep="|")[select_col]
     df_itzi_results = df_itzi_results[df_itzi_results.start_time >= 3000]
     df_itzi_results.set_index("start_time", drop=True, inplace=True, verify_integrity=True)

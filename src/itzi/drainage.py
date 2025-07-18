@@ -22,7 +22,13 @@ import numpy as np
 
 from itzi import DefaultValues
 from itzi import messenger as msgr
-from itzi.data_containers import DrainageNodeData, DrainageLinkData, DrainageNetworkData
+from itzi.data_containers import (
+    DrainageNodeData,
+    DrainageLinkData,
+    DrainageNetworkData,
+    DrainageLinkAttributes,
+    DrainageNodeAttributes,
+)
 
 
 class CouplingTypes(StrEnum):
@@ -168,37 +174,34 @@ class DrainageNode(object):
         """return True if the node is coupled to the 2D domain"""
         return self.coupling_type != CouplingTypes.NOT_COUPLED
 
-    def get_attrs(self):
-        """return a list of node data in the right DB order
-        TODO: put the burden of DB order to the code actually writing the DB
-        """
-        attrs = [
-            self.node_id,
-            self.node_type,
-            self.coupling_type.value,
-            self.coupling_flow,
-            self.pyswmm_node.total_inflow,
-            self.pyswmm_node.total_outflow,
-            self.pyswmm_node.lateral_inflow,
-            self.pyswmm_node.losses,
-            self.get_overflow(),
-            self.pyswmm_node.depth,
-            self.pyswmm_node.head,
-            #  values['crown_elev'],
-            self.get_crest_elev(),
-            self.pyswmm_node.invert_elevation,
-            self.pyswmm_node.initial_depth,
-            self.pyswmm_node.full_depth,
-            self.pyswmm_node.surcharge_depth,
-            self.pyswmm_node.ponding_area,
-            #  values['degree'],
-            self.pyswmm_node.volume,
-            self.get_full_volume(),
-        ]
-        return attrs
+    def get_attrs(self) -> DrainageNodeAttributes:
+        """ """
+        return DrainageNodeAttributes(
+            node_id=self.node_id,
+            node_type=self.node_type,
+            coupling_type=self.coupling_type.value,
+            coupling_flow=self.coupling_flow,
+            inflow=self.pyswmm_node.total_inflow,
+            outflow=self.pyswmm_node.total_outflow,
+            lateral_inflow=self.pyswmm_node.lateral_inflow,
+            losses=self.pyswmm_node.losses,
+            overflow=self.get_overflow(),
+            depth=self.pyswmm_node.depth,
+            head=self.pyswmm_node.head,
+            # crownElev=values['crown_elev'],
+            crest_elevation=self.get_crest_elev(),
+            invert_elevation=self.pyswmm_node.invert_elevation,
+            initial_depth=self.pyswmm_node.initial_depth,
+            full_depth=self.pyswmm_node.full_depth,
+            surcharge_depth=self.pyswmm_node.surcharge_depth,
+            ponding_area=self.pyswmm_node.ponding_area,
+            # degree=values['degree'],
+            volume=self.pyswmm_node.volume,
+            full_volume=self.get_full_volume(),
+        )
 
     def get_data(self) -> DrainageNodeData:
-        return DrainageNodeData(coordinates=self.coordinates, attributes=tuple(self.get_attrs()))
+        return DrainageNodeData(coordinates=self.coordinates, attributes=self.get_attrs())
 
     def apply_coupling(self, z, h, dt_drainage, cell_surf):
         """Apply the coupling to the node"""
@@ -333,23 +336,20 @@ class DrainageLink(object):
             raise ValueError(f"Unknown link type for link {self.link_id}")
         return link_type
 
-    def get_attrs(self):
-        """return a list of link data in the right DB order
-        TODO: put the burden of DB order to the code actually writing the DB
-        """
-        attrs = [
-            self.link_id,
-            self.link_type,
-            self.pyswmm_link.flow,
-            self.pyswmm_link.depth,
-            #  values['velocity'],
-            self.pyswmm_link.volume,
-            self.pyswmm_link.inlet_offset,
-            self.pyswmm_link.outlet_offset,
-            #  values['full_depth'],
-            self.pyswmm_link.froude,
-        ]
-        return attrs
+    def get_attrs(self) -> DrainageLinkAttributes:
+        """ """
+        return DrainageLinkAttributes(
+            link_id=self.link_id,
+            link_type=self.link_type,
+            flow=self.pyswmm_link.flow,
+            depth=self.pyswmm_link.depth,
+            # velocity=values['velocity'],
+            volume=self.pyswmm_link.volume,
+            inlet_offset=self.pyswmm_link.inlet_offset,
+            outlet_offset=self.pyswmm_link.outlet_offset,
+            # full_depth=values['full_depth'],
+            froude=self.pyswmm_link.froude,
+        )
 
     def get_data(self) -> DrainageLinkData:
-        return DrainageLinkData(vertices=self.vertices, attributes=tuple(self.get_attrs()))
+        return DrainageLinkData(vertices=self.vertices, attributes=self.get_attrs())

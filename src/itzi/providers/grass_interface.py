@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 from collections import namedtuple
 from datetime import datetime, timedelta
+import dataclasses
 
 # from multiprocessing import Process, JoinableQueue
 from threading import Thread, Lock
@@ -547,8 +548,8 @@ class GrassInterface:
 
         with VectorTopo(map_name, mode="w", overwrite=self.overwrite) as vect_map:
             # create db links and tables
-            node_columns_def = drainage_data.nodes[0].columns_definition
-            link_columns_def = drainage_data.links[0].columns_definition
+            node_columns_def = drainage_data.nodes[0].attributes.get_columns_definition()
+            link_columns_def = drainage_data.links[0].attributes.get_columns_definition()
             linking_elements = {
                 "node": self.LayerDescr(
                     table_suffix="_node", cols=node_columns_def, layer_number=1
@@ -573,7 +574,10 @@ class GrassInterface:
                     map_layer, dbtable = dblinks["node"]
                     self.write_vector_geometry(vect_map, point, cat_num, map_layer)
                     # Get DB attributes
-                    attrs = (cat_num,) + node.attributes
+                    node_attributes = tuple(
+                        value for _, value in dataclasses.asdict(node.attributes).items()
+                    )
+                    attrs = (cat_num,) + node_attributes
                     db_info["node"].append(attrs)
                     # bump cat
                     cat_num += 1
@@ -587,7 +591,10 @@ class GrassInterface:
                     map_layer, dbtable = dblinks["link"]
                     self.write_vector_geometry(vect_map, line_object, cat_num, map_layer)
                     # keep DB info
-                    attrs = (cat_num,) + link.attributes
+                    link_attributes = tuple(
+                        value for _, value in dataclasses.asdict(link.attributes).items()
+                    )
+                    attrs = (cat_num,) + link_attributes
                     db_info["link"].append(attrs)
                     # bump cat
                     cat_num += 1
