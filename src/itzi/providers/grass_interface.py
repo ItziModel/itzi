@@ -14,6 +14,7 @@ GNU General Public License for more details.
 """
 
 import os
+from pathlib import Path
 from collections import namedtuple
 from datetime import datetime, timedelta
 
@@ -38,17 +39,22 @@ from grass.pygrass.vector.basic import Cats
 from grass.pygrass.vector.table import Link
 
 # color rules
-_ROOT = os.path.dirname(__file__)
-_DIR = os.path.join(_ROOT, "data", "colortable")
-RULE_H = os.path.join(_DIR, "depth.txt")
-RULE_V = os.path.join(_DIR, "velocity.txt")
-RULE_VDIR = os.path.join(_DIR, "vdir.txt")
-RULE_FR = os.path.join(_DIR, "froude.txt")
-RULE_DEF = os.path.join(_DIR, "default.txt")
-colors_rules_dict = {"h": RULE_H, "v": RULE_V, "vdir": RULE_VDIR, "froude": RULE_FR}
+_ROOT = Path(__file__).parent.parent
+_DIR = _ROOT / "data" / "colortable"
+RULE_H = _DIR / "depth.txt"
+RULE_V = _DIR / "velocity.txt"
+RULE_VDIR = _DIR / "vdir.txt"
+RULE_FR = _DIR / "froude.txt"
+RULE_DEF = _DIR / "default.txt"
+colors_rules_dict = {
+    "h": str(RULE_H),
+    "v": str(RULE_V),
+    "vdir": str(RULE_VDIR),
+    "froude": str(RULE_FR),
+}
 # Check if color rule paths are OK
 for f in colors_rules_dict.values():
-    assert os.path.isfile(f)
+    assert Path(f).is_file()
 
 
 def file_exists(name):
@@ -56,8 +62,8 @@ def file_exists(name):
     if not name:
         return False
     else:
-        _id = Igis.format_id(name)
-        return Igis.name_is_map(_id) or Igis.name_is_stds(_id)
+        _id = GrassInterface.format_id(name)
+        return GrassInterface.name_is_map(_id) or GrassInterface.name_is_stds(_id)
 
 
 def check_output_files(file_list):
@@ -100,12 +106,12 @@ def raster_writer(q, lock):
             apply_color_table(rast_name, mkey)
             # set null values
             if mkey == "h" and hmin > 0:
-                Igis.set_null(rast_name, hmin)
+                GrassInterface.set_null(rast_name, hmin)
         # Signal end of task
         q.task_done()
 
 
-class Igis:
+class GrassInterface:
     """
     A class providing an access to GRASS GIS Python interfaces:
     scripting, pygrass, temporal GIS
@@ -513,7 +519,7 @@ class Igis:
         apply_color_table(rast_name, mkey)
         # set null values
         if mkey == "h":
-            Igis.set_null(rast_name, hmin)
+            GrassInterface.set_null(rast_name, hmin)
         return self
 
     def create_db_links(self, vect_map, linking_elem):

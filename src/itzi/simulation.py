@@ -27,7 +27,7 @@ from itzi.massbalance import MassBalanceLogger
 from itzi.report import Report
 from itzi.data_containers import ContinuityData, SimulationData
 from itzi.drainage import DrainageSimulation, DrainageNode, DrainageLink, CouplingTypes
-from itzi import SwmmInputParser
+from itzi.swmm_input_parser import SwmmInputParser
 import itzi.messenger as msgr
 import itzi.infiltration as infiltration
 from itzi.hydrology import Hydrology
@@ -40,7 +40,7 @@ DrainageNodeCouplingData = namedtuple(
 )
 
 
-def get_nodes_list(pswmm_nodes, nodes_coor_dict, drainage_params, igis, g):
+def get_nodes_list(pswmm_nodes, nodes_coor_dict, drainage_params, g_interface, g):
     """Check if the drainage nodes are inside the region and can be coupled.
     Return a list of DrainageNodeCouplingData
     """
@@ -57,7 +57,7 @@ def get_nodes_list(pswmm_nodes, nodes_coor_dict, drainage_params, igis, g):
             g=g,
         )
         # a node without coordinates cannot be coupled
-        if coors is None or not igis.is_in_region(coors.x, coors.y):
+        if coors is None or not g_interface.is_in_region(coors.x, coors.y):
             x_coor = None
             y_coor = None
             row = None
@@ -67,7 +67,7 @@ def get_nodes_list(pswmm_nodes, nodes_coor_dict, drainage_params, igis, g):
             node.coupling_type = CouplingTypes.COUPLED_NO_FLOW
             x_coor = coors.x
             y_coor = coors.y
-            row, col = igis.coor2pixel(coors)
+            row, col = g_interface.coor2pixel(coors)
         # populate list
         drainage_node_data = DrainageNodeCouplingData(
             id=pyswmm_node.nodeid, object=node, x=x_coor, y=y_coor, row=row, col=col
