@@ -152,7 +152,7 @@ class TestItziTutorial:
         sim_runner.initialize(config_file)
         sim_runner.run().finalize()
         # Check the results
-        select_cols = ["start_time", "linkage_flow"]
+        select_cols = ["start_time", "coupling_flow"]
         drainage_results = gscript.read_command(
             "t.vect.db.select",
             input="nc_itzi_tutorial_drainage",
