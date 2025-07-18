@@ -13,49 +13,50 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Dict, Self
+from copy import deepcopy
+
 import numpy as np
 
+from itzi.providers.base import RasterOutputProvider, VectorOutputProvider
 from itzi.data_containers import SimulationData, DrainageNetworkData
 
 
-class RasterOutputProvider(ABC):
-    """Abstract base class for handling raster simulation outputs."""
+class MemoryRasterOutputProvider(RasterOutputProvider):
+    """Save rasters in memory as numpy arrays."""
 
-    @abstractmethod
     def initialize(self, config: Dict) -> Self:
         """Initialize output provider with simulation configuration."""
-        pass
+        self.out_map_names = config["out_map_names"]
 
-    @abstractmethod
+        self.output_maps_dict = {k: [] for k in self.out_map_names.keys()}
+        return self
+
     def write_array(self, array: np.ndarray, map_key: str, sim_time: datetime | timedelta) -> None:
-        """Write simulation data for current time step."""
-        pass
+        """Save simulation data for current time step."""
+        self.output_maps_dict[map_key].append((deepcopy(sim_time), array.copy()))
 
-    @abstractmethod
     def finalize(self, final_data: SimulationData) -> None:
         """Finalize outputs and cleanup."""
         pass
 
 
-class VectorOutputProvider(ABC):
-    """Abstract base class for drainage simulation outputs."""
+class MemoryVectorOutputProvider(VectorOutputProvider):
+    """Save drainage simulation outputs in memory."""
 
-    @abstractmethod
-    def initialize(self, config: Dict) -> Self:
+    def initialize(self, config: Dict | None = None) -> Self:
         """Initialize output provider with simulation configuration."""
-        pass
+        self.drainage_data = []
 
-    @abstractmethod
+        return self
+
     def write_vector(
         self, drainage_data: DrainageNetworkData, sim_time: datetime | timedelta
     ) -> None:
-        """Write simulation data for current time step."""
-        pass
+        """Save simulation data for current time step."""
+        self.drainage_data.append((deepcopy(sim_time), deepcopy(drainage_data)))
 
-    @abstractmethod
     def finalize(self) -> None:
         """Finalize outputs and cleanup."""
         pass
