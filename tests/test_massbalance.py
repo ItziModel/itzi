@@ -1,20 +1,19 @@
 import pytest
 import tempfile
 from datetime import datetime
+
 from itzi.massbalance import MassBalanceLogger
+from itzi.data_containers import MassBalanceData
 
 
 @pytest.fixture
 def logger_fixture():
-    fields = ["simulation_time", "volume", "percent_error"]
     start_time = datetime.now()
     temp_file = tempfile.NamedTemporaryFile(delete=False)
     file_name = temp_file.name
     yield {
-        "fields": fields,
         "start_time": start_time,
         "file_name": file_name,
-        "temp_file": temp_file,
     }
     temp_file.close()
 
@@ -24,16 +23,16 @@ def test_init_with_custom_filename(logger_fixture):
         file_name=logger_fixture["file_name"],
         start_time=logger_fixture["start_time"],
         temporal_type="absolute",
-        fields=logger_fixture["fields"],
     )
     assert logger.file_name == logger_fixture["file_name"]
 
 
 def test_init_with_default_filename():
-    fields = ["sim_time", "volume", "%error"]
     start_time = datetime.now()
     logger = MassBalanceLogger(
-        file_name="", start_time=start_time, temporal_type="absolute", fields=fields
+        file_name="",
+        start_time=start_time,
+        temporal_type="absolute",
     )
     assert logger.file_name.endswith("_stats.csv")
 
@@ -44,7 +43,6 @@ def test_init_invalid_temporal_type(logger_fixture):
             file_name=logger_fixture["file_name"],
             start_time=logger_fixture["start_time"],
             temporal_type="invalid",
-            fields=logger_fixture["fields"],
         )
 
 
@@ -53,18 +51,31 @@ def test_log_absolute_time(logger_fixture):
         file_name=logger_fixture["file_name"],
         start_time=logger_fixture["start_time"],
         temporal_type="absolute",
-        fields=logger_fixture["fields"],
     )
-    test_data = {
-        "simulation_time": datetime.now(),
-        "volume": 123.456789,
-        "percent_error": 0.123456,
-    }
+    test_time = datetime.now()
+    test_data = MassBalanceData(
+        simulation_time=test_time,
+        average_timestep=12.42345,
+        timesteps=34,
+        boundary_volume=123.456789,
+        rainfall_volume=12.34567,
+        infiltration_volume=-12.434567,
+        inflow_volume=12.34567,
+        losses_volume=-12.34567,
+        drainage_network_volume=12.34567,
+        domain_volume=12.34567,
+        volume_change=12.34567,
+        volume_error=12.34567,
+        percent_error=0.123456,
+    )
+
     logger.log(test_data)
     with open(logger_fixture["file_name"], "r") as f:
         lines = f.readlines()
-        assert len(lines) == 2  # header + 1 data row
+        assert str(test_time) in lines[1]  # datetime formatting
         assert "123.457" in lines[1]  # float formatting
+        assert "12.346" in lines[1]  # float formatting
+        assert "34" in lines[1]  # int formatting
         assert "12.35%" in lines[1]  # percentage formatting
 
 
@@ -73,10 +84,23 @@ def test_log_relative_time(logger_fixture):
         file_name=logger_fixture["file_name"],
         start_time=logger_fixture["start_time"],
         temporal_type="relative",
-        fields=logger_fixture["fields"],
     )
     test_time = datetime.now()
-    test_data = {"simulation_time": test_time, "volume": 123.456789, "percent_error": 0.123456}
+    test_data = MassBalanceData(
+        simulation_time=test_time,
+        average_timestep=12.42345,
+        timesteps=34,
+        boundary_volume=123.456789,
+        rainfall_volume=12.34567,
+        infiltration_volume=-12.434567,
+        inflow_volume=12.34567,
+        losses_volume=-12.34567,
+        drainage_network_volume=12.34567,
+        domain_volume=12.34567,
+        volume_change=12.34567,
+        volume_error=12.34567,
+        percent_error=0.123456,
+    )
     logger.log(test_data)
     with open(logger_fixture["file_name"], "r") as f:
         lines = f.readlines()

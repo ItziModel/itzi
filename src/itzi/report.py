@@ -18,7 +18,7 @@ import copy
 import numpy as np
 
 from itzi import rastermetrics
-from itzi.data_containers import SimulationData
+from itzi.data_containers import SimulationData, MassBalanceData
 
 
 class Report:
@@ -157,21 +157,21 @@ class Report:
             average_timestep = interval_s / data.time_steps_counter
         else:
             average_timestep = float("nan")
-        report_data = {
-            "simulation_time": data.sim_time,
-            "average_timestep": average_timestep,
-            "#timesteps": data.time_steps_counter,
-            "boundary_volume": boundary_vol,
-            "rainfall_volume": rain_vol,
-            "infiltration_volume": -infiltration_vol,  # negative because it leaves the domain
-            "inflow_volume": inflow_vol,
-            "losses_volume": -losses_vol,  # negative because it leaves the domain
-            "drainage_network_volume": drain_net_vol,
-            "domain_volume": continuity_data.new_domain_vol,
-            "volume_change": continuity_data.volume_change,
-            "volume_error": continuity_data.volume_error,
-            "percent_error": continuity_data.continuity_error,
-        }
+        report_data = MassBalanceData(
+            simulation_time=data.sim_time,
+            average_timestep=average_timestep,
+            timesteps=data.time_steps_counter,
+            boundary_volume=boundary_vol,
+            rainfall_volume=rain_vol,
+            infiltration_volume=-infiltration_vol,  # negative because it leaves the domain
+            inflow_volume=inflow_vol,
+            losses_volume=-losses_vol,  # negative because it leaves the domain
+            drainage_network_volume=drain_net_vol,
+            domain_volume=continuity_data.new_domain_vol,
+            volume_change=continuity_data.volume_change,
+            volume_error=continuity_data.volume_error,
+            percent_error=continuity_data.continuity_error,
+        )
         self.mass_balance_logger.log(report_data)
 
         return self

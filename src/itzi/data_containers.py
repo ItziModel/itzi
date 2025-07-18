@@ -125,3 +125,22 @@ class SimulationData:
     cell_dx: float  # cell size in east-west direction
     cell_dy: float  # cell size in north-south direction
     drainage_network_data: DrainageNetworkData | None
+
+
+@dataclass(frozen=True)
+class MassBalanceData:
+    """Contains the fields written to the mass balance file"""
+
+    simulation_time: datetime
+    average_timestep: float
+    timesteps: int
+    boundary_volume: float
+    rainfall_volume: float
+    infiltration_volume: float
+    inflow_volume: float
+    losses_volume: float
+    drainage_network_volume: float
+    domain_volume: float
+    volume_change: float
+    volume_error: float
+    percent_error: float

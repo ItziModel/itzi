@@ -5,6 +5,7 @@
 
 import os
 from io import StringIO
+import dataclasses
 
 import pandas as pd
 import numpy as np
@@ -12,6 +13,7 @@ import grass.script as gscript
 import pytest
 
 from itzi import SimulationRunner
+from itzi.data_containers import MassBalanceData
 
 
 @pytest.mark.usefixtures("grass_5by5_sim")
@@ -116,21 +118,7 @@ def test_stats_file(test_data_temp_path):
     assert os.path.exists(stats_path)
     df = pd.read_csv(stats_path)
 
-    expected_cols = [
-        "simulation_time",
-        "average_timestep",
-        "#timesteps",
-        "boundary_volume",
-        "rainfall_volume",
-        "infiltration_volume",
-        "inflow_volume",
-        "losses_volume",
-        "drainage_network_volume",
-        "domain_volume",
-        "volume_change",
-        "volume_error",
-        "percent_error",
-    ]
+    expected_cols = [f.name for f in dataclasses.fields(MassBalanceData)]
     assert df.columns.to_list() == expected_cols
 
     # Domain area in m2
@@ -192,7 +180,7 @@ def test_stats_maps():
                     assert np.isclose(minimum, 1.5 / 3600 / 1000)
                     assert np.isclose(maximum, 1.5 / 3600 / 1000)
     # water depth
-    first_depth_map = gscript.list_grouped("raster", pattern=f"*_h_0000")[current_mapset]
+    first_depth_map = gscript.list_grouped("raster", pattern="*_h_0000")[current_mapset]
     depth_stats = gscript.parse_command("r.univar", flags="g", map=first_depth_map)
     depth_n = int(depth_stats["n"])
     depth_null_cells = int(depth_stats["null_cells"])

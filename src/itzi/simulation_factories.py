@@ -168,21 +168,6 @@ def create_simulation(
             file_name=stats_file,
             start_time=sim_times.start,
             temporal_type=sim_times.temporal_type,
-            fields=[
-                "simulation_time",
-                "average_timestep",
-                "#timesteps",
-                "boundary_volume",
-                "rainfall_volume",
-                "infiltration_volume",
-                "inflow_volume",
-                "losses_volume",
-                "drainage_network_volume",
-                "domain_volume",
-                "volume_change",
-                "volume_error",
-                "percent_error",
-            ],
         )
     else:
         massbal = None
