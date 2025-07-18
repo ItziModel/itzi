@@ -123,7 +123,7 @@ class SimulationData:
     drainage_network_data: DrainageNetworkData | None
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class MassBalanceData:
     """Contains the fields written to the mass balance file"""
 
