@@ -13,9 +13,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-from typing import Dict
+from typing import Dict, TYPE_CHECKING
 
 import numpy as np
+from numpy.typing import ArrayLike, DTypeLike
 import pyswmm
 
 from itzi.surfaceflow import SurfaceFlowSimulation
@@ -30,9 +31,13 @@ from itzi.hydrology import Hydrology
 from itzi.simulation import Simulation
 from itzi.data_containers import DrainageNodeCouplingData
 
+if TYPE_CHECKING:
+    from itzi.configreader import SimulationTimes
+    from itzi.providers.grass_interface import GrassInterface
+
 
 def get_nodes_list(
-    pswmm_nodes, nodes_coor_dict, drainage_params, g_interface, g
+    pswmm_nodes, nodes_coor_dict, drainage_params, domain_data, g
 ) -> list[DrainageNodeCouplingData]:
     """Check if the drainage nodes are inside the region and can be coupled.
     Return a list of DrainageNodeCouplingData
@@ -50,7 +55,7 @@ def get_nodes_list(
             g=g,
         )
         # a node without coordinates cannot be coupled
-        if coors is None or not g_interface.is_in_region(coors.x, coors.y):
+        if coors is None or not domain_data.is_in_domain(x=coors.x, y=coors.y):
             x_coor = None
             y_coor = None
             row = None
@@ -60,7 +65,7 @@ def get_nodes_list(
             node.coupling_type = CouplingTypes.COUPLED_NO_FLOW
             x_coor = coors.x
             y_coor = coors.y
-            row, col = g_interface.coor2pixel(coors)
+            row, col = domain_data.coordinates_to_pixel(x=x_coor, y=y_coor)
         # populate list
         drainage_node_data = DrainageNodeCouplingData(
             node_id=pyswmm_node.nodeid, node_object=node, x=x_coor, y=y_coor, row=row, col=col
@@ -104,18 +109,18 @@ in_k_corresp = {
 
 
 def create_grass_simulation(
-    sim_times,
-    input_maps,
-    output_maps,
-    sim_param,
-    drainage_params,
-    grass_interface,
+    sim_times: "SimulationTimes",
+    input_maps: Dict,
+    output_maps: Dict,
+    sim_param: Dict,
+    drainage_params: Dict,
+    grass_interface: "GrassInterface",
     dtype=np.float32,
     stats_file=None,
 ) -> tuple[Simulation, Dict[str, rasterdomain.TimedArray]]:
     """A factory function that returns a Simulation object."""
     msgr.verbose("Setting up models...")
-    from itzi.providers import GrassRasterOutputProvider, GrassVectorOutputProvider
+    from itzi.providers.grass_output import GrassRasterOutputProvider, GrassVectorOutputProvider
 
     arr_mask = grass_interface.get_npmask()
     msgr.verbose("Reading maps information from GIS...")
@@ -171,11 +176,19 @@ def create_grass_simulation(
         msgr.debug("Setting up drainage model...")
         swmm_sim = pyswmm.Simulation(drainage_params["swmm_inp"])
         swmm_inp = SwmmInputParser(drainage_params["swmm_inp"])
+        domain_data = rasterdomain.DomainData(
+            north=grass_interface.region.north,
+            south=grass_interface.region.south,
+            east=grass_interface.region.east,
+            west=grass_interface.region.west,
+            rows=grass_interface.region.rows,
+            cols=grass_interface.region.cols,
+        )
         # Create Node objects
         all_nodes = pyswmm.Nodes(swmm_sim)
         nodes_coors_dict = swmm_inp.get_nodes_id_as_dict()
         nodes_list = get_nodes_list(
-            all_nodes, nodes_coors_dict, drainage_params, grass_interface, sim_param["g"]
+            all_nodes, nodes_coors_dict, drainage_params, domain_data, sim_param["g"]
         )
         # Create Link objects
         links_vertices_dict = swmm_inp.get_links_id_as_dict()
@@ -228,13 +241,102 @@ def create_grass_simulation(
 
 
 def create_memory_simulation(
-    sim_times,
-    input_maps,
-    output_maps,
-    sim_param,
-    drainage_params,
-    grass_interface,
-    dtype=np.float32,
+    sim_times: "SimulationTimes",
+    output_maps: Dict,
+    sim_param: Dict,
+    drainage_params: Dict,
+    domain_data: rasterdomain.DomainData,
+    arr_mask: ArrayLike,
+    dtype: DTypeLike = np.float32,
     stats_file=None,
 ) -> Simulation:
-    pass
+    from itzi.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
+
+    # raster domain
+    try:
+        raster_domain = rasterdomain.RasterDomain(
+            dtype=dtype,
+            arr_mask=arr_mask,
+            cell_shape=domain_data.cell_shape,
+        )
+    except MemoryError:
+        msgr.fatal("Out of memory.")
+    # Infiltration
+    inf_model = sim_param["inf_model"]
+    dtinf = sim_param["dtinf"]
+    msgr.debug("Setting up raster infiltration...")
+    inf_class = {
+        "constant": infiltration.InfConstantRate,
+        "green-ampt": infiltration.InfGreenAmpt,
+        "null": infiltration.InfNull,
+    }
+    try:
+        infiltration_model = inf_class[inf_model](raster_domain, dtinf)
+    except KeyError:
+        assert False, f"Unknow infiltration model: {inf_model}"
+    # Hydrology
+    msgr.debug("Setting up hydrologic model...")
+    hydrology_model = Hydrology(raster_domain, dtinf, infiltration_model)
+    # Surface flows simulation
+    msgr.debug("Setting up surface model...")
+    surface_flow = SurfaceFlowSimulation(raster_domain, sim_param)
+    # Instantiate Massbal object
+    if stats_file:
+        msgr.debug("Setting up mass balance object...")
+        massbal = MassBalanceLogger(
+            file_name=stats_file,
+            start_time=sim_times.start,
+            temporal_type=sim_times.temporal_type,
+        )
+    else:
+        massbal = None
+    # Drainage
+    if drainage_params["swmm_inp"]:
+        msgr.debug("Setting up drainage model...")
+        swmm_sim = pyswmm.Simulation(drainage_params["swmm_inp"])
+        swmm_inp = SwmmInputParser(drainage_params["swmm_inp"])
+        # Create Node objects
+        all_nodes = pyswmm.Nodes(swmm_sim)
+        nodes_coors_dict = swmm_inp.get_nodes_id_as_dict()
+        nodes_list = get_nodes_list(
+            all_nodes, nodes_coors_dict, drainage_params, domain_data, sim_param["g"]
+        )
+        # Create Link objects
+        links_vertices_dict = swmm_inp.get_links_id_as_dict()
+        links_list = get_links_list(pyswmm.Links(swmm_sim), links_vertices_dict, nodes_coors_dict)
+        node_objects_only = [i.node_object for i in nodes_list]
+        drainage_sim = DrainageSimulation(swmm_sim, node_objects_only, links_list)
+    else:
+        nodes_list = None
+        drainage_sim = None
+    # reporting object
+    msgr.debug("Setting up reporting object...")
+    raster_output_provider = MemoryRasterOutputProvider()
+    raster_output_provider.initialize(
+        {
+            "out_map_names": output_maps,
+        }
+    )
+    vector_output_provider = MemoryVectorOutputProvider()
+    vector_output_provider.initialize({})
+    report = Report(
+        start_time=sim_times.start,
+        raster_output_provider=raster_output_provider,
+        vector_output_provider=vector_output_provider,
+        mass_balance_logger=massbal,
+        out_map_names=output_maps,
+        dt=sim_times.record_step,
+    )
+    msgr.verbose("Models set up")
+    simulation = Simulation(
+        sim_times.start,
+        sim_times.end,
+        raster_domain,
+        hydrology_model,
+        surface_flow,
+        drainage_sim,
+        nodes_list,
+        report,
+        mass_balance_error_threshold=sim_param["max_error"],
+    )
+    return simulation
