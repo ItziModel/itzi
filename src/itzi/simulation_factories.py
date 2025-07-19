@@ -13,7 +13,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-from collections import namedtuple
 from typing import Dict
 
 import numpy as np
@@ -29,11 +28,7 @@ import itzi.messenger as msgr
 import itzi.infiltration as infiltration
 from itzi.hydrology import Hydrology
 from itzi.simulation import Simulation
-
-
-DrainageNodeCouplingData = namedtuple(
-    "DrainageNodeCouplingData", ["id", "object", "x", "y", "row", "col"]
-)
+from itzi.data_containers import DrainageNodeCouplingData
 
 
 def get_nodes_list(
@@ -68,7 +63,7 @@ def get_nodes_list(
             row, col = g_interface.coor2pixel(coors)
         # populate list
         drainage_node_data = DrainageNodeCouplingData(
-            id=pyswmm_node.nodeid, object=node, x=x_coor, y=y_coor, row=row, col=col
+            node_id=pyswmm_node.nodeid, node_object=node, x=x_coor, y=y_coor, row=row, col=col
         )
         nodes_list.append(drainage_node_data)
     return nodes_list
@@ -108,7 +103,7 @@ in_k_corresp = {
 }
 
 
-def create_simulation(
+def create_grass_simulation(
     sim_times,
     input_maps,
     output_maps,
@@ -185,7 +180,7 @@ def create_simulation(
         # Create Link objects
         links_vertices_dict = swmm_inp.get_links_id_as_dict()
         links_list = get_links_list(pyswmm.Links(swmm_sim), links_vertices_dict, nodes_coors_dict)
-        node_objects_only = [i.object for i in nodes_list]
+        node_objects_only = [i.node_object for i in nodes_list]
         drainage_sim = DrainageSimulation(swmm_sim, node_objects_only, links_list)
     else:
         nodes_list = None
@@ -230,3 +225,16 @@ def create_simulation(
         mass_balance_error_threshold=sim_param["max_error"],
     )
     return (simulation, tarr)
+
+
+def create_memory_simulation(
+    sim_times,
+    input_maps,
+    output_maps,
+    sim_param,
+    drainage_params,
+    grass_interface,
+    dtype=np.float32,
+    stats_file=None,
+) -> Simulation:
+    pass

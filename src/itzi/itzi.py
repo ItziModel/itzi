@@ -110,9 +110,9 @@ class SimulationRunner:
             raster_mask_id=self.conf.grass_params["mask"],
         )
         # Instantiate Simulation object and initialize it
-        from itzi.simulation_factories import create_simulation
+        from itzi.simulation_factories import create_grass_simulation
 
-        self.sim, self.tarr = create_simulation(
+        self.sim, self.tarr = create_grass_simulation(
             sim_times=self.conf.sim_times,
             stats_file=self.conf.stats_file,
             input_maps=self.conf.input_map_names,

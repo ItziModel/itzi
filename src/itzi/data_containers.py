@@ -13,11 +13,28 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-from typing import Dict, Tuple
+from typing import Dict, Tuple, TYPE_CHECKING
 import dataclasses
 from datetime import datetime
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from itzi.drainage import DrainageNode
+
+
+@dataclasses.dataclass(frozen=True)
+class DrainageNodeCouplingData:
+    """Store the translation between coordinates and array location for a given drainage node."""
+
+    node_id: str  # Name of the drainage node
+    node_object: "DrainageNode"
+    # Location in the coordinate system
+    x: float | None
+    y: float | None
+    # Location in the array
+    row: int | None
+    col: int | None
 
 
 @dataclasses.dataclass(frozen=True)
