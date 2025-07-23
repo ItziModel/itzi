@@ -50,7 +50,7 @@ def metadata_to_domaindata(metadata: ASCIIMetadata) -> DomainData:
 
 
 @pytest.fixture(scope="module")
-def mcdo_norain_sim(test_data_path):
+def mcdo_norain_sim(test_data_path, test_data_temp_path):
     """Run a simulation for MacDonald 1D solution long channel without rain.
     Delestre, O., Lucas, C., Ksinant, P.-A., Darboux, F., Laguerre, C., Vo, T.-N.-T., … Cordier, S. (2013).
     SWASHES: a compilation of shallow water analytic solutions for hydraulic and environmental studies.
@@ -59,23 +59,25 @@ def mcdo_norain_sim(test_data_path):
     test_data_path = Path(test_data_path)
     data_dir = test_data_path / Path("McDonald_long_channel_wo_rain")
     dem_path = data_dir / Path("dem.asc")
-    bctype_path = data_dir / Path("bctype.asc")
-    inflow_path = data_dir / Path("q.asc")
 
     # Load raster data
     arr_dem, dem_metadata = read_ascii_grid(dem_path)
-    arr_bctype, _ = read_ascii_grid(bctype_path)
-    arr_inflow, _ = read_ascii_grid(inflow_path)
-
     domain_data = metadata_to_domaindata(dem_metadata)
-    # Generate Manning map
+    # Manning
     arr_n = np.full_like(arr_dem, fill_value=0.033)
+    # Inflow at westmost boundary
+    arr_inflow = np.zeros_like(arr_dem)
+    arr_inflow[:, 0] = 0.4
+    # free eastmost boundary
+    arr_bctype = np.ones_like(arr_dem)
+    arr_bctype[:, -1] = 2
     # No mask. Whole domain.
     array_mask = np.full(shape=arr_dem.shape, fill_value=False, dtype=np.bool_)
 
+    # Run the simulation in the temp dir
+    os.chdir(test_data_temp_path)
     config_file = os.path.join(test_data_path, "McDonald_long_channel_wo_rain", "mcdo_norain.ini")
     config = ConfigReader(config_file)
-
     simulation = create_memory_simulation(
         sim_times=config.sim_times,
         output_maps=config.output_map_names,
@@ -155,7 +157,7 @@ class TestMcdo_norain:
 
 
 @pytest.fixture(scope="module")
-def mcdo_rain_sim(test_data_path):
+def mcdo_rain_sim(test_data_path, test_data_temp_path):
     """Run a simulation for MacDonald 1D solution long channel with rain.
     Delestre, O., Lucas, C., Ksinant, P.-A., Darboux, F., Laguerre, C., Vo, T.-N.-T., … Cordier, S. (2013).
     SWASHES: a compilation of shallow water analytic solutions for hydraulic and environmental studies.
@@ -163,15 +165,17 @@ def mcdo_rain_sim(test_data_path):
     """
     data_dir = Path(test_data_path) / Path("McDonald_long_channel_rain")
     dem_path = data_dir / Path("dem.asc")
-    bctype_path = data_dir / Path("bctype.asc")
-    inflow_path = data_dir / Path("q.asc")
 
     # Load raster data
     arr_dem, dem_metadata = read_ascii_grid(dem_path)
-    arr_bctype, _ = read_ascii_grid(bctype_path)
-    arr_inflow, _ = read_ascii_grid(inflow_path)
     # Create Manning map
     arr_n = np.full_like(arr_dem, fill_value=0.033)
+    # Inflow at westmost boundary
+    arr_inflow = np.zeros_like(arr_dem)
+    arr_inflow[:, 0] = 0.2
+    # free eastmost boundary
+    arr_bctype = np.ones_like(arr_dem)
+    arr_bctype[:, -1] = 2
     # Simulation object takes rainfall input in m/s.
     arr_rain = np.full_like(arr_dem, fill_value=0.001)
     # No mask. Whole domain.
@@ -179,10 +183,10 @@ def mcdo_rain_sim(test_data_path):
 
     # Set up simulation
     domain_data = metadata_to_domaindata(dem_metadata)
-
+    # Run the simulation in the temp dir
+    os.chdir(test_data_temp_path)
     config_file = os.path.join(test_data_path, "McDonald_long_channel_rain", "mcdo_rain.ini")
     config = ConfigReader(config_file)
-
     simulation = create_memory_simulation(
         sim_times=config.sim_times,
         output_maps=config.output_map_names,
@@ -204,7 +208,6 @@ def mcdo_rain_sim(test_data_path):
     while simulation.sim_time < simulation.end_time:
         simulation.update()
     simulation.finalize()
-
     return simulation
 
 
