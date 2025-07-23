@@ -7,141 +7,122 @@ Test itzi against analytic solutions to the shallow water equation.
 
 import os
 from pathlib import Path
-from io import StringIO
+from collections import namedtuple
 
 import numpy as np
 import pandas as pd
 import pytest
-import grass.script as gscript
-
-from itzi import SimulationRunner
 
 
-@pytest.fixture(scope="session")
-def mcdo_norain_reference(test_data_path):
-    """ """
-    file_path = os.path.join(test_data_path, "McDonald_long_channel_wo_rain", "mcdo_norain.csv")
-    return pd.read_csv(file_path)
+from itzi.simulation_factories import create_memory_simulation
+from itzi.configreader import ConfigReader
+from itzi.rasterdomain import DomainData
+
+ASCIIMetadata = namedtuple(
+    "ASCIIMetadata", ["ncols", "nrows", "xllcorner", "yllcorner", "cellsize"]
+)
 
 
-@pytest.fixture(scope="class")
-def grass_mcdo_norain(grass_xy_session, test_data_path):
-    """Create a domain for MacDonald 1D solution long channel without rain.
+def read_ascii_grid(filepath):
+    filepath = Path(filepath)
+    with filepath.open("r") as f:
+        # Read header
+        ncols = int(f.readline().split()[1])
+        nrows = int(f.readline().split()[1])
+        xllcorner = float(f.readline().split()[1])
+        yllcorner = float(f.readline().split()[1])
+        cellsize = float(f.readline().split()[1])
+        # Read the grid data
+        data = np.loadtxt(f)
+    assert data.shape == (nrows, ncols)
+    metadata = ASCIIMetadata(ncols, nrows, xllcorner, yllcorner, cellsize)
+    return data, metadata
+
+
+def metadata_to_domaindata(metadata: ASCIIMetadata) -> DomainData:
+    rows = metadata.nrows
+    cols = metadata.ncols
+    west = metadata.xllcorner
+    east = west + cols * metadata.cellsize
+    south = metadata.yllcorner
+    north = south + rows * metadata.cellsize
+    return DomainData(north, south, east, west, rows, cols)
+
+
+@pytest.fixture(scope="module")
+def mcdo_norain_sim(test_data_path, test_data_temp_path):
+    """Run a simulation for MacDonald 1D solution long channel without rain.
     Delestre, O., Lucas, C., Ksinant, P.-A., Darboux, F., Laguerre, C., Vo, T.-N.-T., … Cordier, S. (2013).
     SWASHES: a compilation of shallow water analytic solutions for hydraulic and environmental studies.
     International Journal for Numerical Methods in Fluids, 72(3), 269–300. https://doi.org/10.1002/fld.3741
     """
-    data_dir = os.path.join(test_data_path, "McDonald_long_channel_wo_rain")
-    dem_path = os.path.join(data_dir, "dem.asc")
-    bctype_path = os.path.join(data_dir, "bctype.asc")
-    inflow_path = os.path.join(data_dir, "q.asc")
-    points_path = os.path.join(data_dir, "axis_points.json")
-    # Create new mapset
-    gscript.run_command("g.mapset", mapset="mcdo_norain", flags="c")
-    # Load raster data
-    gscript.run_command("r.in.gdal", input=dem_path, output="dem")
-    gscript.run_command("r.in.gdal", input=bctype_path, output="bctype")
-    gscript.run_command("r.in.gdal", input=inflow_path, output="inflow")
-    # Generate Manning map
-    gscript.run_command("g.region", raster="dem", flags="o")
-    region = gscript.parse_command("g.region", flags="pg")
-    assert int(region["cells"]) == 600
-    gscript.mapcalc("n=0.033")
-    # Load axis points vector
-    gscript.run_command("v.in.ogr", input=points_path, output="axis_points", flags="o")
-    return None
+    test_data_path = Path(test_data_path)
+    data_dir = test_data_path / Path("analytic")
+    reference_path = data_dir / Path("mcdo_norain.csv")
+    reference = pd.read_csv(reference_path)
+    arr_topo = reference["topo"].values
+    # Create DEM
+    arr_dem = np.tile(arr_topo, (3, 1))
+    assert arr_dem.shape == (3, 200)
+    domain_data = DomainData(north=5 * 200, south=0, east=5 * 200, west=0, rows=3, cols=200)
+    # Manning
+    arr_n = np.full_like(arr_dem, fill_value=0.033)
+    # Inflow at westmost boundary
+    arr_inflow = np.zeros_like(arr_dem)
+    arr_inflow[:, 0] = 0.4
+    # free eastmost boundary
+    arr_bctype = np.ones_like(arr_dem)
+    arr_bctype[:, -1] = 2
+    # No mask. Whole domain.
+    array_mask = np.full(shape=arr_dem.shape, fill_value=False, dtype=np.bool_)
+
+    # Run the simulation in the temp dir
+    os.chdir(test_data_temp_path)
+    config_file = data_dir / Path("mcdo_norain.ini")
+    config = ConfigReader(config_file)
+    simulation = create_memory_simulation(
+        sim_times=config.sim_times,
+        output_maps=config.output_map_names,
+        sim_param=config.sim_param,
+        drainage_params=config.drainage_params,
+        domain_data=domain_data,
+        arr_mask=array_mask,
+        dtype=np.float32,
+        stats_file=config.stats_file,
+    )
+    # Set the input arrays
+    simulation.set_array("dem", arr_dem)
+    simulation.set_array("bctype", arr_bctype)
+    simulation.set_array("inflow", arr_inflow)
+    simulation.set_array("friction", arr_n)
+    # run the simulation
+    simulation.initialize()
+    while simulation.sim_time < simulation.end_time:
+        simulation.update()
+    simulation.finalize()
+    return simulation, reference
 
 
-@pytest.fixture(scope="class")
-def grass_mcdo_norain_sim(grass_mcdo_norain, test_data_path):
-    """ """
-    current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
-    assert current_mapset == "mcdo_norain"
-    config_file = os.path.join(test_data_path, "McDonald_long_channel_wo_rain", "mcdo_norain.ini")
-    sim_runner = SimulationRunner()
-    assert isinstance(sim_runner, SimulationRunner)
-    sim_runner.initialize(config_file)
-    sim_runner.run().finalize()
-    return sim_runner
-
-
-@pytest.fixture(scope="session")
-def mcdo_rain_reference(test_data_path):
-    """ """
-    file_path = os.path.join(test_data_path, "McDonald_long_channel_rain", "mcdo_rain.csv")
-    return pd.read_csv(file_path)
-
-
-@pytest.fixture(scope="function")
-def grass_mcdo_rain(grass_xy_session, test_data_path):
-    """Create a domain for MacDonald 1D solution long channel with rain.
-    Delestre, O., Lucas, C., Ksinant, P.-A., Darboux, F., Laguerre, C., Vo, T.-N.-T., … Cordier, S. (2013).
-    SWASHES: a compilation of shallow water analytic solutions for hydraulic and environmental studies.
-    International Journal for Numerical Methods in Fluids, 72(3), 269–300. https://doi.org/10.1002/fld.3741
-    """
-    data_dir = os.path.join(test_data_path, "McDonald_long_channel_rain")
-    dem_path = os.path.join(data_dir, "dem.asc")
-    bctype_path = os.path.join(data_dir, "bctype.asc")
-    inflow_path = os.path.join(data_dir, "q.asc")
-    points_path = os.path.join(data_dir, "axis_points.json")
-    # Create new mapset
-    gscript.run_command("g.mapset", mapset="mcdo_rain", flags="c")
-    # Load raster data
-    gscript.run_command("r.in.gdal", input=dem_path, output="dem")
-    gscript.run_command("r.in.gdal", input=bctype_path, output="bctype")
-    gscript.run_command("r.in.gdal", input=inflow_path, output="inflow")
-    # Create Manning map
-    gscript.run_command("g.region", raster="dem", flags="o")
-    region = gscript.parse_command("g.region", flags="pg")
-    assert int(region["cells"]) == 600
-    gscript.mapcalc("n=0.033")
-    # Create rain map
-    gscript.mapcalc("rain=3600")  # 0.001 m/s
-    # Load axis points vector
-    gscript.run_command("v.in.ogr", input=points_path, output="axis_points", flags="o")
-    return None
-
-
-@pytest.fixture(scope="function")
-def grass_mcdo_rain_sim(grass_mcdo_rain, test_data_path):
-    """ """
-    current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
-    assert current_mapset == "mcdo_rain"
-    config_file = os.path.join(test_data_path, "McDonald_long_channel_rain", "mcdo_rain.ini")
-    sim_runner = SimulationRunner()
-    sim_runner.initialize(config_file)
-    sim_runner.run().finalize()
-    return sim_runner
-
-
-@pytest.mark.usefixtures("grass_mcdo_norain_sim")
 class TestMcdo_norain:
-    def test_mcdo_norain(self, mcdo_norain_reference):
-        current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
-        assert current_mapset == "mcdo_norain"
-
-        wse = gscript.read_command(
-            "v.what.rast",
-            map="axis_points",
-            raster="out_mcdo_norain_wse_0004",
-            flags="p",
-        )
-        df_wse = pd.read_csv(StringIO(wse), sep="|", names=["wse_model"], usecols=[1])
-        df_results = mcdo_norain_reference.join(df_wse)
+    def test_mcdo_norain(self, mcdo_norain_sim):
+        simulation, reference = mcdo_norain_sim
+        raster_results = simulation.report.raster_provider.output_maps_dict
+        wse_time, wse_array = raster_results["wse"][-1]
+        wse_centerline = pd.DataFrame({"wse_model": wse_array[1, :]})
+        df_results = reference.join(wse_centerline)
         df_results["abs_error"] = np.abs(df_results["wse_model"] - df_results["wse"])
         mae = np.mean(df_results["abs_error"])
         assert mae < 0.03
 
-    def test_flow_is_unidimensional(self):
-        """In the MacDonald 1D test, flow should be unidimensional in x dimension"""
-        current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
-        assert current_mapset == "mcdo_norain"
-
-        map_list = gscript.list_grouped("raster", pattern="out_mcdo_norain_qy*")[current_mapset]
-        for raster in map_list:
-            univar = gscript.parse_command("r.univar", map=raster, flags="g")
-            assert float(univar["min"]) == 0
-            assert float(univar["max"]) == 0
+    def test_flow_is_unidimensional(self, mcdo_norain_sim):
+        simulation, reference = mcdo_norain_sim
+        """In the MacDonald 1D test, flow should be unidimensional in the X dimension"""
+        qy_array_list = simulation.report.raster_provider.output_maps_dict["qy"]
+        for _, qy_array in qy_array_list:
+            print(qy_array)
+            # univar = gscript.parse_command("r.univar", map=raster, flags="g")
+            assert np.min(qy_array) == 0
+            assert np.max(qy_array) == 0
 
     def test_stat_file_is_coherent(self, test_data_temp_path):
         stat_file_path = Path(test_data_temp_path) / Path("mcdo_norain.csv")
@@ -175,15 +156,70 @@ class TestMcdo_norain:
         )
 
 
-@pytest.mark.usefixtures("grass_mcdo_rain_sim")
-def test_mcdo_rain(mcdo_rain_reference):
-    current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
-    assert current_mapset == "mcdo_rain"
-    wse = gscript.read_command(
-        "v.what.rast", map="axis_points", raster="out_mcdo_rain_wse_0004", flags="p"
+@pytest.fixture(scope="module")
+def mcdo_rain_sim(test_data_path, test_data_temp_path):
+    """Run a simulation for MacDonald 1D solution long channel with rain.
+    Delestre, O., Lucas, C., Ksinant, P.-A., Darboux, F., Laguerre, C., Vo, T.-N.-T., … Cordier, S. (2013).
+    SWASHES: a compilation of shallow water analytic solutions for hydraulic and environmental studies.
+    International Journal for Numerical Methods in Fluids, 72(3), 269–300. https://doi.org/10.1002/fld.3741
+    """
+    data_dir = Path(test_data_path) / Path("analytic")
+
+    # Create DEM
+    reference_path = data_dir / Path("mcdo_rain.csv")
+    reference = pd.read_csv(reference_path)
+    arr_topo = reference["topo"].values
+    arr_dem = np.tile(arr_topo, (3, 1))
+    assert arr_dem.shape == (3, 200)
+    domain_data = DomainData(north=5 * 200, south=0, east=5 * 200, west=0, rows=3, cols=200)
+    # Create Manning map
+    arr_n = np.full_like(arr_dem, fill_value=0.033)
+    # Inflow at westmost boundary
+    arr_inflow = np.zeros_like(arr_dem)
+    arr_inflow[:, 0] = 0.2
+    # free eastmost boundary
+    arr_bctype = np.ones_like(arr_dem)
+    arr_bctype[:, -1] = 2
+    # Simulation object takes rainfall input in m/s.
+    arr_rain = np.full_like(arr_dem, fill_value=0.001)
+    # No mask. Whole domain.
+    array_mask = np.full(shape=arr_dem.shape, fill_value=False, dtype=np.bool_)
+
+    # Run the simulation in the temp dir
+    os.chdir(test_data_temp_path)
+    config_file = data_dir / Path("mcdo_rain.ini")
+    config = ConfigReader(config_file)
+    simulation = create_memory_simulation(
+        sim_times=config.sim_times,
+        output_maps=config.output_map_names,
+        sim_param=config.sim_param,
+        drainage_params=config.drainage_params,
+        domain_data=domain_data,
+        arr_mask=array_mask,
+        dtype=np.float32,
+        stats_file=config.stats_file,
     )
-    df_wse = pd.read_csv(StringIO(wse), sep="|", names=["wse_model"], usecols=[1])
-    df_results = mcdo_rain_reference.join(df_wse)
+    # Set the input arrays
+    simulation.set_array("dem", arr_dem)
+    simulation.set_array("bctype", arr_bctype)
+    simulation.set_array("inflow", arr_inflow)
+    simulation.set_array("friction", arr_n)
+    simulation.set_array("rain", arr_rain)
+    # run the simulation
+    simulation.initialize()
+    while simulation.sim_time < simulation.end_time:
+        simulation.update()
+    simulation.finalize()
+    return simulation, reference
+
+
+def test_mcdo_rain(mcdo_rain_sim):
+    simulation, reference = mcdo_rain_sim
+    raster_results = simulation.report.raster_provider.output_maps_dict
+    wse_time, wse_array = raster_results["wse"][-1]
+    wse_centerline = pd.DataFrame({"wse_model": wse_array[1, :]})
+    df_results = reference.join(wse_centerline)
     df_results["abs_error"] = np.abs(df_results["wse_model"] - df_results["wse"])
     mae = np.mean(df_results["abs_error"])
+    print(mae)
     assert mae < 0.035

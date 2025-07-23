@@ -14,20 +14,22 @@ GNU General Public License for more details.
 """
 
 from datetime import datetime, timedelta
-from typing import Self
+from typing import Self, Union, TYPE_CHECKING
 import copy
 
 import numpy as np
 
-from itzi.surfaceflow import SurfaceFlowSimulation
-import itzi.rasterdomain as rasterdomain
-from itzi.report import Report
 from itzi.data_containers import ContinuityData, SimulationData
-from itzi.drainage import DrainageSimulation
 import itzi.messenger as msgr
-from itzi.hydrology import Hydrology
 from itzi.itzi_error import NullError, MassBalanceError
 from itzi import rastermetrics
+
+if TYPE_CHECKING:
+    from itzi.drainage import DrainageSimulation
+    from itzi.hydrology import Hydrology
+    from itzi.surfaceflow import SurfaceFlowSimulation
+    from itzi.rasterdomain import RasterDomain
+    from itzi.report import Report
 
 
 class Simulation:
@@ -72,12 +74,12 @@ class Simulation:
         self,
         start_time: datetime,
         end_time: datetime,
-        raster_domain: rasterdomain.RasterDomain,
-        hydrology_model: Hydrology,
-        surface_flow: SurfaceFlowSimulation,
-        drainage_model: DrainageSimulation | None,
+        raster_domain: "RasterDomain",
+        hydrology_model: "Hydrology",
+        surface_flow: "SurfaceFlowSimulation",
+        drainage_model: Union["DrainageSimulation", None],
         nodes_list: list | None,
-        report: Report,
+        report: "Report",
         mass_balance_error_threshold: float,
     ):
         self.raster_domain = raster_domain
@@ -123,7 +125,7 @@ class Simulation:
             self.next_ts["drainage"] = self.end_time
         else:
             self.node_id_to_loc = {
-                n.id: (n.row, n.col) for n in self.nodes_list if n.object.is_coupled()
+                n.node_id: (n.row, n.col) for n in self.nodes_list if n.node_object.is_coupled()
             }
         # Grid spacing (for BMI)
         self.spacing = (self.raster_domain.dy, self.raster_domain.dx)
