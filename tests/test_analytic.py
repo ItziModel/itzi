@@ -57,12 +57,14 @@ def mcdo_norain_sim(test_data_path, test_data_temp_path):
     International Journal for Numerical Methods in Fluids, 72(3), 269–300. https://doi.org/10.1002/fld.3741
     """
     test_data_path = Path(test_data_path)
-    data_dir = test_data_path / Path("McDonald_long_channel_wo_rain")
-    dem_path = data_dir / Path("dem.asc")
-
-    # Load raster data
-    arr_dem, dem_metadata = read_ascii_grid(dem_path)
-    domain_data = metadata_to_domaindata(dem_metadata)
+    data_dir = test_data_path / Path("analytic")
+    reference_path = data_dir / Path("mcdo_norain.csv")
+    reference = pd.read_csv(reference_path)
+    arr_topo = reference["topo"].values
+    # Create DEM
+    arr_dem = np.tile(arr_topo, (3, 1))
+    assert arr_dem.shape == (3, 200)
+    domain_data = DomainData(north=5 * 200, south=0, east=5 * 200, west=0, rows=3, cols=200)
     # Manning
     arr_n = np.full_like(arr_dem, fill_value=0.033)
     # Inflow at westmost boundary
@@ -76,7 +78,7 @@ def mcdo_norain_sim(test_data_path, test_data_temp_path):
 
     # Run the simulation in the temp dir
     os.chdir(test_data_temp_path)
-    config_file = os.path.join(test_data_path, "McDonald_long_channel_wo_rain", "mcdo_norain.ini")
+    config_file = data_dir / Path("mcdo_norain.ini")
     config = ConfigReader(config_file)
     simulation = create_memory_simulation(
         sim_times=config.sim_times,
@@ -98,26 +100,24 @@ def mcdo_norain_sim(test_data_path, test_data_temp_path):
     while simulation.sim_time < simulation.end_time:
         simulation.update()
     simulation.finalize()
-    return simulation
+    return simulation, reference
 
 
 class TestMcdo_norain:
-    def test_mcdo_norain(self, mcdo_norain_sim, test_data_path):
-        reference_path = (
-            Path(test_data_path) / Path("McDonald_long_channel_wo_rain") / Path("mcdo_norain.csv")
-        )
-        mcdo_norain_reference = pd.read_csv(reference_path)
-        raster_results = mcdo_norain_sim.report.raster_provider.output_maps_dict
+    def test_mcdo_norain(self, mcdo_norain_sim):
+        simulation, reference = mcdo_norain_sim
+        raster_results = simulation.report.raster_provider.output_maps_dict
         wse_time, wse_array = raster_results["wse"][-1]
         wse_centerline = pd.DataFrame({"wse_model": wse_array[1, :]})
-        df_results = mcdo_norain_reference.join(wse_centerline)
+        df_results = reference.join(wse_centerline)
         df_results["abs_error"] = np.abs(df_results["wse_model"] - df_results["wse"])
         mae = np.mean(df_results["abs_error"])
         assert mae < 0.03
 
     def test_flow_is_unidimensional(self, mcdo_norain_sim):
+        simulation, reference = mcdo_norain_sim
         """In the MacDonald 1D test, flow should be unidimensional in the X dimension"""
-        qy_array_list = mcdo_norain_sim.report.raster_provider.output_maps_dict["qy"]
+        qy_array_list = simulation.report.raster_provider.output_maps_dict["qy"]
         for _, qy_array in qy_array_list:
             print(qy_array)
             # univar = gscript.parse_command("r.univar", map=raster, flags="g")
@@ -163,11 +163,15 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
     SWASHES: a compilation of shallow water analytic solutions for hydraulic and environmental studies.
     International Journal for Numerical Methods in Fluids, 72(3), 269–300. https://doi.org/10.1002/fld.3741
     """
-    data_dir = Path(test_data_path) / Path("McDonald_long_channel_rain")
-    dem_path = data_dir / Path("dem.asc")
+    data_dir = Path(test_data_path) / Path("analytic")
 
-    # Load raster data
-    arr_dem, dem_metadata = read_ascii_grid(dem_path)
+    # Create DEM
+    reference_path = data_dir / Path("mcdo_rain.csv")
+    reference = pd.read_csv(reference_path)
+    arr_topo = reference["topo"].values
+    arr_dem = np.tile(arr_topo, (3, 1))
+    assert arr_dem.shape == (3, 200)
+    domain_data = DomainData(north=5 * 200, south=0, east=5 * 200, west=0, rows=3, cols=200)
     # Create Manning map
     arr_n = np.full_like(arr_dem, fill_value=0.033)
     # Inflow at westmost boundary
@@ -181,11 +185,9 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
     # No mask. Whole domain.
     array_mask = np.full(shape=arr_dem.shape, fill_value=False, dtype=np.bool_)
 
-    # Set up simulation
-    domain_data = metadata_to_domaindata(dem_metadata)
     # Run the simulation in the temp dir
     os.chdir(test_data_temp_path)
-    config_file = os.path.join(test_data_path, "McDonald_long_channel_rain", "mcdo_rain.ini")
+    config_file = data_dir / Path("mcdo_rain.ini")
     config = ConfigReader(config_file)
     simulation = create_memory_simulation(
         sim_times=config.sim_times,
@@ -208,15 +210,12 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
     while simulation.sim_time < simulation.end_time:
         simulation.update()
     simulation.finalize()
-    return simulation
+    return simulation, reference
 
 
-def test_mcdo_rain(mcdo_rain_sim, test_data_path):
-    reference_path = (
-        Path(test_data_path) / Path("McDonald_long_channel_rain") / Path("mcdo_rain.csv")
-    )
-    reference = pd.read_csv(reference_path)
-    raster_results = mcdo_rain_sim.report.raster_provider.output_maps_dict
+def test_mcdo_rain(mcdo_rain_sim):
+    simulation, reference = mcdo_rain_sim
+    raster_results = simulation.report.raster_provider.output_maps_dict
     wse_time, wse_array = raster_results["wse"][-1]
     wse_centerline = pd.DataFrame({"wse_model": wse_array[1, :]})
     df_results = reference.join(wse_centerline)
