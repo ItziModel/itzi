@@ -12,7 +12,7 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12"]
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     container: osgeo/grass-gis:releasebranch_8_4-ubuntu
     steps:
     - uses: actions/checkout@v4
@@ -22,23 +22,14 @@ jobs:
         apt update
         apt install -y clang build-essential libomp-dev nodejs
 
-    - name: Install PDM and uv
+    - name: Install uv and Python
       run: |
-        curl -sSLO https://pdm-project.org/install-pdm.py
-        curl -sSL https://pdm-project.org/install-pdm.py.sha256 | shasum -a 256 -c -
-        python3 install-pdm.py --path /usr/local
         curl -LsSf https://astral.sh/uv/install.sh | sh
-        pdm config use_uv true
-        pdm use ${{ matrix.python-version }}
+        $HOME/.local/bin/uv python install ${{ matrix.python-version }}
 
-    - name: Build and install
+    - name: Pytest
       run: |
-        echo $PATH
-        pdm install
-
-    - name: Test with pytest
-      run: |
-        pdm run pytest --cov=src --forked --junitxml=junit/test-results.xml --cov-report=xml --cov-report=html tests/
+        $HOME/.local/bin/uv run pytest --cov=src --forked --junitxml=junit/test-results.xml --cov-report=xml --cov-report=html tests/
 
     - name: Upload coverage
       uses: actions/upload-artifact@v4
