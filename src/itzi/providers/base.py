@@ -56,6 +56,6 @@ class VectorOutputProvider(ABC):
         pass
 
     @abstractmethod
-    def finalize(self) -> None:
+    def finalize(self, drainage_data: DrainageNetworkData) -> None:
         """Finalize outputs and cleanup."""
         pass

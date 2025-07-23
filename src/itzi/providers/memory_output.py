@@ -57,6 +57,6 @@ class MemoryVectorOutputProvider(VectorOutputProvider):
         """Save simulation data for current time step."""
         self.drainage_data.append((deepcopy(sim_time), deepcopy(drainage_data)))
 
-    def finalize(self) -> None:
+    def finalize(self, drainage_data: DrainageNetworkData) -> None:
         """Finalize outputs and cleanup."""
         pass
