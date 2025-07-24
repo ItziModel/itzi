@@ -35,41 +35,6 @@ if TYPE_CHECKING:
 class Simulation:
     """ """
 
-    _array_keys = [
-        "elevation",
-        "manning_n",
-        "depth",
-        "effective_porosity",
-        "capillary_pressure",
-        "hydraulic_conductivity",
-        "infiltration",
-        "losses",
-        "rain",
-        "etp",
-        "effective_precipitation",
-        "inflow",
-        "bcval",
-        "bctype",
-        "hmax",
-        "ext",
-        "hfe",
-        "hfs",
-        "qe",
-        "qs",
-        "qe_new",
-        "qs_new",
-        "ue",
-        "us",
-        "v",
-        "vdir",
-        "vmax",
-        "froude",
-        "n_drain",
-        "capped_losses",
-        "dire",
-        "dirs",
-    ]
-
     def __init__(
         self,
         start_time: datetime,
