@@ -6,6 +6,7 @@ import platform
 from setuptools import setup
 from setuptools.extension import Extension
 from setuptools.command.build_ext import build_ext
+from Cython.Build import cythonize
 
 
 # Set arguments according to compiler
@@ -55,12 +56,5 @@ class build_ext_compiler_check(build_ext):
         build_ext.build_extensions(self)
 
 
-# Cythonize only if c file is not present
-use_cython = not os.path.isfile("src/itzi/flow.c")
-file_ext = "pyx" if use_cython else "c"
-extensions = [Extension("itzi.flow", sources=[f"src/itzi/flow.{file_ext}"])]
-if use_cython:
-    from Cython.Build import cythonize
-    extensions = cythonize(extensions)
-
-setup(ext_modules=extensions, cmdclass={"build_ext": build_ext_compiler_check})
+extensions = [Extension("itzi.flow", sources=["src/itzi/flow.pyx"])]
+setup(ext_modules=cythonize(extensions), cmdclass={"build_ext": build_ext_compiler_check})
