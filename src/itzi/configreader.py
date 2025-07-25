@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 
 import itzi.messenger as msgr
 from itzi.const import DefaultValues
+from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
 
 class ConfigReader:
@@ -43,17 +44,10 @@ class ConfigReader:
             "hydraulic_conductivity",
         ]
         k_input_map_names = [
-            "dem",
-            "friction",
-            "start_h",
-            "start_y",
-            "rain",
-            "inflow",
-            "bcval",
-            "bctype",
-            "infiltration",
-            "losses",
-        ] + self.ga_list
+            arr_def.user_name
+            for arr_def in ARRAY_DEFINITIONS
+            if ArrayCategory.INPUT in arr_def.category
+        ]
         k_output_map_names = [
             "h",
             "wse",

@@ -30,6 +30,7 @@ import itzi.infiltration as infiltration
 from itzi.hydrology import Hydrology
 from itzi.simulation import Simulation
 from itzi.data_containers import DrainageNodeCouplingData
+from itzi.array_definitions import input_key_mapping
 
 if TYPE_CHECKING:
     from itzi.configreader import SimulationTimes
@@ -90,24 +91,6 @@ def get_links_list(pyswmm_links, links_vertices_dict, nodes_coor_dict):
     return links_list
 
 
-# correspondance between internal numpy arrays and map names
-in_k_corresp = {
-    "dem": "dem",
-    "friction": "friction",
-    "h": "start_h",
-    "y": "start_y",
-    "effective_porosity": "effective_porosity",
-    "capillary_pressure": "capillary_pressure",
-    "hydraulic_conductivity": "hydraulic_conductivity",
-    "in_inf": "infiltration",
-    "losses": "losses",
-    "rain": "rain",
-    "inflow": "inflow",
-    "bcval": "bcval",
-    "bctype": "bctype",
-}
-
-
 def create_grass_simulation(
     sim_times: "SimulationTimes",
     input_maps: Dict,
@@ -129,8 +112,8 @@ def create_grass_simulation(
     tarr = {}
     # TimedArray expects a function as an init parameter
     zeros_array = lambda: np.zeros(shape=raster_shape, dtype=dtype)  # noqa: E731
-    for k in in_k_corresp.keys():
-        tarr[k] = rasterdomain.TimedArray(in_k_corresp[k], grass_interface, zeros_array)
+    for k in input_key_mapping.keys():
+        tarr[k] = rasterdomain.TimedArray(input_key_mapping[k], grass_interface, zeros_array)
     msgr.debug("Setting up raster domain...")
     # RasterDomain
     raster_shape = (grass_interface.yr, grass_interface.xr)
