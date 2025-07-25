@@ -36,6 +36,7 @@ class Report:
         self.record_counter = 0
         self.raster_provider = raster_output_provider
         self.vector_provider = vector_output_provider
+        # The saved map names, defined by the user
         self.out_map_names = out_map_names
         self.mass_balance_logger = mass_balance_logger
         # a dict containing lists of maps written to gis to be registered
@@ -108,10 +109,10 @@ class Report:
             "losses": "losses_accum",
             "drainage_stats": "drainage_network_accum",
         }
-        for name, key in accum_maps.items():
-            if self.out_map_names.get(name) and key in accum_arrays:
+        for name, accum_key in accum_maps.items():
+            if self.out_map_names.get(name) and accum_key in accum_arrays:
                 self.output_arrays[name] = rastermetrics.calculate_average_rate_from_total(
-                    accum_arrays[key], interval_s, 1.0
+                    accum_arrays[accum_key], interval_s, 1.0
                 )
 
         rain_inf_map = {
@@ -119,10 +120,10 @@ class Report:
             "infiltration": "infiltration_accum",
         }
         ms_to_mmh = 1000 * 3600  # m/s to mm/h
-        for name, key in rain_inf_map.items():
-            if self.out_map_names.get(name) and key in accum_arrays:
+        for name, accum_key in rain_inf_map.items():
+            if self.out_map_names.get(name) and accum_key in accum_arrays:
                 self.output_arrays[name] = rastermetrics.calculate_average_rate_from_total(
-                    accum_arrays[key], interval_s, ms_to_mmh
+                    accum_arrays[accum_key], interval_s, ms_to_mmh
                 )
         return self
 
