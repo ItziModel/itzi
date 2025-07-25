@@ -623,7 +623,7 @@ class GrassInterface:
         """
         assert isinstance(mkey, str), "not a string!"
         assert isinstance(sim_time, datetime), "not a datetime object!"
-        assert mkey in self.maps.keys(), "unknown map key!"
+        assert mkey in self.maps.keys(), f"unknown map key!: {mkey}"
         if self.maps[mkey] is None:
             return None, self.start_time, self.end_time
         else:
