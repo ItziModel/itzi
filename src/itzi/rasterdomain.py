@@ -173,7 +173,6 @@ class RasterDomain:
             "qs",
             "qe_new",
             "qs_new",
-            "etp",
             "eff_precip",
             "ue",
             "us",
@@ -271,7 +270,7 @@ class RasterDomain:
         if arr.shape != self.shape:
             return ValueError
         if k == "dem":
-            self.update_mask(arr)  # this func does nothing
+            # self.update_mask(arr)  # this func does nothing
             fill_value = np.finfo(self.dtype).max
         elif k == "h":
             fill_value = 0

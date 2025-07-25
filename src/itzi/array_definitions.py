@@ -448,18 +448,6 @@ ACCUM_ARRAY_DEFINITIONS = [
         accumulates_from="rain",
     ),
     ArrayDefinition(
-        key="etp_accum",
-        user_name="etp_accum",
-        csdms_name="",
-        cf_name="",
-        category=ArrayCategory.INTERNAL,
-        description="The total amount of water leaving the domain due to evapotranspiration.",
-        unit="m",
-        cf_unit="",
-        var_loc="face",
-        accumulates_from="etp",
-    ),
-    ArrayDefinition(
         key="inflow_accum",
         user_name="inflow_accum",
         csdms_name="",
