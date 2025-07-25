@@ -20,8 +20,6 @@ from collections import Counter
 
 import numpy as np
 
-import itzi.messenger as msg
-
 
 class ArrayCategory(Enum):
     """Categories of arrays in the simulation"""
@@ -52,7 +50,7 @@ class ArrayDefinition:
 
 
 # Centralized array definitions - Single source of truth
-INPUT_ARRAY_DEFINITIONS = [
+_INPUT_ARRAY_DEFINITIONS = [
     # ===== INPUT ARRAYS =====
     # These arrays are read from external sources (maps, time series)
     ArrayDefinition(
@@ -215,7 +213,7 @@ INPUT_ARRAY_DEFINITIONS = [
 # ===== INTERNAL ARRAYS =====
 # These arrays are computed during simulation (state variables and intermediate calculations)
 # Note: Many are also exported
-INTERNAL_ARRAY_DEFINITIONS = [
+_INTERNAL_ARRAY_DEFINITIONS = [
     ArrayDefinition(
         key="inf",
         user_name="inf",
@@ -413,7 +411,7 @@ INTERNAL_ARRAY_DEFINITIONS = [
 ]
 # ===== ACCUMULATION ARRAYS =====
 # These arrays accumulate volumes over a reporting interval
-ACCUM_ARRAY_DEFINITIONS = [
+_ACCUM_ARRAY_DEFINITIONS = [
     ArrayDefinition(
         key="boundaries_accum",
         user_name="boundaries_accum",
@@ -501,7 +499,7 @@ ACCUM_ARRAY_DEFINITIONS = [
 ]
 # ===== OUTPUT ARRAYS =====
 # These arrays are calculated for reporting purposes only
-OUTPUT_ARRAY_DEFINITIONS = [
+_OUTPUT_ARRAY_DEFINITIONS = [
     ArrayDefinition(
         key="wse",
         user_name="wse",
@@ -598,14 +596,13 @@ OUTPUT_ARRAY_DEFINITIONS = [
 ]
 
 ARRAY_DEFINITIONS = (
-    INPUT_ARRAY_DEFINITIONS
-    + INTERNAL_ARRAY_DEFINITIONS
-    + ACCUM_ARRAY_DEFINITIONS
-    + OUTPUT_ARRAY_DEFINITIONS
+    _INPUT_ARRAY_DEFINITIONS
+    + _INTERNAL_ARRAY_DEFINITIONS
+    + _ACCUM_ARRAY_DEFINITIONS
+    + _OUTPUT_ARRAY_DEFINITIONS
 )
 
 number_of_array_definitions = len(ARRAY_DEFINITIONS)
-msg.debug(f"{number_of_array_definitions=}")
 
 # Some sanity check
 for attr in ["key", "user_name", "csdms_name", "cf_name", "description"]:
@@ -620,11 +617,3 @@ for attr in ["key", "user_name", "csdms_name", "cf_name", "description"]:
         if attr == "cf_name" and len(duplicates) == 1 and "" in duplicates:
             continue
         raise ValueError(f"Found duplicates in <{attr}>: {duplicates}")
-
-# Key mapping between the internal name and the user-facing name
-input_key_mapping = {
-    arr_def.key: arr_def.user_name
-    for arr_def in ARRAY_DEFINITIONS
-    if ArrayCategory.INPUT in arr_def.category
-}
-msg.debug(len(f"{input_key_mapping=}"))

@@ -30,7 +30,7 @@ import itzi.infiltration as infiltration
 from itzi.hydrology import Hydrology
 from itzi.simulation import Simulation
 from itzi.data_containers import DrainageNodeCouplingData
-from itzi.array_definitions import input_key_mapping
+from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
 if TYPE_CHECKING:
     from itzi.configreader import SimulationTimes
@@ -89,6 +89,14 @@ def get_links_list(pyswmm_links, links_vertices_dict, nodes_coor_dict):
         # add link to the list
         links_list.append(link)
     return links_list
+
+
+# Key mapping between the internal name and the user-facing name
+input_key_mapping = {
+    arr_def.key: arr_def.user_name
+    for arr_def in ARRAY_DEFINITIONS
+    if ArrayCategory.INPUT in arr_def.category
+}
 
 
 def create_grass_simulation(
