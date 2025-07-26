@@ -519,7 +519,7 @@ class GrassInterface:
         # apply color table
         apply_color_table(rast_name, mkey)
         # set null values
-        if mkey == "h":
+        if mkey == "h" and hmin > 0:
             GrassInterface.set_null(rast_name, hmin)
         return self
 
