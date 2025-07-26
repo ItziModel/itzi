@@ -19,6 +19,7 @@ import numpy as np
 
 import itzi.flow as flow
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+# from itzi import rastermetrics
 
 
 class DomainData:
@@ -77,7 +78,7 @@ class TimedArray:
     def __init__(self, mkey, igis, f_arr_def):
         assert isinstance(mkey, str), "not a string!"
         assert hasattr(f_arr_def, "__call__"), "not a function!"
-        self.mkey = mkey  # An identifier
+        self.mkey = mkey  # An user-facing array identifier
         self.igis = igis  # GIS interface
         # A function to generate a default array
         self.f_arr_def = f_arr_def
@@ -125,7 +126,7 @@ class TimedArray:
 
 class RasterDomain:
     """Group all rasters for the raster domain.
-    Store them as np.ndarray with validity information (TimedArray)
+    Store them as np.ndarray in a dict
     Include management of the masking and unmasking of arrays.
     """
 
@@ -137,11 +138,6 @@ class RasterDomain:
         self.dx, self.dy = cell_shape
         self.cell_area = self.dx * self.dy
         self.mask = arr_mask
-
-        # number of cells in a row must be a multiple of that number
-        # byte_num = 256 / 8  # AVX2
-        # itemsize = np.dtype(self.dtype).itemsize
-        # self.row_mul = int(byte_num / itemsize)
 
         # slice for a simple padding (allow stencil calculation on boundary)
         self.simple_pad = (slice(1, -1), slice(1, -1))
@@ -237,8 +233,14 @@ class RasterDomain:
         if k == "dem":
             # self.update_mask(arr)  # this func does nothing
             fill_value = np.finfo(self.dtype).max
-        elif k == "h":
+        elif k == "water_depth":
             fill_value = 0
+        # elif k == 'wse':
+        #     # Calculate actual depth and update the internal h array
+        #     temp_arr = rastermetrics.calculate_h_from_wse(arr_wse=arr, arr_dem=self.get_array("dem"))
+        #     arr[:] = temp_arr
+        #     k = "water_depth"
+        #     fill_value = 0
         elif k == "friction":
             fill_value = 1
         else:

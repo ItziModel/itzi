@@ -99,7 +99,7 @@ class SurfaceFlowSimulation:
         self.apply_boundary_conditions()
         self.update_h()
         # in case of NaN/NULL cells, raise a NullError
-        self.arr_err = np.isnan(self.dom.get_array("h"))
+        self.arr_err = np.isnan(self.dom.get_array("water_depth"))
         if np.any(self.arr_err):
             raise NullError
         self.swap_flow_arrays()
@@ -111,7 +111,7 @@ class SurfaceFlowSimulation:
         accommodate non-square cells
         The time-step is limited by the maximum time-step dtmax.
         """
-        maxh = np.amax(self.dom.get_array("h"))  # max depth in domain
+        maxh = np.amax(self.dom.get_array("water_depth"))  # max depth in domain
         min_dim = min(self.dx, self.dy)
         if maxh > 0:
             dt = self.cfl * (min_dim / (math.sqrt(self.g * maxh)))
@@ -169,7 +169,7 @@ class SurfaceFlowSimulation:
             arr_qs=flow_south,
             arr_bct=self.dom.get_array("bctype"),
             arr_bcv=self.dom.get_array("bcval"),
-            arr_h=self.dom.get_array("h"),
+            arr_h=self.dom.get_array("water_depth"),
             arr_hmax=self.dom.get_array("hmax"),
             arr_hfix=self.dom.get_array("boundaries_accum"),
             arr_herr=self.dom.get_array("error_depth_accum"),
@@ -186,7 +186,7 @@ class SurfaceFlowSimulation:
             dt=self._dt,
             g=self.g,
         )
-        assert not np.any(self.dom.get_array("h") < 0)
+        assert not np.any(self.dom.get_array("water_depth") < 0)
         return self
 
     def solve_q(self):
@@ -196,7 +196,7 @@ class SurfaceFlowSimulation:
             arr_dirs=self.dom.get_array("dirs"),
             arr_z=self.dom.get_array("dem"),
             arr_n=self.dom.get_array("friction"),
-            arr_h=self.dom.get_array("h"),
+            arr_h=self.dom.get_array("water_depth"),
             arrp_qe=self.dom.get_padded("qe"),
             arrp_qs=self.dom.get_padded("qs"),
             arr_hfe=self.dom.get_array("hfe"),
@@ -230,7 +230,7 @@ class SurfaceFlowSimulation:
             flow_depth=self.dom.get_array("hfe")[:, 0],
             n=self.dom.get_array("friction")[:, 0],
             z=self.dom.get_array("dem")[:, 0],
-            depth=self.dom.get_array("h")[:, 0],
+            depth=self.dom.get_array("water_depth")[:, 0],
             bctype=self.dom.get_array("bctype")[:, 0],
             bcvalue=self.dom.get_array("bcval")[:, 0],
             qboundary=w_boundary_flow,
@@ -241,7 +241,7 @@ class SurfaceFlowSimulation:
             flow_depth=self.dom.get_array("hfe")[:, -2],
             n=self.dom.get_array("friction")[:, -1],
             z=self.dom.get_array("dem")[:, -1],
-            depth=self.dom.get_array("h")[:, -1],
+            depth=self.dom.get_array("water_depth")[:, -1],
             bctype=self.dom.get_array("bctype")[:, -1],
             bcvalue=self.dom.get_array("bcval")[:, -1],
             qboundary=e_boundary_flow,
@@ -252,7 +252,7 @@ class SurfaceFlowSimulation:
             flow_depth=self.dom.get_array("hfs")[0],
             n=self.dom.get_array("friction")[0],
             z=self.dom.get_array("dem")[0],
-            depth=self.dom.get_array("h")[0],
+            depth=self.dom.get_array("water_depth")[0],
             bctype=self.dom.get_array("bctype")[0],
             bcvalue=self.dom.get_array("bcval")[0],
             qboundary=n_boundary_flow,
@@ -263,7 +263,7 @@ class SurfaceFlowSimulation:
             flow_depth=self.dom.get_array("hfs")[-2],
             n=self.dom.get_array("friction")[-1],
             z=self.dom.get_array("dem")[-1],
-            depth=self.dom.get_array("h")[-1],
+            depth=self.dom.get_array("water_depth")[-1],
             bctype=self.dom.get_array("bctype")[-1],
             bcvalue=self.dom.get_array("bcval")[-1],
             qboundary=s_boundary_flow,

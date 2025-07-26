@@ -90,7 +90,7 @@ class Report:
                 continue
 
             # --- Direct raw arrays ---
-            if internal_key in ["h", "v", "vdir", "froude", "hmax", "vmax"]:
+            if internal_key in ["water_depth", "v", "vdir", "froude", "hmax", "vmax"]:
                 if internal_key in raw:
                     self.output_arrays[user_arr_name] = raw[internal_key]
                 continue  # go to next key
@@ -98,7 +98,7 @@ class Report:
             # --- Calculated arrays ---
             if internal_key == "wse":
                 self.output_arrays[user_arr_name] = rastermetrics.calculate_wse(
-                    raw["h"], raw["dem"]
+                    raw["water_depth"], raw["dem"]
                 )
             elif internal_key == "qx":
                 self.output_arrays[user_arr_name] = rastermetrics.calculate_flux(

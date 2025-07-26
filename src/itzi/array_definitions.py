@@ -78,7 +78,7 @@ _INPUT_ARRAY_DEFINITIONS = [
         fill_value=1.0,
     ),
     ArrayDefinition(
-        key="h",
+        key="water_depth",
         user_name="water_depth",
         csdms_name="land_surface_water__depth",
         cf_name="flood_water_thickness",
@@ -517,6 +517,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         csdms_name="land_surface_water__elevation",
         cf_name="",
         category=[ArrayCategory.OUTPUT],
+        # category=[ArrayCategory.INPUT, ArrayCategory.OUTPUT],
         description="Water surface elevation. Terrain elevation + water depth",
         unit="m",
         cf_unit="",
@@ -656,3 +657,11 @@ for attr in ["key", "user_name", "csdms_name", "cf_name", "description"]:
         if attr == "cf_name" and len(duplicates) == 1 and "" in duplicates:
             continue
         raise ValueError(f"Found duplicates in <{attr}>: {duplicates}")
+
+# Show which arrays have different internal and user-facing names
+diff_names = []
+for arr_def in ARRAY_DEFINITIONS:
+    if arr_def.key != arr_def.user_name:
+        diff_names.append((arr_def.key, arr_def.user_name))
+for names in diff_names:
+    print(f"key: {names[0]}, user_name: {names[1]}")

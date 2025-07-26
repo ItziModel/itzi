@@ -95,7 +95,7 @@ class Simulation:
     def initialize(self) -> Self:
         """Record the initial stage of the simulation, before time-stepping."""
         self.old_domain_volume = rastermetrics.calculate_total_volume(
-            depth_array=self.raster_domain.get_array("h"),
+            depth_array=self.raster_domain.get_array("water_depth"),
             cell_surface_area=self.raster_domain.cell_area,
         )
         for arr_key in self.accum_mapping.keys():
@@ -148,7 +148,7 @@ class Simulation:
             surface_states = {}
             cell_area = self.raster_domain.cell_area
             arr_z = self.raster_domain.get_array("dem")
-            arr_h = self.raster_domain.get_array("h")
+            arr_h = self.raster_domain.get_array("water_depth")
             for node_id, (row, col) in self.node_id_to_loc.items():
                 surface_states[node_id] = {"z": arr_z[row, col], "h": arr_h[row, col]}
             coupling_flows = self.drainage_model.apply_coupling_to_nodes(surface_states, cell_area)
@@ -330,7 +330,7 @@ class Simulation:
         """ """
         cell_area = self.raster_domain.cell_area
         new_domain_vol = rastermetrics.calculate_total_volume(
-            depth_array=self.raster_domain.get_array("h"), cell_surface_area=cell_area
+            depth_array=self.raster_domain.get_array("water_depth"), cell_surface_area=cell_area
         )
         volume_change = new_domain_vol - self.old_domain_volume
         volume_error = rastermetrics.calculate_total_volume(
