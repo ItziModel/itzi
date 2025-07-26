@@ -308,7 +308,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         user_name="hmax",
         csdms_name="land_surface_water__max_of_depth",
         cf_name="",
-        category=[ArrayCategory.INTERNAL, ArrayCategory.OUTPUT],
+        category=[ArrayCategory.INTERNAL],  # output together with depth arrays
         description="Maximum water depth reached since the beginning of the simulation.",
         unit="m",
         cf_unit="",
@@ -341,7 +341,7 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         user_name="vmax",
         csdms_name="land_surface_water_flow__max_of_speed",
         cf_name="",
-        category=[ArrayCategory.INTERNAL, ArrayCategory.OUTPUT],
+        category=[ArrayCategory.INTERNAL],  # output together with speed arrays
         description="Maximum water speed reached since the beginning of the simulation.",
         unit="m s-1",
         cf_unit="",
@@ -407,6 +407,17 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         unit="1",
         cf_unit="",
         var_loc="edge",
+    ),
+    ArrayDefinition(
+        key="ext",
+        user_name="ext",
+        csdms_name="land_surface_water__external_leq-volume_flux",
+        cf_name="",
+        category=[ArrayCategory.INTERNAL],
+        description="Sum of inflow, n_drain, and eff_precip",
+        unit="m s-1",
+        cf_unit="",
+        var_loc="face",
     ),
 ]
 # ===== ACCUMULATION ARRAYS =====
@@ -593,6 +604,28 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         cf_unit="",
         var_loc="face",
     ),
+    ArrayDefinition(
+        key="mean_infiltration",
+        user_name="mean_infiltration",
+        csdms_name="soil_surface_water__time_mean_of_infiltration_volume_flux",
+        cf_name="",
+        category=[ArrayCategory.OUTPUT],
+        description="Mean of infiltration rate.",
+        unit="m s-1",
+        cf_unit="",
+        var_loc="face",
+    ),
+    ArrayDefinition(
+        key="mean_rainfall",
+        user_name="mean_rainfall",
+        csdms_name="atmosphere_water__time_mean_of_precipitation_leq-volume_flux",
+        cf_name="",
+        category=[ArrayCategory.OUTPUT],
+        description="Mean of rainfall rate",
+        unit="m s-1",
+        cf_unit="",
+        var_loc="face",
+    ),
 ]
 
 ARRAY_DEFINITIONS = (
@@ -617,3 +650,9 @@ for attr in ["key", "user_name", "csdms_name", "cf_name", "description"]:
         if attr == "cf_name" and len(duplicates) == 1 and "" in duplicates:
             continue
         raise ValueError(f"Found duplicates in <{attr}>: {duplicates}")
+
+output_map_user_names = [
+    arr_def.user_name for arr_def in ARRAY_DEFINITIONS if ArrayCategory.OUTPUT in arr_def.category
+]
+for i in output_map_user_names:
+    print(i)

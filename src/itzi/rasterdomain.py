@@ -18,6 +18,7 @@ from typing import Tuple
 import numpy as np
 
 import itzi.flow as flow
+from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
 
 class DomainData:
@@ -147,56 +148,20 @@ class RasterDomain:
 
         # all keys that will be used for the arrays
         self.k_input = [
-            "dem",
-            "friction",
-            "h",
-            "y",
-            "effective_porosity",
-            "capillary_pressure",
-            "hydraulic_conductivity",
-            "soil_water_content",
-            "in_inf",
-            "losses",
-            "rain",
-            "inflow",
-            "bcval",
-            "bctype",
+            arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT in arr_def.category
         ]
         self.k_internal = [
-            "inf",
-            "hmax",
-            "ext",
-            "y",
-            "hfe",
-            "hfs",
-            "qe",
-            "qs",
-            "qe_new",
-            "qs_new",
-            "eff_precip",
-            "ue",
-            "us",
-            "v",
-            "vdir",
-            "vmax",
-            "froude",
-            "n_drain",
-            "capped_losses",
-            "dire",
-            "dirs",
+            arr_def.key
+            for arr_def in ARRAY_DEFINITIONS
+            if ArrayCategory.INTERNAL in arr_def.category
         ]
         # arrays gathering the cumulated water depth from corresponding array
         self.k_accum = [
-            "boundaries_accum",
-            "infiltration_accum",
-            "rainfall_accum",
-            "etp_accum",
-            "inflow_accum",
-            "losses_accum",
-            "drainage_network_accum",
-            "error_depth_accum",
+            arr_def.key
+            for arr_def in ARRAY_DEFINITIONS
+            if ArrayCategory.ACCUMULATION in arr_def.category
         ]
-        self.k_all = self.k_input + self.k_internal + self.k_accum
+        self.k_all = set(self.k_input + self.k_internal + self.k_accum)
         # Instantiate arrays and padded arrays filled with zeros
         self.arr = dict.fromkeys(self.k_all)
         self.arrp = dict.fromkeys(self.k_all)
