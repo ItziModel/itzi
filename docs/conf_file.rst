@@ -52,9 +52,9 @@ The following inputs are mandatory:
 +=========================+=========================================+==============+
 | dem                     | Elevation in meters                     | map or strds |
 +-------------------------+-----------------------------------------+--------------+
-| friction                | Manning's *n* (friction coefficient)    | map or strds |
+| friction                | Manning's *n* (friction value)          | map or strds |
 +-------------------------+-----------------------------------------+--------------+
-| start\_h                | Starting water depth in meters          | map name     |
+| water_depth             | Starting water depth in meters          | map or strds |
 +-------------------------+-----------------------------------------+--------------+
 | rain                    | Rainfall in mm/h                        | map or strds |
 +-------------------------+-----------------------------------------+--------------+
@@ -74,15 +74,15 @@ The following inputs are mandatory:
 +-------------------------+-----------------------------------------+--------------+
 | hydraulic\_conductivity | Soil hydraulic conductivity in mm/h     | map or strds |
 +-------------------------+-----------------------------------------+--------------+
+| soil_water_content      | Relative soil water content. in mm/mm   | map or strds |
++-------------------------+-----------------------------------------+--------------+
 | losses                  | User-defined losses in mm/h             | map or strds |
 |                         | (*new in16.9, renamed in 17.7*)         |              |
 +-------------------------+-----------------------------------------+--------------+
 
-.. deprecated:: 17.7
-    *drainage\_capacity* is renamed to *losses*
-
-.. deprecated:: 20.5
-    *effective\_pororosity* is renamed to *effective\_porosity*
+.. versionchanged:: 25.7
+    *start_h* is renamed *water_depth*.
+    *soil_water_content* is added.
 
 .. warning:: If the selected input are located in another GRASS mapset than the current one (or the one specified in the [grass] section),
     you must define the full map ID (map\@mapset) and add those mapsets to the GRASS search path with *g.mapsets*.
@@ -113,52 +113,60 @@ The "open" and "closed" boundary conditions are applied only at the border of th
 
 The possible values to be exported are the following:
 
-+--------------+---------------------------------------------------------+--------+
-| Keyword      | Description                                             | Unit   |
-+==============+=========================================================+========+
-| h            | Water depth                                             | meters |
-+--------------+---------------------------------------------------------+--------+
-| wse          | Water surface elevation (depth + elevation)             | meters |
-+--------------+---------------------------------------------------------+--------+
-| v            | Overland flow speed (velocity's magnitude)              | m/s    |
-+--------------+---------------------------------------------------------+--------+
-| vdir         | Velocity's direction. Counter-clockwise from East       | degrees|
-+--------------+---------------------------------------------------------+--------+
-| froude       | The Froude number                                       | none   |
-+--------------+---------------------------------------------------------+--------+
-| qx           | Volumetric flow, x direction. Positive if going East    | m³/s   |
-+--------------+---------------------------------------------------------+--------+
-| qy           | Volumetric flow, y direction. Positive if going South   | m³/s   |
-+--------------+---------------------------------------------------------+--------+
-| boundaries   | Flow coming in (positive) or going out (negative) the   | m/s    |
-|              | domain due to boundary conditions. Average since the    |        |
-|              | last record                                             |        |
-+--------------+---------------------------------------------------------+--------+
-| infiltration | Infiltration rate. Average since the last record        | mm/h   |
-+--------------+---------------------------------------------------------+--------+
-| rainfall     | Rainfall rate. Average since the last record            | mm/h   |
-+--------------+---------------------------------------------------------+--------+
-| inflow       | Average user flow since the last record                 | m/s    |
-+--------------+---------------------------------------------------------+--------+
-| losses       | Average losses since the last record                    | m/s    |
-+--------------+---------------------------------------------------------+--------+
-|drainage_stats| Average exchange flow between surface and drainage model|        |
-|              | since the last record                                   | m/s    |
-+--------------+---------------------------------------------------------+--------+
-| verror       | Total created volume due to numerical error since the   | m³     |
-|              | last record                                             |        |
-+--------------+---------------------------------------------------------+--------+
++--------------------+---------------------------------------------------------+--------+
+| Keyword            | Description                                             | Unit   |
++====================+=========================================================+========+
+| water_depth        | Water depth                                             | m      |
++--------------------+---------------------------------------------------------+--------+
+| wse                | Water surface elevation (depth + elevation)             | m      |
++--------------------+---------------------------------------------------------+--------+
+| v                  | Overland flow speed (velocity's magnitude)              | m/s    |
++--------------------+---------------------------------------------------------+--------+
+| vdir               | Velocity's direction. Counter-clockwise from East       | degrees|
++--------------------+---------------------------------------------------------+--------+
+| froude             | The Froude number                                       | none   |
++--------------------+---------------------------------------------------------+--------+
+| qx                 | Volumetric flow, x direction. Positive if going East    | m³/s   |
++--------------------+---------------------------------------------------------+--------+
+| qy                 | Volumetric flow, y direction. Positive if going South   | m³/s   |
++--------------------+---------------------------------------------------------+--------+
+| mean_boundary_flow | Flow coming in (positive) or going out (negative) the   | m/s    |
+|                    | domain due to boundary conditions. Mean since the       |        |
+|                    | last record                                             |        |
++--------------------+---------------------------------------------------------+--------+
+| mean_infiltration  | Mean infiltration rate since the last record            | mm/h   |
++--------------------+---------------------------------------------------------+--------+
+| mean_rainfall      | Mean rainfall rate since the last record                | mm/h   |
++--------------------+---------------------------------------------------------+--------+
+| mean_inflow        | Mean user flow since the last record                    | m/s    |
++--------------------+---------------------------------------------------------+--------+
+| mean_losses        | Mean losses since the last record                       | m/s    |
++--------------------+---------------------------------------------------------+--------+
+| mean_drainage_flow | Mean exchange flow between surface and drainage model   |        |
+|                    | since the last record                                   | m/s    |
++--------------------+---------------------------------------------------------+--------+
+| volume_error       | Total created volume due to numerical error since the   | m³     |
+|                    | last record                                             |        |
++--------------------+---------------------------------------------------------+--------+
 
 
-.. versionadded:: 25.7
+.. versionchanged:: 25.7
     *froude* is added.
+    *h* is changed to *water_depth*.
+    *boundaries* changed to *mean_boundary_flow*.
+    *verror* changed to *volume_error*.
+    *inflow* changed to *mean_inflow*.
+    *infiltration* changed to *mean_infiltration*.
+    *rainfall* changed to *mean_rainfall*.
+    *losses* changed to *mean_losses*.
+    *drainage_stats* changed to *mean_drainage_flow*.
 
-In addition to output a map at each *record\_step*, *h* and *v* also
-produce a map of maximum values.
+In addition to output a map at each *record\_step*, *water_depth* and *v* also
+produce each a map of maximum values attained all over the domain since the beginning of the simulation.
 
-.. note:: Water depth maps, apart from map of maximum values,
-    do not contain values under the *hmin* threshold (See below).
-    If an exported map is totally empty, it is deleted at the end of the simulation.
+.. note:: Water depth maps have their values under the *hmin* threshold masked with the ``r.null`` GRASS command.
+    This does not apply to the map of maximum values.
+    In addition, if an exported map is totally empty, it is deleted at the end of the simulation.
 
 [statistics]
 ------------
@@ -215,11 +223,14 @@ Water leaving the domain is negative.
 However, due to the way the volumes are computed internally, small variations could occur.
 
 .. versionchanged:: 25.7
-    Columns numbers are more explicit. *volume_change* is added.
+    Columns names are more explicit. *volume_change* is added.
 
 
 [options]
 ---------
+
+.. versionadded:: 25.7
+    ``max_error`` is added.
 
 +----------+----------------------------------------------+----------------+---------------+
 | Keyword  | Description                                  | Format         | Default value |
@@ -247,8 +258,6 @@ When water depth is under *hmin*, the flow is routed at the fixed velocity defin
 [drainage]
 ----------
 
-.. versionadded:: 17.7
-
 This section is needed only if carrying out a simulation that couples drainage and surface flow.
 
 .. warning:: This functionality is still new and in need of testing.
@@ -269,89 +278,85 @@ This section is needed only if carrying out a simulation that couples drainage a
 | submerged_weir_coeff| Submerged weir coefficient for flow exchange calculation   | 0.056         |
 +---------------------+------------------------------------------------------------+---------------+
 
-.. versionadded:: 17.11
-    *orifice_coeff*, *free_weir_coeff* and *submerged_weir_coeff* are added.
-
 The output maps are organised in two layers.
 The nodes are stored in layer 1, the links in layer 2.
 
 The values stored for the nodes are described below. All are instantaneous.
 
-+--------------+---------------------------------------------------------+
-| Column       | Description                                             |
-+==============+=========================================================+
-| cat          | DB key                                                  |
-+--------------+---------------------------------------------------------+
-| node_id      | Name of the node                                        |
-+--------------+---------------------------------------------------------+
-| type         | Node type  (junction, storage, outlet etc.)             |
-+--------------+---------------------------------------------------------+
-| linkage_type | Equation used for the drainage/surface linkage          |
-+--------------+---------------------------------------------------------+
-| linkage_flow | Flow moving from the drainage to the surface            |
-+--------------+---------------------------------------------------------+
-| inflow       | Flow entering the node (m³/s)                           |
-+--------------+---------------------------------------------------------+
-| outflow      | Flow exiting the node (m³/s)                            |
-+--------------+---------------------------------------------------------+
-| latFlow      | SWMM lateral flow (m³/s)                                |
-+--------------+---------------------------------------------------------+
-| head         | Hydraulic head in metre                                 |
-+--------------+---------------------------------------------------------+
-| crownElev    | Elevation of the highest crown of the connected conduits|
-+--------------+---------------------------------------------------------+
-| crestElev    | Elevation of the top of the node in metres              |
-+--------------+---------------------------------------------------------+
-| invertElev   | Elevation of the bottom of the node in metres           |
-+--------------+---------------------------------------------------------+
-| initDepth    | Water depth in the node at the start of the simulation  |
-+--------------+---------------------------------------------------------+
-| fullDepth    | *crownElev* - *invertElev* (m)                          |
-+--------------+---------------------------------------------------------+
-| surDepth     | Depth above *crownElev* before overflow begins          |
-+--------------+---------------------------------------------------------+
-| pondedArea   | Area above the node where ponding occurs (m²)           |
-+--------------+---------------------------------------------------------+
-| degree       | Number of pipes connected to the node                   |
-+--------------+---------------------------------------------------------+
-| newVolume    | Water volume in the node                                |
-+--------------+---------------------------------------------------------+
-| fullVolume   | Volume in the node when *head - invertElev = crestElev* |
-+--------------+---------------------------------------------------------+
+.. versionchanged:: 25.7
+    Tables columns names are more explicit.
+
++------------------+---------------------------------------------------------------------+
+| Column           | Description                                                         |
++==================+=====================================================================+
+| cat              | DB key                                                              |
++------------------+---------------------------------------------------------------------+
+| node_id          | Name of the node                                                    |
++------------------+---------------------------------------------------------------------+
+| node_type        | Node type  (junction, storage, outlet etc.)                         |
++------------------+---------------------------------------------------------------------+
+| coupling_type    | Equation used for the drainage/surface linkage                      |
++------------------+---------------------------------------------------------------------+
+| coupling_flow    | Flow moving from the drainage to the surface                        |
++------------------+---------------------------------------------------------------------+
+| inflow           | Flow entering the node (m³/s)                                       |
++------------------+---------------------------------------------------------------------+
+| outflow          | Flow exiting the node (m³/s)                                        |
++------------------+---------------------------------------------------------------------+
+| lateral_inflow   | SWMM lateral flow (m³/s)                                            |
++------------------+---------------------------------------------------------------------+
+| losses           | Losses Rate (evaporation and exfiltration).                         |
++------------------+---------------------------------------------------------------------+
+| overflow         | Losses due to node overflow                                         |
++------------------+---------------------------------------------------------------------+
+| depth            | Water depth in m                                                    |
++------------------+---------------------------------------------------------------------+
+| head             | Hydraulic head in metre                                             |
++------------------+---------------------------------------------------------------------+
+| crest_elevation  | Elevation of the top of the node in metres                          |
++------------------+---------------------------------------------------------------------+
+| invert_elevation | Elevation of the bottom of the node in metres                       |
++------------------+---------------------------------------------------------------------+
+| initial_depth    | Water depth in the node at the start of the simulation              |
++------------------+---------------------------------------------------------------------+
+| full_depth       | *crownElev* - *invertElev* (m)                                      |
++------------------+---------------------------------------------------------------------+
+| surcharge_depth  | Depth above *crownElev* before overflow begins                      |
++------------------+---------------------------------------------------------------------+
+| ponding_area     | Area above the node where ponding occurs (m²)                       |
++------------------+---------------------------------------------------------------------+
+| volume           | Water volume in the node                                            |
++------------------+---------------------------------------------------------------------+
+| full_volume      | Volume in the node when *head - invert_elevation = crest_elevation* |
++------------------+---------------------------------------------------------------------+
 
 The values stored for the links are as follows:
 
-+--------------+-------------------------------------------------------+
-| Column       | Description                                           |
-+==============+=======================================================+
-| cat          | DB key                                                |
-+--------------+-------------------------------------------------------+
-| link_id      | Name of the link                                      |
-+--------------+-------------------------------------------------------+
-| type         | Link type (conduit, pump etc.)                        |
-+--------------+-------------------------------------------------------+
-| flow         | Volumetric flow (m³/s)                                |
-+--------------+-------------------------------------------------------+
-| depth        | Water depth in the conduit (m)                        |
-+--------------+-------------------------------------------------------+
-| velocity     | Average flow velocity (m/s)                           |
-+--------------+-------------------------------------------------------+
-| volume       | Water volume stored in the conduit (m³)               |
-+--------------+-------------------------------------------------------+
-| offset1      | Height above inlet node invert elevation (m)          |
-+--------------+-------------------------------------------------------+
-| offset2      | Height above outlet node invert elevation (m)         |
-+--------------+-------------------------------------------------------+
-| yFull        | Average water depth when the pipe is full (m)         |
-+--------------+-------------------------------------------------------+
-| froude       | Average Froude number                                 |
-+--------------+-------------------------------------------------------+
++---------------+-------------------------------------------------------+
+| Column        | Description                                           |
++===============+=======================================================+
+| cat           | DB key                                                |
++---------------+-------------------------------------------------------+
+| link_id       | Name of the link                                      |
++---------------+-------------------------------------------------------+
+| link_type     | Link type (conduit, pump etc.)                        |
++---------------+-------------------------------------------------------+
+| flow          | Volumetric flow (m³/s)                                |
++---------------+-------------------------------------------------------+
+| depth         | Water depth in the conduit (m)                        |
++---------------+-------------------------------------------------------+
+| volume        | Water volume stored in the conduit (m³)               |
++---------------+-------------------------------------------------------+
+| inlet_offset  | Height above inlet node invert elevation (m)          |
++---------------+-------------------------------------------------------+
+| outlet_offset | Height above outlet node invert elevation (m)         |
++---------------+-------------------------------------------------------+
+| froude        | Average Froude number                                 |
++---------------+-------------------------------------------------------+
 
 
 [grass]
 -------
-
-.. versionadded:: 16.9
 
 Setting those parameters allows to run simulation outside the GRASS shell.
 This is especially useful for batch processing involving different locations and mapsets.
@@ -373,10 +378,7 @@ If Itzï is run from within the GRASS shell, this section is not necessary.
 | mask         | Name of the raster map to be used as a mask | string  |
 +--------------+---------------------------------------------+---------+
 
-.. versionadded:: 17.11
-    *region* and *mask* are added.
-
-With GNU/Linux, *grass\_bin* could be simply *grass*.
+With GNU/Linux, *grass\_bin* could simply be *grass*.
 
 The *region* and *mask* parameters are optionals and are applied only during the simulation.
 After the simulation, those parameters are returned to the previous *region* and *mask* setting.
