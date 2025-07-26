@@ -19,6 +19,7 @@ import numpy as np
 
 from itzi import rastermetrics
 from itzi.data_containers import SimulationData, MassBalanceData
+from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
 
 class Report:
@@ -41,7 +42,10 @@ class Report:
         self.mass_balance_logger = mass_balance_logger
         # a dict containing lists of maps written to gis to be registered
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
+        # a dict of array written at a given step. Keys are the same as out_map_names
         self.output_arrays = {}
+        # A mapping of user-facing array names to internal keys
+        self.user2key_mapping = {arr_def.user_name: arr_def.key for arr_def in ARRAY_DEFINITIONS}
         self.dt = dt
         self.last_step = copy.copy(start_time)
 
@@ -79,51 +83,51 @@ class Report:
         cell_dy = data.cell_dy
         cell_area = cell_dx * cell_dy
 
-        for k in self.out_map_names:
-            if self.out_map_names[k] is None:
+        # Iterate through the output maps requested by the user
+        for user_arr_name in self.out_map_names:
+            internal_key = self.user2key_mapping[user_arr_name]
+            if self.out_map_names[user_arr_name] is None:
                 continue
 
             # --- Direct raw arrays ---
-            if k in ["h", "v", "vdir", "froude", "hmax", "vmax"]:
-                if k in raw:
-                    self.output_arrays[k] = raw[k]
+            if internal_key in ["h", "v", "vdir", "froude", "hmax", "vmax"]:
+                if internal_key in raw:
+                    self.output_arrays[user_arr_name] = raw[internal_key]
                 continue  # go to next key
 
             # --- Calculated arrays ---
-            if k == "wse":
-                self.output_arrays["wse"] = rastermetrics.calculate_wse(raw["h"], raw["dem"])
-            elif k == "qx":
-                self.output_arrays["qx"] = rastermetrics.calculate_flux(raw["qe_new"], cell_dy)
-            elif k == "qy":
-                self.output_arrays["qy"] = rastermetrics.calculate_flux(raw["qs_new"], cell_dx)
-            elif k == "verror":  # Volume error
-                self.output_arrays["verror"] = accum_arrays["error_depth_accum"] * cell_area
+            if internal_key == "wse":
+                self.output_arrays[user_arr_name] = rastermetrics.calculate_wse(
+                    raw["h"], raw["dem"]
+                )
+            elif internal_key == "qx":
+                self.output_arrays[user_arr_name] = rastermetrics.calculate_flux(
+                    raw["qe_new"], cell_dy
+                )
+            elif internal_key == "qy":
+                self.output_arrays[user_arr_name] = rastermetrics.calculate_flux(
+                    raw["qs_new"], cell_dx
+                )
+            elif internal_key == "verror":  # Volume error
+                self.output_arrays[user_arr_name] = accum_arrays["error_depth_accum"] * cell_area
 
         # --- Averaged accumulation arrays ---
         if interval_s <= 0:
             interval_s = data.time_step
 
-        accum_maps = {
-            "boundaries": "boundaries_accum",
-            "inflow": "inflow_accum",
-            "losses": "losses_accum",
-            "drainage_stats": "drainage_network_accum",
+        accum_mapping = {
+            arr_def.user_name: arr_def.computes_from
+            for arr_def in ARRAY_DEFINITIONS
+            if arr_def.computes_from is not None and ArrayCategory.OUTPUT in arr_def.category
         }
-        for name, accum_key in accum_maps.items():
-            if self.out_map_names.get(name) and accum_key in accum_arrays:
-                self.output_arrays[name] = rastermetrics.calculate_average_rate_from_total(
-                    accum_arrays[accum_key], interval_s, 1.0
-                )
-
-        rain_inf_map = {
-            "rainfall": "rainfall_accum",
-            "infiltration": "infiltration_accum",
-        }
-        ms_to_mmh = 1000 * 3600  # m/s to mm/h
-        for name, accum_key in rain_inf_map.items():
-            if self.out_map_names.get(name) and accum_key in accum_arrays:
-                self.output_arrays[name] = rastermetrics.calculate_average_rate_from_total(
-                    accum_arrays[accum_key], interval_s, ms_to_mmh
+        for output_name, accum_key in accum_mapping.items():
+            if self.out_map_names.get(output_name) and accum_key in accum_arrays:
+                if accum_key in ["rainfall_accum", "infiltration_accum"]:
+                    conversion_factor = 1000 * 3600  # m/s to mm/h
+                else:
+                    conversion_factor = 1.0
+                self.output_arrays[output_name] = rastermetrics.calculate_average_rate_from_total(
+                    accum_arrays[accum_key], interval_s, conversion_factor
                 )
         return self
 
@@ -179,7 +183,8 @@ class Report:
 
     def save_array(self, sim_time):
         """ """
-        for k, arr in self.output_arrays.items():
+        for user_k, arr in self.output_arrays.items():
+            k = self.user2key_mapping[user_k]
             if isinstance(arr, np.ndarray):
                 self.raster_provider.write_array(array=arr, map_key=k, sim_time=sim_time)
         return self

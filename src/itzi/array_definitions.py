@@ -46,7 +46,7 @@ class ArrayDefinition:
     cf_unit: str  # The unit expected by the CF convention
     var_loc: str  # Location of the value. Either "face" or "edge"
     fill_value: float = 0.0  # Fill value (replace NaN)
-    accumulates_from: Optional[str] = None  # For accumulation arrays
+    computes_from: Optional[str] = None  # For accumulation arrays
 
 
 # Centralized array definitions - Single source of truth
@@ -79,7 +79,7 @@ _INPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="h",
-        user_name="start_h",
+        user_name="water_depth",
         csdms_name="land_surface_water__depth",
         cf_name="flood_water_thickness",
         category=[ArrayCategory.INPUT, ArrayCategory.OUTPUT],
@@ -445,7 +445,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         unit="m",
         cf_unit="",
         var_loc="face",
-        accumulates_from="inf",
+        computes_from="inf",
     ),
     ArrayDefinition(
         key="rainfall_accum",
@@ -457,7 +457,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         unit="m",
         cf_unit="",
         var_loc="face",
-        accumulates_from="rain",
+        computes_from="rain",
     ),
     ArrayDefinition(
         key="inflow_accum",
@@ -469,7 +469,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         unit="m",
         cf_unit="",
         var_loc="face",
-        accumulates_from="inflow",
+        computes_from="inflow",
     ),
     ArrayDefinition(
         key="losses_accum",
@@ -481,7 +481,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         unit="m",
         cf_unit="",
         var_loc="face",
-        accumulates_from="capped_losses",
+        computes_from="capped_losses",
     ),
     ArrayDefinition(
         key="drainage_network_accum",
@@ -494,7 +494,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         unit="m",
         cf_unit="",
         var_loc="face",
-        accumulates_from="n_drain",
+        computes_from="n_drain",
     ),
     ArrayDefinition(
         key="error_depth_accum",
@@ -545,7 +545,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         var_loc="edge",
     ),
     ArrayDefinition(
-        key="volume_error",
+        key="verror",
         user_name="volume_error",
         csdms_name="land_surface_water__time_integral_of_error_volume",
         cf_name="",
@@ -566,6 +566,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         unit="m3 s-1",
         cf_unit="",
         var_loc="face",
+        computes_from="boundaries_accum",
     ),
     ArrayDefinition(
         key="mean_inflow",
@@ -578,6 +579,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         unit="m3 s-1",
         cf_unit="",
         var_loc="face",
+        computes_from="inflow_accum",
     ),
     ArrayDefinition(
         key="mean_losses",
@@ -590,6 +592,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         unit="m3 s-1",
         cf_unit="",
         var_loc="face",
+        computes_from="losses_accum",
     ),
     ArrayDefinition(
         key="mean_drainage_flow",
@@ -603,6 +606,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         unit="m3 s-1",
         cf_unit="",
         var_loc="face",
+        computes_from="drainage_network_accum",
     ),
     ArrayDefinition(
         key="mean_infiltration",
@@ -614,6 +618,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         unit="m s-1",
         cf_unit="",
         var_loc="face",
+        computes_from="infiltration_accum",
     ),
     ArrayDefinition(
         key="mean_rainfall",
@@ -625,6 +630,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         unit="m s-1",
         cf_unit="",
         var_loc="face",
+        computes_from="rainfall_accum",
     ),
 ]
 
@@ -650,9 +656,3 @@ for attr in ["key", "user_name", "csdms_name", "cf_name", "description"]:
         if attr == "cf_name" and len(duplicates) == 1 and "" in duplicates:
             continue
         raise ValueError(f"Found duplicates in <{attr}>: {duplicates}")
-
-output_map_user_names = [
-    arr_def.user_name for arr_def in ARRAY_DEFINITIONS if ArrayCategory.OUTPUT in arr_def.category
-]
-for i in output_map_user_names:
-    print(i)

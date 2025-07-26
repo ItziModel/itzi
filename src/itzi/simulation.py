@@ -23,6 +23,7 @@ from itzi.data_containers import ContinuityData, SimulationData
 import itzi.messenger as msgr
 from itzi.itzi_error import NullError, MassBalanceError
 from itzi import rastermetrics
+from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
 if TYPE_CHECKING:
     from itzi.drainage import DrainageSimulation
@@ -61,20 +62,14 @@ class Simulation:
         # Mass balance error checking
         self.continuity_data: ContinuityData = None
         self.mass_balance_error_threshold = mass_balance_error_threshold
-        # Accumulation array management
-        self.accum_update_time: dict[str, datetime] = {
-            "infiltration_accum": None,
-            "rainfall_accum": None,
-            "inflow_accum": None,
-            "losses_accum": None,
-            "drainage_network_accum": None,
+        # A mapping between source array and the corresponding accumulation array
+        self.accum_mapping: dict[str, str] = {
+            arr_def.computes_from: arr_def.key
+            for arr_def in ARRAY_DEFINITIONS
+            if arr_def.computes_from is not None and ArrayCategory.ACCUMULATION in arr_def.category
         }
-        self.accum_corresp: dict[str, str] = {
-            "inf": "infiltration_accum",
-            "rain": "rainfall_accum",
-            "inflow": "inflow_accum",
-            "capped_losses": "losses_accum",
-            "n_drain": "drainage_network_accum",
+        self.accum_update_time: dict[str, datetime] = {
+            accum: None for source, accum in self.accum_mapping.items()
         }
         # First time-step is forced
         self.dt = timedelta(seconds=0.001)
@@ -103,7 +98,7 @@ class Simulation:
             depth_array=self.raster_domain.get_array("h"),
             cell_surface_area=self.raster_domain.cell_area,
         )
-        for arr_key in self.accum_corresp.keys():
+        for arr_key in self.accum_mapping.keys():
             self._update_accum_array(arr_key, self.sim_time)
         # Package data into SimulationData object
         raw_arrays = {
@@ -182,7 +177,7 @@ class Simulation:
         self.next_ts["surface_flow"] += self.surface_flow.dt
 
         # Update accumulation arrays
-        for arr_key in self.accum_corresp.keys():
+        for arr_key in self.accum_mapping.keys():
             self._update_accum_array(arr_key, self.sim_time)
 
         # Compute continuity error every x time steps
@@ -273,7 +268,7 @@ class Simulation:
         self.surface_flow.dt = self.dt
         self.surface_flow.step()
         # Update accumulation arrays
-        for arr_key in self.accum_corresp.keys():
+        for arr_key in self.accum_mapping.keys():
             self._update_accum_array(arr_key, self.sim_time)
         # Prepare SimulationData
         raw_arrays = {
@@ -348,7 +343,7 @@ class Simulation:
 
     def _update_accum_array(self, k: str, sim_time: datetime) -> None:
         """Update the accumulation arrays."""
-        ak = self.accum_corresp[k]
+        ak = self.accum_mapping[k]
         if self.accum_update_time[ak] is None:
             self.accum_update_time[ak] = sim_time
         time_diff = (sim_time - self.accum_update_time[ak]).total_seconds()

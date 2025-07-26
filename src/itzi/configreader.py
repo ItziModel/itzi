@@ -49,20 +49,9 @@ class ConfigReader:
             if ArrayCategory.INPUT in arr_def.category
         ]
         k_output_map_names = [
-            "h",
-            "wse",
-            "v",
-            "vdir",
-            "qx",
-            "qy",
-            "froude",
-            "boundaries",
-            "infiltration",
-            "rainfall",
-            "inflow",
-            "losses",
-            "drainage_stats",
-            "verror",
+            arr_def.user_name
+            for arr_def in ARRAY_DEFINITIONS
+            if ArrayCategory.OUTPUT in arr_def.category
         ]
         self.drainage_params = {
             "swmm_inp": None,
