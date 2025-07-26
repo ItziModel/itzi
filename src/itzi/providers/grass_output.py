@@ -20,6 +20,7 @@ import numpy as np
 
 from itzi.providers.base import RasterOutputProvider, VectorOutputProvider
 from itzi.data_containers import SimulationData, DrainageNetworkData
+from itzi.array_definitions import ARRAY_DEFINITIONS
 
 
 class GrassRasterOutputProvider(RasterOutputProvider):
@@ -28,29 +29,34 @@ class GrassRasterOutputProvider(RasterOutputProvider):
     def initialize(self, config: Dict) -> Self:
         """Initialize output provider with configuration."""
         self.grass_interface = config["grass_interface"]
+        # user-selected map names. Keys are user-facing names
         self.out_map_names = config["out_map_names"]
         self.hmin = config["hmin"]
         self.temporal_type = config["temporal_type"]
 
         self.record_counter = {k: 0 for k in self.out_map_names.keys()}
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
+        # A mapping internal keys to user-facing array names
+        self.key_mapping = {arr_def.key: arr_def.user_name for arr_def in ARRAY_DEFINITIONS}
         return self
 
     def write_array(self, array: np.ndarray, map_key: str, sim_time: datetime | timedelta) -> None:
         """Write simulation data for current time step."""
-        suffix = str(self.record_counter[map_key]).zfill(4)
-        map_name = "{}_{}".format(self.out_map_names[map_key], suffix)
+        user_map_key = self.key_mapping[map_key]
+        suffix = str(self.record_counter[user_map_key]).zfill(4)
+        map_name = "{}_{}".format(self.out_map_names[user_map_key], suffix)
         # write the raster
         self.grass_interface.write_raster_map(array, map_name, map_key, self.hmin)
         # Set depth values to null under the given threshold. Temporarily in gis.py
         # if map_key == "h":
         #     self.grass_interface.set_null(map_name, self.hmin)
         # add map name and time to the corresponding list
-        self.output_maplist[map_key].append((map_name, sim_time))
-        self.record_counter[map_key] += 1
+        self.output_maplist[user_map_key].append((map_name, sim_time))
+        self.record_counter[user_map_key] += 1
 
     def _write_max_array(self, arr_max, map_key):
-        map_max_name = f"{self.out_map_names[map_key]}_max"
+        out_map_name_key = self.key_mapping[map_key]
+        map_max_name = f"{self.out_map_names[out_map_name_key]}_max"
         self.grass_interface.write_raster_map(arr_max, map_max_name, map_key, hmin=0.0)
 
     def finalize(self, final_data: SimulationData) -> None:
@@ -67,9 +73,9 @@ class GrassRasterOutputProvider(RasterOutputProvider):
                 map_key, strds_name, lst, "strds", self.temporal_type
             )
         # write maps of maximal values
-        if self.out_map_names["h"]:
+        if self.out_map_names[self.key_mapping["h"]]:
             self._write_max_array(final_data.raw_arrays["hmax"], "h")
-        if self.out_map_names["v"]:
+        if self.out_map_names[self.key_mapping["v"]]:
             self._write_max_array(final_data.raw_arrays["vmax"], "v")
 
 

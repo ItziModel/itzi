@@ -119,7 +119,9 @@ class TestItziTutorial:
         sim_runner.initialize(config_file)
         sim_runner.run().finalize()
         # Check the results
-        h_max_univar = gscript.parse_command("r.univar", map="nc_itzi_tutorial_h_max", flags="g")
+        h_max_univar = gscript.parse_command(
+            "r.univar", map="nc_itzi_tutorial_water_depth_max", flags="g"
+        )
         assert float(h_max_univar["max"]) == pytest.approx(2.298454, abs=1e-2)
         assert float(h_max_univar["mean_of_abs"]) == pytest.approx(0.0355, abs=1e-3)
 
@@ -136,7 +138,7 @@ class TestItziTutorial:
                 "bctype": "bctype",
                 "bcvalue": "bcvalue",
             },
-            "output": {"prefix": "nc_itzi_tutorial_drainage", "values": "h, v, vdir"},
+            "output": {"prefix": "nc_itzi_tutorial_drainage", "values": "water_depth, v, vdir"},
             "statistics": {"stats_file": "nc_itzi_tutorial_drainage.csv"},
             "options": {"cfl": 0.7, "theta": 0.9, "dtmax": 0.5},
             "drainage": {"swmm_inp": inp_file, "output": "nc_itzi_tutorial_drainage"},

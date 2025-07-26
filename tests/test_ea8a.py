@@ -203,7 +203,7 @@ def test_ea8a(ea_test8a_reference):
     itzi_results = gscript.read_command(
         "t.rast.what",
         points="output_points",
-        strds="out_h",
+        strds="out_water_depth",
         null_value="*",
         separator="comma",
         layout="col",

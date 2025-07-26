@@ -109,7 +109,7 @@ It should look like the following:
 
     [output]
     prefix = nc_itzi_tutorial
-    values = h, wse, v, vdir, boundaries
+    values = water_depth, wse, v, vdir, mean_boundary_flow
 
     [statistics]
     stats_file = nc_itzi_tutorial.csv
@@ -123,6 +123,35 @@ Run the simulation:
 
     itzi run <parameter_file_name>
 
+.. versionadded:: 25.7
+    Mass balance error detection added.
+
+This should fail with an error like this one:
+
+.. code:: sh
+
+    WARNING: Error during execution: itzi.itzi_error.MassBalanceError: Mass balance error 0.07 exceeds threshold 0.05
+
+This means that some numerical instabilities have been detected, and the simulation automatically stopped.
+This prevents the software to run for a long time, only to get bad results at the end.
+To solve those instabilities, we should lower the time-step duration.
+The easiest way to do it is to lower the time-step multiplier ``cfl`` by adding the option in the ini file, like so:
+
+.. code:: ini
+
+    [options]
+    cfl = 0.5
+
+Learn more on this topic in :ref:`numerical-instabilities`.
+
+
+Now you can run the simulation again, with the ``-o`` flag to overwrite the data fro the previous, failed run:
+
+.. code:: sh
+
+    itzi run -o <parameter_file_name>
+
+Now, the simulation should run until the end.
 At the end of the simulation, Itzï should have generated five Space-Time
 Raster Dataset (STRDS) in the form:
 
@@ -136,7 +165,7 @@ The maps contained in those STDRS are following this naming convention:
 
     <prefix>_<variable>_<order_number>
 
-Here is the example of the map *nc\_itzi\_tutorial\_h\_0020*:
+Here is the example of the map *nc\_itzi\_tutorial\_water_depth\_0020*:
 
 .. image:: img/nc_itzi_tutorial.png
    :alt: NC depth
@@ -148,8 +177,6 @@ For instance, it is easy to generate an animation of the results using *g.gui.an
 
 Culvert modelling
 -----------------
-
-.. versionadded:: 17.7
 
 As you can notice in the image above, the flow accumulates at some points.
 One of this accumulation is due to a road that act like a dike and weir.
@@ -274,7 +301,7 @@ The parameter file of created in the precedent tutorial could be used and adapte
 
     [output]
     prefix = nc_itzi_tutorial_drainage
-    values = h, v, vdir
+    values = water_depth, v, vdir
 
     [statistics]
     stats_file = nc_itzi_tutorial_drainage.csv
@@ -284,7 +311,7 @@ The parameter file of created in the precedent tutorial could be used and adapte
     output = nc_itzi_tutorial_drainage
 
     [options]
-    cfl = 0.7
+    cfl = 0.5
     theta = 0.9
     dtmax = .5
 
