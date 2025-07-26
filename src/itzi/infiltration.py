@@ -60,8 +60,8 @@ class InfConstantRate(Infiltration):
         """Update infiltration rate map in m/s"""
         flow.infiltration_user(
             arr_h=self.dom.get_array("water_depth"),
-            arr_inf_in=self.dom.get_array("in_inf"),
-            arr_inf_out=self.dom.get_array("inf"),
+            arr_inf_in=self.dom.get_array("infiltration"),
+            arr_inf_out=self.dom.get_array("computed_infiltration"),
             dt=self._dt,
         )
         return self
@@ -87,7 +87,7 @@ class InfGreenAmpt(Infiltration):
             arr_conduct=self.dom.get_array("hydraulic_conductivity"),
             arr_inf_amount=self.infiltration_amount,
             arr_water_soil_content=self.dom.get_array("soil_water_content"),
-            arr_inf_out=self.dom.get_array("inf"),
+            arr_inf_out=self.dom.get_array("computed_infiltration"),
             dt=self._dt,
         )
         return self

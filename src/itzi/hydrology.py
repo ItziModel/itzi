@@ -72,7 +72,7 @@ class Hydrology:
         """
         flow.apply_hydrology(
             arr_rain=self.dom.get_array("rain"),
-            arr_inf=self.dom.get_array("inf"),
+            arr_inf=self.dom.get_array("computed_infiltration"),
             arr_capped_losses=self.dom.get_array("capped_losses"),
             arr_h=self.dom.get_array("water_depth"),
             arr_eff_precip=self.dom.get_array("eff_precip"),

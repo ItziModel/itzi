@@ -108,7 +108,7 @@ class Report:
                 self.output_arrays[user_arr_name] = rastermetrics.calculate_flux(
                     raw["qs_new"], cell_dx
                 )
-            elif internal_key == "verror":  # Volume error
+            elif internal_key == "volume_error":  # Volume error
                 self.output_arrays[user_arr_name] = accum_arrays["error_depth_accum"] * cell_area
 
         # --- Averaged accumulation arrays ---

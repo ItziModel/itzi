@@ -108,7 +108,7 @@ class SimulationRunner:
             mkeys=self.conf.input_map_names.keys(),
             region_id=self.conf.grass_params["region"],
             raster_mask_id=self.conf.grass_params["mask"],
-            non_blocking_write=False,
+            non_blocking_write=True,
         )
         # Instantiate Simulation object and initialize it
         from itzi.simulation_factories import create_grass_simulation
@@ -223,7 +223,7 @@ class SimulationRunner:
                     "rain",
                     "capillary_pressure",
                     "hydraulic_conductivity",
-                    "in_inf",
+                    "infiltration",
                     "losses",
                 ]:
                     new_arr = ta.get(self.sim.sim_time) / (1000 * 3600)

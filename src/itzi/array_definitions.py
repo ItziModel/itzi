@@ -138,7 +138,7 @@ _INPUT_ARRAY_DEFINITIONS = [
         fill_value=0.0,
     ),
     ArrayDefinition(
-        key="in_inf",
+        key="infiltration",
         user_name="infiltration",
         csdms_name="soil_surface_water__infiltration_leq-volume_flux",
         cf_name="",
@@ -215,8 +215,8 @@ _INPUT_ARRAY_DEFINITIONS = [
 # Note: Many are also exported
 _INTERNAL_ARRAY_DEFINITIONS = [
     ArrayDefinition(
-        key="inf",
-        user_name="inf",
+        key="computed_infiltration",
+        user_name="computed_infiltration",
         csdms_name="soil_surface_water__infiltration_volume_flux",
         cf_name="",
         category=[ArrayCategory.INTERNAL],
@@ -445,7 +445,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
         unit="m",
         cf_unit="",
         var_loc="face",
-        computes_from="inf",
+        computes_from="computed_infiltration",
     ),
     ArrayDefinition(
         key="rainfall_accum",
@@ -546,7 +546,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         var_loc="edge",
     ),
     ArrayDefinition(
-        key="verror",
+        key="volume_error",
         user_name="volume_error",
         csdms_name="land_surface_water__time_integral_of_error_volume",
         cf_name="",
