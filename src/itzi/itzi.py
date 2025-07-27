@@ -79,7 +79,7 @@ class SimulationRunner:
         msgr.message(f"Starting simulation of {os.path.basename(conf_file)}...")
         self.conf.display_sim_param()
 
-        if self.conf.input_map_names["wse"]:
+        if self.conf.input_map_names["water_surface_elevation"]:
             self.input_wse = True
 
         # If run outside of grass, set session
@@ -221,7 +221,9 @@ class SimulationRunner:
             if k == "dem":
                 continue
             # WSE is updating water depth, either one of the other should update
-            if (k == "water_depth" and self.input_wse) or (k == "wse" and not self.input_wse):
+            if (k == "water_depth" and self.input_wse) or (
+                k == "water_surface_elevation" and not self.input_wse
+            ):
                 continue
             if not ta.is_valid(self.sim.sim_time):
                 # Convert mm/h to m/s

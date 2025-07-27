@@ -24,7 +24,9 @@ def test_number_of_output():
     h_map_list = gscript.list_grouped("raster", pattern="*out_5by5_water_depth_*")[current_mapset]
     assert len(h_map_list) == 4
 
-    wse_map_list = gscript.list_grouped("raster", pattern="*out_5by5_wse_*")[current_mapset]
+    wse_map_list = gscript.list_grouped("raster", pattern="*out_5by5_water_surface_elevation_*")[
+        current_mapset
+    ]
     assert len(wse_map_list) == 3
 
     fr_map_list = gscript.list_grouped("raster", pattern="*out_5by5_froude_*")[current_mapset]
@@ -251,7 +253,9 @@ def test_wse():
         overwrite=True,
     )
 
-    wse_maps = gscript.list_grouped("raster", pattern="*out_5by5_wse_wse_*")[current_mapset]
+    wse_maps = gscript.list_grouped("raster", pattern="*out_5by5_wse_water_surface_elevation_*")[
+        current_mapset
+    ]
     gscript.run_command(
         "r.series",
         input=wse_maps,

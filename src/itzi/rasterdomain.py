@@ -237,7 +237,7 @@ class RasterDomain:
         fill_value = self.input_fill_values[arr_key]
         if arr.shape != self.shape:
             return ValueError
-        if arr_key == "wse":
+        if arr_key == "water_surface_elevation":
             # Calculate actual depth and update the internal depth array
             arr = rastermetrics.calculate_h_from_wse(arr_wse=arr, arr_dem=self.get_array("dem"))
             arr_key = "water_depth"

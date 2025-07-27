@@ -473,7 +473,7 @@ _ACCUM_ARRAY_DEFINITIONS = [
 # These arrays are calculated for reporting purposes only
 _OUTPUT_ARRAY_DEFINITIONS = [
     ArrayDefinition(
-        key="wse",
+        key="water_surface_elevation",
         csdms_name="land_surface_water__elevation",
         cf_name="",
         category=[ArrayCategory.INPUT, ArrayCategory.OUTPUT],

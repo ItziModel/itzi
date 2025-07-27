@@ -93,7 +93,7 @@ class Report:
                 continue  # go to next key
 
             # --- Calculated arrays ---
-            if arr_key == "wse":
+            if arr_key == "water_surface_elevation":
                 self.output_arrays[arr_key] = rastermetrics.calculate_wse(
                     raw["water_depth"], raw["dem"]
                 )

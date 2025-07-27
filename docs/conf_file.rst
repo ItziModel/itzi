@@ -47,42 +47,46 @@ The following inputs are mandatory:
 -  Digital elevation model in meters
 -  Friction, expressed as Manning's *n*
 
-+-------------------------+-----------------------------------------+--------------+
-| Keyword                 | Description                             | Format       |
-+=========================+=========================================+==============+
-| dem                     | Elevation in meters                     | map or strds |
-+-------------------------+-----------------------------------------+--------------+
-| friction                | Manning's *n* (friction value)          | map or strds |
-+-------------------------+-----------------------------------------+--------------+
-| water_depth             | Starting water depth in meters          | map or strds |
-+-------------------------+-----------------------------------------+--------------+
-| rain                    | Rainfall in mm/h                        | map or strds |
-+-------------------------+-----------------------------------------+--------------+
-| inflow                  | Point inflow in m/s (ex: for 20 m3/s on | map or strds |
-|                         | a 10x10 cell, velocity is 0.2 m/s)      |              |
-+-------------------------+-----------------------------------------+--------------+
-| bctype                  | Boundary conditions type                | map or strds |
-+-------------------------+-----------------------------------------+--------------+
-| bcval                   | Boundary conditions values              | map or strds |
-+-------------------------+-----------------------------------------+--------------+
-| infiltration            | Fixed infiltration rate in mm/h         | map or strds |
-+-------------------------+-----------------------------------------+--------------+
-| effective\_porosity     | Effective porosity in mm/mm             | map or strds |
-+-------------------------+-----------------------------------------+--------------+
-| capillary\_pressure     | Wetting front capillary pressure head   | map or strds |
-|                         | in mm                                   |              |
-+-------------------------+-----------------------------------------+--------------+
-| hydraulic\_conductivity | Soil hydraulic conductivity in mm/h     | map or strds |
-+-------------------------+-----------------------------------------+--------------+
-| soil_water_content      | Relative soil water content. in mm/mm   | map or strds |
-+-------------------------+-----------------------------------------+--------------+
-| losses                  | User-defined losses in mm/h             | map or strds |
-|                         | (*new in16.9, renamed in 17.7*)         |              |
-+-------------------------+-----------------------------------------+--------------+
++-------------------------+-----------------------------------------+------------+
+| Keyword                 | Description                             | Unit       |
++=========================+=========================================+============+
+| dem                     | Terrain elevation                       | m          |
++-------------------------+-----------------------------------------+------------+
+| friction                | Friction value as Manning's *n*         | m s-(1/3)  |
++-------------------------+-----------------------------------------+------------+
+| water_depth             | Starting water depth                    | m          |
++-------------------------+-----------------------------------------+------------+
+| water_surface_elevation | Starting water surface elevation.       | m          |
+|                         | Equivalent to *dem* + *water_depth*.    |            |
++-------------------------+-----------------------------------------+------------+
+| rain                    | Rainfall rate.                          | mm/h       |
++-------------------------+-----------------------------------------+------------+
+| inflow                  | Point inflow in m/s (ex: for 20 m3/s on | m/s        |
+|                         | a 10x10 cell, velocity is 0.2 m/s)      |            |
++-------------------------+-----------------------------------------+------------+
+| bctype                  | Boundary conditions type.               | None       |
++-------------------------+-----------------------------------------+------------+
+| bcval                   | Boundary conditions values.             | m          |
++-------------------------+-----------------------------------------+------------+
+| infiltration            | User-defined infiltration rate.         | mm/h       |
++-------------------------+-----------------------------------------+------------+
+| effective\_porosity     | Effective porosity.                     | None       |
++-------------------------+-----------------------------------------+------------+
+| capillary\_pressure     | Wetting front capillary pressure head.  | mm         |
++-------------------------+-----------------------------------------+------------+
+| hydraulic\_conductivity | Soil hydraulic conductivity.            | mm/h       |
++-------------------------+-----------------------------------------+------------+
+| soil_water_content      | Relative soil water content.            | mm/h       |
++-------------------------+-----------------------------------------+------------+
+| losses                  | User-defined loss rate.                 | mm/h       |
++-------------------------+-----------------------------------------+------------+
 
 .. versionchanged:: 25.7
     *start_h* is renamed *water_depth*.
+
+.. versionadded:: 25.7
     *soil_water_content* is added.
+    *water_surface_elevation* is added.
 
 .. warning:: If the selected input are located in another GRASS mapset than the current one (or the one specified in the [grass] section),
     you must define the full map ID (map\@mapset) and add those mapsets to the GRASS search path with *g.mapsets*.
@@ -113,46 +117,45 @@ The "open" and "closed" boundary conditions are applied only at the border of th
 
 The possible values to be exported are the following:
 
-+--------------------+---------------------------------------------------------+--------+
-| Keyword            | Description                                             | Unit   |
-+====================+=========================================================+========+
-| water_depth        | Water depth                                             | m      |
-+--------------------+---------------------------------------------------------+--------+
-| wse                | Water surface elevation (depth + elevation)             | m      |
-+--------------------+---------------------------------------------------------+--------+
-| v                  | Overland flow speed (velocity's magnitude)              | m/s    |
-+--------------------+---------------------------------------------------------+--------+
-| vdir               | Velocity's direction. Counter-clockwise from East       | degrees|
-+--------------------+---------------------------------------------------------+--------+
-| froude             | The Froude number                                       | none   |
-+--------------------+---------------------------------------------------------+--------+
-| qx                 | Volumetric flow, x direction. Positive if going East    | m³/s   |
-+--------------------+---------------------------------------------------------+--------+
-| qy                 | Volumetric flow, y direction. Positive if going South   | m³/s   |
-+--------------------+---------------------------------------------------------+--------+
-| mean_boundary_flow | Flow coming in (positive) or going out (negative) the   | m/s    |
-|                    | domain due to boundary conditions. Mean since the       |        |
-|                    | last record                                             |        |
-+--------------------+---------------------------------------------------------+--------+
-| mean_infiltration  | Mean infiltration rate since the last record            | mm/h   |
-+--------------------+---------------------------------------------------------+--------+
-| mean_rainfall      | Mean rainfall rate since the last record                | mm/h   |
-+--------------------+---------------------------------------------------------+--------+
-| mean_inflow        | Mean user flow since the last record                    | m/s    |
-+--------------------+---------------------------------------------------------+--------+
-| mean_losses        | Mean losses since the last record                       | m/s    |
-+--------------------+---------------------------------------------------------+--------+
-| mean_drainage_flow | Mean exchange flow between surface and drainage model   |        |
-|                    | since the last record                                   | m/s    |
-+--------------------+---------------------------------------------------------+--------+
-| volume_error       | Total created volume due to numerical error since the   | m³     |
-|                    | last record                                             |        |
-+--------------------+---------------------------------------------------------+--------+
-
++-------------------------+---------------------------------------------------------+--------+
+| Keyword                 | Description                                             | Unit   |
++=========================+=========================================================+========+
+| water_depth             | Water depth                                             | m      |
++-------------------------+---------------------------------------------------------+--------+
+| water_surface_elevation | Water surface elevation (depth + elevation)             | m      |
++-------------------------+---------------------------------------------------------+--------+
+| v                       | Overland flow speed (velocity's magnitude)              | m/s    |
++-------------------------+---------------------------------------------------------+--------+
+| vdir                    | Velocity's direction. Counter-clockwise from East       | degrees|
++-------------------------+---------------------------------------------------------+--------+
+| froude                  | The Froude number                                       | none   |
++-------------------------+---------------------------------------------------------+--------+
+| qx                      | Volumetric flow, x direction. Positive if going East    | m³/s   |
++-------------------------+---------------------------------------------------------+--------+
+| qy                      | Volumetric flow, y direction. Positive if going South   | m³/s   |
++-------------------------+---------------------------------------------------------+--------+
+| mean_boundary_flow      | Flow coming in (positive) or going out (negative) the   | m/s    |
+|                         | domain due to boundary conditions. Mean since the       |        |
+|                         | last record                                             |        |
++-------------------------+---------------------------------------------------------+--------+
+| mean_infiltration       | Mean infiltration rate since the last record            | mm/h   |
++-------------------------+---------------------------------------------------------+--------+
+| mean_rainfall           | Mean rainfall rate since the last record                | mm/h   |
++-------------------------+---------------------------------------------------------+--------+
+| mean_inflow             | Mean user flow since the last record                    | m/s    |
++-------------------------+---------------------------------------------------------+--------+
+| mean_losses             | Mean losses since the last record                       | m/s    |
++-------------------------+---------------------------------------------------------+--------+
+| mean_drainage_flow      | Mean exchange flow between surface and drainage model   |        |
+|                         | since the last record                                   | m/s    |
++-------------------------+---------------------------------------------------------+--------+
+| volume_error            | Total created volume due to numerical error since the   | m³     |
+|                         | last record                                             |        |
++-------------------------+---------------------------------------------------------+--------+
 
 .. versionchanged:: 25.7
-    *froude* is added.
     *h* is changed to *water_depth*.
+    *wse* is changed to *water_surface_elevation*.
     *boundaries* changed to *mean_boundary_flow*.
     *verror* changed to *volume_error*.
     *inflow* changed to *mean_inflow*.
@@ -160,6 +163,9 @@ The possible values to be exported are the following:
     *rainfall* changed to *mean_rainfall*.
     *losses* changed to *mean_losses*.
     *drainage_stats* changed to *mean_drainage_flow*.
+
+.. versionadded:: 25.7
+    *froude* is added.
 
 In addition to output a map at each *record\_step*, *water_depth* and *v* also
 produce each a map of maximum values attained all over the domain since the beginning of the simulation.
