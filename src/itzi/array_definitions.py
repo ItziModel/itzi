@@ -34,8 +34,7 @@ class ArrayCategory(Enum):
 class ArrayDefinition:
     """Complete definition of a simulation array"""
 
-    key: str  # Internal identifier
-    user_name: str  # User-facing name
+    key: str  # identifier
     # https://csdms.colorado.edu/wiki/CSN_Searchable_List
     csdms_name: str  # For BMI
     # https://cfconventions.org/Data/cf-standard-names/current/build/cf-standard-name-table.html
@@ -55,7 +54,6 @@ _INPUT_ARRAY_DEFINITIONS = [
     # These arrays are read from external sources (maps, time series)
     ArrayDefinition(
         key="dem",
-        user_name="dem",
         csdms_name="land_surface__elevation",
         cf_name="ground_level_altitude",
         category=[ArrayCategory.INPUT],
@@ -67,7 +65,6 @@ _INPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="friction",
-        user_name="friction",
         csdms_name="land_surface_water_flow__manning_n_parameter",
         cf_name="",
         category=[ArrayCategory.INPUT],
@@ -79,7 +76,6 @@ _INPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="water_depth",
-        user_name="water_depth",
         csdms_name="land_surface_water__depth",
         cf_name="flood_water_thickness",
         category=[ArrayCategory.INPUT, ArrayCategory.OUTPUT],
@@ -91,7 +87,6 @@ _INPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="effective_porosity",
-        user_name="effective_porosity",
         csdms_name="soil_water__effective_porosity",
         cf_name="soil_porosity",
         category=[ArrayCategory.INPUT],
@@ -103,7 +98,6 @@ _INPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="capillary_pressure",
-        user_name="capillary_pressure",
         csdms_name="soil_water__pressure_head",
         cf_name="soil_suction_at_saturation",
         category=[ArrayCategory.INPUT],
@@ -115,7 +109,6 @@ _INPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="hydraulic_conductivity",
-        user_name="hydraulic_conductivity",
         csdms_name="soil_water__hydraulic_conductivity",
         cf_name="soil_hydraulic_conductivity_at_saturation",
         category=[ArrayCategory.INPUT],
@@ -127,7 +120,6 @@ _INPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="soil_water_content",
-        user_name="soil_water_content",
         csdms_name="soil_water__volume_fraction",
         cf_name="soil_liquid_water_content",
         category=[ArrayCategory.INPUT],
@@ -139,7 +131,6 @@ _INPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="infiltration",
-        user_name="infiltration",
         csdms_name="soil_surface_water__infiltration_leq-volume_flux",
         cf_name="",
         category=[ArrayCategory.INPUT],
@@ -151,7 +142,6 @@ _INPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="losses",
-        user_name="losses",
         csdms_name="land_surface_water__losses_leq-volume_flux",
         cf_name="",
         category=[ArrayCategory.INPUT],
@@ -163,7 +153,6 @@ _INPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="rain",
-        user_name="rain",
         csdms_name="atmosphere_water__precipitation_leq-volume_flux",
         cf_name="rainfall_rate",
         category=[ArrayCategory.INPUT],
@@ -175,7 +164,6 @@ _INPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="inflow",
-        user_name="inflow",
         csdms_name="land_surface_water__inflow_leq-volume_flux",
         cf_name="",
         category=[ArrayCategory.INPUT],
@@ -187,7 +175,6 @@ _INPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="bcval",
-        user_name="bcval",
         csdms_name="land_surface_water__boundary_value",
         cf_name="",
         category=[ArrayCategory.INPUT],
@@ -199,7 +186,6 @@ _INPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="bctype",
-        user_name="bctype",
         csdms_name="land_surface_water__boundary_type",
         cf_name="",
         category=[ArrayCategory.INPUT],
@@ -216,7 +202,6 @@ _INPUT_ARRAY_DEFINITIONS = [
 _INTERNAL_ARRAY_DEFINITIONS = [
     ArrayDefinition(
         key="computed_infiltration",
-        user_name="computed_infiltration",
         csdms_name="soil_surface_water__infiltration_volume_flux",
         cf_name="",
         category=[ArrayCategory.INTERNAL],
@@ -227,7 +212,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="eff_precip",
-        user_name="eff_precip",
         csdms_name="land_surface_water__effective_precipitation_leq-volume_flux",
         cf_name="",
         category=[ArrayCategory.INTERNAL],
@@ -239,7 +223,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="hfe",
-        user_name="hfe",
         csdms_name="land_surface_water__x_component_of_depth",
         cf_name="",
         category=[ArrayCategory.INTERNAL],
@@ -250,7 +233,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="hfs",
-        user_name="hfs",
         csdms_name="land_surface_water__y_component_of_depth",
         cf_name="",
         category=[ArrayCategory.INTERNAL],
@@ -261,7 +243,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="qe",
-        user_name="qe",
         csdms_name="land_surface_water__x_component_of_old_volume_flux",
         cf_name="",
         category=[ArrayCategory.INTERNAL],
@@ -272,7 +253,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="qs",
-        user_name="qs",
         csdms_name="land_surface_water__y_component_of_old_volume_flux",
         cf_name="",
         category=[ArrayCategory.INTERNAL],
@@ -283,7 +263,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="qe_new",
-        user_name="qe_new",
         csdms_name="land_surface_water__x_component_of_volume_flux",
         cf_name="",
         category=[ArrayCategory.INTERNAL],
@@ -294,7 +273,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="qs_new",
-        user_name="qs_new",
         csdms_name="land_surface_water__y_component_of_volume_flux",
         cf_name="",
         category=[ArrayCategory.INTERNAL],
@@ -305,7 +283,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="hmax",
-        user_name="hmax",
         csdms_name="land_surface_water__max_of_depth",
         cf_name="",
         category=[ArrayCategory.INTERNAL],  # output together with depth arrays
@@ -316,7 +293,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="v",
-        user_name="v",
         csdms_name="land_surface_water_flow__speed",
         cf_name="",
         category=[ArrayCategory.INTERNAL, ArrayCategory.OUTPUT],
@@ -327,7 +303,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="vdir",
-        user_name="vdir",
         csdms_name="land_surface_water_flow__azimuth_angle_of_velocity",
         cf_name="",
         category=[ArrayCategory.INTERNAL, ArrayCategory.OUTPUT],
@@ -338,7 +313,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="vmax",
-        user_name="vmax",
         csdms_name="land_surface_water_flow__max_of_speed",
         cf_name="",
         category=[ArrayCategory.INTERNAL],  # output together with speed arrays
@@ -349,7 +323,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="froude",
-        user_name="froude",
         csdms_name="land_surface_water_flow__froude_number",
         cf_name="",
         category=[ArrayCategory.INTERNAL, ArrayCategory.OUTPUT],
@@ -360,7 +333,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="n_drain",
-        user_name="n_drain",
         csdms_name="land_surface_water__drainage_network_inflow_leq-volume_flux",
         cf_name="",
         category=[ArrayCategory.INTERNAL],
@@ -371,7 +343,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="capped_losses",
-        user_name="capped_losses",
         csdms_name="land_surface_water__capped_losses_leq-volume_flux",
         cf_name="",
         category=[ArrayCategory.INTERNAL],
@@ -382,7 +353,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="dire",
-        user_name="dire",
         csdms_name="land_surface_water__x_component_of_flow_direction",
         cf_name="",
         category=[ArrayCategory.INTERNAL],
@@ -396,7 +366,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="dirs",
-        user_name="dirs",
         csdms_name="land_surface_water__y_component_of_flow_direction",
         cf_name="",
         category=[ArrayCategory.INTERNAL],
@@ -410,7 +379,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="ext",
-        user_name="ext",
         csdms_name="land_surface_water__external_leq-volume_flux",
         cf_name="",
         category=[ArrayCategory.INTERNAL],
@@ -425,7 +393,6 @@ _INTERNAL_ARRAY_DEFINITIONS = [
 _ACCUM_ARRAY_DEFINITIONS = [
     ArrayDefinition(
         key="boundaries_accum",
-        user_name="boundaries_accum",
         csdms_name="land_surface_water__time_integral_of_boundary_volume_flux",
         cf_name="",
         category=[ArrayCategory.ACCUMULATION],
@@ -437,7 +404,6 @@ _ACCUM_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="infiltration_accum",
-        user_name="infiltration_accum",
         csdms_name="soil_surface_water__time_integral_of_infiltration_volume_flux",
         cf_name="",
         category=[ArrayCategory.ACCUMULATION],
@@ -449,7 +415,6 @@ _ACCUM_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="rainfall_accum",
-        user_name="rainfall_accum",
         csdms_name="atmosphere_water__time_integral_of_precipitation_leq-volume_flux",
         cf_name="",
         category=[ArrayCategory.ACCUMULATION],
@@ -461,7 +426,6 @@ _ACCUM_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="inflow_accum",
-        user_name="inflow_accum",
         csdms_name="land_surface_water__time_integral_of_inflow_volume_flux",
         cf_name="",
         category=[ArrayCategory.ACCUMULATION],
@@ -473,7 +437,6 @@ _ACCUM_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="losses_accum",
-        user_name="losses_accum",
         csdms_name="land_surface_water__time_integral_of_capped_losses_volume_flux",
         cf_name="",
         category=[ArrayCategory.ACCUMULATION],
@@ -485,7 +448,6 @@ _ACCUM_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="drainage_network_accum",
-        user_name="drainage_network_accum",
         csdms_name="land_surface_water__time_integral_of_drainage_network_inflow_volume_flux",
         cf_name="",
         category=[ArrayCategory.ACCUMULATION],
@@ -498,7 +460,6 @@ _ACCUM_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="error_depth_accum",
-        user_name="error_depth_accum",
         csdms_name="land_surface_water__time_integral_of_error_volume_flux",
         cf_name="",
         category=[ArrayCategory.ACCUMULATION],
@@ -513,7 +474,6 @@ _ACCUM_ARRAY_DEFINITIONS = [
 _OUTPUT_ARRAY_DEFINITIONS = [
     ArrayDefinition(
         key="wse",
-        user_name="wse",
         csdms_name="land_surface_water__elevation",
         cf_name="",
         category=[ArrayCategory.OUTPUT],
@@ -525,7 +485,6 @@ _OUTPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="qx",
-        user_name="qx",
         csdms_name="land_surface_water__x_component_of_runoff_volume_flux",
         cf_name="",
         category=[ArrayCategory.OUTPUT],
@@ -536,7 +495,6 @@ _OUTPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="qy",
-        user_name="qy",
         csdms_name="land_surface_water__y_component_of_runoff_volume_flux",
         cf_name="",
         category=[ArrayCategory.OUTPUT],
@@ -547,7 +505,6 @@ _OUTPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="volume_error",
-        user_name="volume_error",
         csdms_name="land_surface_water__time_integral_of_error_volume",
         cf_name="",
         category=[ArrayCategory.OUTPUT],
@@ -558,7 +515,6 @@ _OUTPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="mean_boundary_flow",
-        user_name="mean_boundary_flow",
         csdms_name="land_surface_water__time_mean_of_boundary_volume_flux",
         cf_name="",
         category=[ArrayCategory.OUTPUT],
@@ -571,7 +527,6 @@ _OUTPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="mean_inflow",
-        user_name="mean_inflow",
         csdms_name="land_surface_water__time_mean_of_inflow_volume_flux",
         cf_name="",
         category=[ArrayCategory.OUTPUT],
@@ -584,7 +539,6 @@ _OUTPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="mean_losses",
-        user_name="mean_losses",
         csdms_name="land_surface_water__time_mean_of_losses_volume_flux",
         cf_name="",
         category=[ArrayCategory.OUTPUT],
@@ -597,7 +551,6 @@ _OUTPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="mean_drainage_flow",
-        user_name="mean_drainage_flow",
         csdms_name="land_surface_water__time_mean_of_drainage_network_inflow_volume_flux",
         cf_name="",
         category=[ArrayCategory.OUTPUT],
@@ -611,7 +564,6 @@ _OUTPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="mean_infiltration",
-        user_name="mean_infiltration",
         csdms_name="soil_surface_water__time_mean_of_infiltration_volume_flux",
         cf_name="",
         category=[ArrayCategory.OUTPUT],
@@ -623,7 +575,6 @@ _OUTPUT_ARRAY_DEFINITIONS = [
     ),
     ArrayDefinition(
         key="mean_rainfall",
-        user_name="mean_rainfall",
         csdms_name="atmosphere_water__time_mean_of_precipitation_leq-volume_flux",
         cf_name="",
         category=[ArrayCategory.OUTPUT],
@@ -645,7 +596,7 @@ ARRAY_DEFINITIONS = (
 number_of_array_definitions = len(ARRAY_DEFINITIONS)
 
 # Some sanity check
-for attr in ["key", "user_name", "csdms_name", "cf_name", "description"]:
+for attr in ["key", "csdms_name", "cf_name", "description"]:
     all_values = [getattr(arr_def, attr) for arr_def in ARRAY_DEFINITIONS]
     # No empty name
     if "" in all_values and not attr == "cf_name":
@@ -657,11 +608,3 @@ for attr in ["key", "user_name", "csdms_name", "cf_name", "description"]:
         if attr == "cf_name" and len(duplicates) == 1 and "" in duplicates:
             continue
         raise ValueError(f"Found duplicates in <{attr}>: {duplicates}")
-
-# Show which arrays have different internal and user-facing names
-diff_names = []
-for arr_def in ARRAY_DEFINITIONS:
-    if arr_def.key != arr_def.user_name:
-        diff_names.append((arr_def.key, arr_def.user_name))
-for names in diff_names:
-    print(f"key: {names[0]}, user_name: {names[1]}")

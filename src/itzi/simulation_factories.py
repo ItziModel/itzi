@@ -91,14 +91,6 @@ def get_links_list(pyswmm_links, links_vertices_dict, nodes_coor_dict):
     return links_list
 
 
-# Key mapping between the internal name and the user-facing name
-input_key_mapping = {
-    arr_def.key: arr_def.user_name
-    for arr_def in ARRAY_DEFINITIONS
-    if ArrayCategory.INPUT in arr_def.category
-}
-
-
 def create_grass_simulation(
     sim_times: "SimulationTimes",
     input_maps: Dict,
@@ -120,8 +112,11 @@ def create_grass_simulation(
     tarr = {}
     # TimedArray expects a function as an init parameter
     zeros_array = lambda: np.zeros(shape=raster_shape, dtype=dtype)  # noqa: E731
-    for k in input_key_mapping.keys():
-        tarr[k] = rasterdomain.TimedArray(input_key_mapping[k], grass_interface, zeros_array)
+    input_keys = [
+        arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT in arr_def.category
+    ]
+    for arr_key in input_keys:
+        tarr[arr_key] = rasterdomain.TimedArray(arr_key, grass_interface, zeros_array)
     msgr.debug("Setting up raster domain...")
     # RasterDomain
     raster_shape = (grass_interface.yr, grass_interface.xr)

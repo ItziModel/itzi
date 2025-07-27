@@ -44,8 +44,6 @@ class Report:
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
         # a dict of array written at a given step. Keys are the same as out_map_names
         self.output_arrays = {}
-        # A mapping of user-facing array names to internal keys
-        self.user2key_mapping = {arr_def.user_name: arr_def.key for arr_def in ARRAY_DEFINITIONS}
         self.dt = dt
         self.last_step = copy.copy(start_time)
 
@@ -84,39 +82,34 @@ class Report:
         cell_area = cell_dx * cell_dy
 
         # Iterate through the output maps requested by the user
-        for user_arr_name in self.out_map_names:
-            internal_key = self.user2key_mapping[user_arr_name]
-            if self.out_map_names[user_arr_name] is None:
+        for arr_key in self.out_map_names:
+            if self.out_map_names[arr_key] is None:
                 continue
 
             # --- Direct raw arrays ---
-            if internal_key in ["water_depth", "v", "vdir", "froude", "hmax", "vmax"]:
-                if internal_key in raw:
-                    self.output_arrays[user_arr_name] = raw[internal_key]
+            if arr_key in ["water_depth", "v", "vdir", "froude", "hmax", "vmax"]:
+                if arr_key in raw:
+                    self.output_arrays[arr_key] = raw[arr_key]
                 continue  # go to next key
 
             # --- Calculated arrays ---
-            if internal_key == "wse":
-                self.output_arrays[user_arr_name] = rastermetrics.calculate_wse(
+            if arr_key == "wse":
+                self.output_arrays[arr_key] = rastermetrics.calculate_wse(
                     raw["water_depth"], raw["dem"]
                 )
-            elif internal_key == "qx":
-                self.output_arrays[user_arr_name] = rastermetrics.calculate_flux(
-                    raw["qe_new"], cell_dy
-                )
-            elif internal_key == "qy":
-                self.output_arrays[user_arr_name] = rastermetrics.calculate_flux(
-                    raw["qs_new"], cell_dx
-                )
-            elif internal_key == "volume_error":  # Volume error
-                self.output_arrays[user_arr_name] = accum_arrays["error_depth_accum"] * cell_area
+            elif arr_key == "qx":
+                self.output_arrays[arr_key] = rastermetrics.calculate_flux(raw["qe_new"], cell_dy)
+            elif arr_key == "qy":
+                self.output_arrays[arr_key] = rastermetrics.calculate_flux(raw["qs_new"], cell_dx)
+            elif arr_key == "volume_error":  # Volume error
+                self.output_arrays[arr_key] = accum_arrays["error_depth_accum"] * cell_area
 
         # --- Averaged accumulation arrays ---
         if interval_s <= 0:
             interval_s = data.time_step
 
         accum_mapping = {
-            arr_def.user_name: arr_def.computes_from
+            arr_def.key: arr_def.computes_from
             for arr_def in ARRAY_DEFINITIONS
             if arr_def.computes_from is not None and ArrayCategory.OUTPUT in arr_def.category
         }
@@ -183,10 +176,9 @@ class Report:
 
     def save_array(self, sim_time):
         """ """
-        for user_k, arr in self.output_arrays.items():
-            k = self.user2key_mapping[user_k]
+        for arr_key, arr in self.output_arrays.items():
             if isinstance(arr, np.ndarray):
-                self.raster_provider.write_array(array=arr, map_key=k, sim_time=sim_time)
+                self.raster_provider.write_array(array=arr, arr_key=arr_key, sim_time=sim_time)
         return self
 
     def save_drainage_values(self, sim_time, drainage_data):

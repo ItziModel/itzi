@@ -44,12 +44,10 @@ class ConfigReader:
             "hydraulic_conductivity",
         ]
         k_input_map_names = [
-            arr_def.user_name
-            for arr_def in ARRAY_DEFINITIONS
-            if ArrayCategory.INPUT in arr_def.category
+            arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT in arr_def.category
         ]
         k_output_map_names = [
-            arr_def.user_name
+            arr_def.key
             for arr_def in ARRAY_DEFINITIONS
             if ArrayCategory.OUTPUT in arr_def.category
         ]
@@ -89,7 +87,7 @@ class ConfigReader:
         # process inputs times
         self.sim_times = SimulationTimes(self.raw_input_times)
         # check if mandatory parameters are present
-        self.check_mandatory()
+        self.check_general_input()
         # check coherence of infiltrations entries
         self.check_inf_maps()
         # check the sanity of simulation parameters
@@ -225,8 +223,9 @@ class ConfigReader:
             self.sim_param["inf_model"] = "green-ampt"
         return self
 
-    def check_mandatory(self):
-        """check if mandatory parameters are present"""
+    def check_general_input(self):
+        """check if mandatory parameters are present.
+        And if mutually exclusive parameters are not set together."""
         if not all(
             [
                 self.input_map_names["dem"],
@@ -235,6 +234,8 @@ class ConfigReader:
             ]
         ):
             msgr.fatal("inputs <dem>, <friction> and <record_step> are mandatory")
+        # if self.input_map_names["water_depth"] and self.input_map_names["wse"]:
+        #     msgr.fatal("inputs <water_depth> and <wse> are mutually exclusive.")
 
     def display_sim_param(self):
         """Display simulation parameters if verbose"""

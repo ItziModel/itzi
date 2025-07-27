@@ -21,7 +21,6 @@ import numpy as np
 
 from itzi.providers.base import RasterOutputProvider, VectorOutputProvider
 from itzi.data_containers import SimulationData, DrainageNetworkData
-from itzi.array_definitions import ARRAY_DEFINITIONS
 
 
 class MemoryRasterOutputProvider(RasterOutputProvider):
@@ -29,17 +28,14 @@ class MemoryRasterOutputProvider(RasterOutputProvider):
 
     def initialize(self, config: Dict) -> Self:
         """Initialize output provider with simulation configuration."""
-        # user-selected map names. Keys are user-facing names
+        # user-selected map names.
         self.out_map_names = config["out_map_names"]
         self.output_maps_dict = {k: [] for k in self.out_map_names.keys()}
-        # Mapping between internal array keys and user-facing names
-        self.key_mapping = {arr_def.key: arr_def.user_name for arr_def in ARRAY_DEFINITIONS}
         return self
 
-    def write_array(self, array: np.ndarray, map_key: str, sim_time: datetime | timedelta) -> None:
+    def write_array(self, array: np.ndarray, arr_key: str, sim_time: datetime | timedelta) -> None:
         """Save simulation data for current time step."""
-        user_map_name = self.key_mapping[map_key]
-        self.output_maps_dict[user_map_name].append((deepcopy(sim_time), array.copy()))
+        self.output_maps_dict[arr_key].append((deepcopy(sim_time), array.copy()))
 
     def finalize(self, final_data: SimulationData) -> None:
         """Finalize outputs and cleanup."""
