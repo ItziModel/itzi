@@ -216,30 +216,34 @@ class SimulationRunner:
         if not self.tarr["dem"].is_valid(self.sim.sim_time):
             self.sim.set_array("dem", self.tarr["dem"].get(self.sim.sim_time))
         # loop through the arrays
-        for k, ta in self.tarr.items():
+        for arr_key, ta in self.tarr.items():
             # DEM done before
-            if k == "dem":
+            if arr_key == "dem":
                 continue
             # WSE is updating water depth, either one of the other should update
-            if (k == "water_depth" and self.input_wse) or (
-                k == "water_surface_elevation" and not self.input_wse
+            if (arr_key == "water_depth" and self.input_wse) or (
+                arr_key == "water_surface_elevation" and not self.input_wse
             ):
                 continue
             if not ta.is_valid(self.sim.sim_time):
                 # Convert mm/h to m/s
-                if k in [
+                if arr_key in [
                     "rain",
-                    "capillary_pressure",
                     "hydraulic_conductivity",
                     "infiltration",
                     "losses",
                 ]:
                     new_arr = ta.get(self.sim.sim_time) / (1000 * 3600)
+                # Convert mm to m
+                elif arr_key in [
+                    "capillary_pressure",
+                ]:
+                    new_arr = ta.get(self.sim.sim_time) / 1000
                 else:
                     new_arr = ta.get(self.sim.sim_time)
                 # update array
-                msgr.debug("{}: update input array <{}>".format(self.sim.sim_time, k))
-                self.sim.set_array(k, new_arr)
+                msgr.debug("{}: update input array <{}>".format(self.sim.sim_time, arr_key))
+                self.sim.set_array(arr_key, new_arr)
         return self
 
 
