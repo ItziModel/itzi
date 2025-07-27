@@ -36,22 +36,22 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
         return self
 
-    def write_array(self, array: np.ndarray, arr_key: str, sim_time: datetime | timedelta) -> None:
+    def write_array(self, array: np.ndarray, map_key: str, sim_time: datetime | timedelta) -> None:
         """Write simulation data for current time step."""
-        suffix = str(self.record_counter[arr_key]).zfill(4)
-        map_name = "{}_{}".format(self.out_map_names[arr_key], suffix)
+        suffix = str(self.record_counter[map_key]).zfill(4)
+        map_name = "{}_{}".format(self.out_map_names[map_key], suffix)
         # write the raster
-        self.grass_interface.write_raster_map(array, map_name, arr_key, self.hmin)
+        self.grass_interface.write_raster_map(array, map_name, map_key, self.hmin)
         # Set depth values to null under the given threshold. Temporarily in gis.py
-        # if arr_key == "water_depth":
+        # if map_key == "water_depth":
         #     self.grass_interface.set_null(map_name, self.hmin)
         # add map name and time to the corresponding list
-        self.output_maplist[arr_key].append((map_name, sim_time))
-        self.record_counter[arr_key] += 1
+        self.output_maplist[map_key].append((map_name, sim_time))
+        self.record_counter[map_key] += 1
 
-    def _write_max_array(self, arr_max, arr_key):
-        map_max_name = f"{self.out_map_names[arr_key]}_max"
-        self.grass_interface.write_raster_map(arr_max, map_max_name, arr_key, hmin=0.0)
+    def _write_max_array(self, arr_max, map_key):
+        map_max_name = f"{self.out_map_names[map_key]}_max"
+        self.grass_interface.write_raster_map(arr_max, map_max_name, map_key, hmin=0.0)
 
     def finalize(self, final_data: SimulationData) -> None:
         """Finalize outputs and cleanup."""
@@ -59,12 +59,12 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         # Write the final raster maps
         self.grass_interface.finalize()
         # register in GRASS temporal framework
-        for arr_key, lst in self.output_maplist.items():
-            strds_name = self.out_map_names[arr_key]
+        for map_key, lst in self.output_maplist.items():
+            strds_name = self.out_map_names[map_key]
             if strds_name is None:
                 continue
             self.grass_interface.register_maps_in_stds(
-                arr_key, strds_name, lst, "strds", self.temporal_type
+                map_key, strds_name, lst, "strds", self.temporal_type
             )
         # write maps of maximal values
         if self.out_map_names["water_depth"]:

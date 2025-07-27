@@ -178,7 +178,7 @@ class Report:
         """ """
         for arr_key, arr in self.output_arrays.items():
             if isinstance(arr, np.ndarray):
-                self.raster_provider.write_array(array=arr, arr_key=arr_key, sim_time=sim_time)
+                self.raster_provider.write_array(array=arr, map_key=arr_key, sim_time=sim_time)
         return self
 
     def save_drainage_values(self, sim_time, drainage_data):
