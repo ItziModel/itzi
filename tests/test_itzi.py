@@ -21,10 +21,12 @@ def test_number_of_output():
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     assert current_mapset == "5by5"
 
-    h_map_list = gscript.list_grouped("raster", pattern="*out_5by5_h_*")[current_mapset]
+    h_map_list = gscript.list_grouped("raster", pattern="*out_5by5_water_depth_*")[current_mapset]
     assert len(h_map_list) == 4
 
-    wse_map_list = gscript.list_grouped("raster", pattern="*out_5by5_wse_*")[current_mapset]
+    wse_map_list = gscript.list_grouped("raster", pattern="*out_5by5_water_surface_elevation_*")[
+        current_mapset
+    ]
     assert len(wse_map_list) == 3
 
     fr_map_list = gscript.list_grouped("raster", pattern="*out_5by5_froude_*")[current_mapset]
@@ -42,7 +44,9 @@ def test_number_of_output():
     qy_map_list = gscript.list_grouped("raster", pattern="*out_5by5_qy_*")[current_mapset]
     assert len(qy_map_list) == 3
 
-    verr_map_list = gscript.list_grouped("raster", pattern="*out_5by5_verror_*")[current_mapset]
+    verr_map_list = gscript.list_grouped("raster", pattern="*out_5by5_volume_error_*")[
+        current_mapset
+    ]
     assert len(verr_map_list) == 3
 
 
@@ -51,7 +55,7 @@ def test_flow_symmetry():
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     assert current_mapset == "5by5"
     h_values = gscript.read_command(
-        "v.what.rast", map="control_points", flags="p", raster="out_5by5_h_0002"
+        "v.what.rast", map="control_points", flags="p", raster="out_5by5_water_depth_0002"
     )
     s_h = pd.read_csv(StringIO(h_values), sep="|", names=["h"], usecols=[1]).squeeze()
     assert np.all(np.isclose(s_h[:-1], s_h[1:]))
@@ -87,7 +91,9 @@ def test_max_values():
     """Check if the maximum values of h and v are properly calculated."""
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     assert current_mapset == "5by5"
-    h_maps = gscript.list_grouped("raster", pattern="*out_5by5_max_values_h_*")[current_mapset]
+    h_maps = gscript.list_grouped("raster", pattern="*out_5by5_max_values_water_depth_*")[
+        current_mapset
+    ]
     v_maps = gscript.list_grouped("raster", pattern="*out_5by5_max_values_v_*")[current_mapset]
     gscript.run_command(
         "r.series",
@@ -103,7 +109,7 @@ def test_max_values():
         method="maximum",
         overwrite=True,
     )
-    h_max = gscript.raster_info("out_5by5_max_values_h_max")
+    h_max = gscript.raster_info("out_5by5_max_values_water_depth_max")
     h_max_test = gscript.raster_info("h_max_test")
     v_max = gscript.raster_info("out_5by5_max_values_v_max")
     v_max_test = gscript.raster_info("v_max_test")
@@ -153,7 +159,7 @@ def test_stats_file(test_data_temp_path):
 def test_stats_maps():
     """Check if the maps statistics are accurate"""
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
-    for map_name in ["rainfall", "inflow", "infiltration", "losses"]:
+    for map_name in ["mean_rainfall", "mean_inflow", "mean_infiltration", "mean_losses"]:
         raster_maps = gscript.list_grouped("raster", pattern=f"*_{map_name}_*")[current_mapset]
         # initial stage + 5 time steps
         assert len(raster_maps) == 6
@@ -167,20 +173,20 @@ def test_stats_maps():
                 assert np.isclose(maximum, 0)
                 continue
             else:
-                if map_name == "rainfall":
+                if map_name == "mean_rainfall":
                     assert np.isclose(minimum, 10.0)
                     assert np.isclose(maximum, 10.0)
-                elif map_name == "inflow":
+                elif map_name == "mean_inflow":
                     assert np.isclose(minimum, 0.1)
                     assert np.isclose(maximum, 0.1)
-                elif map_name == "infiltration":
+                elif map_name == "mean_infiltration":
                     assert np.isclose(minimum, 2.0)
                     assert np.isclose(maximum, 2.0)
-                elif map_name == "losses":
+                elif map_name == "mean_losses":
                     assert np.isclose(minimum, 1.5 / 3600 / 1000)
                     assert np.isclose(maximum, 1.5 / 3600 / 1000)
     # water depth
-    first_depth_map = gscript.list_grouped("raster", pattern="*_h_0000")[current_mapset]
+    first_depth_map = gscript.list_grouped("raster", pattern="*_water_depth_0000")[current_mapset]
     depth_stats = gscript.parse_command("r.univar", flags="g", map=first_depth_map)
     depth_n = int(depth_stats["n"])
     depth_null_cells = int(depth_stats["null_cells"])
@@ -231,3 +237,40 @@ def test_open_boundaries():
             sym_flow = coord_to_flow.get((sym_x, sym_y))
             if sym_flow is not None:
                 assert np.isclose(row["flow_rate"], sym_flow)
+
+
+@pytest.mark.usefixtures("grass_5by5_wse_sim")
+def test_wse():
+    """Test if Water surface elevation is properly applied"""
+    current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
+
+    h_maps = gscript.list_grouped("raster", pattern="*out_5by5_wse_water_depth_*")[current_mapset]
+    gscript.run_command(
+        "r.series",
+        input=h_maps,
+        output="h_test_max",
+        method="maximum",
+        overwrite=True,
+    )
+
+    wse_maps = gscript.list_grouped("raster", pattern="*out_5by5_wse_water_surface_elevation_*")[
+        current_mapset
+    ]
+    gscript.run_command(
+        "r.series",
+        input=wse_maps,
+        output="wse_test_max",
+        method="maximum",
+        overwrite=True,
+    )
+    h_test_max_univar = gscript.parse_command("r.univar", flags="g", map="h_test_max")
+    wse_test_max_univar = gscript.parse_command("r.univar", flags="g", map="wse_test_max")
+
+    print(f"{h_test_max_univar=}")
+    print(f"{wse_test_max_univar=}")
+    h_max = float(h_test_max_univar["max"])
+    wse_max = float(wse_test_max_univar["max"])
+    wse_min = float(wse_test_max_univar["min"])
+    assert np.isclose(h_max, 0.2, atol=0.000005)
+    assert np.isclose(wse_max, 132.2)
+    assert np.isclose(wse_min, 132)

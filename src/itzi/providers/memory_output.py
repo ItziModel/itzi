@@ -28,8 +28,8 @@ class MemoryRasterOutputProvider(RasterOutputProvider):
 
     def initialize(self, config: Dict) -> Self:
         """Initialize output provider with simulation configuration."""
+        # user-selected map names.
         self.out_map_names = config["out_map_names"]
-
         self.output_maps_dict = {k: [] for k in self.out_map_names.keys()}
         return self
 
@@ -48,7 +48,6 @@ class MemoryVectorOutputProvider(VectorOutputProvider):
     def initialize(self, config: Dict | None = None) -> Self:
         """Initialize output provider with simulation configuration."""
         self.drainage_data = []
-
         return self
 
     def write_vector(

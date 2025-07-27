@@ -18,6 +18,8 @@ from typing import Tuple
 import numpy as np
 
 import itzi.flow as flow
+from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi import rastermetrics
 
 
 class DomainData:
@@ -76,7 +78,7 @@ class TimedArray:
     def __init__(self, mkey, igis, f_arr_def):
         assert isinstance(mkey, str), "not a string!"
         assert hasattr(f_arr_def, "__call__"), "not a function!"
-        self.mkey = mkey  # An identifier
+        self.mkey = mkey  # An user-facing array identifier
         self.igis = igis  # GIS interface
         # A function to generate a default array
         self.f_arr_def = f_arr_def
@@ -124,7 +126,7 @@ class TimedArray:
 
 class RasterDomain:
     """Group all rasters for the raster domain.
-    Store them as np.ndarray with validity information (TimedArray)
+    Store them as np.ndarray in a dict
     Include management of the masking and unmasking of arrays.
     """
 
@@ -137,67 +139,31 @@ class RasterDomain:
         self.cell_area = self.dx * self.dy
         self.mask = arr_mask
 
-        # number of cells in a row must be a multiple of that number
-        # byte_num = 256 / 8  # AVX2
-        # itemsize = np.dtype(self.dtype).itemsize
-        # self.row_mul = int(byte_num / itemsize)
-
         # slice for a simple padding (allow stencil calculation on boundary)
         self.simple_pad = (slice(1, -1), slice(1, -1))
+        # Fill values for input arrays
+        self.input_fill_values = {
+            arr_def.key: arr_def.fill_value
+            for arr_def in ARRAY_DEFINITIONS
+            if ArrayCategory.INPUT in arr_def.category
+        }
 
         # all keys that will be used for the arrays
         self.k_input = [
-            "dem",
-            "friction",
-            "h",
-            "y",
-            "effective_porosity",
-            "capillary_pressure",
-            "hydraulic_conductivity",
-            "soil_water_content",
-            "in_inf",
-            "losses",
-            "rain",
-            "inflow",
-            "bcval",
-            "bctype",
+            arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT in arr_def.category
         ]
         self.k_internal = [
-            "inf",
-            "hmax",
-            "ext",
-            "y",
-            "hfe",
-            "hfs",
-            "qe",
-            "qs",
-            "qe_new",
-            "qs_new",
-            "etp",
-            "eff_precip",
-            "ue",
-            "us",
-            "v",
-            "vdir",
-            "vmax",
-            "froude",
-            "n_drain",
-            "capped_losses",
-            "dire",
-            "dirs",
+            arr_def.key
+            for arr_def in ARRAY_DEFINITIONS
+            if ArrayCategory.INTERNAL in arr_def.category
         ]
         # arrays gathering the cumulated water depth from corresponding array
         self.k_accum = [
-            "boundaries_accum",
-            "infiltration_accum",
-            "rainfall_accum",
-            "etp_accum",
-            "inflow_accum",
-            "losses_accum",
-            "drainage_network_accum",
-            "error_depth_accum",
+            arr_def.key
+            for arr_def in ARRAY_DEFINITIONS
+            if ArrayCategory.ACCUMULATION in arr_def.category
         ]
-        self.k_all = self.k_input + self.k_internal + self.k_accum
+        self.k_all = set(self.k_input + self.k_internal + self.k_accum)
         # Instantiate arrays and padded arrays filled with zeros
         self.arr = dict.fromkeys(self.k_all)
         self.arrp = dict.fromkeys(self.k_all)
@@ -266,21 +232,17 @@ class RasterDomain:
         self.arrp[k1], self.arrp[k2] = self.arrp[k2], self.arrp[k1]
         return self
 
-    def update_array(self, k, arr):
+    def update_array(self, arr_key, arr):
         """Update the values of an array with those of a given array."""
+        fill_value = self.input_fill_values[arr_key]
         if arr.shape != self.shape:
             return ValueError
-        if k == "dem":
-            self.update_mask(arr)  # this func does nothing
-            fill_value = np.finfo(self.dtype).max
-        elif k == "h":
-            fill_value = 0
-        elif k == "friction":
-            fill_value = 1
-        else:
-            fill_value = 0
+        if arr_key == "water_surface_elevation":
+            # Calculate actual depth and update the internal depth array
+            arr = rastermetrics.calculate_h_from_wse(arr_wse=arr, arr_dem=self.get_array("dem"))
+            arr_key = "water_depth"
         self.mask_array(arr, fill_value)
-        self.arr[k][:], self.arrp[k][:] = self.pad_array(arr)
+        self.arr[arr_key][:], self.arrp[arr_key][:] = self.pad_array(arr)
         return self
 
     def get_array(self, k):

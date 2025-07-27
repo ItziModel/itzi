@@ -66,6 +66,7 @@ class SimulationRunner:
         self.sim = None
         self.grass_session = None
         self.grass_required_version = "8.4.0"
+        self.input_wse = False
 
     def initialize(self, conf_file):
         """Parse the configuration file, set GRASS,
@@ -77,6 +78,9 @@ class SimulationRunner:
         # display parameters (if verbose)
         msgr.message(f"Starting simulation of {os.path.basename(conf_file)}...")
         self.conf.display_sim_param()
+
+        if self.conf.input_map_names["water_surface_elevation"]:
+            self.input_wse = True
 
         # If run outside of grass, set session
         try:
@@ -108,6 +112,7 @@ class SimulationRunner:
             mkeys=self.conf.input_map_names.keys(),
             region_id=self.conf.grass_params["region"],
             raster_mask_id=self.conf.grass_params["mask"],
+            non_blocking_write=True,
         )
         # Instantiate Simulation object and initialize it
         from itzi.simulation_factories import create_grass_simulation
@@ -207,22 +212,26 @@ class SimulationRunner:
         """Get new array using TimedArray
         And update
         """
-        # make sure DEM is treated first
+        # DEM is needed for WSE and rain routing direction
         if not self.tarr["dem"].is_valid(self.sim.sim_time):
             self.sim.set_array("dem", self.tarr["dem"].get(self.sim.sim_time))
-
         # loop through the arrays
         for k, ta in self.tarr.items():
+            # DEM done before
+            if k == "dem":
+                continue
+            # WSE is updating water depth, either one of the other should update
+            if (k == "water_depth" and self.input_wse) or (
+                k == "water_surface_elevation" and not self.input_wse
+            ):
+                continue
             if not ta.is_valid(self.sim.sim_time):
-                # z is done before
-                if k == "dem":
-                    continue
                 # Convert mm/h to m/s
                 if k in [
                     "rain",
                     "capillary_pressure",
                     "hydraulic_conductivity",
-                    "in_inf",
+                    "infiltration",
                     "losses",
                 ]:
                     new_arr = ta.get(self.sim.sim_time) / (1000 * 3600)

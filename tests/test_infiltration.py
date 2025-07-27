@@ -95,7 +95,7 @@ def infiltration_sim(infiltration_parameters):
     arr_cap_pressure = np.full(shape=array_shape, fill_value=inf_params.cap_pressure)
     arr_water_content = np.full(shape=array_shape, fill_value=inf_params.init_wat_content)
     raster_domain = RasterDomain(dtype=dtype, cell_shape=cell_shape, arr_mask=mask)
-    raster_domain.update_array("h", arr_depth)
+    raster_domain.update_array("water_depth", arr_depth)
     raster_domain.update_array("effective_porosity", arr_por)
     raster_domain.update_array("capillary_pressure", arr_cap_pressure)
     raster_domain.update_array("hydraulic_conductivity", arr_cond)

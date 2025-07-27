@@ -60,7 +60,7 @@ class Hydrology:
     def cap_losses(self):
         """User-defined losses are treated like user infiltration."""
         flow.infiltration_user(
-            arr_h=self.dom.get_array("h"),
+            arr_h=self.dom.get_array("water_depth"),
             arr_inf_in=self.dom.get_array("losses"),
             arr_inf_out=self.dom.get_array("capped_losses"),
             dt=self._dt,
@@ -72,10 +72,9 @@ class Hydrology:
         """
         flow.apply_hydrology(
             arr_rain=self.dom.get_array("rain"),
-            arr_inf=self.dom.get_array("inf"),
-            arr_etp=self.dom.get_array("etp"),
+            arr_inf=self.dom.get_array("computed_infiltration"),
             arr_capped_losses=self.dom.get_array("capped_losses"),
-            arr_h=self.dom.get_array("h"),
+            arr_h=self.dom.get_array("water_depth"),
             arr_eff_precip=self.dom.get_array("eff_precip"),
             dt=self._dt,
         )

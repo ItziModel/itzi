@@ -135,11 +135,16 @@ def grass_5by5(grass_xy_session, test_data_path):
     gscript.run_command("g.region", res=resolution, s=0, w=0, e=50, n=50)
     region = gscript.parse_command("g.region", flags="pg")
     assert int(region["cells"]) == 25
-    # DEM
+    # DEMs
     gscript.mapcalc("z=0")
     univar_z = gscript.parse_command("r.univar", map="z", flags="g")
     assert int(univar_z["min"]) == 0
     assert int(univar_z["max"]) == 0
+    z_high_value = 132
+    gscript.mapcalc(f"z_high={z_high_value}")
+    univar_z = gscript.parse_command("r.univar", map="z_high", flags="g")
+    assert int(univar_z["min"]) == z_high_value
+    assert int(univar_z["max"]) == z_high_value
     # Manning
     gscript.mapcalc("n=0.05")
     univar_n = gscript.parse_command("r.univar", map="n", flags="g")
@@ -155,11 +160,28 @@ def grass_5by5(grass_xy_session, test_data_path):
         use="val",
         value=0.2,
     )
+    # Start Water Surface Elevation
+    gscript.run_command(
+        "v.to.rast",
+        input="start_h",
+        output="start_wse",
+        type="point",
+        use="val",
+        value=z_high_value + 0.2,
+    )
     # Set null values to 0
     gscript.run_command("r.null", map="start_h", null=0)
+    gscript.run_command(
+        "r.null", map="start_wse", null=0
+    )  # WSE will be lower than DEM, on purpose
     univar_start_h = gscript.parse_command("r.univar", map="start_h", flags="g")
+    univar_start_wse = gscript.parse_command("r.univar", map="start_wse", flags="g")
+    assert float(univar_start_h["null_cells"]) == 0
     assert float(univar_start_h["min"]) == 0
     assert float(univar_start_h["max"]) == 0.2
+    assert float(univar_start_wse["null_cells"]) == 0
+    assert float(univar_start_wse["min"]) == 0
+    assert float(univar_start_wse["max"]) == z_high_value + 0.2
     # Symmetry control points
     control_points = os.path.join(test_data_path, "5by5", "control_points.csv")
     gscript.run_command(
@@ -245,6 +267,17 @@ def grass_5by5_stats_sim(grass_5by5, test_data_path):
 def grass_5by5_open_boundaries_sim(grass_5by5, test_data_path):
     """ """
     config_file = os.path.join(test_data_path, "5by5", "5by5_open_boundaries.ini")
+    sim_runner = SimulationRunner()
+    assert isinstance(sim_runner, SimulationRunner)
+    sim_runner.initialize(config_file)
+    sim_runner.run().finalize()
+    return sim_runner
+
+
+@pytest.fixture(scope="class")
+def grass_5by5_wse_sim(grass_5by5, test_data_path):
+    """ """
+    config_file = os.path.join(test_data_path, "5by5", "5by5_wse.ini")
     sim_runner = SimulationRunner()
     assert isinstance(sim_runner, SimulationRunner)
     sim_runner.initialize(config_file)

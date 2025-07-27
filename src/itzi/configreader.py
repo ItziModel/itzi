@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 
 import itzi.messenger as msgr
 from itzi.const import DefaultValues
+from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
 
 class ConfigReader:
@@ -43,32 +44,12 @@ class ConfigReader:
             "hydraulic_conductivity",
         ]
         k_input_map_names = [
-            "dem",
-            "friction",
-            "start_h",
-            "start_y",
-            "rain",
-            "inflow",
-            "bcval",
-            "bctype",
-            "infiltration",
-            "losses",
-        ] + self.ga_list
+            arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT in arr_def.category
+        ]
         k_output_map_names = [
-            "h",
-            "wse",
-            "v",
-            "vdir",
-            "qx",
-            "qy",
-            "froude",
-            "boundaries",
-            "infiltration",
-            "rainfall",
-            "inflow",
-            "losses",
-            "drainage_stats",
-            "verror",
+            arr_def.key
+            for arr_def in ARRAY_DEFINITIONS
+            if ArrayCategory.OUTPUT in arr_def.category
         ]
         self.drainage_params = {
             "swmm_inp": None,
@@ -106,7 +87,7 @@ class ConfigReader:
         # process inputs times
         self.sim_times = SimulationTimes(self.raw_input_times)
         # check if mandatory parameters are present
-        self.check_mandatory()
+        self.check_general_input()
         # check coherence of infiltrations entries
         self.check_inf_maps()
         # check the sanity of simulation parameters
@@ -135,14 +116,18 @@ class ConfigReader:
             if params.has_option("grass", k):
                 self.grass_params[k] = params.get("grass", k)
         # check for deprecated input names
-        if params.has_option("input", "drainage_capacity"):
-            msgr.warning("'drainage_capacity' is deprecated. Use 'losses' instead.")
-            self.input_map_names["losses"] = params.get("input", "drainage_capacity")
-        if params.has_option("input", "effective_pororosity"):
-            msgr.warning("'effective_pororosity' is deprecated. Use 'effective_porosity' instead.")
-            self.input_map_names["effective_porosity"] = params.get(
-                "input", "effective_pororosity"
-            )
+        input_deprecated_list = [  # (old, new)
+            ("drainage_capacity", "losses"),
+            ("effective_pororosity", "effective_porosity"),
+            ("start_h", "water_depth"),
+        ]
+        for old_input_name, new_input_name in input_deprecated_list:
+            if params.has_option("input", old_input_name):
+                msgr.warning(
+                    f"Input '{old_input_name}' is deprecated. Use '{new_input_name}' instead."
+                )
+                self.input_map_names[new_input_name] = params.get("input", old_input_name)
+
         # search for valid inputs
         for k in self.input_map_names:
             if params.has_option("input", k):
@@ -167,9 +152,25 @@ class ConfigReader:
             out_values = params.get("output", "values").split(",")
             self.out_values = [e.strip() for e in out_values]
             # check for deprecated values
-            if "drainage_cap" in self.out_values and "losses" not in self.out_values:
-                msgr.warning("'drainage_cap' is deprecated. Use 'losses' instead.")
-                self.out_values.append("losses")
+            output_deprecated_list = [  # (old,new)
+                ("drainage_cap", "mean_losses"),
+                ("h", "water_depth"),
+                ("wse", "water_surface_elevation"),
+                ("boundaries", "mean_boundary_flow"),
+                ("verror", "volume_error"),
+                ("inflow", "mean_inflow"),
+                ("infiltration", "mean_infiltration"),
+                ("rainfall", "mean_rainfall"),
+                ("losses", "mean_losses"),
+                ("drainage_stats", "mean_drainage_flow"),
+            ]
+            for old_output_name, new_output_name in output_deprecated_list:
+                if old_output_name in self.out_values and new_output_name not in self.out_values:
+                    msgr.warning(
+                        f"Output '{old_output_name}' is deprecated. "
+                        f"Use '{new_output_name}' instead."
+                    )
+                    self.out_values.append(new_output_name)
         self.generate_output_name()
         return self
 
@@ -223,8 +224,9 @@ class ConfigReader:
             self.sim_param["inf_model"] = "green-ampt"
         return self
 
-    def check_mandatory(self):
-        """check if mandatory parameters are present"""
+    def check_general_input(self):
+        """check if mandatory parameters are present.
+        And if mutually exclusive parameters are not set together."""
         if not all(
             [
                 self.input_map_names["dem"],
@@ -233,6 +235,10 @@ class ConfigReader:
             ]
         ):
             msgr.fatal("inputs <dem>, <friction> and <record_step> are mandatory")
+        if self.input_map_names["water_depth"] and self.input_map_names["water_surface_elevation"]:
+            msgr.fatal(
+                "inputs <water_depth> and <water_surface_elevation> are mutually exclusive."
+            )
 
     def display_sim_param(self):
         """Display simulation parameters if verbose"""

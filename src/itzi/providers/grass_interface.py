@@ -48,7 +48,7 @@ RULE_VDIR = _DIR / "vdir.txt"
 RULE_FR = _DIR / "froude.txt"
 RULE_DEF = _DIR / "default.txt"
 colors_rules_dict = {
-    "h": str(RULE_H),
+    "water_depth": str(RULE_H),
     "v": str(RULE_V),
     "vdir": str(RULE_VDIR),
     "froude": str(RULE_FR),
@@ -106,7 +106,7 @@ def raster_writer(q, lock):
             # Apply colour table
             apply_color_table(rast_name, mkey)
             # set null values
-            if mkey == "h" and hmin > 0:
+            if mkey == "water_depth" and hmin > 0:
                 GrassInterface.set_null(rast_name, hmin)
         # Signal end of task
         q.task_done()
@@ -519,7 +519,7 @@ class GrassInterface:
         # apply color table
         apply_color_table(rast_name, mkey)
         # set null values
-        if mkey == "h":
+        if mkey == "water_depth" and hmin > 0:
             GrassInterface.set_null(rast_name, hmin)
         return self
 
@@ -623,7 +623,7 @@ class GrassInterface:
         """
         assert isinstance(mkey, str), "not a string!"
         assert isinstance(sim_time, datetime), "not a datetime object!"
-        assert mkey in self.maps.keys(), "unknown map key!"
+        assert mkey in self.maps.keys(), f"unknown map key!: {mkey}"
         if self.maps[mkey] is None:
             return None, self.start_time, self.end_time
         else:

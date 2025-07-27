@@ -45,7 +45,7 @@ jobs:
           name: cibw-sdist
           path: dist/*.tar.gz
 
-upload_pypi:
+  upload_pypi:
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
     environment: release
@@ -60,5 +60,3 @@ upload_pypi:
           merge-multiple: true
 
       - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          # To test: repository-url: https://test.pypi.org/legacy/

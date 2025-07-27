@@ -55,7 +55,7 @@ def arr_add(DTYPE_t [:, :] arr1, DTYPE_t [:, :] arr2):
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
 def apply_hydrology(DTYPE_t [:, :] arr_rain, DTYPE_t [:, :] arr_inf,
-                    DTYPE_t [:, :] arr_etp, DTYPE_t [:, :] arr_capped_losses,
+                    DTYPE_t [:, :] arr_capped_losses,
                     DTYPE_t [:, :] arr_h,
                     DTYPE_t [:, :] arr_eff_precip, DTYPE_t dt):
     '''Update arr_eff_precip in m/s
@@ -66,7 +66,7 @@ def apply_hydrology(DTYPE_t [:, :] arr_rain, DTYPE_t [:, :] arr_inf,
     cmax = arr_rain.shape[1]
     for r in prange(rmax, nogil=True):
         for c in range(cmax):
-            hydro_raw = arr_rain[r, c] - arr_inf[r, c] - arr_etp[r, c] - arr_capped_losses[r, c]
+            hydro_raw = arr_rain[r, c] - arr_inf[r, c] - arr_capped_losses[r, c]
             losses_limit = - arr_h[r, c] / dt
             hydro_capped = max(losses_limit, hydro_raw)
             arr_eff_precip[r, c] = hydro_capped

@@ -2,6 +2,8 @@
 Frequently Asked Questions
 ==========================
 
+.. _numerical-instabilities:
+
 Controlling numerical instabilities
 -----------------------------------
 
@@ -10,6 +12,10 @@ In some cases, runaway instabilities could occur, creating wave-like surface flo
 .. figure:: img/instability.png
    :alt: Example of instabilities
 
+.. versionadded:: 25.7
+    Mass balance error detection added.
+
+Since verion 25.7, when the volume error is above ``max_error``
 There are two ways to control them.
 The first one and the more effective is by reducing the time-step,
 which could be achieved by changing two options:

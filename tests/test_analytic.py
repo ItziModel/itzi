@@ -107,7 +107,7 @@ class TestMcdo_norain:
     def test_mcdo_norain(self, mcdo_norain_sim):
         simulation, reference = mcdo_norain_sim
         raster_results = simulation.report.raster_provider.output_maps_dict
-        wse_time, wse_array = raster_results["wse"][-1]
+        wse_time, wse_array = raster_results["water_surface_elevation"][-1]
         wse_centerline = pd.DataFrame({"wse_model": wse_array[1, :]})
         df_results = reference.join(wse_centerline)
         df_results["abs_error"] = np.abs(df_results["wse_model"] - df_results["wse"])
@@ -216,7 +216,7 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
 def test_mcdo_rain(mcdo_rain_sim):
     simulation, reference = mcdo_rain_sim
     raster_results = simulation.report.raster_provider.output_maps_dict
-    wse_time, wse_array = raster_results["wse"][-1]
+    wse_time, wse_array = raster_results["water_surface_elevation"][-1]
     wse_centerline = pd.DataFrame({"wse_model": wse_array[1, :]})
     df_results = reference.join(wse_centerline)
     df_results["abs_error"] = np.abs(df_results["wse_model"] - df_results["wse"])

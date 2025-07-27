@@ -28,10 +28,10 @@ class GrassRasterOutputProvider(RasterOutputProvider):
     def initialize(self, config: Dict) -> Self:
         """Initialize output provider with configuration."""
         self.grass_interface = config["grass_interface"]
+        # user-selected map names. Keys are user-facing names
         self.out_map_names = config["out_map_names"]
         self.hmin = config["hmin"]
         self.temporal_type = config["temporal_type"]
-
         self.record_counter = {k: 0 for k in self.out_map_names.keys()}
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
         return self
@@ -43,7 +43,7 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         # write the raster
         self.grass_interface.write_raster_map(array, map_name, map_key, self.hmin)
         # Set depth values to null under the given threshold. Temporarily in gis.py
-        # if map_key == "h":
+        # if map_key == "water_depth":
         #     self.grass_interface.set_null(map_name, self.hmin)
         # add map name and time to the corresponding list
         self.output_maplist[map_key].append((map_name, sim_time))
@@ -67,8 +67,8 @@ class GrassRasterOutputProvider(RasterOutputProvider):
                 map_key, strds_name, lst, "strds", self.temporal_type
             )
         # write maps of maximal values
-        if self.out_map_names["h"]:
-            self._write_max_array(final_data.raw_arrays["hmax"], "h")
+        if self.out_map_names["water_depth"]:
+            self._write_max_array(final_data.raw_arrays["hmax"], "water_depth")
         if self.out_map_names["v"]:
             self._write_max_array(final_data.raw_arrays["vmax"], "v")
 
