@@ -235,3 +235,38 @@ def test_open_boundaries():
             sym_flow = coord_to_flow.get((sym_x, sym_y))
             if sym_flow is not None:
                 assert np.isclose(row["flow_rate"], sym_flow)
+
+
+@pytest.mark.usefixtures("grass_5by5_wse_sim")
+def test_wse():
+    """Test if Water surface elevation is properly applied"""
+    current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
+
+    h_maps = gscript.list_grouped("raster", pattern="*out_5by5_wse_water_depth_*")[current_mapset]
+    gscript.run_command(
+        "r.series",
+        input=h_maps,
+        output="h_test_max",
+        method="maximum",
+        overwrite=True,
+    )
+
+    wse_maps = gscript.list_grouped("raster", pattern="*out_5by5_wse_wse_*")[current_mapset]
+    gscript.run_command(
+        "r.series",
+        input=wse_maps,
+        output="wse_test_max",
+        method="maximum",
+        overwrite=True,
+    )
+    h_test_max_univar = gscript.parse_command("r.univar", flags="g", map="h_test_max")
+    wse_test_max_univar = gscript.parse_command("r.univar", flags="g", map="wse_test_max")
+
+    print(f"{h_test_max_univar=}")
+    print(f"{wse_test_max_univar=}")
+    h_max = float(h_test_max_univar["max"])
+    wse_max = float(wse_test_max_univar["max"])
+    wse_min = float(wse_test_max_univar["min"])
+    assert np.isclose(h_max, 0.2, atol=0.000005)
+    assert np.isclose(wse_max, 132.2)
+    assert np.isclose(wse_min, 132)

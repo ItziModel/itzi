@@ -49,7 +49,7 @@ class TestBmi:
 
     def test_get_input_item_count(self, bmi_object):
         count = bmi_object.get_input_item_count()
-        assert count == 13
+        assert count == 14
 
     def test_get_output_item_count(self, bmi_object):
         count = bmi_object.get_output_item_count()

@@ -43,6 +43,10 @@ def calculate_continuity_error(volume_error: float, volume_change: float) -> flo
     return volume_error / volume_change
 
 
+def calculate_h_from_wse(arr_wse, arr_dem):
+    return np.maximum(arr_wse - arr_dem, 0)
+
+
 # --- Output Array Calculations ---
 
 

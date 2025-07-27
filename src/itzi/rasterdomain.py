@@ -19,7 +19,7 @@ import numpy as np
 
 import itzi.flow as flow
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
-# from itzi import rastermetrics
+from itzi import rastermetrics
 
 
 class DomainData:
@@ -141,6 +141,12 @@ class RasterDomain:
 
         # slice for a simple padding (allow stencil calculation on boundary)
         self.simple_pad = (slice(1, -1), slice(1, -1))
+        # Fill values for input arrays
+        self.input_fill_values = {
+            arr_def.key: arr_def.fill_value
+            for arr_def in ARRAY_DEFINITIONS
+            if ArrayCategory.INPUT in arr_def.category
+        }
 
         # all keys that will be used for the arrays
         self.k_input = [
@@ -226,27 +232,17 @@ class RasterDomain:
         self.arrp[k1], self.arrp[k2] = self.arrp[k2], self.arrp[k1]
         return self
 
-    def update_array(self, k, arr):
+    def update_array(self, arr_key, arr):
         """Update the values of an array with those of a given array."""
+        fill_value = self.input_fill_values[arr_key]
         if arr.shape != self.shape:
             return ValueError
-        if k == "dem":
-            # self.update_mask(arr)  # this func does nothing
-            fill_value = np.finfo(self.dtype).max
-        elif k == "water_depth":
-            fill_value = 0
-        # elif k == 'wse':
-        #     # Calculate actual depth and update the internal h array
-        #     temp_arr = rastermetrics.calculate_h_from_wse(arr_wse=arr, arr_dem=self.get_array("dem"))
-        #     arr[:] = temp_arr
-        #     k = "water_depth"
-        #     fill_value = 0
-        elif k == "friction":
-            fill_value = 1
-        else:
-            fill_value = 0
+        if arr_key == "wse":
+            # Calculate actual depth and update the internal depth array
+            arr = rastermetrics.calculate_h_from_wse(arr_wse=arr, arr_dem=self.get_array("dem"))
+            arr_key = "water_depth"
         self.mask_array(arr, fill_value)
-        self.arr[k][:], self.arrp[k][:] = self.pad_array(arr)
+        self.arr[arr_key][:], self.arrp[arr_key][:] = self.pad_array(arr)
         return self
 
     def get_array(self, k):

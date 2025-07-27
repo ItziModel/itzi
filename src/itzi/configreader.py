@@ -234,8 +234,8 @@ class ConfigReader:
             ]
         ):
             msgr.fatal("inputs <dem>, <friction> and <record_step> are mandatory")
-        # if self.input_map_names["water_depth"] and self.input_map_names["wse"]:
-        #     msgr.fatal("inputs <water_depth> and <wse> are mutually exclusive.")
+        if self.input_map_names["water_depth"] and self.input_map_names["wse"]:
+            msgr.fatal("inputs <water_depth> and <wse> are mutually exclusive.")
 
     def display_sim_param(self):
         """Display simulation parameters if verbose"""
