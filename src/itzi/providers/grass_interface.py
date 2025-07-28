@@ -18,6 +18,7 @@ from pathlib import Path
 from collections import namedtuple
 from datetime import datetime, timedelta
 import dataclasses
+from typing import Self
 
 # from multiprocessing import Process, JoinableQueue
 from threading import Thread, Lock
@@ -36,7 +37,6 @@ from grass.pygrass.gis.region import Region
 from grass.pygrass import raster
 from grass.pygrass.vector import VectorTopo
 from grass.pygrass.vector.geometry import Point, Line
-from grass.pygrass.vector.basic import Cats
 from grass.pygrass.vector.table import Link
 
 # color rules
@@ -523,7 +523,9 @@ class GrassInterface:
             GrassInterface.set_null(rast_name, hmin)
         return self
 
-    def create_db_links(self, vect_map, linking_elem):
+    def create_db_links(
+        self, vect_map: VectorTopo, linking_elem: dict[str, LayerDescr]
+    ) -> dict[str, LinkDescr]:
         """vect_map an open vector map"""
         dblinks = {}
         for layer_name, layer_dscr in linking_elem.items():
@@ -543,77 +545,65 @@ class GrassInterface:
             dblinks[layer_name] = self.LinkDescr(dblink.layer, dbtable)
         return dblinks
 
-    def write_vector_map(self, drainage_data: DrainageNetworkData, map_name: str):
+    def write_vector_map(self, drainage_data: DrainageNetworkData, map_name: str) -> Self:
         """Write a vector map to GRASS GIS"""
-
-        with VectorTopo(map_name, mode="w", overwrite=self.overwrite) as vect_map:
+        # Get column definitions from input data
+        node_columns_def = drainage_data.nodes[0].attributes.get_columns_definition()
+        link_columns_def = drainage_data.links[0].attributes.get_columns_definition()
+        linking_elements = {
+            "node": self.LayerDescr(table_suffix="_node", cols=node_columns_def, layer_number=1),
+            "link": self.LayerDescr(table_suffix="_link", cols=link_columns_def, layer_number=2),
+        }
+        # set category manually
+        cat_num = 1
+        with VectorTopo(map_name, mode="w", overwrite=self.overwrite) as vector_map:
             # create db links and tables
-            node_columns_def = drainage_data.nodes[0].attributes.get_columns_definition()
-            link_columns_def = drainage_data.links[0].attributes.get_columns_definition()
-            linking_elements = {
-                "node": self.LayerDescr(
-                    table_suffix="_node", cols=node_columns_def, layer_number=1
-                ),
-                "link": self.LayerDescr(
-                    table_suffix="_link", cols=link_columns_def, layer_number=2
-                ),
-            }
-            dblinks = self.create_db_links(vect_map, linking_elements)
-
-            # set category manually
-            cat_num = 1
-
+            dblinks = self.create_db_links(vector_map, linking_elements)
             # dict to keep DB infos to write DB after geometries
             db_info = {k: [] for k in linking_elements}
 
-            # Points
+            ## Write the points ##
+            # Write in the correct layer
+            map_layer, _ = dblinks["node"]
+            vector_map.layer = map_layer
             for node in drainage_data.nodes:
                 if node.coordinates:
                     point = Point(*node.coordinates)
-                    # add values
-                    map_layer, dbtable = dblinks["node"]
-                    self.write_vector_geometry(vect_map, point, cat_num, map_layer)
+                    # The write function of the vector map set the layer to the one we set earlier
+                    vector_map.write(point, cat=cat_num)
                     # Get DB attributes
                     node_attributes = tuple(
                         value for _, value in dataclasses.asdict(node.attributes).items()
                     )
                     attrs = (cat_num,) + node_attributes
                     db_info["node"].append(attrs)
-                    # bump cat
                     cat_num += 1
 
-            # Lines
+            ## Write the lines ##
+            # Set the vector map to the correct layer
+            map_layer, _ = dblinks["link"]
+            vector_map.layer = map_layer
             for link in drainage_data.links:
                 # assemble geometry
                 if all(link.vertices):
                     line_object = Line(link.vertices)
-                    # set category and layer link
-                    map_layer, dbtable = dblinks["link"]
-                    self.write_vector_geometry(vect_map, line_object, cat_num, map_layer)
+                    # The write function of the vector map set the layer to the one we set earlier
+                    vector_map.write(line_object, cat=cat_num)
                     # keep DB info
                     link_attributes = tuple(
                         value for _, value in dataclasses.asdict(link.attributes).items()
                     )
                     attrs = (cat_num,) + link_attributes
                     db_info["link"].append(attrs)
-                    # bump cat
                     cat_num += 1
 
-        # write DB
+        # write attributes to DB
         for geom_type, attrs in db_info.items():
             map_layer, dbtable = dblinks[geom_type]
             for attr in attrs:
                 dbtable.insert(attr)
             dbtable.conn.commit()
         return self
-
-    def write_vector_geometry(self, vector_map, geom, cat_num, map_layer):
-        """Write geometry in the adequate layer"""
-        cats = Cats(geom.c_cats)
-        cats.reset()
-        cats.set(cat_num, map_layer)
-        # write geometry
-        vector_map.write(geom, cat_num)
 
     def get_array(self, mkey, sim_time):
         """take a given map key and simulation time
