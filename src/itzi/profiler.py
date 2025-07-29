@@ -8,6 +8,7 @@ Profiling is activated by setting the environment variable ITZI_PROFILE=1.
 """
 
 import os
+from pathlib import Path
 from contextlib import contextmanager
 
 # Attempt to import pyinstrument
@@ -21,7 +22,7 @@ except ImportError:
 
 
 @contextmanager
-def profile_context():
+def profile_context(file_path: Path = None):
     """
     A context manager for profiling code blocks.
 
@@ -48,4 +49,7 @@ def profile_context():
     finally:
         if profiler_active:
             profiler.stop()
-            print(profiler.output_text(unicode=True, color=True))
+            if file_path:
+                Path(file_path).write_text(profiler.output_text(unicode=False, color=False))
+            else:
+                print(profiler.output_text(unicode=True, color=True))
