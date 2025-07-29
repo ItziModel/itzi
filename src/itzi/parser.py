@@ -17,7 +17,6 @@ run_parser.add_argument(
     help=("an Itzï configuration file (if several given, run in batch mode)"),
 )
 run_parser.add_argument("-o", action="store_true", help="overwrite files if exist")
-run_parser.add_argument("-p", action="store_true", help="activate profiler")
 verbosity_parser = run_parser.add_mutually_exclusive_group()
 verbosity_parser.add_argument("-v", action="count", help="increase verbosity")
 verbosity_parser.add_argument("-q", action="count", help="decrease verbosity")

@@ -6,8 +6,7 @@ authors = [
     {name = "Laurent Courty", email = "lrntct@gmail.com"},
 ]
 dependencies = [
-    "numpy==2.2.*",
-    "pyinstrument==5.*",
+    "numpy>=2.2",
     "pyswmm>=2.0.1",
     "bmipy>=2.0.1",
 ]
@@ -37,16 +36,17 @@ itzi = "itzi.itzi:main"
 
 [dependency-groups]
 dev = [
-    "pytest==8.3.*",
+    "pytest>=8.3",
     "pytest-cov==6.*",
     "pytest-forked==1.*",
     "pandas==2.*",
     "requests==2.*",
-    "pytest-benchmark[histogram]==5.1.*",
+    "pytest-benchmark[histogram]==5.*",
     "scipy>=1.15.2",
     "pre-commit>=4.2.0",
-    "ruff>=0.11.6",
-    "ty>=0.0.1a13",
+    "ruff>=0.12",
+    "ty>=0.0.1a16",
+    "pyinstrument==5.*",
 ]
 
 [build-system]

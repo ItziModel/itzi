@@ -16,6 +16,7 @@ import pytest
 import grass.script as gscript
 
 from itzi import SimulationRunner
+from itzi.profiler import profile_context
 
 TEST8B_URL = "https://zenodo.org/api/records/15256842/files/Test8B_dataset_2010.zip/content"
 TEST8B_MD5 = "84b865cedd28f8156cfe70b84004b62c"
@@ -141,9 +142,11 @@ def ea_test8b_sim(ea_test8b, test_data_path, test_data_temp_path):
     conf_file = os.path.join(test_data_temp_path, "ea2dt8b.ini")
     with open(conf_file, "w") as f:
         parser.write(f)
-    sim_runner = SimulationRunner()
-    sim_runner.initialize(conf_file)
-    sim_runner.run().finalize()
+    profile_path = Path(test_data_temp_path) / Path("test8b_profile.txt")
+    with profile_context(profile_path):
+        sim_runner = SimulationRunner()
+        sim_runner.initialize(conf_file)
+        sim_runner.run().finalize()
     return sim_runner
 
 

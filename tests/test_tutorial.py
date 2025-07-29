@@ -14,6 +14,7 @@ import grass.script as gscript
 
 from itzi import SimulationRunner
 from itzi.data_containers import DrainageNodeAttributes, DrainageLinkAttributes
+from itzi.profiler import profile_context
 
 DEM_URL = "https://zenodo.org/api/records/15009114/files/elev_lid792_1m.gtiff/content"
 MD5_SUM = "224f73dfa37244722b879a5f653682c9"
@@ -113,13 +114,17 @@ def itzi_tutorial(grass_tutorial_session, tutorial_test_file):
 @pytest.mark.slow
 @pytest.mark.usefixtures("itzi_tutorial", "test_data_path")
 class TestItziTutorial:
-    def test_tutorial(itzi_tutorial, test_data_path):
+    def test_tutorial(itzi_tutorial, test_data_path, test_data_temp_path):
         """Run the tutorial simulation. Check the results."""
         # Run the simulation
         config_file = os.path.join(test_data_path, "tutorial_files", "tutorial.ini")
-        sim_runner = SimulationRunner()
-        sim_runner.initialize(config_file)
-        sim_runner.run().finalize()
+        profile_path = pathlib.Path(test_data_temp_path) / pathlib.Path(
+            "test_tutorial_profile.txt"
+        )
+        with profile_context(profile_path):
+            sim_runner = SimulationRunner()
+            sim_runner.initialize(config_file)
+            sim_runner.run().finalize()
         # Check the results
         h_max_univar = gscript.parse_command(
             "r.univar", map="nc_itzi_tutorial_water_depth_max", flags="g"
