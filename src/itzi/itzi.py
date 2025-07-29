@@ -34,7 +34,6 @@ from importlib.metadata import version
 from multiprocessing import Process
 from datetime import datetime, timedelta
 
-from pyinstrument import Profiler
 import numpy as np
 
 from itzi.configreader import ConfigReader
@@ -42,6 +41,7 @@ import itzi.itzi_error as itzi_error
 import itzi.messenger as msgr
 from itzi.const import VerbosityLevel
 from itzi import parser
+from itzi.profiler import profile_context
 
 
 def main():
@@ -247,21 +247,14 @@ class SimulationRunner:
         return self
 
 
-def sim_runner_worker(conf_file, profile):
+def sim_runner_worker(conf_file):
     """Run one simulation"""
     msgr.raise_on_error = True
     try:
-        # Start profiler if requested
-        if profile:
-            prof = Profiler()
-            prof.start()
-        # Run the simulation
-        sim_runner = SimulationRunner()
-        sim_runner.initialize(conf_file).run().finalize()
-        # end profiling and print results
-        if profile:
-            prof.stop()
-            print(prof.output_text(unicode=True, color=True))
+        with profile_context():
+            # Run the simulation
+            sim_runner = SimulationRunner()
+            sim_runner.initialize(conf_file).run().finalize()
     except itzi_error.ItziError:
         # if an Itzï error, only print the last line of the traceback
         traceback_lines = traceback.format_exc().splitlines()
@@ -270,9 +263,9 @@ def sim_runner_worker(conf_file, profile):
         msgr.warning("Error during execution: {}".format(traceback.format_exc()))
 
 
-def itzi_run_one(conf_file, profile):
+def itzi_run_one(conf_file):
     """Run a simulation in a subprocess"""
-    worker_args = (conf_file, profile)
+    worker_args = (conf_file,)
     p = Process(target=sim_runner_worker, args=worker_args)
     p.start()
     p.join()
@@ -311,10 +304,6 @@ def itzi_run(cli_args):
         # only warnings
         os.environ["GRASS_VERBOSE"] = "0"
 
-    profile = False
-    if cli_args.p:
-        profile = True
-
     # start total time counter
     total_sim_start = time.time()
     # dictionary to store computation times
@@ -322,7 +311,7 @@ def itzi_run(cli_args):
     for conf_file in cli_args.config_file:
         sim_start = time.time()
         # Run the simulation
-        itzi_run_one(conf_file, profile)
+        itzi_run_one(conf_file)
         # store computational time
         comp_time = timedelta(seconds=int(time.time() - sim_start))
         list_elem = (os.path.basename(conf_file), comp_time)
