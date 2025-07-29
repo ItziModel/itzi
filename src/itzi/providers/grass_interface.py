@@ -571,13 +571,13 @@ class GrassInterface:
                     point = Point(*node.coordinates)
                     # The write function of the vector map set the layer to the one we set earlier
                     vector_map.write(point, cat=cat_num)
-                    # Get DB attributes
-                    node_attributes = tuple(
-                        value for _, value in dataclasses.asdict(node.attributes).items()
-                    )
-                    attrs = (cat_num,) + node_attributes
-                    db_info["node"].append(attrs)
-                    cat_num += 1
+                # Get DB attributes even if no associated geometry
+                node_attributes = tuple(
+                    value for _, value in dataclasses.asdict(node.attributes).items()
+                )
+                attrs = (cat_num,) + node_attributes
+                db_info["node"].append(attrs)
+                cat_num += 1
 
             ## Write the lines ##
             # Set the vector map to the correct layer
@@ -589,13 +589,13 @@ class GrassInterface:
                     line_object = Line(link.vertices)
                     # The write function of the vector map set the layer to the one we set earlier
                     vector_map.write(line_object, cat=cat_num)
-                    # keep DB info
-                    link_attributes = tuple(
-                        value for _, value in dataclasses.asdict(link.attributes).items()
-                    )
-                    attrs = (cat_num,) + link_attributes
-                    db_info["link"].append(attrs)
-                    cat_num += 1
+                # Get DB attributes even if no associated geometry
+                link_attributes = tuple(
+                    value for _, value in dataclasses.asdict(link.attributes).items()
+                )
+                attrs = (cat_num,) + link_attributes
+                db_info["link"].append(attrs)
+                cat_num += 1
 
         # write attributes to DB
         for geom_type, attrs in db_info.items():

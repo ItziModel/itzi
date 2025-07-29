@@ -219,7 +219,7 @@ class TestItziTutorial:
         v_db_select = gscript.read_command("v.db.select", map=map_name, layer=2).split("\n")[:-1]
         # Number of links exported to DB
         link_entries = v_db_select[1:]
-        assert len(link_entries) == 1
+        assert len(link_entries) == 2
         # link DB columns are as expected
         actual_link_columns = v_db_select[0].split("|")
         expected_link_columns = ["cat"] + [field.name for field in fields(DrainageLinkAttributes)]
@@ -229,7 +229,7 @@ class TestItziTutorial:
         v_db_select = gscript.read_command("v.db.select", map=map_name, layer=1).split("\n")[:-1]
         # Number of nodes exported to DB
         nodes_entries = v_db_select[1:]
-        assert len(nodes_entries) == 2
+        assert len(nodes_entries) == 3
         # node DB columns are as expected
         actual_nodes_columns = v_db_select[0].split("|")
         expected_nodes_columns = ["cat"] + [field.name for field in fields(DrainageNodeAttributes)]
