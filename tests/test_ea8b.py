@@ -153,7 +153,9 @@ def ea8b_itzi_drainage_results(ea_test8b_sim):
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     assert current_mapset == "ea8b"
     select_col = ["start_time", "coupling_flow"]
-    itzi_results = gscript.read_command("t.vect.db.select", input="out_drainage")
+    itzi_results = gscript.read_command(
+        "t.vect.db.select", input="out_drainage", where="node_id=='J1'"
+    )
     # translate to Pandas dataframe and keep only coupling_flow with start_time over 3000
     df_itzi_results = pd.read_csv(StringIO(itzi_results), sep="|")[select_col]
     df_itzi_results = df_itzi_results[df_itzi_results.start_time >= 3000]
