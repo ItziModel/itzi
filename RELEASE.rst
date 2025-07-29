@@ -10,7 +10,7 @@ For more details please see the commit log of the git repository.
 Itzï 25.7
 ---------
 
-*Release date: 2025-07-XX*
+*Release date: 2025-07-31*
 
 
 
@@ -19,8 +19,9 @@ Itzï 25.7
 - Accept water surface elevation (terrain + water depth) as an input value (issue #27)
 - Accept soil water content as an input value (issue #96)
 - Mass balance error is now tracked in real time. The simulation will stop if the mass balance error is above a given threshold (issue #114)
-- In the water depth maps exported to grass, the values under the threshold are no longer deleted, but exported and then masked with ``r.null`` (issue #123)
+- In the water depth maps exported to GRASS, the values under the threshold are no longer deleted, but exported and then masked with ``r.null`` (issue #123)
 - The results for all the nodes and links of the drainage simulation are now saved to the database, not only those with coordinates.
+- The output map "mean_losses* now has the same units (mm/h) as the input map *losses*.
 
 **Corrected bugs**
 
@@ -31,7 +32,7 @@ Itzï 25.7
 
 **Internals**
 
-- The reporting functionality is improved and better isolated. Add memory output providers. (#112, #121, #125, #127, #129)
+- The reporting functionality is improved and better isolated. Memory output providers are added in addition to GRASS. (#112, #121, #125, #127, #129)
 - Array names, description, units, etc. are now centralized (#134)
 - Add benchmark for the tutorial (#113)
 
@@ -62,7 +63,7 @@ This version requires GRASS 8.4 or above.
 - Remove the dependency on grass-session, as allowed by grass 8.4.
 - More tests and better test coverage.
 - Add a benchmark for the surface flow simulation.
-- All units for infiltration are now m/s instead of mm/h, preventing conversion errors.
+- All internal units for infiltration are now m/s instead of mm/h, preventing conversion errors.
 - More modern package tooling.
 
 

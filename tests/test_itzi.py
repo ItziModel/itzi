@@ -183,8 +183,8 @@ def test_stats_maps():
                     assert np.isclose(minimum, 2.0)
                     assert np.isclose(maximum, 2.0)
                 elif map_name == "mean_losses":
-                    assert np.isclose(minimum, 1.5 / 3600 / 1000)
-                    assert np.isclose(maximum, 1.5 / 3600 / 1000)
+                    assert np.isclose(minimum, 1.5)
+                    assert np.isclose(maximum, 1.5)
     # water depth
     first_depth_map = gscript.list_grouped("raster", pattern="*_water_depth_0000")[current_mapset]
     depth_stats = gscript.parse_command("r.univar", flags="g", map=first_depth_map)

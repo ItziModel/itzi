@@ -519,7 +519,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         category=[ArrayCategory.OUTPUT],
         description="Mean of volumetric flow passing through the domain boundaries since the last record. "
         "Negative if water is leaving the domain.",
-        unit="m3 s-1",
+        unit="m s-1",
         cf_unit="",
         var_loc="face",
         computes_from="boundaries_accum",
@@ -531,7 +531,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         category=[ArrayCategory.OUTPUT],
         description="Mean of volumetric flow entering the domain due to "
         "user-defined inflow volume flux since the last record.",
-        unit="m3 s-1",
+        unit="m s-1",
         cf_unit="",
         var_loc="face",
         computes_from="inflow_accum",
@@ -543,7 +543,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         category=[ArrayCategory.OUTPUT],
         description="Mean of volumetric flow leaving the domain due to "
         "user-defined losses since the last record.",
-        unit="m3 s-1",
+        unit="m s-1",
         cf_unit="",
         var_loc="face",
         computes_from="losses_accum",
@@ -556,7 +556,7 @@ _OUTPUT_ARRAY_DEFINITIONS = [
         description="Mean of volumetric flow entering the surface domain due to "
         "network drainage overflow since the last record."
         "Negative when the water leaves the surface domain due to inflow into the drainage network.",
-        unit="m3 s-1",
+        unit="m s-1",
         cf_unit="",
         var_loc="face",
         computes_from="drainage_network_accum",

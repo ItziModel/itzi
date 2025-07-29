@@ -115,7 +115,7 @@ class Report:
         }
         for output_name, accum_key in accum_mapping.items():
             if self.out_map_names.get(output_name) and accum_key in accum_arrays:
-                if accum_key in ["rainfall_accum", "infiltration_accum"]:
+                if accum_key in ["rainfall_accum", "infiltration_accum", "losses_accum"]:
                     conversion_factor = 1000 * 3600  # m/s to mm/h
                 else:
                     conversion_factor = 1.0
