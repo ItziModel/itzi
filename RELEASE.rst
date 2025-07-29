@@ -20,18 +20,20 @@ Itzï 25.7
 - Accept soil water content as an input value (issue #96)
 - Mass balance error is now tracked in real time. The simulation will stop if the mass balance error is above a given threshold (issue #114)
 - In the water depth maps exported to grass, the values under the threshold are no longer deleted, but exported and then masked with ``r.null`` (issue #123)
+- The results for all the nodes and links of the drainage simulation are now saved to the database, not only those with coordinates.
 
 **Corrected bugs**
 
 - Fix the conversion factor of input capillary pressure (#132)
 - Fix and improve the mass balance computation in the statistical file (issue #77)
 - Open boundary condition is now properly applied on all domain boundaries (issue #41)
+- The layer assignation for drainage links is now working correctly (issue #138)
 
 **Internals**
 
 - The reporting functionality is improved and better isolated. Add memory output providers. (#112, #121, #125, #127, #129)
 - Array names, description, units, etc. are now centralized (#134)
-- Add benchmark for the tutorial
+- Add benchmark for the tutorial (#113)
 
 
 Itzï 25.4

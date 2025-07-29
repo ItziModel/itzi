@@ -43,10 +43,10 @@ class DrainageAttributes:
 
     def get_columns_definition(self) -> list[tuple[str, str]]:
         """Return a list of tuples to create DB columns"""
-        type_corresp = {str: "TEXT", int: "INT", float: "REAL"}
+        type_mapping = {str: "TEXT", int: "INT", float: "REAL"}
         db_columns_def = [("cat", "INTEGER PRIMARY KEY")]
         for f in dataclasses.fields(self):
-            db_field = (f.name, type_corresp[f.type])
+            db_field = (f.name, type_mapping[f.type])
             db_columns_def.append(db_field)
         return db_columns_def
 

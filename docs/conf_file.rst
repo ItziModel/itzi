@@ -228,6 +228,7 @@ If an exported map is totally empty, it is deleted at the end of the simulation 
 
 Statistics file
 ^^^^^^^^^^^^^^^
+
 The statistic file is a CSV file updated at each *record_step*.
 The values exported are shown in the table below.
 Water entering the domain is represented by a positive value.
@@ -327,7 +328,11 @@ This section is needed only if carrying out a simulation that couples drainage a
 | submerged_weir_coeff| Submerged weir coefficient for flow exchange calculation   | 0.056         |
 +---------------------+------------------------------------------------------------+---------------+
 
-The output maps are organised in two layers.
+
+Drainage output
+^^^^^^^^^^^^^^^
+
+The results from the drainage network simulation are saved as vector maps, organised in two layers.
 The nodes are stored in layer 1, the links in layer 2.
 
 The values stored for the nodes are described below. All are instantaneous.
@@ -379,7 +384,7 @@ The values stored for the nodes are described below. All are instantaneous.
 | full_volume      | Volume in the node when *head - invert_elevation = crest_elevation*   |
 +------------------+-----------------------------------------------------------------------+
 
-The values stored for the links are as follows:
+The values for the links are as follows:
 
 +---------------+-------------------------------------------------------+
 | Column        | Description                                           |
@@ -403,6 +408,8 @@ The values stored for the links are as follows:
 | froude        | Average Froude number                                 |
 +---------------+-------------------------------------------------------+
 
+.. note:: Only links and nodes with coordinates will be written as geographic features to the grass vector map.
+  However, results from all nodes and links are written to the database, even without an associated geographic feature.
 
 [grass]
 -------

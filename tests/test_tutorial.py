@@ -6,12 +6,14 @@ import requests
 import pathlib
 import tempfile
 from configparser import ConfigParser
+from dataclasses import fields
 
 import pytest
 import pandas as pd
 import grass.script as gscript
 
 from itzi import SimulationRunner
+from itzi.data_containers import DrainageNodeAttributes, DrainageLinkAttributes
 
 DEM_URL = "https://zenodo.org/api/records/15009114/files/elev_lid792_1m.gtiff/content"
 MD5_SUM = "224f73dfa37244722b879a5f653682c9"
@@ -153,23 +155,82 @@ class TestItziTutorial:
         sim_runner = SimulationRunner()
         sim_runner.initialize(config_file)
         sim_runner.run().finalize()
-        # Check the results
+
+        # Check the results at the entry node
         select_cols = ["start_time", "coupling_flow"]
-        drainage_results = gscript.read_command(
+        node_results = gscript.read_command(
             "t.vect.db.select",
             input="nc_itzi_tutorial_drainage",
-            # columns=select_cols,
             where="node_id=='J0'",
         )
         # To pandas
-        df_drainage = pd.read_csv(StringIO(drainage_results), sep="|")[select_cols]
-        df_drainage.set_index("start_time", drop=True, inplace=True, verify_integrity=True)
+        df_node = pd.read_csv(StringIO(node_results), sep="|")[select_cols]
+        df_node.set_index("start_time", drop=True, inplace=True, verify_integrity=True)
         # convert indices to timedelta
-        df_drainage.index = pd.to_timedelta(df_drainage.index, unit="s")
+        df_node.index = pd.to_timedelta(df_node.index, unit="s")
         # to series
-        ts_drainage = df_drainage.squeeze()
+        ts_drainage = df_node.squeeze()
         # Check stability
         drainage_roughness = helpers.roughness(ts_drainage)
         drainage_autocorrelation = ts_drainage.autocorr(lag=1)
         assert drainage_roughness < 3
         assert drainage_autocorrelation > 0.99
+
+        ## Check integrity of vector file ##
+        map_name = "nc_itzi_tutorial_drainage_0047"
+
+        gscript.run_command("db.connect", flags="d")
+        # Number of geometric features
+        topology = gscript.parse_command("v.info", flags="t", map=map_name)
+        assert int(topology["points"]) == 2
+        assert int(topology["lines"]) == 1
+
+        # Check layer connection for nodes
+        v_info_layer1 = gscript.parse_command("v.info", flags="e", layer=1, map=map_name)
+        assert 2 == int(v_info_layer1["num_dblinks"])
+        assert 1 == int(v_info_layer1["attribute_layer_number"])
+        assert "node" == v_info_layer1["attribute_layer_name"]
+        assert f"{map_name}_node" == v_info_layer1["attribute_table"]
+        assert "cat" == v_info_layer1["attribute_primary_key"]
+
+        # Check layer connection for links
+        v_info_layer2 = gscript.parse_command("v.info", flags="e", layer=2, map=map_name)
+        assert 2 == int(v_info_layer2["num_dblinks"])
+        assert 2 == int(v_info_layer2["attribute_layer_number"])
+        assert "link" == v_info_layer2["attribute_layer_name"]
+        assert f"{map_name}_link" == v_info_layer2["attribute_table"]
+        assert "cat" == v_info_layer2["attribute_primary_key"]
+
+        # Make sure points and lines are only written in layers 1 and 2, respectively
+        v_category = gscript.parse_command(
+            "v.category", input=map_name, option="report", flags="g"
+        )
+        layer_list = []
+        for layer in v_category:
+            layer_lst = layer.split(" ")[:2]
+            layer_str = " ".join(layer_lst)
+            layer_list.append(layer_str)
+        assert "1 point" in layer_list
+        assert "2 point" not in layer_list
+        assert "2 line" in layer_list
+        assert "1 line" not in layer_list
+
+        # Check links DB table
+        v_db_select = gscript.read_command("v.db.select", map=map_name, layer=2).split("\n")[:-1]
+        # Number of links exported to DB
+        link_entries = v_db_select[1:]
+        assert len(link_entries) == 2
+        # link DB columns are as expected
+        actual_link_columns = v_db_select[0].split("|")
+        expected_link_columns = ["cat"] + [field.name for field in fields(DrainageLinkAttributes)]
+        assert expected_link_columns == actual_link_columns
+
+        # Check nodes DB table
+        v_db_select = gscript.read_command("v.db.select", map=map_name, layer=1).split("\n")[:-1]
+        # Number of nodes exported to DB
+        nodes_entries = v_db_select[1:]
+        assert len(nodes_entries) == 3
+        # node DB columns are as expected
+        actual_nodes_columns = v_db_select[0].split("|")
+        expected_nodes_columns = ["cat"] + [field.name for field in fields(DrainageNodeAttributes)]
+        assert expected_nodes_columns == actual_nodes_columns
