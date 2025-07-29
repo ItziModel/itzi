@@ -183,7 +183,7 @@ The possible values to be exported are the following:
 +-------------------------+---------------------------------------------------------+--------+
 | mean_inflow             | Mean user flow since the last record                    | m/s    |
 +-------------------------+---------------------------------------------------------+--------+
-| mean_losses             | Mean losses since the last record                       | m/s    |
+| mean_losses             | Mean losses since the last record                       | mm/h   |
 +-------------------------+---------------------------------------------------------+--------+
 | mean_drainage_flow      | Mean exchange flow between surface and drainage model   |        |
 |                         | since the last record                                   | m/s    |
@@ -202,6 +202,9 @@ The possible values to be exported are the following:
     *rainfall* to *mean_rainfall*.
     *losses* to *mean_losses*.
     *drainage_stats* to *mean_drainage_flow*.
+
+.. versionchanged:: 25.7
+  For coherence with the input unit, *mean_losses* is in mm/h instead of m/s.
 
 .. versionadded:: 25.7
     *froude*.
