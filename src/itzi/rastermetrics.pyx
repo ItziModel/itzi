@@ -22,6 +22,9 @@ import numpy as np
 
 DTYPE = np.float32
 
+# Threshold for serial computation
+cdef int small_array_size = 1_000_000
+
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
@@ -47,7 +50,7 @@ cdef DTYPE_t arr_sum(DTYPE_t[:, ::1] arr, bint padded=False):
     total_elements = (row_end - row_start) * (col_end - col_start)
 
     # For small arrays, overhead of parallel processing is not worth it
-    if total_elements <= 1_000_000:
+    if total_elements <= small_array_size:
         for row_idx in range(row_start, row_end):
             for col_idx in range(col_start, col_end):
                 asum += arr[row_idx, col_idx]
@@ -75,8 +78,8 @@ def set_ext_array(
     cols = arr_qext.shape[1]
     cdef int total_elements = rows* cols
 
-    # For small arrays, overhead of parallelization not worth it
-    if total_elements <= 1_000_000:
+    # For small arrays, overhead of parallel processing is not worth it
+    if total_elements <= small_array_size:
         for row_idx in range(rows):
             for col_idx in range(cols):
                 arr_ext[row_idx, col_idx] = arr_qext[row_idx, col_idx] + arr_drain[row_idx, col_idx] + arr_eff_precip[row_idx, col_idx]
@@ -229,8 +232,8 @@ def accumulate_rate_to_total(
         col_end = rate_array.shape[1]
 
     cdef int total_elements = (row_end - row_start) * (col_end - col_start)
-    # For small arrays the parallelization overhead is greater than the benefits
-    if total_elements <= 1_000_000:
+    # For small arrays the parall overhead is greater than the benefits
+    if total_elements <= small_array_size:
         for row_idx in range(row_start, row_end):
             for col_idx in range(col_start, col_end):
                 accum_array[row_idx, col_idx] += rate_array[row_idx, col_idx] * time_delta_seconds
