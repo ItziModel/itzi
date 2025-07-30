@@ -32,24 +32,6 @@ def test_calculate_total_volume():
     assert np.isclose(result, expected_volume)
 
 
-def test_calculate_continuity_error():
-    """Test calculate_continuity_error with various inputs."""
-    # Test case 1: Positive volume error and change
-    volume_error = 0.5
-    volume_change = 10.0
-    expected_error = volume_error / volume_change
-    result = rastermetrics.calculate_continuity_error(volume_error, volume_change)
-    assert np.isclose(result, expected_error)
-
-    # Test case 2: Zero volume change (should return nan)
-    result = rastermetrics.calculate_continuity_error(volume_error, 0.0)
-    assert np.isnan(result)
-
-    # Test case 3: Negative volume error
-    result = rastermetrics.calculate_continuity_error(-0.5, volume_change)
-    assert np.isclose(result, -expected_error)
-
-
 def test_calculate_wse():
     """Test calculate_wse with known inputs."""
     # Create test arrays (3x3 grid)

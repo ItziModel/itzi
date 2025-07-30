@@ -101,21 +101,6 @@ def calculate_total_volume(
     return total_sum * cell_surface_area
 
 
-def calculate_continuity_error(DTYPE_t volume_error, DTYPE_t volume_change) -> DTYPE_t:
-    """Calculates the continuity error percentage.
-    Args:
-        volume_error: Difference between expected and actual volume (m³)
-        volume_change: Total volume change during time step (m³)
-    Returns:
-        Continuity error as a percentage
-    """
-    if volume_error == 0:
-        return 0.0
-    elif volume_change == 0:
-        return NAN
-    return volume_error / volume_change
-
-
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
