@@ -29,14 +29,8 @@ def gen_eggbox(
 ):
     """Return an eggbox 2D surface as a numpy array"""
     X, Y = np.meshgrid(np.arange(min_x, max_x, res), np.arange(min_y, max_y, res))
-    ZX = (
-        vshift
-        + slope_x * X
-        + (amplitude / 2) * np.sin(2 * math.pi * (X - phase_shift) / period)
-    )
-    ZY = slope_y * Y + (amplitude / 2) * np.sin(
-        2 * math.pi * (Y - phase_shift) / period
-    )
+    ZX = vshift + slope_x * X + (amplitude / 2) * np.sin(2 * math.pi * (X - phase_shift) / period)
+    ZY = slope_y * Y + (amplitude / 2) * np.sin(2 * math.pi * (Y - phase_shift) / period)
     return ZX + ZY
 
 
@@ -73,9 +67,7 @@ def setup_eggbox_simulation(num_cells=10_000, cell_size=5):
     array_shape = egg_box.shape
     mask = np.full(shape=array_shape, fill_value=False, dtype=np.bool_)
     manning = np.full(shape=array_shape, fill_value=0.03, dtype=np.float32)
-    water_depth = np.full(
-        shape=array_shape, fill_value=starting_depth, dtype=np.float32
-    )
+    water_depth = np.full(shape=array_shape, fill_value=starting_depth, dtype=np.float32)
     sim_param = dict(
         dtmax=5,
         cfl=0.7,
@@ -90,7 +82,7 @@ def setup_eggbox_simulation(num_cells=10_000, cell_size=5):
     )
     raster_domain.update_array("dem", egg_box)
     raster_domain.update_array("friction", manning)
-    raster_domain.update_array("h", water_depth)
+    raster_domain.update_array("water_depth", water_depth)
     surface_flow = SurfaceFlowSimulation(raster_domain, sim_param)
     surface_flow.update_flow_dir()
     # Spin up the model
@@ -134,6 +126,7 @@ def test_benchmark_surface_flow_n_steps(benchmark, num_cells, cell_size, n_steps
 def test_benchmark_surface_flow_n_seconds(benchmark, num_cells, cell_size, n_seconds):
     """Run the benchmark for a given number of cells and cell size"""
     results = []
+
     def wrapper(eggbox_sim, n_seconds):
         n_steps = benchmark_surface_flow_n_seconds(eggbox_sim, n_seconds)
         results.append(n_steps)
