@@ -23,39 +23,38 @@ import numpy as np
 DTYPE = np.float32
 
 
-# TODO: optimize asum
-
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-cdef DTYPE_t arrp_sum(DTYPE_t[:, ::1] arr):
+cdef DTYPE_t arr_sum(DTYPE_t[:, ::1] arr, bint padded=False):
     """Return the sum of an array using parallel reduction.
-    Expect a padded array."""
+    """
     cdef int row_start, row_end, col_start, col_end, row_idx, col_idx
     cdef DTYPE_t asum = 0.
-    row_start = 1
-    row_end = arr.shape[0] - 1
-    col_start = 1
-    col_end = arr.shape[1] - 1
+    cdef int total_elements
 
-    for row_idx in prange(row_start, row_end, nogil=True):
-        for col_idx in range(col_start, col_end):
-            asum += arr[row_idx, col_idx]
-    return asum
+    if padded:
+        row_start = 1
+        row_end = arr.shape[0] - 1
+        col_start = 1
+        col_end = arr.shape[1] - 1
+    else:
+        row_start = 0
+        row_end = arr.shape[0]
+        col_start = 0
+        col_end = arr.shape[1]
 
+    total_elements = (row_end - row_start) * (col_end - col_start)
 
-@cython.wraparound(False)  # Disable negative index check
-@cython.cdivision(True)  # Don't check division by zero
-@cython.boundscheck(False)  # turn off bounds-checking for entire function
-cdef DTYPE_t arr_sum(DTYPE_t[:, ::1] arr):
-    """Return the sum of an array using parallel reduction."""
-    cdef int rmax, cmax, r, c
-    cdef DTYPE_t asum = 0.
-    rmax = arr.shape[0]
-    cmax = arr.shape[1]
-    for r in prange(rmax, nogil=True):
-        for c in range(cmax):
-            asum += arr[r, c]
+    # For small arrays, overhead of parallel processing is not worth it
+    if total_elements <= 1_000_000:
+        for row_idx in range(row_start, row_end):
+            for col_idx in range(col_start, col_end):
+                asum += arr[row_idx, col_idx]
+    else:
+        for row_idx in prange(row_start, row_end, nogil=True):
+            for col_idx in range(col_start, col_end):
+                asum += arr[row_idx, col_idx]
     return asum
 
 
@@ -70,14 +69,21 @@ def set_ext_array(
 ):
     """Calculate the new ext_array to be used in depth update
     """
-    cdef int rmax, cmax, r, c
+    cdef int rows, cols, row_idx, col_idx
     cdef DTYPE_t qext, rain, inf, qdrain
+    rows = arr_qext.shape[0]
+    cols = arr_qext.shape[1]
+    cdef int total_elements = rows* cols
 
-    rmax = arr_qext.shape[0]
-    cmax = arr_qext.shape[1]
-    for r in prange(rmax, nogil=True):
-        for c in range(cmax):
-            arr_ext[r, c] = arr_qext[r, c] + arr_drain[r, c] + arr_eff_precip[r, c]
+    # For small arrays, overhead of parallelization not worth it
+    if total_elements <= 1_000_000:
+        for row_idx in range(rows):
+            for col_idx in range(cols):
+                arr_ext[row_idx, col_idx] = arr_qext[row_idx, col_idx] + arr_drain[row_idx, col_idx] + arr_eff_precip[row_idx, col_idx]
+    else:
+        for row_idx in prange(rows, nogil=True):
+            for col_idx in range(cols):
+                arr_ext[row_idx, col_idx] = arr_qext[row_idx, col_idx] + arr_drain[row_idx, col_idx] + arr_eff_precip[row_idx, col_idx]
 
 
 def calculate_total_volume(
@@ -91,10 +97,7 @@ def calculate_total_volume(
     Returns:
         Total water volume (m³)
     """
-    if padded:
-        total_sum = arrp_sum(depth_array)
-    else:
-        total_sum = arr_sum(depth_array)
+    total_sum = arr_sum(depth_array, padded)
     return total_sum * cell_surface_area
 
 
@@ -212,11 +215,12 @@ def calculate_average_rate_from_total(
 def accumulate_rate_to_total(
     DTYPE_t[:, ::1] accum_array,
     DTYPE_t[:, ::1] rate_array,
-    DTYPE_t time_delta_seconds
+    DTYPE_t time_delta_seconds,
+    padded=False,
 ):
     """Accumulates a rate array into a total array over a time delta.
        The operation is performed in-place on accum_array.
-       Expect padded array. Works on the inner array only
+       With padded array, works on the inner array only
     Args:
         accum_array: 2D array to accumulate into (modified in-place)
         rate_array: 2D array of rates to accumulate
@@ -227,10 +231,25 @@ def accumulate_rate_to_total(
     cdef int row_start, row_end
     cdef int col_start, col_end
     cdef int row_idx, col_idx
-    row_start = 1
-    row_end = accum_array.shape[0] - 1
-    col_start = 1
-    col_end = accum_array.shape[1] - 1
-    for row_idx in prange(row_start, row_end, nogil=True):
-        for col_idx in range(col_start, col_end):
-            accum_array[row_idx, col_idx] += rate_array[row_idx, col_idx] * time_delta_seconds
+
+    if padded:
+        row_start = 1
+        row_end = rate_array.shape[0] - 1
+        col_start = 1
+        col_end = rate_array.shape[1] - 1
+    else:
+        row_start = 0
+        row_end = rate_array.shape[0]
+        col_start = 0
+        col_end = rate_array.shape[1]
+
+    cdef int total_elements = (row_end - row_start) * (col_end - col_start)
+    # For small arrays the parallelization overhead is greater than the benefits
+    if total_elements <= 1_000_000:
+        for row_idx in range(row_start, row_end):
+            for col_idx in range(col_start, col_end):
+                accum_array[row_idx, col_idx] += rate_array[row_idx, col_idx] * time_delta_seconds
+    else:
+        for row_idx in prange(row_start, row_end, nogil=True):
+            for col_idx in range(col_start, col_end):
+                accum_array[row_idx, col_idx] += rate_array[row_idx, col_idx] * time_delta_seconds

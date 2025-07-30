@@ -337,7 +337,9 @@ class Simulation:
         )
         volume_change = new_domain_vol - self.old_domain_volume
         volume_error = rastermetrics.calculate_total_volume(
-            self.raster_domain.get_padded("error_depth_accum"), cell_area, padded=True
+            depth_array=self.raster_domain.get_padded("error_depth_accum"),
+            cell_surface_area=cell_area,
+            padded=True,
         )
         continuity_error = rastermetrics.calculate_continuity_error(
             volume_error=volume_error, volume_change=volume_change
@@ -353,5 +355,5 @@ class Simulation:
         if time_diff > 0:
             rate_array = self.raster_domain.get_padded(k)
             accum_array = self.raster_domain.get_padded(ak)
-            rastermetrics.accumulate_rate_to_total(accum_array, rate_array, time_diff)
+            rastermetrics.accumulate_rate_to_total(accum_array, rate_array, time_diff, padded=True)
             self.accum_update_time[ak] = sim_time

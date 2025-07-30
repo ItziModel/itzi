@@ -107,31 +107,33 @@ def test_calculate_average_rate_from_total():
 def test_accumulate_rate_to_total():
     """Test accumulate_rate_to_total with various inputs."""
     # Create test arrays (3x3 grid)
-    stat_array = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]], dtype=np.float32)
+    accum_array = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]], dtype=np.float32)
     rate_array = np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]], dtype=np.float32)
     time_delta_seconds = 60.0  # 1 minute
 
-    # Store original stat_array for comparison (shallow copy is sufficient for numeric arrays)
-    original_stat_array = stat_array.copy()
+    # Store original accum_array for comparison (shallow copy is sufficient for numeric arrays)
+    original_accum_array = accum_array.copy()
 
     # Calculate expected result manually
     expected_accumulation = rate_array * time_delta_seconds
-    expected_result = original_stat_array + expected_accumulation
+    expected_result = original_accum_array + expected_accumulation
 
-    # Call the function (should modify stat_array in-place)
-    rastermetrics.accumulate_rate_to_total(stat_array, rate_array, time_delta_seconds)
+    # Call the function (should modify accum_array in-place)
+    rastermetrics.accumulate_rate_to_total(
+        accum_array, rate_array, time_delta_seconds, padded=False
+    )
 
-    # Assert that stat_array was modified in-place to the expected result
-    assert np.allclose(stat_array, expected_result)
+    # Assert that accum_array was modified in-place to the expected result
+    assert np.allclose(accum_array, expected_result)
 
     # Make sure the original array has not changed
-    assert not np.allclose(stat_array, original_stat_array)
+    assert not np.allclose(accum_array, original_accum_array)
 
     # Test case 2: Zero time delta
-    stat_array2 = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
+    accum_array2 = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
     rate_array2 = np.array([[0.5, 0.6], [0.7, 0.8]], dtype=np.float32)
-    original_stat_array2 = stat_array2.copy()
+    original_accum_array2 = accum_array2.copy()
 
-    # With zero time delta, stat_array should remain unchanged
-    rastermetrics.accumulate_rate_to_total(stat_array2, rate_array2, 0.0)
-    assert np.allclose(stat_array2, original_stat_array2)
+    # With zero time delta, accum_array should remain unchanged
+    rastermetrics.accumulate_rate_to_total(accum_array2, rate_array2, 0.0)
+    assert np.allclose(accum_array2, original_accum_array2)
