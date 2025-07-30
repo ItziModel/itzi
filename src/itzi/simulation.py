@@ -95,7 +95,7 @@ class Simulation:
     def initialize(self) -> Self:
         """Record the initial stage of the simulation, before time-stepping."""
         self.old_domain_volume = rastermetrics.calculate_total_volume(
-            depth_array=self.raster_domain.get_array("water_depth"),
+            depth_array=self.raster_domain.get_padded("water_depth"),
             cell_surface_area=self.raster_domain.cell_area,
         )
         for arr_key in self.accum_mapping.keys():
@@ -330,11 +330,11 @@ class Simulation:
         """ """
         cell_area = self.raster_domain.cell_area
         new_domain_vol = rastermetrics.calculate_total_volume(
-            depth_array=self.raster_domain.get_array("water_depth"), cell_surface_area=cell_area
+            depth_array=self.raster_domain.get_padded("water_depth"), cell_surface_area=cell_area
         )
         volume_change = new_domain_vol - self.old_domain_volume
         volume_error = rastermetrics.calculate_total_volume(
-            self.raster_domain.get_array("error_depth_accum"), cell_area
+            self.raster_domain.get_padded("error_depth_accum"), cell_area
         )
         continuity_error = rastermetrics.calculate_continuity_error(
             volume_error=volume_error, volume_change=volume_change

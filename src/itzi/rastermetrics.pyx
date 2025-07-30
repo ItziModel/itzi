@@ -23,21 +23,24 @@ import numpy as np
 DTYPE = np.float32
 
 
-# TODO: try [:, ::1] instead of [:, :]
 # TODO: optimize asum
 
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-cdef DTYPE_t arr_sum(DTYPE_t[:, :] arr):
-    """Return the sum of an array using parallel reduction"""
-    cdef int rmax, cmax, r, c
+cdef DTYPE_t arrp_sum(DTYPE_t[:, ::1] arr):
+    """Return the sum of an array using parallel reduction.
+    Expect a padded array."""
+    cdef int row_start, row_end, col_start, col_end, row_idx, col_idx
     cdef DTYPE_t asum = 0.
-    rmax = arr.shape[0]
-    cmax = arr.shape[1]
-    for r in prange(rmax, nogil=True):
-        for c in range(cmax):
-            asum += arr[r, c]
+    row_start = 1
+    row_end = arr.shape[0] - 1
+    col_start = 1
+    col_end = arr.shape[1] - 1
+
+    for row_idx in prange(row_start, row_end, nogil=True):
+        for col_idx in range(col_start, col_end):
+            asum += arr[row_idx, col_idx]
     return asum
 
 
@@ -62,15 +65,16 @@ def set_ext_array(
             arr_ext[r, c] = arr_qext[r, c] + arr_drain[r, c] + arr_eff_precip[r, c]
 
 
-def calculate_total_volume(DTYPE_t[:, :] depth_array, DTYPE_t cell_surface_area) -> DTYPE_t:
+def calculate_total_volume(DTYPE_t[:, ::1] depth_array, DTYPE_t cell_surface_area) -> DTYPE_t:
     """Calculates the total volume from a depth array.
+    Expect a padded array.
     Args:
         depth_array: 2D array of water depths (m)
         cell_surface_area: Area of each grid cell (m²)
     Returns:
         Total water volume (m³)
     """
-    return arr_sum(depth_array) * cell_surface_area
+    return arrp_sum(depth_array) * cell_surface_area
 
 
 def calculate_continuity_error(DTYPE_t volume_error, DTYPE_t volume_change) -> DTYPE_t:

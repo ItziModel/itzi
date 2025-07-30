@@ -60,4 +60,6 @@ extensions = [
     Extension("itzi.flow", sources=["src/itzi/flow.pyx"]),
     Extension("itzi.rastermetrics", sources=["src/itzi/rastermetrics.pyx"]),
 ]
-setup(ext_modules=cythonize(extensions), cmdclass={"build_ext": build_ext_compiler_check})
+setup(
+    ext_modules=cythonize(extensions, nthreads=4), cmdclass={"build_ext": build_ext_compiler_check}
+)

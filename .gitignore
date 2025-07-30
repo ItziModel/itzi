@@ -13,6 +13,6 @@ build/
 dist/
 *.egg-info/
 wheelhouse/
-src/itzi/flow.c
+src/itzi/*.c
 docs/_build/
 tests/test_data_temp/
