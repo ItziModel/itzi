@@ -279,8 +279,6 @@ cdef DTYPE_t rain_routing(
 def solve_h(
     DTYPE_t[:, :] arr_ext,
     DTYPE_t[:, :] arr_qe,
-    DTYPE_t[:, :] arr_qw,
-    DTYPE_t[:, :] arr_qn,
     DTYPE_t[:, :] arr_qs,
     DTYPE_t[:, :] arr_bct,
     DTYPE_t[:, :] arr_bcv,
@@ -289,8 +287,6 @@ def solve_h(
     DTYPE_t[:, :] arr_hfix,
     DTYPE_t[:, :] arr_herr,
     DTYPE_t[:, :] arr_hfe,
-    DTYPE_t[:, :] arr_hfw,
-    DTYPE_t[:, :] arr_hfn,
     DTYPE_t[:, :] arr_hfs,
     DTYPE_t[:, :] arr_v,
     DTYPE_t[:, :] arr_vdir,
@@ -309,14 +305,14 @@ def solve_h(
     cdef DTYPE_t qext, qe, qw, qn, qs, h, q_sum, h_new, hmax, bct, bcv
     cdef DTYPE_t hfe, hfs, hfw, hfn, ve, vw, vn, vs, vx, vy, v, vdir
 
-    rmax = arr_qe.shape[0]
-    cmax = arr_qe.shape[1]
-    for r in prange(rmax, nogil=True):
-        for c in range(cmax):
+    rmax = arr_ext.shape[0] - 1
+    cmax = arr_ext.shape[1] - 1
+    for r in prange(1, rmax, nogil=True):
+        for c in range(1, cmax):
             qext = arr_ext[r, c]
             qe = arr_qe[r, c]
-            qw = arr_qw[r, c]
-            qn = arr_qn[r, c]
+            qw = arr_qe[r, c-1]
+            qn = arr_qs[r-1, c]
             qs = arr_qs[r, c]
             bct = arr_bct[r, c]
             bcv = arr_bcv[r, c]
@@ -343,8 +339,8 @@ def solve_h(
             ## Velocity and Froude ##
             # Do not accept NaN
             hfe = arr_hfe[r, c]
-            hfw = arr_hfw[r, c]
-            hfn = arr_hfn[r, c]
+            hfw = arr_hfe[r, c-1]
+            hfn = arr_hfs[r-1, c]
             hfs = arr_hfs[r, c]
             if hfe <= 0.:
                 ve = 0.

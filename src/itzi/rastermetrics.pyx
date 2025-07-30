@@ -47,11 +47,26 @@ cdef DTYPE_t arrp_sum(DTYPE_t[:, ::1] arr):
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
+cdef DTYPE_t arr_sum(DTYPE_t[:, ::1] arr):
+    """Return the sum of an array using parallel reduction."""
+    cdef int rmax, cmax, r, c
+    cdef DTYPE_t asum = 0.
+    rmax = arr.shape[0]
+    cmax = arr.shape[1]
+    for r in prange(rmax, nogil=True):
+        for c in range(cmax):
+            asum += arr[r, c]
+    return asum
+
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
 def set_ext_array(
     DTYPE_t[:, :] arr_qext,
     DTYPE_t[:, :] arr_drain,
     DTYPE_t[:, :] arr_eff_precip,
-    DTYPE_t[:, :] arr_ext
+    DTYPE_t[:, :] arr_ext,
 ):
     """Calculate the new ext_array to be used in depth update
     """
@@ -65,16 +80,22 @@ def set_ext_array(
             arr_ext[r, c] = arr_qext[r, c] + arr_drain[r, c] + arr_eff_precip[r, c]
 
 
-def calculate_total_volume(DTYPE_t[:, ::1] depth_array, DTYPE_t cell_surface_area) -> DTYPE_t:
+def calculate_total_volume(
+    DTYPE_t[:, ::1] depth_array, DTYPE_t cell_surface_area, bint padded=False
+) -> DTYPE_t:
     """Calculates the total volume from a depth array.
-    Expect a padded array.
     Args:
         depth_array: 2D array of water depths (m)
         cell_surface_area: Area of each grid cell (m²)
+        padded: boolean, if True, will process array as padded
     Returns:
         Total water volume (m³)
     """
-    return arrp_sum(depth_array) * cell_surface_area
+    if padded:
+        total_sum = arrp_sum(depth_array)
+    else:
+        total_sum = arr_sum(depth_array)
+    return total_sum * cell_surface_area
 
 
 def calculate_continuity_error(DTYPE_t volume_error, DTYPE_t volume_change) -> DTYPE_t:
@@ -189,12 +210,13 @@ def calculate_average_rate_from_total(
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
 def accumulate_rate_to_total(
-    DTYPE_t[:, :] accum_array,
-    DTYPE_t[:, :] rate_array,
+    DTYPE_t[:, ::1] accum_array,
+    DTYPE_t[:, ::1] rate_array,
     DTYPE_t time_delta_seconds
 ):
     """Accumulates a rate array into a total array over a time delta.
        The operation is performed in-place on accum_array.
+       Expect padded array. Works on the inner array only
     Args:
         accum_array: 2D array to accumulate into (modified in-place)
         rate_array: 2D array of rates to accumulate
@@ -202,9 +224,13 @@ def accumulate_rate_to_total(
     Returns:
         None (modifies accum_array in-place)
     """
-    cdef int rmax, cmax, r, c
-    rmax = rate_array.shape[0]
-    cmax = rate_array.shape[1]
-    for r in prange(rmax, nogil=True):
-        for c in range(cmax):
-            accum_array[r, c] += rate_array[r, c] * time_delta_seconds
+    cdef int row_start, row_end
+    cdef int col_start, col_end
+    cdef int row_idx, col_idx
+    row_start = 1
+    row_end = accum_array.shape[0] - 1
+    col_start = 1
+    col_end = accum_array.shape[1] - 1
+    for row_idx in prange(row_start, row_end, nogil=True):
+        for col_idx in range(col_start, col_end):
+            accum_array[row_idx, col_idx] += rate_array[row_idx, col_idx] * time_delta_seconds

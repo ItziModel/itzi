@@ -97,6 +97,7 @@ class Simulation:
         self.old_domain_volume = rastermetrics.calculate_total_volume(
             depth_array=self.raster_domain.get_padded("water_depth"),
             cell_surface_area=self.raster_domain.cell_area,
+            padded=True,
         )
         for arr_key in self.accum_mapping.keys():
             self._update_accum_array(arr_key, self.sim_time)
@@ -330,11 +331,13 @@ class Simulation:
         """ """
         cell_area = self.raster_domain.cell_area
         new_domain_vol = rastermetrics.calculate_total_volume(
-            depth_array=self.raster_domain.get_padded("water_depth"), cell_surface_area=cell_area
+            depth_array=self.raster_domain.get_padded("water_depth"),
+            cell_surface_area=cell_area,
+            padded=True,
         )
         volume_change = new_domain_vol - self.old_domain_volume
         volume_error = rastermetrics.calculate_total_volume(
-            self.raster_domain.get_padded("error_depth_accum"), cell_area
+            self.raster_domain.get_padded("error_depth_accum"), cell_area, padded=True
         )
         continuity_error = rastermetrics.calculate_continuity_error(
             volume_error=volume_error, volume_change=volume_change
@@ -348,7 +351,7 @@ class Simulation:
             self.accum_update_time[ak] = sim_time
         time_diff = (sim_time - self.accum_update_time[ak]).total_seconds()
         if time_diff > 0:
-            rate_array = self.raster_domain.get_array(k)
-            accum_array = self.raster_domain.get_array(ak)
+            rate_array = self.raster_domain.get_padded(k)
+            accum_array = self.raster_domain.get_padded(ak)
             rastermetrics.accumulate_rate_to_total(accum_array, rate_array, time_diff)
             self.accum_update_time[ak] = sim_time
