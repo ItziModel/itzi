@@ -1,3 +1,17 @@
+"""
+Copyright (C) 2025 Laurent Courty
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+"""
+
 import numpy as np
 
 from src.itzi import rastermetrics
@@ -6,7 +20,7 @@ from src.itzi import rastermetrics
 def test_calculate_total_volume():
     """Test calculate_total_volume with known inputs."""
     # Create a test depth array (3x3 grid)
-    depth_array = np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]])
+    depth_array = np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]], dtype=np.float32)
     cell_surface_area = 10.0  # m²
 
     # Calculate expected result manually
@@ -39,8 +53,10 @@ def test_calculate_continuity_error():
 def test_calculate_wse():
     """Test calculate_wse with known inputs."""
     # Create test arrays (3x3 grid)
-    h_array = np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]])
-    dem_array = np.array([[10.0, 10.1, 10.2], [10.3, 10.4, 10.5], [10.6, 10.7, 10.8]])
+    h_array = np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]], dtype=np.float32)
+    dem_array = np.array(
+        [[10.0, 10.1, 10.2], [10.3, 10.4, 10.5], [10.6, 10.7, 10.8]], dtype=np.float32
+    )
 
     # Calculate expected result manually
     expected_wse = h_array + dem_array
@@ -53,7 +69,7 @@ def test_calculate_wse():
 def test_calculate_flux():
     """Test calculate_flux with known inputs."""
     # Create test array (3x3 grid)
-    flow_array = np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]])
+    flow_array = np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]], dtype=np.float32)
     cell_size = 10.0  # m
 
     # Calculate expected result manually
@@ -67,7 +83,9 @@ def test_calculate_flux():
 def test_calculate_average_rate_from_total():
     """Test calculate_average_rate_from_total with various inputs."""
     # Create test array (3x3 grid)
-    total_volume_array = np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]])
+    total_volume_array = np.array(
+        [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]], dtype=np.float32
+    )
     interval_seconds = 60.0  # 1 minute
 
     # Test case 1: No conversion (conversion_factor = 1.0)
@@ -89,8 +107,8 @@ def test_calculate_average_rate_from_total():
 def test_accumulate_rate_to_total():
     """Test accumulate_rate_to_total with various inputs."""
     # Create test arrays (3x3 grid)
-    stat_array = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
-    rate_array = np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]])
+    stat_array = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]], dtype=np.float32)
+    rate_array = np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]], dtype=np.float32)
     time_delta_seconds = 60.0  # 1 minute
 
     # Store original stat_array for comparison (shallow copy is sufficient for numeric arrays)
@@ -110,8 +128,8 @@ def test_accumulate_rate_to_total():
     assert not np.allclose(stat_array, original_stat_array)
 
     # Test case 2: Zero time delta
-    stat_array2 = np.array([[1.0, 2.0], [3.0, 4.0]])
-    rate_array2 = np.array([[0.5, 0.6], [0.7, 0.8]])
+    stat_array2 = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
+    rate_array2 = np.array([[0.5, 0.6], [0.7, 0.8]], dtype=np.float32)
     original_stat_array2 = stat_array2.copy()
 
     # With zero time delta, stat_array should remain unchanged

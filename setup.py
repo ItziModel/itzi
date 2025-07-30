@@ -56,5 +56,8 @@ class build_ext_compiler_check(build_ext):
         build_ext.build_extensions(self)
 
 
-extensions = [Extension("itzi.flow", sources=["src/itzi/flow.pyx"])]
+extensions = [
+    Extension("itzi.flow", sources=["src/itzi/flow.pyx"]),
+    Extension("itzi.rastermetrics", sources=["src/itzi/rastermetrics.pyx"]),
+]
 setup(ext_modules=cythonize(extensions), cmdclass={"build_ext": build_ext_compiler_check})

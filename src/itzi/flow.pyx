@@ -1,4 +1,3 @@
-# coding=utf8
 """
 Copyright (C) 2015-2025 Laurent Courty
 
@@ -12,43 +11,14 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
-from __future__ import division
 cimport cython
 from cython.parallel cimport prange
 from libc.math cimport pow as c_pow
 from libc.math cimport sqrt as c_sqrt
-from libc.math cimport fabs as c_abs
 from libc.math cimport atan2 as c_atan
 
-# ctypedef double DTYPE_t
 ctypedef cython.floating DTYPE_t
 cdef float PI = 3.1415926535898
-
-
-@cython.wraparound(False)  # Disable negative index check
-@cython.boundscheck(False)  # turn off bounds-checking for entire function
-def arr_sum(DTYPE_t [:, :] arr):
-    '''Return the sum of an array using parallel reduction'''
-    cdef int rmax, cmax, r, c
-    cdef DTYPE_t asum = 0.
-    rmax = arr.shape[0]
-    cmax = arr.shape[1]
-    for r in prange(rmax, nogil=True):
-        for c in range(cmax):
-            asum += arr[r, c]
-    return asum
-
-
-@cython.wraparound(False)  # Disable negative index check
-@cython.boundscheck(False)  # turn off bounds-checking for entire function
-def arr_add(DTYPE_t [:, :] arr1, DTYPE_t [:, :] arr2):
-    '''Add arr1 to arr2'''
-    cdef int rmax, cmax, r, c
-    rmax = arr1.shape[0]
-    cmax = arr1.shape[1]
-    for r in prange(rmax, nogil=True):
-        for c in range(cmax):
-            arr2[r, c] += arr1[r, c]
 
 
 @cython.wraparound(False)  # Disable negative index check
@@ -360,23 +330,6 @@ def solve_h(DTYPE_t [:, :] arr_ext,
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
-def set_ext_array(DTYPE_t [:, :] arr_qext, DTYPE_t [:, :] arr_drain,
-                  DTYPE_t [:, :] arr_eff_precip, DTYPE_t [:, :] arr_ext):
-    '''Calculate the new ext_array to be used in depth update
-    '''
-    cdef int rmax, cmax, r, c
-    cdef DTYPE_t qext, rain, inf, qdrain
-
-    rmax = arr_qext.shape[0]
-    cmax = arr_qext.shape[1]
-    for r in prange(rmax, nogil=True):
-        for c in range(cmax):
-            arr_ext[r, c] = arr_qext[r, c] + arr_drain[r, c] + arr_eff_precip[r, c]
-
-
-@cython.wraparound(False)  # Disable negative index check
-@cython.cdivision(True)  # Don't check division by zero
-@cython.boundscheck(False)  # turn off bounds-checking for entire function
 def infiltration_user(DTYPE_t [:, :] arr_h,
              DTYPE_t [:, :] arr_inf_in, DTYPE_t [:, :] arr_inf_out,
              DTYPE_t dt):
@@ -426,17 +379,3 @@ cdef DTYPE_t cap_infiltration_rate(DTYPE_t dt, DTYPE_t h, DTYPE_t infrate) noexc
     '''Cap the infiltration rate to not generate negative depths
     '''
     return min(h / dt, infrate)
-
-
-@cython.wraparound(False)  # Disable negative index check
-@cython.cdivision(True)  # Don't check division by zero
-@cython.boundscheck(False)  # turn off bounds-checking for entire function
-def accumulate_array(DTYPE_t [:, :] arr, DTYPE_t [:, :] arr_accum, DTYPE_t time_diff):
-    '''Update an accumulation array from a rate array .
-    '''
-    cdef int rmax, cmax, r, c
-    rmax = arr.shape[0]
-    cmax = arr.shape[1]
-    for r in prange(rmax, nogil=True):
-        for c in range(cmax):
-            arr_accum[r, c] += arr[r, c] * time_diff
