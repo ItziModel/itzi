@@ -16,6 +16,7 @@ from cython.parallel cimport prange
 from libc.math cimport pow as c_pow
 from libc.math cimport sqrt as c_sqrt
 from libc.math cimport atan2 as c_atan
+from libc.math cimport hypot, fmax, fmin
 
 ctypedef cython.floating DTYPE_t
 cdef float PI = 3.1415926535898
@@ -85,6 +86,8 @@ def flow_dir(
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
+@cython.initializedcheck(False)  # Skip initialization checks for performance
+@cython.nonecheck(False)  # Skip None checks for performance
 def solve_q(
     DTYPE_t[:, :] arr_dire,
     DTYPE_t[:, :] arr_dirs,
@@ -143,8 +146,8 @@ def solve_q(
                 # calculate average flow from stencil
                 qe_st = .25 * (qs + arrp_qs[rp-1,cp] +
                                arrp_qs[rp-1,cp+1] + arrp_qs[rp,cp+1])
-                # calculate qnorm
-                qe_vect = c_sqrt(qe*qe + qe_st*qe_st)
+                # calculate qnorm using vectorizable hypot
+                qe_vect = hypot(qe, qe_st)
                 # hflow
                 hf_e = hflow(z0=z0, z1=ze, wse0=wse0, wse1=wse_e)
                 arr_hfe[r, c] = hf_e
@@ -182,8 +185,8 @@ def solve_q(
                 # calculate average flow from stencil
                 qs_st = .25 * (qe + arrp_qe[rp+1,cp] +
                                arrp_qe[rp+1,cp-1] + arrp_qe[rp,cp-1])
-                # calculate qnorm
-                qs_vect = c_sqrt(qs*qs + qs_st*qs_st)
+                # calculate qnorm using vectorizable hypot
+                qs_vect = hypot(qs, qs_st)
                 # hflow
                 hf_s = hflow(z0=z0, z1=zs, wse0=wse0, wse1=wse_s)
                 arr_hfs[r, c] = hf_s
@@ -276,6 +279,8 @@ cdef DTYPE_t rain_routing(
 @cython.wraparound(False)  # Disable negative index check
 @cython.cdivision(True)  # Don't check division by zero
 @cython.boundscheck(False)  # turn off bounds-checking for entire function
+@cython.initializedcheck(False)  # Skip initialization checks for performance
+@cython.nonecheck(False)  # Skip None checks for performance
 def solve_h(
     DTYPE_t[:, ::1] arr_ext,
     DTYPE_t[:, ::1] arr_qe,
@@ -304,6 +309,7 @@ def solve_h(
     cdef int rmax, cmax, r, c
     cdef DTYPE_t qext, qe, qw, qn, qs, h, q_sum, h_new, hmax, bct, bcv
     cdef DTYPE_t hfe, hfs, hfw, hfn, ve, vw, vn, vs, vx, vy, v, vdir
+    cdef DTYPE_t eps = 1e-12  # Small epsilon to avoid division by zero
 
     rmax = arr_ext.shape[0] - 1
     cmax = arr_ext.shape[1] - 1
@@ -342,28 +348,19 @@ def solve_h(
             hfw = arr_hfe[r, c-1]
             hfn = arr_hfs[r-1, c]
             hfs = arr_hfs[r, c]
-            if hfe <= 0.:
-                ve = 0.
-            else:
-                ve = qe / hfe
-            if hfw <= 0.:
-                vw = 0.
-            else:
-                vw = qw / hfw
-            if hfs <= 0.:
-                vs = 0.
-            else:
-                vs = qs / hfs
-            if hfn <= 0.:
-                vn = 0.
-            else:
-                vn = qn / hfn
+            # Branchless velocity calculations for vectorization
+            # Use fmax to avoid division by zero,
+            # then zero out velocities where flow depth is non-positive
+            ve = qe / fmax(hfe, eps) * (hfe > 0.)
+            vw = qw / fmax(hfw, eps) * (hfw > 0.)
+            vs = qs / fmax(hfs, eps) * (hfs > 0.)
+            vn = qn / fmax(hfn, eps) * (hfn > 0.)
 
             vx = .5 * (ve + vw)
             vy = .5 * (vs + vn)
 
             # velocity magnitude and direction
-            v = c_sqrt(vx*vx + vy*vy)
+            v = hypot(vx, vy)
             arr_v[r, c] = v
             arr_vmax[r, c] = max(v, arr_vmax[r, c])
             vdir = c_atan(-vy, vx) * 180. / PI
