@@ -6,7 +6,6 @@ import platform
 from setuptools import setup
 from setuptools.extension import Extension
 from setuptools.command.build_ext import build_ext
-from setuptools.command.bdist_wheel import bdist_wheel
 from Cython.Build import cythonize
 
 
@@ -17,7 +16,6 @@ class BuildConfig:
     - Detection of build mode (source vs wheel)
     - Platform and architecture detection
     - Compiler flag selection based on build mode and target platform
-    - Wheel tagging for optimized builds
     """
 
     def __init__(self):
@@ -138,27 +136,6 @@ class BuildConfig:
 
         return compile_args, link_args
 
-    def get_wheel_tag(self):
-        """Return custom wheel tag for optimized builds"""
-        if not self.is_wheel_build:
-            return None
-
-        if self.platform == "linux":
-            if self.architecture == "x86_64":
-                return "linux_x86_64_v3"
-            elif self.architecture == "arm64":
-                return "linux_aarch64_v8"
-        elif self.platform == "windows":
-            if self.architecture == "x86_64":
-                return "win_amd64"
-            elif self.architecture == "arm64":
-                return "win_arm64"
-        elif self.platform == "macos":
-            if self.architecture == "arm64":
-                return "macosx_14_0_arm64"
-
-        return None
-
 
 # Legacy compiler options for backward compatibility
 copt = {
@@ -240,30 +217,11 @@ class build_ext_compiler_check(build_ext):
         build_ext.build_extensions(self)
 
 
-class bdist_wheel_custom_tag(bdist_wheel):
-    """Custom bdist_wheel command that applies optimized wheel tags"""
-
-    def get_tag(self):
-        """Override wheel tag generation for optimized builds"""
-        build_config = BuildConfig()
-
-        if build_config.is_wheel_build:
-            custom_tag = build_config.get_wheel_tag()
-            if custom_tag:
-                print(f"Using custom wheel tag: {custom_tag}")
-                # Get the standard python and abi tags
-                python_tag, abi_tag, _ = super().get_tag()
-                return python_tag, abi_tag, custom_tag
-
-        # Fallback to standard wheel tagging
-        return super().get_tag()
-
-
 extensions = [
     Extension("itzi.flow", sources=["src/itzi/flow.pyx"]),
     Extension("itzi.rastermetrics", sources=["src/itzi/rastermetrics.pyx"]),
 ]
 setup(
     ext_modules=cythonize(extensions, nthreads=4),
-    cmdclass={"build_ext": build_ext_compiler_check, "bdist_wheel": bdist_wheel_custom_tag},
+    cmdclass={"build_ext": build_ext_compiler_check},
 )
