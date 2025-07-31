@@ -26,6 +26,12 @@ class BuildConfig:
         self.architecture = self.detect_architecture()
         self.compiler_type = None  # Set during build
         self.base_compile_args_unix = ["-O3", "-w", "-fopenmp"]
+        self.base_compile_args_macos = [
+            "-O3",
+            "-w",
+            "-Xpreprocessor",
+            "-fopenmp",
+        ]
         self.base_compile_args_msvc = ["/openmp", "/Ox"]
         self.base_link_args_unix = ["-lgomp", "-fopenmp"]
 
@@ -77,8 +83,8 @@ class BuildConfig:
         elif self.compiler_type == "unix":
             if self.platform == "macos":
                 # macOS specific handling
-                compile_args = self.base_compile_args_unix + ["-Xpreprocessor", "-march=native"]
-                link_args = self.base_link_args_unix + ["-lomp"]
+                compile_args = self.base_compile_args_macos + ["-march=native"]
+                link_args = ["-lomp"]
             else:
                 # Linux and other Unix systems
                 compile_args = self.base_compile_args_unix + ["-march=native"]
@@ -99,6 +105,7 @@ class BuildConfig:
             else:
                 compile_args = self.base_compile_args_msvc
             link_args = []
+
         elif self.compiler_type == "mingw32":
             if self.architecture == "x86_64":
                 compile_args = self.base_compile_args_unix + [
@@ -111,16 +118,14 @@ class BuildConfig:
             else:
                 compile_args = self.base_compile_args_unix
             link_args = ["-lgomp", "-lpthread"]
+
         elif self.compiler_type == "unix":
             if self.platform == "macos":
                 if self.architecture == "arm64":
-                    compile_args = self.base_compile_args_unix + [
-                        "-Xpreprocessor",
-                        "-march=armv8-a+simd",
-                    ]
+                    compile_args = self.base_compile_args_macos + ["-march=armv8-a+simd"]
                 else:
-                    compile_args = self.base_compile_args_unix + ["-Xpreprocessor"]
-                link_args = self.base_link_args_unix + ["-lomp"]
+                    compile_args = self.base_compile_args_macos
+                link_args = ["-lomp"]
             else:
                 # Linux and other Unix systems
                 if self.architecture == "x86_64":
