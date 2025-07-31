@@ -11,7 +11,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # macos-14 is apple silicon, windows-11-arm
+        # macos-13 is intel, macos-14 is apple silicon, windows-11-arm
         os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-14]
 
     steps:
@@ -20,14 +20,17 @@ jobs:
       - name: Set-up on MacOS
         if: ${{ matrix.os == 'macos-14' }}
         run: |
-          brew install libomp
+          brew install llvm libomp
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.23.2
         env:
           CIBW_ARCHS: auto64  # Don't build 32 bits wheels
           CIBW_SKIP: pp*  # Don't build pypy wheels
-          CIBW_ENVIRONMENT: "MACOSX_DEPLOYMENT_TARGET=14.0 ITZI_BDIST_WHEEL=1"
+          CIBW_ENVIRONMENT: "ITZI_BDIST_WHEEL=1"
+          CIBW_ENVIRONMENT_MACOS: |
+            "MACOSX_DEPLOYMENT_TARGET=14.0"
+            "PATH=/usr/local/opt/llvm/bin:$PATH"
 
       - uses: actions/upload-artifact@v4
         with:

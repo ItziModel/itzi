@@ -203,9 +203,11 @@ class build_ext_compiler_check(build_ext):
                     for path in macos_includes:
                         if os.path.exists(path):
                             ext.include_dirs.append(path)
+                            print(f"{path} added to include_dirs")
                     for path in macos_libs:
                         if os.path.exists(path):
                             ext.library_dirs.append(path)
+                            print(f"{path} added to library_dirs")
 
         except Exception as e:
             print(
