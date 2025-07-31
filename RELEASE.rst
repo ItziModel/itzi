@@ -13,15 +13,19 @@ Itzï 25.7
 *Release date: 2025-07-31*
 
 
-
 **Improvements**
 
 - Accept water surface elevation (terrain + water depth) as an input value (issue #27)
 - Accept soil water content as an input value (issue #96)
-- Mass balance error is now tracked in real time. The simulation will stop if the mass balance error is above a given threshold (issue #114)
+- Mass balance error is now tracked in real time.
+  The simulation will stop if the mass balance error is above a given threshold (issue #114)
 - In the water depth maps exported to GRASS, the values under the threshold are no longer deleted, but exported and then masked with ``r.null`` (issue #123)
 - The results for all the nodes and links of the drainage simulation are now saved to the database, not only those with coordinates.
 - The output map "mean_losses* now has the same units (mm/h) as the input map *losses*.
+- The distributed wheels are now targeting *armv8-a* and *x86-64-v3*.
+  This allows better performance with *NEON* and *AVX2* vector extensions.
+  Most platforms less than 10 years old are compatibles.
+  In case of incompatibilities, building from source remains an option.
 
 **Corrected bugs**
 
@@ -32,9 +36,12 @@ Itzï 25.7
 
 **Internals**
 
-- The reporting functionality is improved and better isolated. Memory output providers are added in addition to GRASS. (#112, #121, #125, #127, #129)
+- The reporting functionality is improved and better isolated.
+  Memory output providers are added in addition to GRASS. (#112, #121, #125, #127, #129)
 - Array names, description, units, etc. are now centralized (#134)
 - Add benchmark for the tutorial (#113)
+- Main surface flow functions in cython are better optimized for vectorization,
+  with less branching and accepting only c_contiguous arrays.
 
 
 Itzï 25.4
