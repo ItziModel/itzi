@@ -31,6 +31,7 @@ jobs:
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=14.0
             PATH=/usr/local/opt/llvm/bin:$PATH
+            CC="/usr/local/opt/llvm/bin/clang"
             ITZI_BDIST_WHEEL=1
 
       - uses: actions/upload-artifact@v4
