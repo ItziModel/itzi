@@ -89,17 +89,17 @@ def flow_dir(
 @cython.initializedcheck(False)  # Skip initialization checks for performance
 @cython.nonecheck(False)  # Skip None checks for performance
 def solve_q(
-    DTYPE_t[:, :] arr_dire,
-    DTYPE_t[:, :] arr_dirs,
-    DTYPE_t[:, :] arr_z,
-    DTYPE_t[:, :] arr_n,
-    DTYPE_t[:, :] arr_h,
-    DTYPE_t[:, :] arrp_qe,
-    DTYPE_t[:, :] arrp_qs,
-    DTYPE_t[:, :] arr_hfe,
-    DTYPE_t[:, :] arr_hfs,
-    DTYPE_t[:, :] arr_qe_new,
-    DTYPE_t[:, :] arr_qs_new,
+    DTYPE_t[:, ::1] arr_dire,
+    DTYPE_t[:, ::1] arr_dirs,
+    DTYPE_t[:, ::1] arr_z,
+    DTYPE_t[:, ::1] arr_n,
+    DTYPE_t[:, ::1] arr_h,
+    DTYPE_t[:, ::1] arr_qe,
+    DTYPE_t[:, ::1] arr_qs,
+    DTYPE_t[:, ::1] arr_hfe,
+    DTYPE_t[:, ::1] arr_hfs,
+    DTYPE_t[:, ::1] arr_qe_new,
+    DTYPE_t[:, ::1] arr_qs_new,
     DTYPE_t dt,
     DTYPE_t dx,
     DTYPE_t dy,
@@ -109,7 +109,8 @@ def solve_q(
     DTYPE_t v_rout,
     DTYPE_t sl_thres,
 ):
-    """Calculate hflow in m, flow in m2/s
+    """Calculate hflow in m, flow in m2/s.
+    Expect padded arrays.
     """
 
     cdef int rmax, cmax, r, c, rp, cp
@@ -117,19 +118,17 @@ def solve_q(
     cdef DTYPE_t qe_st, qs_st, qe, qs, qe_vect, qs_vect, qdire, qdirs
     cdef DTYPE_t qe_new, qs_new, hf_e, hf_s, h0, h_e, h_s
 
-    rmax = arr_z.shape[0]
-    cmax = arr_z.shape[1]
-    for r in prange(rmax, nogil=True):
-        for c in range(cmax):
-            rp = r + 1
-            cp = c + 1
+    rmax = arr_z.shape[0] - 1
+    cmax = arr_z.shape[1] - 1
+    for r in prange(1, rmax, nogil=True):
+        for c in range(1, cmax):
             # values at the current cell
             z0 = arr_z[r, c]
             h0 = arr_h[r, c]
             wse0 = z0 + h0
             n0 = arr_n[r,c]
-            qe = arrp_qe[rp,cp]
-            qs = arrp_qs[rp,cp]
+            qe = arr_qe[r,c]
+            qs = arr_qs[r,c]
 
             # x dimension, flow at E cell boundary
             # prevent calculation of domain boundary
@@ -144,8 +143,8 @@ def solve_q(
                 # average friction
                 ne = 0.5 * (n0 + arr_n[r,c+1])
                 # calculate average flow from stencil
-                qe_st = .25 * (qs + arrp_qs[rp-1,cp] +
-                               arrp_qs[rp-1,cp+1] + arrp_qs[rp,cp+1])
+                qe_st = .25 * (qs + arr_qs[r-1,c] +
+                               arr_qs[r-1,c+1] + arr_qs[r,c+1])
                 # calculate qnorm using vectorizable hypot
                 qe_vect = hypot(qe, qe_st)
                 # hflow
@@ -156,8 +155,8 @@ def solve_q(
                     qe_new = 0
                 elif hf_e > hf_min:
                     qe_new = almeida2013(hf=hf_e, wse0=wse0, wse1=wse_e, n=ne,
-                                         qm1=arrp_qe[rp,cp-1], q0=qe,
-                                         qp1=arrp_qe[rp,cp+1], q_norm=qe_vect,
+                                         qm1=arr_qe[r,c-1], q0=qe,
+                                         qp1=arr_qe[r,c+1], q_norm=qe_vect,
                                          theta=theta, g=g, dt=dt, cell_len=dx)
                 # flow routing going W, i.e negative
                 elif hf_e <= hf_min and qdire == 0 and wse_e > wse0:
@@ -183,8 +182,8 @@ def solve_q(
                 # average friction
                 ns = 0.5 * (n0 + arr_n[r+1,c])
                 # calculate average flow from stencil
-                qs_st = .25 * (qe + arrp_qe[rp+1,cp] +
-                               arrp_qe[rp+1,cp-1] + arrp_qe[rp,cp-1])
+                qs_st = .25 * (qe + arr_qe[r+1,c] +
+                               arr_qe[r+1,c-1] + arr_qe[r,c-1])
                 # calculate qnorm using vectorizable hypot
                 qs_vect = hypot(qs, qs_st)
                 # hflow
@@ -194,8 +193,8 @@ def solve_q(
                     qs_new = 0
                 elif hf_s > hf_min:
                     qs_new = almeida2013(hf=hf_s, wse0=wse0, wse1=wse_s, n=ns,
-                                         qm1=arrp_qs[rp-1,cp], q0=qs,
-                                         qp1=arrp_qs[rp+1,cp], q_norm=qs_vect,
+                                         qm1=arr_qs[r-1,c], q0=qs,
+                                         qp1=arr_qs[r+1,c], q_norm=qs_vect,
                                          theta=theta, g=g, dt=dt, cell_len=dy)
                 # flow routing going N, i.e negative
                 elif hf_s <= hf_min and qdirs == 0 and wse_s > wse0:
@@ -343,19 +342,18 @@ def solve_h(
             arr_h[r, c] = h_new
 
             ## Velocity and Froude ##
-            # Do not accept NaN
             hfe = arr_hfe[r, c]
             hfw = arr_hfe[r, c-1]
             hfn = arr_hfs[r-1, c]
             hfs = arr_hfs[r, c]
             # Branchless velocity calculations for vectorization
             # Use fmax to avoid division by zero,
-            # then zero out velocities where flow depth is non-positive
+            # then multiply by zero or one by using boolean operation
             ve = qe / fmax(hfe, eps) * (hfe > 0.)
             vw = qw / fmax(hfw, eps) * (hfw > 0.)
             vs = qs / fmax(hfs, eps) * (hfs > 0.)
             vn = qn / fmax(hfn, eps) * (hfn > 0.)
-
+            # Velocities at the center of the cell
             vx = .5 * (ve + vw)
             vy = .5 * (vs + vn)
 
@@ -364,8 +362,8 @@ def solve_h(
             arr_v[r, c] = v
             arr_vmax[r, c] = max(v, arr_vmax[r, c])
             vdir = c_atan(-vy, vx) * 180. / PI
-            if vdir < 0:
-                vdir = 360 + vdir
+            # Branchless. Add 360 only to negative numbers
+            vdir = vdir + 360. * (vdir < 0)
             arr_vdir[r, c] = vdir
 
             # Froude number
