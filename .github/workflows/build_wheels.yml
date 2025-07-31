@@ -12,7 +12,8 @@ jobs:
     strategy:
       matrix:
         # macos-13 is intel, macos-14 is apple silicon, windows-11-arm
-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-14]
+        # os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-14]
+        os: [macos-14]
 
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +32,8 @@ jobs:
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=14.0
             ITZI_BDIST_WHEEL=1
+          CIBW_TEST_COMMAND: "pytest tests/test_flow.py tests/test_analytic.py"
+          CIBW_TEST_SOURCES: tests
 
       - uses: actions/upload-artifact@v4
         with:
