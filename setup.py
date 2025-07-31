@@ -13,7 +13,7 @@ from Cython.Build import cythonize
 copt = {
     "msvc": ["/openmp", "/Ox"],
     "mingw32": ["-O3", "-w", "-fopenmp", "-lgomp", "-lpthread"],
-    "unix": ["-O3", "-w", "-fopenmp", "-ffast-math", "-funroll-loops", "-ftree-vectorize"],
+    "unix": ["-O3", "-w", "-fopenmp"],
 }
 lopt = {"mingw32": ["-lgomp", "-lpthread"], "unix": ["-lgomp", "-fopenmp"]}
 
