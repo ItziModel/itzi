@@ -150,9 +150,9 @@ class BuildConfig:
                 return "linux_aarch64_v8"
         elif self.platform == "windows":
             if self.architecture == "x86_64":
-                return "win_amd64_avx2"
+                return "win_amd64"
             elif self.architecture == "arm64":
-                return "win_arm64_v8"
+                return "win_arm64"
         elif self.platform == "macos":
             if self.architecture == "arm64":
                 return "macosx_14_0_arm64"
