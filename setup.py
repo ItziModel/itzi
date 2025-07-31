@@ -99,7 +99,7 @@ class BuildConfig:
             if self.architecture == "x86_64":
                 compile_args = self.base_compile_args_msvc + ["/arch:AVX2"]
             elif self.architecture == "arm64":
-                compile_args = self.base_compile_args_msvc + ["/arch:ARMv8.2"]
+                compile_args = self.base_compile_args_msvc + ["/arch:armv8.2"]
             else:
                 compile_args = self.base_compile_args_msvc
             link_args = []
