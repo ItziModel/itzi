@@ -35,7 +35,7 @@ jobs:
           CIBW_BEFORE_TEST: "pip install pytest pytest-benchmark pandas"
           CIBW_TEST_SOURCES: tests
           CIBW_TEST_COMMAND: >  # Fast tests which do not require GRASS
-            pytest {package}/tests/test_flow.py {package}/tests/test_analytic.py {package}/tests/test_rastermetrics.py
+            pytest tests/test_flow.py tests/test_analytic.py tests/test_rastermetrics.py
 
       - uses: actions/upload-artifact@v4
         with:
