@@ -17,7 +17,6 @@ from datetime import datetime
 from typing import Tuple
 import numpy as np
 
-import itzi.flow as flow
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi import rastermetrics
 
@@ -214,11 +213,10 @@ class RasterDomain:
     def update_ext_array(self):
         """If one of the external input array has been updated,
         combine them into a unique array 'ext' in m/s.
-        in_q and n_drain in m/s.
-        This applies for inputs that are needed to be taken into account,
-         at every timestep, like inflows from user or drainage.
+        This applies for inputs that are needed to be taken into account
+        at every timestep, like inflows from user or drainage.
         """
-        flow.set_ext_array(
+        rastermetrics.set_ext_array(
             self.arr["inflow"],
             self.arr["n_drain"],
             self.arr["eff_precip"],

@@ -144,43 +144,22 @@ class SurfaceFlowSimulation:
 
     def update_h(self):
         """Calculate new water depth, average velocity and Froude number"""
-        flow_west = self.dom.get_padded("qe_new")[self.ss, self.su]
-        flow_east = self.dom.get_array("qe_new")
-        flow_north = self.dom.get_padded("qs_new")[self.su, self.ss]
-        flow_south = self.dom.get_array("qs_new")
-        assert flow_west.shape == flow_east.shape == flow_north.shape == flow_south.shape
-
-        flow_depth_west = self.dom.get_padded("hfe")[self.ss, self.su]
-        flow_depth_east = self.dom.get_array("hfe")
-        flow_depth_north = self.dom.get_padded("hfs")[self.su, self.ss]
-        flow_depth_south = self.dom.get_array("hfs")
-        assert (
-            flow_depth_west.shape
-            == flow_depth_east.shape
-            == flow_depth_north.shape
-            == flow_depth_south.shape
-        )
-
         flow.solve_h(
-            arr_ext=self.dom.get_array("ext"),
-            arr_qe=flow_east,
-            arr_qw=flow_west,
-            arr_qn=flow_north,
-            arr_qs=flow_south,
-            arr_bct=self.dom.get_array("bctype"),
-            arr_bcv=self.dom.get_array("bcval"),
-            arr_h=self.dom.get_array("water_depth"),
-            arr_hmax=self.dom.get_array("hmax"),
-            arr_hfix=self.dom.get_array("boundaries_accum"),
-            arr_herr=self.dom.get_array("error_depth_accum"),
-            arr_hfe=flow_depth_east,
-            arr_hfw=flow_depth_west,
-            arr_hfn=flow_depth_north,
-            arr_hfs=flow_depth_south,
-            arr_v=self.dom.get_array("v"),
-            arr_vdir=self.dom.get_array("vdir"),
-            arr_vmax=self.dom.get_array("vmax"),
-            arr_fr=self.dom.get_array("froude"),
+            arr_ext=self.dom.get_padded("ext"),
+            arr_qe=self.dom.get_padded("qe_new"),
+            arr_qs=self.dom.get_padded("qs_new"),
+            arr_bct=self.dom.get_padded("bctype"),
+            arr_bcv=self.dom.get_padded("bcval"),
+            arr_h=self.dom.get_padded("water_depth"),
+            arr_hmax=self.dom.get_padded("hmax"),
+            arr_hfix=self.dom.get_padded("boundaries_accum"),
+            arr_herr=self.dom.get_padded("error_depth_accum"),
+            arr_hfe=self.dom.get_padded("hfe"),
+            arr_hfs=self.dom.get_padded("hfs"),
+            arr_v=self.dom.get_padded("v"),
+            arr_vdir=self.dom.get_padded("vdir"),
+            arr_vmax=self.dom.get_padded("vmax"),
+            arr_fr=self.dom.get_padded("froude"),
             dx=self.dx,
             dy=self.dy,
             dt=self._dt,
@@ -192,17 +171,17 @@ class SurfaceFlowSimulation:
     def solve_q(self):
         """Solve flow inside the domain using C/Cython function"""
         flow.solve_q(
-            arr_dire=self.dom.get_array("dire"),
-            arr_dirs=self.dom.get_array("dirs"),
-            arr_z=self.dom.get_array("dem"),
-            arr_n=self.dom.get_array("friction"),
-            arr_h=self.dom.get_array("water_depth"),
-            arrp_qe=self.dom.get_padded("qe"),
-            arrp_qs=self.dom.get_padded("qs"),
-            arr_hfe=self.dom.get_array("hfe"),
-            arr_hfs=self.dom.get_array("hfs"),
-            arr_qe_new=self.dom.get_array("qe_new"),
-            arr_qs_new=self.dom.get_array("qs_new"),
+            arr_dire=self.dom.get_padded("dire"),
+            arr_dirs=self.dom.get_padded("dirs"),
+            arr_z=self.dom.get_padded("dem"),
+            arr_n=self.dom.get_padded("friction"),
+            arr_h=self.dom.get_padded("water_depth"),
+            arr_qe=self.dom.get_padded("qe"),
+            arr_qs=self.dom.get_padded("qs"),
+            arr_hfe=self.dom.get_padded("hfe"),
+            arr_hfs=self.dom.get_padded("hfs"),
+            arr_qe_new=self.dom.get_padded("qe_new"),
+            arr_qs_new=self.dom.get_padded("qs_new"),
             dt=self._dt,
             dx=self.dx,
             dy=self.dy,

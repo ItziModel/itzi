@@ -13,7 +13,7 @@ from Cython.Build import cythonize
 copt = {
     "msvc": ["/openmp", "/Ox"],
     "mingw32": ["-O3", "-w", "-fopenmp", "-lgomp", "-lpthread"],
-    "unix": ["-O3", "-w", "-fopenmp"],
+    "unix": ["-O3", "-w", "-fopenmp", "-ffast-math", "-funroll-loops", "-ftree-vectorize"],
 }
 lopt = {"mingw32": ["-lgomp", "-lpthread"], "unix": ["-lgomp", "-fopenmp"]}
 
@@ -56,5 +56,10 @@ class build_ext_compiler_check(build_ext):
         build_ext.build_extensions(self)
 
 
-extensions = [Extension("itzi.flow", sources=["src/itzi/flow.pyx"])]
-setup(ext_modules=cythonize(extensions), cmdclass={"build_ext": build_ext_compiler_check})
+extensions = [
+    Extension("itzi.flow", sources=["src/itzi/flow.pyx"]),
+    Extension("itzi.rastermetrics", sources=["src/itzi/rastermetrics.pyx"]),
+]
+setup(
+    ext_modules=cythonize(extensions, nthreads=4), cmdclass={"build_ext": build_ext_compiler_check}
+)
