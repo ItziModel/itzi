@@ -32,8 +32,10 @@ jobs:
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=14.0
             ITZI_BDIST_WHEEL=1
-          CIBW_TEST_COMMAND: "pytest tests/test_flow.py tests/test_analytic.py"
+          CIBW_BEFORE_TEST: "pip install pytest pandas"
           CIBW_TEST_SOURCES: tests
+          CIBW_TEST_COMMAND: >
+            pytest {package}/tests/test_flow.py {package}/tests/test_analytic.py {package}/tests/test_rastermetrics.py
 
       - uses: actions/upload-artifact@v4
         with:
