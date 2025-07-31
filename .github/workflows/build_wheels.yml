@@ -20,7 +20,7 @@ jobs:
       - name: Set-up on MacOS
         if: ${{ matrix.os == 'macos-14' }}
         run: |
-          brew install llvm libomp
+          brew install libomp
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.1.2
@@ -30,8 +30,6 @@ jobs:
           CIBW_ENVIRONMENT: "ITZI_BDIST_WHEEL=1"
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=14.0
-            PATH=/usr/local/opt/llvm/bin:$PATH
-            CC="/usr/local/opt/llvm/bin/clang"
             ITZI_BDIST_WHEEL=1
 
       - uses: actions/upload-artifact@v4
