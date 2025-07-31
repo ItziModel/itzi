@@ -155,7 +155,7 @@ class BuildConfig:
                 return "win_arm64_v8"
         elif self.platform == "macos":
             if self.architecture == "arm64":
-                return "macosx_*_arm64_v8"
+                return "macosx_14_0_arm64"
 
         return None
 
