@@ -112,7 +112,7 @@ class SimulationRunner:
             mkeys=self.conf.input_map_names.keys(),
             region_id=self.conf.grass_params["region"],
             raster_mask_id=self.conf.grass_params["mask"],
-            non_blocking_write=True,
+            non_blocking_write=False,
         )
         # Instantiate Simulation object and initialize it
         from itzi.simulation_factories import create_grass_simulation
