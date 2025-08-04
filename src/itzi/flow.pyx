@@ -145,8 +145,8 @@ def solve_q(
                 # calculate average flow from stencil
                 qe_st = .25 * (qs + arr_qs[r-1,c] +
                                arr_qs[r-1,c+1] + arr_qs[r,c+1])
-                # calculate qnorm using vectorizable hypot
-                qe_vect = hypot(qe, qe_st)
+                # sqrt way faster than hypot
+                qe_vect = c_sqrt(qe*qe + qe_st*qe_st)
                 # hflow
                 hf_e = hflow(z0=z0, z1=ze, wse0=wse0, wse1=wse_e)
                 arr_hfe[r, c] = hf_e
@@ -184,8 +184,8 @@ def solve_q(
                 # calculate average flow from stencil
                 qs_st = .25 * (qe + arr_qe[r+1,c] +
                                arr_qe[r+1,c-1] + arr_qe[r,c-1])
-                # calculate qnorm using vectorizable hypot
-                qs_vect = hypot(qs, qs_st)
+                # sqrt way faster than hypot
+                qs_vect = c_sqrt(qs*qs + qs_st*qs_st)
                 # hflow
                 hf_s = hflow(z0=z0, z1=zs, wse0=wse0, wse1=wse_s)
                 arr_hfs[r, c] = hf_s
@@ -358,7 +358,7 @@ def solve_h(
             vy = .5 * (vs + vn)
 
             # velocity magnitude and direction
-            v = hypot(vx, vy)
+            v = c_sqrt(vx*vx + vy*vy)  # sqrt faster than hypot
             arr_v[r, c] = v
             arr_vmax[r, c] = max(v, arr_vmax[r, c])
             vdir = c_atan(-vy, vx) * 180. / PI
@@ -431,3 +431,134 @@ cdef DTYPE_t cap_infiltration_rate(DTYPE_t dt, DTYPE_t h, DTYPE_t infrate) noexc
     """Cap the infiltration rate to not generate negative depths
     """
     return min(h / dt, infrate)
+
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+@cython.initializedcheck(False)  # Skip initialization checks for performance
+@cython.nonecheck(False)  # Skip None checks for performance
+def branchless_velocity(
+    DTYPE_t[:, ::1] arr_qe,
+    DTYPE_t[:, ::1] arr_qs,
+    DTYPE_t[:, ::1] arr_hfe,
+    DTYPE_t[:, ::1] arr_hfs,
+):
+    """function for benchmarking purpose
+    """
+    cdef int rmax, cmax, r, c
+    cdef DTYPE_t qe, qw, qn, qs
+    cdef DTYPE_t hfe, hfs, hfw, hfn, ve, vw, vn, vs
+    cdef DTYPE_t eps = 1e-12  # Small epsilon to avoid division by zero
+
+    rmax = arr_qe.shape[0] - 1
+    cmax = arr_qe.shape[1] - 1
+    for r in prange(1, rmax, nogil=True):
+        for c in range(1, cmax):
+            qe = arr_qe[r, c]
+            qw = arr_qe[r, c-1]
+            qn = arr_qs[r-1, c]
+            qs = arr_qs[r, c]
+
+            hfe = arr_hfe[r, c]
+            hfw = arr_hfe[r, c-1]
+            hfn = arr_hfs[r-1, c]
+            hfs = arr_hfs[r, c]
+            # Branchless velocity calculations for vectorization
+            # Use fmax to avoid division by zero,
+            # then multiply by zero or one by using boolean operation
+            ve = qe / fmax(hfe, eps) * (hfe > 0.)
+            vw = qw / fmax(hfw, eps) * (hfw > 0.)
+            vs = qs / fmax(hfs, eps) * (hfs > 0.)
+            vn = qn / fmax(hfn, eps) * (hfn > 0.)
+
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+@cython.initializedcheck(False)  # Skip initialization checks for performance
+@cython.nonecheck(False)  # Skip None checks for performance
+def branching_velocity(
+    DTYPE_t[:, ::1] arr_qe,
+    DTYPE_t[:, ::1] arr_qs,
+    DTYPE_t[:, ::1] arr_hfe,
+    DTYPE_t[:, ::1] arr_hfs,
+):
+    """function for benchmarking purpose
+    """
+    cdef int rmax, cmax, r, c
+    cdef DTYPE_t qe, qw, qn, qs
+    cdef DTYPE_t hfe, hfs, hfw, hfn, ve, vw, vn, vs
+
+    rmax = arr_qe.shape[0] - 1
+    cmax = arr_qe.shape[1] - 1
+    for r in prange(1, rmax, nogil=True):
+        for c in range(1, cmax):
+            qe = arr_qe[r, c]
+            qw = arr_qe[r, c-1]
+            qn = arr_qs[r-1, c]
+            qs = arr_qs[r, c]
+
+            hfe = arr_hfe[r, c]
+            hfw = arr_hfe[r, c-1]
+            hfn = arr_hfs[r-1, c]
+            hfs = arr_hfs[r, c]
+            # branching velocity calculations
+            if hfe <= 0.:
+                ve = 0.
+            else:
+                ve = qe / hfe
+            if hfw <= 0.:
+                vw = 0.
+            else:
+                vw = qw / hfw
+            if hfs <= 0.:
+                vs = 0.
+            else:
+                vs = qs / hfs
+            if hfn <= 0.:
+                vn = 0.
+            else:
+                vn = qn / hfn
+
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+@cython.initializedcheck(False)  # Skip initialization checks for performance
+@cython.nonecheck(False)  # Skip None checks for performance
+def arr_hypot(DTYPE_t[:, ::1] arr_qe, DTYPE_t[:, ::1] arr_qs):
+    """function for benchmarking purpose
+    """
+    cdef int rmax, cmax, r, c
+    cdef DTYPE_t qe, qs, q
+
+    rmax = arr_qe.shape[0] - 1
+    cmax = arr_qe.shape[1] - 1
+    for r in prange(1, rmax, nogil=True):
+        for c in range(1, cmax):
+            qe = arr_qe[r, c]
+            qs = arr_qs[r, c]
+
+            q = hypot(qe, qs)
+
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+@cython.initializedcheck(False)  # Skip initialization checks for performance
+@cython.nonecheck(False)  # Skip None checks for performance
+def arr_sqrt(DTYPE_t[:, ::1] arr_qe, DTYPE_t[:, ::1] arr_qs):
+    """function for benchmarking purpose
+    """
+    cdef int rmax, cmax, r, c
+    cdef DTYPE_t qe, qs, q
+
+    rmax = arr_qe.shape[0] - 1
+    cmax = arr_qe.shape[1] - 1
+    for r in prange(1, rmax, nogil=True):
+        for c in range(1, cmax):
+            qe = arr_qe[r, c]
+            qs = arr_qs[r, c]
+
+            q = c_sqrt(qe*qe + qs*qs)
