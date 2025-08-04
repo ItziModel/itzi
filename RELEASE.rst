@@ -26,6 +26,7 @@ Itzï 25.7
   This allows better performance with *NEON* and *AVX2* vector extensions.
   Most platforms less than 10 years old are compatibles.
   In case of incompatibilities, building from source remains an option.
+- A wheel for Windows on ARM64 is now available.
 
 **Corrected bugs**
 
@@ -42,6 +43,7 @@ Itzï 25.7
 - Add benchmark for the tutorial (#113)
 - Main surface flow functions in cython are better optimized for vectorization,
   with less branching and accepting only c_contiguous arrays.
+- The boundary condition logic is now included into the Cython loop, instead of numpy.
 
 
 Itzï 25.4
