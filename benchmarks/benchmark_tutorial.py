@@ -10,7 +10,7 @@ import pytest
 from itzi import SimulationRunner
 from itzi.profiler import profile_context
 
-from tests.test_tutorial import (  # noqa: F401
+from tests.grass_tests.test_tutorial import (  # noqa: F401
     itzi_tutorial,
     grass_tutorial_session,
     tutorial_test_file,
