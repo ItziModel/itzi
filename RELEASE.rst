@@ -7,11 +7,16 @@ These are the major changes made in each release.
 For more details please see the commit log of the git repository.
 
 
-Itzï 25.7
+Itzï 25.8
 ---------
 
-*Release date: 2025-07-31*
+*Release date: 2025-08-06*
 
+This version introduces several practical improvements that make flood modeling more reliable and efficient.
+This release adds support for water surface elevation and soil water content as direct inputs,
+implements real-time mass balance error tracking to prevent simulation issues, and saves complete drainage network results to the database.
+The update also fixes important bugs related to boundary conditions, mass balance calculations, and capillary pressure conversions,
+while improving the internal code structure for better maintainability.
 
 **Improvements**
 
@@ -43,7 +48,7 @@ Itzï 25.7
 - Add benchmark for the tutorial (#113)
 - Main surface flow functions in cython are better optimized for vectorization,
   with less branching and accepting only c_contiguous arrays.
-- The boundary condition logic is now included into the Cython loop, instead of numpy.
+- The boundary condition logic is now included into the Cython loop, instead being done in numpy.
 
 
 Itzï 25.4
