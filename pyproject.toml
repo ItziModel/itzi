@@ -11,7 +11,7 @@ dependencies = [
     "bmipy>=2.0.1",
 ]
 requires-python = ">=3.11,<3.13"  # pyswmm does not support python > 3.12
-readme = "README.rst"
+readme = "README.md"
 license = {text = "GPL-2.0-or-later"}
 keywords = ["science", "engineering", "hydrology", "flood"]
 classifiers = [
