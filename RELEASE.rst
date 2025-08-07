@@ -7,11 +7,16 @@ These are the major changes made in each release.
 For more details please see the commit log of the git repository.
 
 
-Itzï 25.7
+Itzï 25.8
 ---------
 
-*Release date: 2025-07-31*
+*Release date: 2025-08-06*
 
+This version introduces several practical improvements that make flood modeling more reliable and efficient.
+It adds support for water surface elevation and soil water content as direct inputs,
+implements real-time mass balance error tracking to prevent simulation issues, and saves complete drainage network results to the database.
+The update also fixes important bugs related to boundary conditions, mass balance calculations, and capillary pressure conversions,
+while improving the internal code structure for better maintainability.
 
 **Improvements**
 
@@ -42,8 +47,8 @@ Itzï 25.7
 - Array names, description, units, etc. are now centralized (#134)
 - Add benchmark for the tutorial (#113)
 - Main surface flow functions in cython are better optimized for vectorization,
-  with less branching and accepting only c_contiguous arrays.
-- The boundary condition logic is now included into the Cython loop, instead of numpy.
+  with less branching and accepting only c_contiguous arrays. (#146)
+- The boundary condition logic is now included into the Cython loop, instead of being done in python with numpy slices. (#151)
 
 
 Itzï 25.4
@@ -118,11 +123,11 @@ The coupling flow between the surface and the drainage is calculated as follows:
 
 - In case of drainage overflow, the orifice equation is used
 - In case of surface to drainage flow, the coupling flow is calculated by using either the orifice,
-free weir or submerged weir equation.
-The equation is chosen according to the relative water surface elevations in the surface and the drainage, and the node crest elevation.
+  free weir or submerged weir equation.
+  The equation is chosen according to the relative water surface elevations in the surface and the drainage, and the node crest elevation.
 - If the water is entering the drainage network, the flow is limited to prevent negative depth in the surface model.
 - The coupling flow cannot invert in one time-step. It must spend one time-step at zero.
-This reduces the oscillations that could occur when the water elevations in both the drainage network and the surface are similar.
+  This reduces the oscillations that could occur when the water elevations in both the drainage network and the surface are similar.
 
 
 Itzï 17.11

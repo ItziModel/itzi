@@ -1,6 +1,6 @@
 [project]
 name = "itzi"
-version = "25.7"
+version = "25.8"
 description = "A distributed dynamic flood model."
 authors = [
     {name = "Laurent Courty", email = "lrntct@gmail.com"},
@@ -11,8 +11,8 @@ dependencies = [
     "bmipy>=2.0.1",
 ]
 requires-python = ">=3.11,<3.13"  # pyswmm does not support python > 3.12
-readme = "README.rst"
-license = {text = "GPL-2.0-or-later"}
+readme = "README.md"
+license = "GPL-2.0-or-later"
 keywords = ["science", "engineering", "hydrology", "flood"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -51,14 +51,19 @@ dev = [
 
 [build-system]
 requires = [
-    "setuptools==75.*",
+    "setuptools>=80",
     "numpy==2.*",
     "cython==3.*"
 ]
 build-backend = "setuptools.build_meta"
 
-[tool.pdm]
-distribution = true
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"*" = ["*.pyx"]
+"itzi.data" = ["*.ini"]
+"itzi.data.colortable" = ["*.txt"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
