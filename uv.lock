@@ -224,7 +224,7 @@ wheels = [
 
 [[package]]
 name = "itzi"
-version = "25.7"
+version = "25.8"
 source = { editable = "." }
 dependencies = [
     { name = "bmipy" },
