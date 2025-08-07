@@ -27,7 +27,7 @@ This will automatically download Itzï and install it in its own python environm
 
 When it is time to update Itzï to its last version, you can use:
 
-    uv tool update itzi
+    uv tool upgrade itzi
 
 Installation on Windows
 -------------------------
