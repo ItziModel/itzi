@@ -1,5 +1,0 @@
-include LICENSE
-include RELEASE.rst
-include src/itzi/flow.pyx
-recursive-include src/itzi/data *
-recursive-include src/itzi/data/colortable *.txt
