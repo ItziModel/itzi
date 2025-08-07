@@ -70,7 +70,7 @@ uv tool update itzi
 3. **Run the simulation**: `itzi run your_config.ini`
 4. **Visualize and analyze results** using GRASS tools, or export for external analysis
 
-Check out our [comprehensive tutorial](http://itzi.rtfd.io/en/latest/tutorial.html) for a step-by-step walkthrough using real-world data.
+Check out our [comprehensive tutorial](https://itzi.rtfd.io/en/latest/tutorial.html) for a step-by-step walkthrough using real-world data.
 
 ## 🌟 Key Features
 
@@ -83,8 +83,8 @@ Check out our [comprehensive tutorial](http://itzi.rtfd.io/en/latest/tutorial.ht
 
 ## 📚 Documentation & Support
 
-- **📖 Documentation**: [itzi.readthedocs.io](http://itzi.rtfd.io/)
-- **🌐 Website**: [itzi.org](http://www.itzi.org/)
+- **📖 Documentation**: [itzi.readthedocs.io](https://itzi.rtfd.io/)
+- **🌐 Website**: [itzi.org](https://www.itzi.org/)
 - **💻 Source Code**: [GitHub Repository](https://github.com/ItziModel/itzi)
 - **🐛 Issues**: [Report bugs or request features](https://github.com/ItziModel/itzi/issues)
 
@@ -110,4 +110,4 @@ Itzï is released under the GPL license. See [LICENSE](LICENSE) for details.
 
 ---
 
-*Ready to model floods with ease? [Get started with our tutorial](http://itzi.rtfd.io/en/latest/tutorial.html) and join the growing community of Itzï users worldwide!*
+*Ready to model floods with ease? [Get started with our tutorial](https://itzi.rtfd.io/en/latest/tutorial.html) and join the growing community of Itzï users worldwide!*
