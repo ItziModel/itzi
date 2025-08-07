@@ -15,13 +15,13 @@ Built with GRASS GIS integration at its core, Itzï eliminates the complexity of
 
 **🎯 GIS-Native Design**
 - **No data wrestling**: Work directly with your existing GIS data
-- **Resolution flexibility**: Embrace heterogeneous  Change model resolution with a single command
+- **Resolution flexibility**: Change model resolution with a single command, no matter the resolution of your input data
 - **Seamless workflow**: From data preparation to results visualization, all within your familiar GIS environment
 
 **⚡ Advanced Capabilities**
 - **2D surface flow modeling** with a damped partial inertia numerical scheme
-- **Drainage Inflow and Overflow** with the integrated SWMM coupling
-- **Space-time variability of Inputs**: Easily model rainfall fields from weather radar or satellite data 📡
+- **Drainage inflow and overflow** with integrated SWMM coupling
+- **Space-time variability of inputs**: Easily model rainfall fields from weather radar or satellite data 📡
 
 **🔧 User-Friendly**
 - **Simple configuration**: Text-based parameter file
@@ -75,11 +75,11 @@ Check out our [comprehensive tutorial](http://itzi.rtfd.io/en/latest/tutorial.ht
 ## 🌟 Key Features
 
 - **Dynamic 2D Surface Flow**: Simulate complex surface water movement on regular grids
-- **Drainage Network Integration**: Model culverts, storm drains, and urban drainage infrastructure with SWMM
-- **Map Time Series as Input and Output**: Generate detailed temporal analysis of flood events
-- **Mass Balance Monitoring**: Automatic detection of instabilities, no more garbage output
+- **Drainage network integration**: Model culverts, storm drains, and urban drainage infrastructure with SWMM
+- **Map time series as input and output**: Generate detailed spatiotemporal analysis of flood events
+- **Mass balance monitoring**: Automatic detection of instabilities, no more garbage output
 - **Hydrology**: Space-time rainfall and Green-Ampt infiltration
-- **Cross-Platform**: Runs on Linux, Windows, and macOS.
+- **Cross-platform**: Runs on Linux, Windows, and macOS
 
 ## 📚 Documentation & Support
 
