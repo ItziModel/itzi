@@ -60,7 +60,7 @@ pipx install itzi
 ### Updating
 ```bash
 # Update to latest version
-uv tool update itzi
+uv tool upgrade itzi
 ```
 
 ## 🎯 Quick Start

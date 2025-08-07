@@ -26,7 +26,7 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "http://www.itzi.org"
+Homepage = "https://www.itzi.org"
 Documentation = "https://itzi.readthedocs.io"
 Repository = "https://github.com/ItziModel/itzi"
 Issues = "https://github.com/ItziModel/itzi/issues/"
