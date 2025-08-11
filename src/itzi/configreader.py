@@ -1,6 +1,6 @@
 # coding=utf8
 """
-Copyright (C) 2015-2020 Laurent Courty
+Copyright (C) 2015-2025 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 import itzi.messenger as msgr
 from itzi.const import DefaultValues
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
-from itzi.data_containers import SimulationConfig
+from itzi.data_containers import SurfaceFlowParameters, SimulationConfig
 
 
 class ConfigReader:
@@ -270,13 +270,7 @@ class ConfigReader:
 
     def get_sim_params(self) -> SimulationConfig:
         """Return a SimulationConfig object containing all simulation parameters"""
-        sim_config = SimulationConfig(
-            start_time=self.sim_times.start,
-            end_time=self.sim_times.end,
-            record_step=self.sim_times.record_step,
-            temporal_type=self.sim_times.temporal_type,
-            input_map_names=self.input_map_names,
-            output_map_names=self.output_map_names,
+        surface_params = SurfaceFlowParameters(
             hmin=self.sim_param["hmin"],
             cfl=self.sim_param["cfl"],
             theta=self.sim_param["theta"],
@@ -284,8 +278,18 @@ class ConfigReader:
             vrouting=self.sim_param["vrouting"],
             dtmax=self.sim_param["dtmax"],
             slmax=self.sim_param["slmax"],
-            dtinf=self.sim_param["dtinf"],
             max_error=self.sim_param["max_error"],
+        )
+        sim_config = SimulationConfig(
+            start_time=self.sim_times.start,
+            end_time=self.sim_times.end,
+            record_step=self.sim_times.record_step,
+            temporal_type=self.sim_times.temporal_type,
+            input_map_names=self.input_map_names,
+            output_map_names=self.output_map_names,
+            stats_file=self.stats_file,
+            surface_flow_parameters=surface_params,
+            dtinf=self.sim_param["dtinf"],
             infiltration_model=self.sim_param["inf_model"],
             swmm_inp=self.drainage_params["swmm_inp"],
             drainage_output=self.drainage_params["output"],

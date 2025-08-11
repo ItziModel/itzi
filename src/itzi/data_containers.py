@@ -162,6 +162,20 @@ class MassBalanceData:
 
 
 @dataclasses.dataclass(frozen=True)
+class SurfaceFlowParameters:
+    """Parameters for the surface flow model."""
+
+    hmin: float = DefaultValues.HFMIN
+    cfl: float = DefaultValues.CFL
+    theta: float = DefaultValues.THETA
+    g: float = DefaultValues.G
+    vrouting: float = DefaultValues.VROUTING
+    dtmax: float = DefaultValues.DTMAX
+    slmax: float = DefaultValues.SLMAX
+    max_error: float = DefaultValues.MAX_ERROR
+
+
+@dataclasses.dataclass(frozen=True)
 class SimulationConfig:
     """Configuration data for a simulation run."""
 
@@ -173,16 +187,12 @@ class SimulationConfig:
     # Input and output raster maps
     input_map_names: Dict[str, str]
     output_map_names: Dict[str, str]
-    # Simulation parameters
-    hmin: float = DefaultValues.HFMIN
-    cfl: float = DefaultValues.CFL
-    theta: float = DefaultValues.THETA
-    g: float = DefaultValues.G
-    vrouting: float = DefaultValues.VROUTING
-    dtmax: float = DefaultValues.DTMAX
-    slmax: float = DefaultValues.SLMAX
+    # Surface flow parameters
+    surface_flow_parameters: SurfaceFlowParameters
+    # Mass balance file
+    stats_file: str
+    # Hydrology parameters
     dtinf: float = DefaultValues.DTINF
-    max_error: float = DefaultValues.MAX_ERROR
     infiltration_model: float = None  # options: [null, constant, green-ampt]
     # Drainage parameters
     swmm_inp: str = None
