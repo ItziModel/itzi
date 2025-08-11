@@ -74,6 +74,7 @@ class SimulationRunner:
         """
         # parsing configuration file
         self.conf = ConfigReader(conf_file)
+        sim_config = self.conf.get_sim_params()
 
         # display parameters (if verbose)
         msgr.message(f"Starting simulation of {os.path.basename(conf_file)}...")
@@ -118,12 +119,7 @@ class SimulationRunner:
         from itzi.simulation_factories import create_grass_simulation
 
         self.sim, self.tarr = create_grass_simulation(
-            sim_times=self.conf.sim_times,
-            stats_file=self.conf.stats_file,
-            input_maps=self.conf.input_map_names,
-            output_maps=self.conf.output_map_names,
-            sim_param=self.conf.sim_param,
-            drainage_params=self.conf.drainage_params,
+            sim_config=sim_config,
             grass_interface=self.g_interface,
             dtype=data_type,
         )

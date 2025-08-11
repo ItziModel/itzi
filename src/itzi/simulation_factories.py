@@ -33,12 +33,18 @@ from itzi.data_containers import DrainageNodeCouplingData
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
 if TYPE_CHECKING:
-    from itzi.configreader import SimulationTimes
     from itzi.providers.grass_interface import GrassInterface
+    from itzi.data_containers import SimulationConfig
 
 
 def get_nodes_list(
-    pswmm_nodes, nodes_coor_dict, drainage_params, domain_data, g
+    pswmm_nodes: list,
+    nodes_coor_dict: Dict,
+    orifice_coeff: float,
+    free_weir_coeff: float,
+    submerged_weir_coeff: float,
+    domain_data: rasterdomain.DomainData,
+    g: float,
 ) -> list[DrainageNodeCouplingData]:
     """Check if the drainage nodes are inside the region and can be coupled.
     Return a list of DrainageNodeCouplingData
@@ -50,9 +56,9 @@ def get_nodes_list(
             node_object=pyswmm_node,
             coordinates=coors,
             coupling_type=CouplingTypes.NOT_COUPLED,
-            orifice_coeff=drainage_params["orifice_coeff"],
-            free_weir_coeff=drainage_params["free_weir_coeff"],
-            submerged_weir_coeff=drainage_params["submerged_weir_coeff"],
+            orifice_coeff=orifice_coeff,
+            free_weir_coeff=free_weir_coeff,
+            submerged_weir_coeff=submerged_weir_coeff,
             g=g,
         )
         # a node without coordinates cannot be coupled
@@ -92,14 +98,9 @@ def get_links_list(pyswmm_links, links_vertices_dict, nodes_coor_dict):
 
 
 def create_grass_simulation(
-    sim_times: "SimulationTimes",
-    input_maps: Dict,
-    output_maps: Dict,
-    sim_param: Dict,
-    drainage_params: Dict,
+    sim_config: "SimulationConfig",
     grass_interface: "GrassInterface",
     dtype=np.float32,
-    stats_file=None,
 ) -> tuple[Simulation, Dict[str, rasterdomain.TimedArray]]:
     """A factory function that returns a Simulation object."""
     msgr.verbose("Setting up models...")
@@ -107,7 +108,7 @@ def create_grass_simulation(
 
     arr_mask = grass_interface.get_npmask()
     msgr.verbose("Reading maps information from GIS...")
-    grass_interface.read(input_maps)
+    grass_interface.read(sim_config.input_map_names)
     # Timed arrays
     tarr = {}
     # TimedArray expects a function as an init parameter
@@ -129,8 +130,8 @@ def create_grass_simulation(
     except MemoryError:
         msgr.fatal("Out of memory.")
     # Infiltration
-    inf_model = sim_param["inf_model"]
-    dtinf = sim_param["dtinf"]
+    inf_model = sim_config.infiltration_model
+    dtinf = sim_config.dtinf
     msgr.debug("Setting up raster infiltration...")
     inf_class = {
         "constant": infiltration.InfConstantRate,
@@ -146,22 +147,22 @@ def create_grass_simulation(
     hydrology_model = Hydrology(raster_domain, dtinf, infiltration_model)
     # Surface flows simulation
     msgr.debug("Setting up surface model...")
-    surface_flow = SurfaceFlowSimulation(raster_domain, sim_param)
+    surface_flow = SurfaceFlowSimulation(raster_domain, sim_config.surface_flow_parameters)
     # Instantiate Massbal object
-    if stats_file:
+    if sim_config.stats_file:
         msgr.debug("Setting up mass balance object...")
         massbal = MassBalanceLogger(
-            file_name=stats_file,
-            start_time=sim_times.start,
-            temporal_type=sim_times.temporal_type,
+            file_name=sim_config.stats_file,
+            start_time=sim_config.start_time,
+            temporal_type=sim_config.temporal_type,
         )
     else:
         massbal = None
     # Drainage
-    if drainage_params["swmm_inp"]:
+    if sim_config.swmm_inp:
         msgr.debug("Setting up drainage model...")
-        swmm_sim = pyswmm.Simulation(drainage_params["swmm_inp"])
-        swmm_inp = SwmmInputParser(drainage_params["swmm_inp"])
+        swmm_sim = pyswmm.Simulation(sim_config.swmm_inp)
+        swmm_inp = SwmmInputParser(sim_config.swmm_inp)
         domain_data = rasterdomain.DomainData(
             north=grass_interface.region.north,
             south=grass_interface.region.south,
@@ -174,7 +175,13 @@ def create_grass_simulation(
         all_nodes = pyswmm.Nodes(swmm_sim)
         nodes_coors_dict = swmm_inp.get_nodes_id_as_dict()
         nodes_list = get_nodes_list(
-            all_nodes, nodes_coors_dict, drainage_params, domain_data, sim_param["g"]
+            all_nodes,
+            nodes_coors_dict,
+            orifice_coeff=sim_config.orifice_coeff,
+            free_weir_coeff=sim_config.free_weir_coeff,
+            submerged_weir_coeff=sim_config.submerged_weir_coeff,
+            domain_data=domain_data,
+            g=sim_config.surface_flow_parameters.g,
         )
         # Create Link objects
         links_vertices_dict = swmm_inp.get_links_id_as_dict()
@@ -190,51 +197,47 @@ def create_grass_simulation(
     raster_output_provider.initialize(
         {
             "grass_interface": grass_interface,
-            "out_map_names": output_maps,
-            "hmin": sim_param["hmin"],
-            "temporal_type": sim_times.temporal_type,
+            "out_map_names": sim_config.output_map_names,
+            "hmin": sim_config.surface_flow_parameters.hmin,
+            "temporal_type": sim_config.temporal_type,
         }
     )
     vector_output_provider = GrassVectorOutputProvider()
     vector_output_provider.initialize(
         {
             "grass_interface": grass_interface,
-            "temporal_type": sim_times.temporal_type,
-            "drainage_map_name": drainage_params["output"],
+            "temporal_type": sim_config.temporal_type,
+            "drainage_map_name": sim_config.drainage_output,
         }
     )
     report = Report(
-        start_time=sim_times.start,
+        start_time=sim_config.start_time,
         raster_output_provider=raster_output_provider,
         vector_output_provider=vector_output_provider,
         mass_balance_logger=massbal,
-        out_map_names=output_maps,
-        dt=sim_times.record_step,
+        out_map_names=sim_config.output_map_names,
+        dt=sim_config.record_step,
     )
     msgr.verbose("Models set up")
     simulation = Simulation(
-        sim_times.start,
-        sim_times.end,
+        sim_config.start_time,
+        sim_config.end_time,
         raster_domain,
         hydrology_model,
         surface_flow,
         drainage_sim,
         nodes_list,
         report,
-        mass_balance_error_threshold=sim_param["max_error"],
+        mass_balance_error_threshold=sim_config.surface_flow_parameters.max_error,
     )
     return (simulation, tarr)
 
 
 def create_memory_simulation(
-    sim_times: "SimulationTimes",
-    output_maps: Dict,
-    sim_param: Dict,
-    drainage_params: Dict,
+    sim_config: "SimulationConfig",
     domain_data: rasterdomain.DomainData,
     arr_mask: ArrayLike,
     dtype: DTypeLike = np.float32,
-    stats_file=None,
 ) -> Simulation:
     from itzi.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
 
@@ -248,8 +251,8 @@ def create_memory_simulation(
     except MemoryError:
         msgr.fatal("Out of memory.")
     # Infiltration
-    inf_model = sim_param["inf_model"]
-    dtinf = sim_param["dtinf"]
+    inf_model = sim_config.infiltration_model
+    dtinf = sim_config.dtinf
     msgr.debug("Setting up raster infiltration...")
     inf_class = {
         "constant": infiltration.InfConstantRate,
@@ -265,27 +268,33 @@ def create_memory_simulation(
     hydrology_model = Hydrology(raster_domain, dtinf, infiltration_model)
     # Surface flows simulation
     msgr.debug("Setting up surface model...")
-    surface_flow = SurfaceFlowSimulation(raster_domain, sim_param)
+    surface_flow = SurfaceFlowSimulation(raster_domain, sim_config.surface_flow_parameters)
     # Instantiate Massbal object
-    if stats_file:
+    if sim_config.stats_file:
         msgr.debug("Setting up mass balance object...")
         massbal = MassBalanceLogger(
-            file_name=stats_file,
-            start_time=sim_times.start,
-            temporal_type=sim_times.temporal_type,
+            file_name=sim_config.stats_file,
+            start_time=sim_config.start_time,
+            temporal_type=sim_config.temporal_type,
         )
     else:
         massbal = None
     # Drainage
-    if drainage_params["swmm_inp"]:
+    if sim_config.swmm_inp:
         msgr.debug("Setting up drainage model...")
-        swmm_sim = pyswmm.Simulation(drainage_params["swmm_inp"])
-        swmm_inp = SwmmInputParser(drainage_params["swmm_inp"])
+        swmm_sim = pyswmm.Simulation(sim_config.swmm_inp)
+        swmm_inp = SwmmInputParser(sim_config.swmm_inp)
         # Create Node objects
         all_nodes = pyswmm.Nodes(swmm_sim)
         nodes_coors_dict = swmm_inp.get_nodes_id_as_dict()
         nodes_list = get_nodes_list(
-            all_nodes, nodes_coors_dict, drainage_params, domain_data, sim_param["g"]
+            all_nodes,
+            nodes_coors_dict,
+            orifice_coeff=sim_config.orifice_coeff,
+            free_weir_coeff=sim_config.free_weir_coeff,
+            submerged_weir_coeff=sim_config.submerged_weir_coeff,
+            domain_data=domain_data,
+            g=sim_config.surface_flow_parameters.g,
         )
         # Create Link objects
         links_vertices_dict = swmm_inp.get_links_id_as_dict()
@@ -300,29 +309,29 @@ def create_memory_simulation(
     raster_output_provider = MemoryRasterOutputProvider()
     raster_output_provider.initialize(
         {
-            "out_map_names": output_maps,
+            "out_map_names": sim_config.output_map_names,
         }
     )
     vector_output_provider = MemoryVectorOutputProvider()
     vector_output_provider.initialize({})
     report = Report(
-        start_time=sim_times.start,
+        start_time=sim_config.start_time,
         raster_output_provider=raster_output_provider,
         vector_output_provider=vector_output_provider,
         mass_balance_logger=massbal,
-        out_map_names=output_maps,
-        dt=sim_times.record_step,
+        out_map_names=sim_config.output_map_names,
+        dt=sim_config.record_step,
     )
     msgr.verbose("Models set up")
     simulation = Simulation(
-        sim_times.start,
-        sim_times.end,
+        sim_config.start_time,
+        sim_config.end_time,
         raster_domain,
         hydrology_model,
         surface_flow,
         drainage_sim,
         nodes_list,
         report,
-        mass_balance_error_threshold=sim_param["max_error"],
+        mass_balance_error_threshold=sim_config.surface_flow_parameters.max_error,
     )
     return simulation
