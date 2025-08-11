@@ -21,6 +21,7 @@ from datetime import datetime, timedelta
 import itzi.messenger as msgr
 from itzi.const import DefaultValues
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi.data_containers import SimulationConfig
 
 
 class ConfigReader:
@@ -266,6 +267,33 @@ class ConfigReader:
         msgr.verbose(txt_template.format("duration", self.sim_times.duration))
         msgr.verbose(txt_template.format("record_step", self.sim_times.record_step))
         msgr.verbose("{}".format(inter_txt))
+
+    def get_sim_params(self) -> SimulationConfig:
+        """Return a SimulationConfig object containing all simulation parameters"""
+        sim_config = SimulationConfig(
+            start_time=self.sim_times.start,
+            end_time=self.sim_times.end,
+            record_step=self.sim_times.record_step,
+            temporal_type=self.sim_times.temporal_type,
+            input_map_names=self.input_map_names,
+            output_map_names=self.output_map_names,
+            hmin=self.sim_param["hmin"],
+            cfl=self.sim_param["cfl"],
+            theta=self.sim_param["theta"],
+            g=self.sim_param["g"],
+            vrouting=self.sim_param["vrouting"],
+            dtmax=self.sim_param["dtmax"],
+            slmax=self.sim_param["slmax"],
+            dtinf=self.sim_param["dtinf"],
+            max_error=self.sim_param["max_error"],
+            infiltration_model=self.sim_param["inf_model"],
+            swmm_inp=self.drainage_params["swmm_inp"],
+            drainage_output=self.drainage_params["output"],
+            orifice_coeff=self.drainage_params["orifice_coeff"],
+            free_weir_coeff=self.drainage_params["free_weir_coeff"],
+            submerged_weir_coeff=self.drainage_params["submerged_weir_coeff"],
+        )
+        return sim_config
 
 
 class SimulationTimes:
