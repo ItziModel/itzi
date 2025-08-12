@@ -661,11 +661,11 @@ class GrassInterface:
             # load spatial data from map
             map_dts.load()
             # set time
-            assert isinstance(map_time, datetime)
             if t_type == "relative":
-                rel_time = (map_time - self.start_time).total_seconds()
+                rel_time = map_time.total_seconds()
                 map_dts.set_relative_time(rel_time, None, "seconds")
             elif t_type == "absolute":
+                assert isinstance(map_time, datetime)
                 map_dts.set_absolute_time(start_time=map_time)
             else:
                 assert False, "unknown temporal type!"

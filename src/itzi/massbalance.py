@@ -27,14 +27,8 @@ class MassBalanceLogger:
     def __init__(
         self,
         file_name: str,
-        start_time: datetime,
-        temporal_type: str,
     ):
         """Initializes the logger and creates the output file with headers."""
-        if temporal_type not in ["absolute", "relative"]:
-            raise ValueError(f"unknown temporal type <{temporal_type}>")
-        self.temporal_type = temporal_type
-        self.start_time = start_time
         self.fields = [f.name for f in dataclasses.fields(MassBalanceData)]
         self.file_name = self._set_file_name(file_name)
         self._create_file()
@@ -60,8 +54,6 @@ class MassBalanceLogger:
                 line_to_write[key] = "-"
             elif "percent_error" == key:
                 line_to_write[key] = f"{value:.2%}"
-            elif "simulation_time" == key and "relative" == self.temporal_type:
-                line_to_write[key] = report_data.simulation_time - self.start_time
             elif isinstance(value, numbers.Real) and not isinstance(value, int):
                 line_to_write[key] = f"{value:.3f}"
             else:
