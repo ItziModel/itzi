@@ -123,7 +123,7 @@ Run the simulation:
 
     itzi run <parameter_file_name>
 
-.. versionadded:: 25.7
+.. versionadded:: 25.8
     Mass balance error detection added.
 
 This should fail with an error like this one:

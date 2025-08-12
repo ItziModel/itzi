@@ -7,17 +7,17 @@ Frequently Asked Questions
 Controlling numerical instabilities
 -----------------------------------
 
-In some cases, runaway instabilities could occur, creating wave-like surface flow:
+.. versionadded:: 25.8
+    Early detection of numerical instabilities.
 
-.. figure:: img/instability.png
-   :alt: Example of instabilities
+In some cases, numerical instabilities could occur, stopping the simulation with a message similar to this one:
 
-.. versionadded:: 25.7
-    Mass balance error detection added.
+.. code:: sh
 
-Since verion 25.7, when the volume error is above ``max_error``
-There are two ways to control them.
-The first one and the more effective is by reducing the time-step,
+    WARNING: Error during execution: itzi.itzi_error.MassBalanceError: Mass balance error 0.07 exceeds threshold 0.05
+
+There are two ways to reduce those instabilities.
+The first and more effective one is reducing the time-step,
 which could be achieved by changing two options:
 
 -  *cfl* that applies to every calculated time-step

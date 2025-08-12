@@ -42,7 +42,7 @@ You can do so by running the following command in the root directory of the repo
 Profiling
 ---------
 
-.. versionchanged:: 25.7
+.. versionchanged:: 25.8
 
 Profiling is activated by setting the environment variable *ITZI_PROFILE=1*.
 *pyinstrument* is part of the dev dependencies, so it should be installed when using ``uv`` in dev mode.
