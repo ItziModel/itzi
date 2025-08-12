@@ -15,9 +15,11 @@ GNU General Public License for more details.
 
 from typing import Dict, Tuple, TYPE_CHECKING
 import dataclasses
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
+
+from itzi.const import DefaultValues
 
 if TYPE_CHECKING:
     from itzi.drainage import DrainageNode
@@ -157,3 +159,44 @@ class MassBalanceData:
     volume_change: float
     volume_error: float
     percent_error: float
+
+
+@dataclasses.dataclass(frozen=True)
+class SurfaceFlowParameters:
+    """Parameters for the surface flow model."""
+
+    hmin: float = DefaultValues.HFMIN
+    cfl: float = DefaultValues.CFL
+    theta: float = DefaultValues.THETA
+    g: float = DefaultValues.G
+    vrouting: float = DefaultValues.VROUTING
+    dtmax: float = DefaultValues.DTMAX
+    slmax: float = DefaultValues.SLMAX
+    max_error: float = DefaultValues.MAX_ERROR
+
+
+@dataclasses.dataclass(frozen=True)
+class SimulationConfig:
+    """Configuration data for a simulation run."""
+
+    # Simulation times
+    start_time: datetime
+    end_time: datetime
+    record_step: timedelta
+    temporal_type: str  # options: [relative, absolute]
+    # Input and output raster maps
+    input_map_names: Dict[str, str]
+    output_map_names: Dict[str, str]
+    # Surface flow parameters
+    surface_flow_parameters: SurfaceFlowParameters
+    # Mass balance file
+    stats_file: str
+    # Hydrology parameters
+    dtinf: float = DefaultValues.DTINF
+    infiltration_model: float = None  # options: [null, constant, green-ampt]
+    # Drainage parameters
+    swmm_inp: str = None
+    drainage_output: str = None
+    orifice_coeff: float = DefaultValues.ORIFICE_COEFF
+    free_weir_coeff: float = DefaultValues.FREE_WEIR_COEFF
+    submerged_weir_coeff: float = DefaultValues.SUBMERGED_WEIR_COEFF

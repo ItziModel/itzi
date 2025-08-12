@@ -79,16 +79,12 @@ def mcdo_norain_sim(test_data_path, test_data_temp_path):
     # Run the simulation in the temp dir
     os.chdir(test_data_temp_path)
     config_file = data_dir / Path("mcdo_norain.ini")
-    config = ConfigReader(config_file)
+    config = ConfigReader(config_file).get_sim_params()
     simulation = create_memory_simulation(
-        sim_times=config.sim_times,
-        output_maps=config.output_map_names,
-        sim_param=config.sim_param,
-        drainage_params=config.drainage_params,
+        sim_config=config,
         domain_data=domain_data,
         arr_mask=array_mask,
         dtype=np.float32,
-        stats_file=config.stats_file,
     )
     # Set the input arrays
     simulation.set_array("dem", arr_dem)
@@ -188,16 +184,12 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
     # Run the simulation in the temp dir
     os.chdir(test_data_temp_path)
     config_file = data_dir / Path("mcdo_rain.ini")
-    config = ConfigReader(config_file)
+    config = ConfigReader(config_file).get_sim_params()
     simulation = create_memory_simulation(
-        sim_times=config.sim_times,
-        output_maps=config.output_map_names,
-        sim_param=config.sim_param,
-        drainage_params=config.drainage_params,
+        sim_config=config,
         domain_data=domain_data,
         arr_mask=array_mask,
         dtype=np.float32,
-        stats_file=config.stats_file,
     )
     # Set the input arrays
     simulation.set_array("dem", arr_dem)

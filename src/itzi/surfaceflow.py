@@ -15,10 +15,15 @@ GNU General Public License for more details.
 
 import math
 from datetime import timedelta
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 import itzi.flow as flow
 from itzi.itzi_error import NullError, DtError
+
+if TYPE_CHECKING:
+    from itzi.configreader import SurfaceFlowParameters
 
 
 class SurfaceFlowSimulation:
@@ -29,15 +34,19 @@ class SurfaceFlowSimulation:
      - positive from West to East and from North to South
     """
 
-    def __init__(self, domain, param):
+    def __init__(
+        self,
+        domain,
+        flow_params: "SurfaceFlowParameters",
+    ):
         self.dom = domain
-        self.dtmax = param["dtmax"]
-        self.cfl = param["cfl"]
-        self.g = param["g"]
-        self.theta = param["theta"]
-        self.min_flow_depth = param["hmin"]
-        self.sl_thresh = param["slmax"]
-        self.v_routing = param["vrouting"]
+        self.dtmax = flow_params.dtmax
+        self.cfl = flow_params.cfl
+        self.g = flow_params.g
+        self.theta = flow_params.theta
+        self.min_flow_depth = flow_params.hmin
+        self.sl_thresh = flow_params.slmax
+        self.v_routing = flow_params.vrouting
         self.dx = domain.dx
         self.dy = domain.dy
         self.cell_surf = self.dx * self.dy
