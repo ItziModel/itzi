@@ -101,10 +101,10 @@ The following inputs are mandatory:
      - User-defined loss rate.
      - mm/h
 
-.. versionchanged:: 25.7
+.. versionchanged:: 25.8
     *start_h* to *water_depth*.
 
-.. versionadded:: 25.7
+.. versionadded:: 25.8
     *soil_water_content* and *water_surface_elevation*.
 
 .. note:: When using a deprecated keyword, a warning will be displayed, and the map loaded normally.
@@ -192,7 +192,7 @@ The possible values to be exported are the following:
 |                         | last record                                             |        |
 +-------------------------+---------------------------------------------------------+--------+
 
-.. versionchanged:: 25.7
+.. versionchanged:: 25.8
     *h* to *water_depth*.
     *wse* to *water_surface_elevation*.
     *boundaries* to *mean_boundary_flow*.
@@ -203,10 +203,10 @@ The possible values to be exported are the following:
     *losses* to *mean_losses*.
     *drainage_stats* to *mean_drainage_flow*.
 
-.. versionchanged:: 25.7
+.. versionchanged:: 25.8
   For coherence with the input unit, *mean_losses* is in mm/h instead of m/s.
 
-.. versionadded:: 25.7
+.. versionadded:: 25.8
     *froude*.
 
 .. caution:: If a deprecated output name is requested, a warning will be displayed and the new, correct output will be written to disk.
@@ -275,14 +275,14 @@ Water leaving the domain is negative.
 *volume_change* is equal to the sum of *boundary_volume*, *rainfall_volume*, *infiltration_volume*, *inflow_volume*, *losses_volume*, *drainage_network_volume*, and *volume_error*.
 However, due to the way the volumes are computed internally, small variations could occur.
 
-.. versionchanged:: 25.7
+.. versionchanged:: 25.8
     Columns names are more explicit. *volume_change* is added.
 
 
 [options]
 ---------
 
-.. versionadded:: 25.7
+.. versionadded:: 25.8
     *max_error* is added.
 
 +----------+----------------------------------------------+----------------+---------------+
@@ -340,7 +340,7 @@ The nodes are stored in layer 1, the links in layer 2.
 
 The values stored for the nodes are described below. All are instantaneous.
 
-.. versionchanged:: 25.7
+.. versionchanged:: 25.8
     Tables columns names are more explicit.
 
 +------------------+-----------------------------------------------------------------------+
