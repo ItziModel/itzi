@@ -1,6 +1,6 @@
 [project]
 name = "itzi"
-version = "25.8"
+version = "25.10"
 description = "A distributed dynamic flood model."
 authors = [
     {name = "Laurent Courty", email = "lrntct@gmail.com"},
@@ -33,6 +33,15 @@ Issues = "https://github.com/ItziModel/itzi/issues/"
 
 [project.scripts]
 itzi = "itzi.itzi:main"
+
+[project.optional-dependencies]
+cloud = [
+    "geopandas>=1.1.1",
+    "icechunk>=1.1.1",
+    "pyarrow>=21.0.0",
+    "xarray[io]>=2025.7.1",
+    "zarr>=3.1.1",
+]
 
 [dependency-groups]
 dev = [
