@@ -62,7 +62,9 @@ class Report:
         else:
             converted_sim_time = sim_time
         self.get_output_arrays(simulation_data)
-        self.raster_provider.write_arrays(array_dict=self.output_arrays, sim_time=sim_time)
+        self.raster_provider.write_arrays(
+            array_dict=self.output_arrays, sim_time=converted_sim_time
+        )
         if self.mass_balance_logger:
             self.write_mass_balance(simulation_data, converted_sim_time)
         drainage_data = simulation_data.drainage_network_data
