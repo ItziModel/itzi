@@ -14,6 +14,8 @@ GNU General Public License for more details.
 """
 
 import copy
+from datetime import datetime
+from typing import Dict, TYPE_CHECKING
 
 import numpy as np
 
@@ -21,19 +23,25 @@ from itzi import rastermetrics
 from itzi.data_containers import SimulationData, MassBalanceData
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
+if TYPE_CHECKING:
+    from itzi.providers.base import RasterOutputProvider, VectorOutputProvider
+    from itzi.massbalance import MassBalanceLogger
+
 
 class Report:
     """In charge of results reporting and writing"""
 
     def __init__(
         self,
-        start_time,
-        raster_output_provider,
-        vector_output_provider,
-        mass_balance_logger,
-        out_map_names,
+        start_time: datetime,
+        temporal_type: str,
+        raster_output_provider: "RasterOutputProvider",
+        vector_output_provider: "VectorOutputProvider",
+        mass_balance_logger: "MassBalanceLogger",
+        out_map_names: Dict,
         dt,
     ):
+        self.temporal_type = temporal_type
         self.record_counter = 0
         self.raster_provider = raster_output_provider
         self.vector_provider = vector_output_provider
