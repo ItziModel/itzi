@@ -17,8 +17,6 @@ import copy
 from datetime import datetime, timedelta
 from typing import Dict, TYPE_CHECKING
 
-import numpy as np
-
 from itzi import rastermetrics
 from itzi.data_containers import SimulationData, MassBalanceData
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
@@ -64,7 +62,7 @@ class Report:
         else:
             converted_sim_time = sim_time
         self.get_output_arrays(simulation_data)
-        self.save_array(converted_sim_time)
+        self.raster_provider.write_arrays(array_dict=self.output_arrays, sim_time=sim_time)
         if self.mass_balance_logger:
             self.write_mass_balance(simulation_data, converted_sim_time)
         drainage_data = simulation_data.drainage_network_data
@@ -184,14 +182,6 @@ class Report:
             percent_error=continuity_data.continuity_error,
         )
         self.mass_balance_logger.log(report_data)
-
-        return self
-
-    def save_array(self, sim_time: datetime | timedelta):
-        """ """
-        for arr_key, arr in self.output_arrays.items():
-            if isinstance(arr, np.ndarray):
-                self.raster_provider.write_array(array=arr, map_key=arr_key, sim_time=sim_time)
         return self
 
     def save_drainage_values(self, sim_time, drainage_data):

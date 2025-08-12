@@ -49,6 +49,13 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         self.output_maplist[map_key].append((map_name, sim_time))
         self.record_counter[map_key] += 1
 
+    def write_arrays(
+        self, array_dict: Dict[str, np.ndarray], sim_time: datetime | timedelta
+    ) -> None:
+        for arr_key, arr in array_dict.items():
+            if isinstance(arr, np.ndarray):
+                self.write_array(array=arr, map_key=arr_key, sim_time=sim_time)
+
     def _write_max_array(self, arr_max, map_key):
         map_max_name = f"{self.out_map_names[map_key]}_max"
         self.grass_interface.write_raster_map(arr_max, map_max_name, map_key, hmin=0.0)

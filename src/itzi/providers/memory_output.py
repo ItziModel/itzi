@@ -37,6 +37,13 @@ class MemoryRasterOutputProvider(RasterOutputProvider):
         """Save simulation data for current time step."""
         self.output_maps_dict[map_key].append((deepcopy(sim_time), array.copy()))
 
+    def write_arrays(
+        self, array_dict: Dict[str, np.ndarray], sim_time: datetime | timedelta
+    ) -> None:
+        for arr_key, arr in array_dict.items():
+            if isinstance(arr, np.ndarray):
+                self.output_maps_dict[arr_key].append((deepcopy(sim_time), arr.copy()))
+
     def finalize(self, final_data: SimulationData) -> None:
         """Finalize outputs and cleanup."""
         pass
