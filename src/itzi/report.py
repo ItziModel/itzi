@@ -14,6 +14,8 @@ GNU General Public License for more details.
 """
 
 import copy
+from datetime import datetime, timedelta
+from typing import Dict, TYPE_CHECKING
 
 import numpy as np
 
@@ -21,19 +23,26 @@ from itzi import rastermetrics
 from itzi.data_containers import SimulationData, MassBalanceData
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
+if TYPE_CHECKING:
+    from itzi.providers.base import RasterOutputProvider, VectorOutputProvider
+    from itzi.massbalance import MassBalanceLogger
+
 
 class Report:
     """In charge of results reporting and writing"""
 
     def __init__(
         self,
-        start_time,
-        raster_output_provider,
-        vector_output_provider,
-        mass_balance_logger,
-        out_map_names,
+        start_time: datetime,
+        temporal_type: str,
+        raster_output_provider: "RasterOutputProvider",
+        vector_output_provider: "VectorOutputProvider",
+        mass_balance_logger: "MassBalanceLogger",
+        out_map_names: Dict,
         dt,
     ):
+        self.temporal_type = temporal_type
+        self.start_time = copy.copy(start_time)
         self.record_counter = 0
         self.raster_provider = raster_output_provider
         self.vector_provider = vector_output_provider
@@ -50,12 +59,16 @@ class Report:
     def step(self, simulation_data: SimulationData):
         """write results at given time-step"""
         sim_time = simulation_data.sim_time
+        if "relative" == self.temporal_type:
+            converted_sim_time = sim_time - self.start_time
+        else:
+            converted_sim_time = sim_time
         self.get_output_arrays(simulation_data)
-        self.save_array(sim_time)
+        self.save_array(converted_sim_time)
         if self.mass_balance_logger:
-            self.write_mass_balance(simulation_data)
+            self.write_mass_balance(simulation_data, converted_sim_time)
         drainage_data = simulation_data.drainage_network_data
-        self.save_drainage_values(sim_time, drainage_data)
+        self.save_drainage_values(converted_sim_time, drainage_data)
         self.record_counter += 1
         self.last_step = copy.copy(sim_time)
         return self
@@ -124,7 +137,7 @@ class Report:
                 )
         return self
 
-    def write_mass_balance(self, data: SimulationData):
+    def write_mass_balance(self, data: SimulationData, converted_sim_time: datetime | timedelta):
         """Calculate mass balance and log it."""
         continuity_data = data.continuity_data
         # 1. Calculate all volumes using rastermetrics
@@ -156,7 +169,7 @@ class Report:
         else:
             average_timestep = float("nan")
         report_data = MassBalanceData(
-            simulation_time=data.sim_time,
+            simulation_time=converted_sim_time,
             average_timestep=average_timestep,
             timesteps=data.time_steps_counter,
             boundary_volume=boundary_vol,
@@ -174,7 +187,7 @@ class Report:
 
         return self
 
-    def save_array(self, sim_time):
+    def save_array(self, sim_time: datetime | timedelta):
         """ """
         for arr_key, arr in self.output_arrays.items():
             if isinstance(arr, np.ndarray):

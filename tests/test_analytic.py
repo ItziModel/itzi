@@ -6,6 +6,7 @@ Test itzi against analytic solutions to the shallow water equation.
 """
 
 import os
+import csv
 from pathlib import Path
 from collections import namedtuple
 
@@ -21,6 +22,39 @@ from itzi.rasterdomain import DomainData
 ASCIIMetadata = namedtuple(
     "ASCIIMetadata", ["ncols", "nrows", "xllcorner", "yllcorner", "cellsize"]
 )
+
+
+def identify_temporal_string(s):
+    """Returns 'datetime', 'timedelta', or None"""
+    try:
+        pd.to_timedelta(s)
+        return "timedelta"
+    except ValueError:
+        try:
+            # Pandas has a small acceptable range
+            np.datetime64(s)
+            return "datetime"
+        except ValueError:
+            return None
+
+
+def test_identify_temporal_string():
+    # Usage
+    test_strings = [
+        ("2023-12-25 10:30:00", "datetime"),
+        ("0001-01-01T01:30:00", "datetime"),
+        ("0001-01-01 01:30:00", "datetime"),
+        ("1 day 02:30:45", "timedelta"),
+        ("32 days 00:30:45", "timedelta"),
+        ("02:30:45", "timedelta"),
+        ("66:01:34", "timedelta"),
+        ("not a time string", None),
+        ("0001-01-01 31:30:00", None),
+    ]
+    for s, t in test_strings:
+        result = identify_temporal_string(s)
+        print(s, t)
+        assert result == t
 
 
 def read_ascii_grid(filepath):
@@ -111,7 +145,7 @@ class TestMcdo_norain:
         assert mae < 0.03
 
     def test_flow_is_unidimensional(self, mcdo_norain_sim):
-        simulation, reference = mcdo_norain_sim
+        simulation, _ = mcdo_norain_sim
         """In the MacDonald 1D test, flow should be unidimensional in the X dimension"""
         qy_array_list = simulation.report.raster_provider.output_maps_dict["qy"]
         for _, qy_array in qy_array_list:
@@ -121,7 +155,13 @@ class TestMcdo_norain:
             assert np.max(qy_array) == 0
 
     def test_stat_file_is_coherent(self, test_data_temp_path):
-        stat_file_path = Path(test_data_temp_path) / Path("mcdo_norain.csv")
+        stat_file_path = Path(test_data_temp_path) / Path("stats_mcdo_norain.csv")
+        # Test time format
+        with open(stat_file_path, "r") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                assert identify_temporal_string(row["simulation_time"]) == "timedelta"
+
         df_stats = pd.read_csv(stat_file_path, sep=",")
         # convert percent string to float
         df_stats["percent_error"] = (
@@ -205,13 +245,20 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
     return simulation, reference
 
 
-def test_mcdo_rain(mcdo_rain_sim):
+def test_mcdo_rain(mcdo_rain_sim, test_data_temp_path):
     simulation, reference = mcdo_rain_sim
     raster_results = simulation.report.raster_provider.output_maps_dict
-    wse_time, wse_array = raster_results["water_surface_elevation"][-1]
+    _, wse_array = raster_results["water_surface_elevation"][-1]
     wse_centerline = pd.DataFrame({"wse_model": wse_array[1, :]})
     df_results = reference.join(wse_centerline)
     df_results["abs_error"] = np.abs(df_results["wse_model"] - df_results["wse"])
     mae = np.mean(df_results["abs_error"])
     print(mae)
     assert mae < 0.035
+
+    stat_file_path = Path(test_data_temp_path) / Path("stats_mcdo_rain.csv")
+    # Test time format
+    with open(stat_file_path, "r") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            assert identify_temporal_string(row["simulation_time"]) == "datetime"

@@ -153,8 +153,6 @@ def create_grass_simulation(
         msgr.debug("Setting up mass balance object...")
         massbal = MassBalanceLogger(
             file_name=sim_config.stats_file,
-            start_time=sim_config.start_time,
-            temporal_type=sim_config.temporal_type,
         )
     else:
         massbal = None
@@ -212,6 +210,7 @@ def create_grass_simulation(
     )
     report = Report(
         start_time=sim_config.start_time,
+        temporal_type=sim_config.temporal_type,
         raster_output_provider=raster_output_provider,
         vector_output_provider=vector_output_provider,
         mass_balance_logger=massbal,
@@ -274,8 +273,6 @@ def create_memory_simulation(
         msgr.debug("Setting up mass balance object...")
         massbal = MassBalanceLogger(
             file_name=sim_config.stats_file,
-            start_time=sim_config.start_time,
-            temporal_type=sim_config.temporal_type,
         )
     else:
         massbal = None
@@ -316,6 +313,7 @@ def create_memory_simulation(
     vector_output_provider.initialize({})
     report = Report(
         start_time=sim_config.start_time,
+        temporal_type=sim_config.temporal_type,
         raster_output_provider=raster_output_provider,
         vector_output_provider=vector_output_provider,
         mass_balance_logger=massbal,
