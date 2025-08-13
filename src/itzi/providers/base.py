@@ -30,11 +30,6 @@ class RasterOutputProvider(ABC):
         pass
 
     @abstractmethod
-    def write_array(self, array: np.ndarray, map_key: str, sim_time: datetime | timedelta) -> None:
-        """Write one array for the current time step."""
-        pass
-
-    @abstractmethod
     def write_arrays(
         self, array_dict: Dict[str, np.ndarray], sim_time: datetime | timedelta
     ) -> None:

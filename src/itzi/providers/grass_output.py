@@ -36,7 +36,9 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
         return self
 
-    def write_array(self, array: np.ndarray, map_key: str, sim_time: datetime | timedelta) -> None:
+    def _write_array(
+        self, array: np.ndarray, map_key: str, sim_time: datetime | timedelta
+    ) -> None:
         """Write simulation data for current time step."""
         suffix = str(self.record_counter[map_key]).zfill(4)
         map_name = "{}_{}".format(self.out_map_names[map_key], suffix)
@@ -54,7 +56,7 @@ class GrassRasterOutputProvider(RasterOutputProvider):
     ) -> None:
         for arr_key, arr in array_dict.items():
             if isinstance(arr, np.ndarray):
-                self.write_array(array=arr, map_key=arr_key, sim_time=sim_time)
+                self._write_array(array=arr, map_key=arr_key, sim_time=sim_time)
 
     def _write_max_array(self, arr_max, map_key):
         map_max_name = f"{self.out_map_names[map_key]}_max"

@@ -33,10 +33,6 @@ class MemoryRasterOutputProvider(RasterOutputProvider):
         self.output_maps_dict = {k: [] for k in self.out_map_names.keys()}
         return self
 
-    def write_array(self, array: np.ndarray, map_key: str, sim_time: datetime | timedelta) -> None:
-        """Save simulation data for current time step."""
-        self.output_maps_dict[map_key].append((deepcopy(sim_time), array.copy()))
-
     def write_arrays(
         self, array_dict: Dict[str, np.ndarray], sim_time: datetime | timedelta
     ) -> None:
