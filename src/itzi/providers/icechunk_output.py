@@ -21,6 +21,7 @@ import numpy as np
 try:
     import xarray as xr
     import icechunk
+    import zarr
 except ImportError:
     raise ImportError(
         "To use the Icechunk backend, install itzi with: "
@@ -152,12 +153,35 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
                     consolidated=False,
                     mode="w",
                 )
-                # dataset.to_zarr(store, zarr_format=3, consolidated=False, mode='w')
             else:
-                dataset.to_zarr(
-                    store, zarr_format=3, append_dim="time", consolidated=False, mode="a"
-                )
+                # Use zarr directly to append data while preserving time encoding
+                self._append_to_zarr_store(store, dataset, sim_time_np)
         self.num_records += 1
+
+    def _append_to_zarr_store(
+        self, store, dataset: xr.Dataset, sim_time_np: np.datetime64 | np.timedelta64
+    ) -> None:
+        """Append data to zarr store using zarr directly to preserve time encoding."""
+        # Open the zarr group
+        z_group = zarr.open_group(store, mode="r+")
+
+        # Get current time array and append new time
+        current_time = z_group["time"][:]
+        new_time_array = np.append(current_time, sim_time_np)
+
+        # Resize and update time coordinate
+        z_group["time"].resize(len(new_time_array))
+        z_group["time"][:] = new_time_array
+
+        # Append data for each variable
+        for var_name, data_array in dataset.data_vars.items():
+            current_data = z_group[var_name][:]
+            new_data = data_array.values
+            # Concatenate along time dimension (axis 0)
+            combined_data = np.concatenate([current_data, new_data], axis=0)
+            # Resize and update the variable
+            z_group[var_name].resize(combined_data.shape)
+            z_group[var_name][:] = combined_data
 
     def finalize(self, final_data: SimulationData) -> None:
         """Finalize outputs and cleanup."""

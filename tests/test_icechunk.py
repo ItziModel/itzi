@@ -25,7 +25,7 @@ def maps_dict():
         arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.OUTPUT in arr_def.category
     ]
     rng = np.random.default_rng()
-    arr_shape = (13, 34)
+    arr_shape = (6, 9)
     return {key: rng.random(size=arr_shape, dtype=np.float32) for key in key_list}
 
 
@@ -49,68 +49,23 @@ def icechunk_provider(maps_dict: Dict, temp_dir: tempfile.TemporaryDirectory):
     return icechunk_p
 
 
-# @pytest.mark.parametrize("temporal_type", ["absolute", "relative"])
-def write_arrays(
-    icechunk_provider: IcechunkRasterOutputProvider,
-    temp_dir: tempfile.TemporaryDirectory,
-    temporal_type: str,
-    maps_dict: Dict,
-):
-    # Write timesteps, with 1 minute in between
-    time_steps_num = 3
-    if temporal_type == "relative":
-        sim_time = timedelta(seconds=0)
-    else:
-        sim_time = datetime(year=34, month=1, day=1)
-
-    for t in range(time_steps_num):
-        sim_time += timedelta(minutes=t)
-        print(sim_time)
-        icechunk_provider.write_arrays(maps_dict, sim_time)
-
-    # Read the data
-    storage = icechunk.local_filesystem_storage(temp_dir.name)
-    repo = icechunk.Repository.open(storage)
-    session = repo.readonly_session("main")
-    # z_store = zarr.open_group(session.store, mode="r")
-
-    # Do the checks
-    # arr_time = z_store['time']
-    # print(arr_time.dtype)
-    # print(np.min(arr_time))
-    # print(np.max(arr_time))
-    # print(type(arr_time))
-    # print(np.array(arr_time))
-
-    ds = xr.open_zarr(session.store)
-    da_time = ds["time"]
-    assert da_time.shape == (time_steps_num,)
-    timestep = da_time[1] - da_time[0]
-    # pydt = timestep.dt.to_pydatetime()
-    print(f"{da_time=}")
-    print(f"{timestep.data=}")
-    # print(f"{pydt=}")
-    # if temporal_type == "relative":
-    #     assert isinstance(arr_time.data.dtype, np.dtypes.TimeDelta64DType)
-    #     assert arr_time.data.dtype == 'timedelta64[ms]'
-    # else:
-    #     assert isinstance(arr_time.data.dtype, np.dtypes.DateTime64DType)
-    #     assert arr_time.data.dtype == 'datetime64[ms]'
-
-
-@pytest.mark.parametrize("year", [1, 123, 1978, 3456])
+@pytest.mark.parametrize("start_year", [1, 123, 1978, 3456])
+@pytest.mark.parametrize("time_step_s", [1, 60, 300, 3600])
 def test_write_arrays_absolute(
     icechunk_provider: IcechunkRasterOutputProvider,
     temp_dir: tempfile.TemporaryDirectory,
-    year: int,
+    start_year: int,
+    time_step_s: int,
     maps_dict: Dict,
 ):
-    # Write timesteps, with 1 minute in between
+    # Write timesteps
     time_steps_num = 3
-    sim_time = datetime(year=year, month=1, day=1)
-    reference_timestep = timedelta(minutes=1)
+    sim_time = datetime(year=start_year, month=1, day=1)
+    reference_timestep = timedelta(seconds=time_step_s)
+    expected_times = []
     for t in range(time_steps_num):
         sim_time += reference_timestep
+        expected_times.append(sim_time)
         print(sim_time)
         icechunk_provider.write_arrays(maps_dict, sim_time)
 
@@ -118,23 +73,60 @@ def test_write_arrays_absolute(
     storage = icechunk.local_filesystem_storage(temp_dir.name)
     repo = icechunk.Repository.open(storage)
     session = repo.readonly_session("main")
-    # z_store = zarr.open_group(session.store, mode="r")
-
-    # Do the checks
-    # arr_time = z_store['time']
-    # print(arr_time.dtype)
-    # print(np.min(arr_time))
-    # print(np.max(arr_time))
-    # print(type(arr_time))
-    # print(np.array(arr_time))
 
     ds = xr.open_zarr(session.store)
     da_time = ds["time"]
     assert da_time.shape == (time_steps_num,)
     timestep = da_time[1] - da_time[0]
-    print(f"{da_time=}")
-    print(f"{timestep.data=}")
+
+    # Assert that the timestep is correct
     timestep_py = pd.to_timedelta(timestep.data).to_pytimedelta()
     assert timestep_py == reference_timestep
 
-    assert False
+    # Assert that all individual timestamps are correct
+    actual_times = [pd.to_datetime(t).to_pydatetime() for t in da_time.values]
+    assert len(actual_times) == len(expected_times)
+    for actual, expected in zip(actual_times, expected_times):
+        assert actual == expected, f"Expected {expected}, got {actual}"
+
+
+@pytest.mark.parametrize("start_seconds", [0, 10, 3600, 86400])
+@pytest.mark.parametrize("time_step_s", [1, 60, 300, 3600])
+def test_write_arrays_relative(
+    icechunk_provider: IcechunkRasterOutputProvider,
+    temp_dir: tempfile.TemporaryDirectory,
+    start_seconds: int,
+    time_step_s: int,
+    maps_dict: Dict,
+):
+    """Test writing arrays with relative time (timedelta)"""
+    # Write timesteps, with 1 minute in between
+    time_steps_num = 3
+    sim_time = timedelta(seconds=start_seconds)
+    reference_timestep = timedelta(seconds=time_step_s)
+    expected_times = []
+    for t in range(time_steps_num):
+        sim_time += reference_timestep
+        expected_times.append(sim_time)
+        print(sim_time)
+        icechunk_provider.write_arrays(maps_dict, sim_time)
+
+    # Read the data
+    storage = icechunk.local_filesystem_storage(temp_dir.name)
+    repo = icechunk.Repository.open(storage)
+    session = repo.readonly_session("main")
+
+    ds = xr.open_zarr(session.store)
+    da_time = ds["time"]
+    assert da_time.shape == (time_steps_num,)
+    timestep = da_time[1] - da_time[0]
+
+    # Assert that the timestep is correct
+    timestep_py = pd.to_timedelta(timestep.data).to_pytimedelta()
+    assert timestep_py == reference_timestep
+
+    # Assert that all individual timestamps are correct
+    actual_times = [pd.to_timedelta(t).to_pytimedelta() for t in da_time.values]
+    assert len(actual_times) == len(expected_times)
+    for actual, expected in zip(actual_times, expected_times):
+        assert actual == expected, f"Expected {expected}, got {actual}"
