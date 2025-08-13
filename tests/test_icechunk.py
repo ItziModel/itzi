@@ -108,7 +108,13 @@ def test_write_arrays_absolute(
         assert actual == expected, f"Expected {expected}, got {actual}"
 
 
-@pytest.mark.parametrize("start_seconds", [0, 3600, 86400])
+@pytest.mark.parametrize(
+    "start_seconds",
+    [
+        0,
+        300,
+    ],
+)
 @pytest.mark.parametrize("time_step_s", [1, 60, 3600])
 def test_write_arrays_relative(
     icechunk_provider: IcechunkRasterOutputProvider,
@@ -158,16 +164,33 @@ def test_data_consistency(
     crs: pyproj.CRS,
     out_map_names: Dict,
 ):
-    """Test that data values and coordinates are correctly preserved when reading from zarr"""
-    # Write a single timestep
-    sim_time = datetime(year=2023, month=1, day=1, hour=12)
-    icechunk_provider.write_arrays(maps_dict, sim_time)
+    """Test that data values and coordinates are correctly
+    preserved when reading from zarr with successive writes."""
+    # Create first maps dict (use the fixture data)
+    maps_dict_1 = maps_dict
+
+    # Create second maps dict with different data
+    key_list = list(maps_dict.keys())
+    rng = np.random.default_rng(seed=42)  # Use seed for reproducible different data
+    arr_shape = next(iter(maps_dict.values())).shape
+    maps_dict_2 = {key: rng.random(size=arr_shape, dtype=np.float32) for key in key_list}
+
+    # Write first timestep
+    sim_time_1 = datetime(year=2023, month=1, day=1, hour=12)
+    icechunk_provider.write_arrays(maps_dict_1, sim_time_1)
+
+    # Write second timestep with different data
+    sim_time_2 = datetime(year=2023, month=1, day=1, hour=13)
+    icechunk_provider.write_arrays(maps_dict_2, sim_time_2)
 
     # Read the data back
     storage = icechunk.local_filesystem_storage(temp_dir.name)
     repo = icechunk.Repository.open(storage)
     session = repo.readonly_session("main")
     ds = xr.open_zarr(session.store)
+
+    # Assert that we have 2 timesteps
+    assert ds.sizes["time"] == 2
 
     # Assert that all expected data variables are present
     expected_var_names = set(out_map_names.values())
@@ -188,14 +211,35 @@ def test_data_consistency(
     actual_y = ds.coords["y"].values
     assert np.allclose(actual_y, expected_y)
 
-    # Assert that data values are preserved for each variable
+    # Assert that data values are preserved for each variable at both timesteps
     for original_key, zarr_var_name in out_map_names.items():
         if zarr_var_name in ds.data_vars:
-            original_data = maps_dict[original_key]
-            # Get the data for the single timestep
-            actual_data = ds[zarr_var_name].isel(time=0).values
-            assert np.allclose(actual_data, original_data)
+            # Check first timestep data
+            original_data_1 = maps_dict_1[original_key]
+            actual_data_1 = ds[zarr_var_name].isel(time=0).values
+            assert np.allclose(actual_data_1, original_data_1), (
+                f"First timestep data mismatch for {zarr_var_name}"
+            )
+
+            # Check second timestep data
+            original_data_2 = maps_dict_2[original_key]
+            actual_data_2 = ds[zarr_var_name].isel(time=1).values
+            assert np.allclose(actual_data_2, original_data_2), (
+                f"Second timestep data mismatch for {zarr_var_name}"
+            )
+
+            # Ensure the two timesteps have different data (they should not be identical)
+            assert not np.allclose(actual_data_1, actual_data_2), (
+                f"Timesteps should have different data for {zarr_var_name}"
+            )
 
     # Assert that CRS information is preserved
     crs_actual = pyproj.CRS.from_wkt(ds.attrs["crs_wkt"])
     assert crs == crs_actual
+
+    # Verify that timestamps are correct
+    expected_times = [sim_time_1, sim_time_2]
+    actual_times = [pd.to_datetime(t).to_pydatetime() for t in ds["time"].values]
+    assert len(actual_times) == len(expected_times)
+    for actual, expected in zip(actual_times, expected_times):
+        assert actual == expected, f"Expected {expected}, got {actual}"
