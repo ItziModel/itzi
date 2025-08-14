@@ -245,7 +245,7 @@ def test_data_consistency(
         assert actual == expected, f"Expected {expected}, got {actual}"
 
 
-def test_non_matching_repo(
+def test_non_matching_shape(
     temp_dir: tempfile.TemporaryDirectory,
     maps_dict: Dict,
     coordinates: Dict,
@@ -288,6 +288,177 @@ def test_non_matching_repo(
         "icechunk_storage": storage,  # Same storage as before
     }
     # Non-matching coordinates should raise ValueError
+    with pytest.raises(ValueError):
+        icechunk_p2 = IcechunkRasterOutputProvider()
+        icechunk_p2.initialize(provider_config_2)
+
+
+def test_non_matching_variable_names(
+    temp_dir: tempfile.TemporaryDirectory,
+    maps_dict: Dict,
+    coordinates: Dict,
+    crs: pyproj.CRS,
+    out_var_names: list,
+):
+    """Test that writing arrays to an existing repository
+    with different variable names fails."""
+
+    # Create and write original arrays
+    storage = icechunk.local_filesystem_storage(temp_dir.name)
+    provider_config_1 = {
+        "out_var_names": out_var_names,
+        "crs": crs,
+        "x_coords": coordinates["x_coords"],
+        "y_coords": coordinates["y_coords"],
+        "icechunk_storage": storage,
+    }
+    icechunk_p1 = IcechunkRasterOutputProvider()
+    icechunk_p1.initialize(provider_config_1)
+
+    # Write original data
+    sim_time_1 = datetime(year=2023, month=1, day=1, hour=12)
+    icechunk_p1.write_arrays(maps_dict, sim_time_1)
+
+    # Create provider with different variable names
+    different_var_names = [name + "_different" for name in out_var_names]
+    provider_config_2 = {
+        "out_var_names": different_var_names,
+        "crs": crs,
+        "x_coords": coordinates["x_coords"],
+        "y_coords": coordinates["y_coords"],
+        "icechunk_storage": storage,  # Same storage as before
+    }
+
+    # Non-matching variable names should raise ValueError
+    with pytest.raises(ValueError):
+        icechunk_p2 = IcechunkRasterOutputProvider()
+        icechunk_p2.initialize(provider_config_2)
+
+
+def test_non_matching_number_of_variables(
+    temp_dir: tempfile.TemporaryDirectory,
+    maps_dict: Dict,
+    coordinates: Dict,
+    crs: pyproj.CRS,
+    out_var_names: list,
+):
+    """Test that writing arrays to an existing repository
+    with different number of variables fails."""
+
+    # Create and write original arrays
+    storage = icechunk.local_filesystem_storage(temp_dir.name)
+    provider_config_1 = {
+        "out_var_names": out_var_names,
+        "crs": crs,
+        "x_coords": coordinates["x_coords"],
+        "y_coords": coordinates["y_coords"],
+        "icechunk_storage": storage,
+    }
+    icechunk_p1 = IcechunkRasterOutputProvider()
+    icechunk_p1.initialize(provider_config_1)
+
+    # Write original data
+    sim_time_1 = datetime(year=2023, month=1, day=1, hour=12)
+    icechunk_p1.write_arrays(maps_dict, sim_time_1)
+
+    # Create provider with fewer variables
+    fewer_var_names = out_var_names[:-1]  # Remove last variable
+    provider_config_2 = {
+        "out_var_names": fewer_var_names,
+        "crs": crs,
+        "x_coords": coordinates["x_coords"],
+        "y_coords": coordinates["y_coords"],
+        "icechunk_storage": storage,  # Same storage as before
+    }
+
+    # Different number of variables should raise ValueError
+    with pytest.raises(ValueError):
+        icechunk_p2 = IcechunkRasterOutputProvider()
+        icechunk_p2.initialize(provider_config_2)
+
+
+def test_non_matching_coordinates_same_dimensions(
+    temp_dir: tempfile.TemporaryDirectory,
+    maps_dict: Dict,
+    coordinates: Dict,
+    crs: pyproj.CRS,
+    out_var_names: list,
+):
+    """Test that writing arrays to an existing repository
+    with same dimension names and sizes but different coordinate values fails."""
+
+    # Create and write original arrays
+    storage = icechunk.local_filesystem_storage(temp_dir.name)
+    provider_config_1 = {
+        "out_var_names": out_var_names,
+        "crs": crs,
+        "x_coords": coordinates["x_coords"],
+        "y_coords": coordinates["y_coords"],
+        "icechunk_storage": storage,
+    }
+    icechunk_p1 = IcechunkRasterOutputProvider()
+    icechunk_p1.initialize(provider_config_1)
+
+    # Write original data
+    sim_time_1 = datetime(year=2023, month=1, day=1, hour=12)
+    icechunk_p1.write_arrays(maps_dict, sim_time_1)
+
+    # Create coordinates with same shape but different values
+    arr_shape = next(iter(maps_dict.values())).shape
+    different_y_coords = np.linspace(start=9999, stop=9999 + arr_shape[0], num=arr_shape[0])
+    different_x_coords = np.linspace(start=9999, stop=9999 + arr_shape[1], num=arr_shape[1])
+
+    provider_config_2 = {
+        "out_var_names": out_var_names,
+        "crs": crs,
+        "x_coords": different_x_coords,  # Same shape, different values
+        "y_coords": different_y_coords,  # Same shape, different values
+        "icechunk_storage": storage,  # Same storage as before
+    }
+
+    # Non-matching coordinate values should raise ValueError
+    with pytest.raises(ValueError):
+        icechunk_p2 = IcechunkRasterOutputProvider()
+        icechunk_p2.initialize(provider_config_2)
+
+
+def test_non_matching_crs(
+    temp_dir: tempfile.TemporaryDirectory,
+    maps_dict: Dict,
+    coordinates: Dict,
+    crs: pyproj.CRS,
+    out_var_names: list,
+):
+    """Test that writing arrays to an existing repository
+    with different CRS fails."""
+
+    # Create and write original arrays
+    storage = icechunk.local_filesystem_storage(temp_dir.name)
+    provider_config_1 = {
+        "out_var_names": out_var_names,
+        "crs": crs,
+        "x_coords": coordinates["x_coords"],
+        "y_coords": coordinates["y_coords"],
+        "icechunk_storage": storage,
+    }
+    icechunk_p1 = IcechunkRasterOutputProvider()
+    icechunk_p1.initialize(provider_config_1)
+
+    # Write original data
+    sim_time_1 = datetime(year=2023, month=1, day=1, hour=12)
+    icechunk_p1.write_arrays(maps_dict, sim_time_1)
+
+    # Create provider with different CRS
+    different_crs = pyproj.CRS.from_epsg(4326)  # WGS84, different from Mexico LCC
+    provider_config_2 = {
+        "out_var_names": out_var_names,
+        "crs": different_crs,  # Different CRS
+        "x_coords": coordinates["x_coords"],
+        "y_coords": coordinates["y_coords"],
+        "icechunk_storage": storage,  # Same storage as before
+    }
+
+    # Non-matching CRS should raise ValueError
     with pytest.raises(ValueError):
         icechunk_p2 = IcechunkRasterOutputProvider()
         icechunk_p2.initialize(provider_config_2)
