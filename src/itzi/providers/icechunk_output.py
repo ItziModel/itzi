@@ -114,7 +114,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
         # This implies coherence in variables names and dims
         if existing_crs == self.crs:
             crs_match = True
-        new_num_vars = len([self.out_var_names])
+        new_num_vars = len(self.out_var_names)
         vars_match_dict = {}
         for existing_var_name in existing_vars:
             existing_var = existing_ds[existing_var_name]
@@ -132,6 +132,8 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
                     vars_match_dict[existing_var_name] = True
             except ValueError:
                 vars_match_dict[existing_var_name] = False
+            if existing_var_name not in self.out_var_names:
+                vars_match_dict[existing_var_name] = False
 
         if all(list(vars_match_dict.values())) and existing_num_vars == new_num_vars:
             vars_match = True
@@ -140,8 +142,12 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
         if not repo_match:
             raise ValueError(
                 f"Provided data does not match existing icechunk repository {self.repo}: "
+                f"CRS match: {crs_match}, "
+                f"Variables match: {vars_match}, "
                 f"Existing CRS: {existing_crs.to_epsg()}, "
                 f"New CRS: {self.crs.to_epsg()}, "
+                f"Existing numbers of variables in the store: {existing_num_vars}, "
+                f"Numbers of variables to be written: {new_num_vars}, "
                 f"Matching variables coordinates: {vars_match_dict}. "
             )
 
