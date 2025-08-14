@@ -462,3 +462,129 @@ def test_non_matching_crs(
     with pytest.raises(ValueError):
         icechunk_p2 = IcechunkRasterOutputProvider()
         icechunk_p2.initialize(provider_config_2)
+
+
+def test_multi_session_data_persistence(
+    temp_dir: tempfile.TemporaryDirectory,
+    maps_dict: Dict,
+    coordinates: Dict,
+    crs: pyproj.CRS,
+    out_var_names: list,
+):
+    """Test that writing data with a new provider instance does not overwrite
+    data written with a previous provider session."""
+
+    # Create first maps dict (use the fixture data)
+    maps_dict_session1 = maps_dict
+
+    # Create second maps dict with different data for session 2
+    key_list = list(maps_dict.keys())
+    rng = np.random.default_rng(seed=123)  # Use seed for reproducible different data
+    arr_shape = next(iter(maps_dict.values())).shape
+    maps_dict_session2 = {key: rng.random(size=arr_shape, dtype=np.float32) for key in key_list}
+
+    # Session 1: Create first provider and write initial data
+    storage = icechunk.local_filesystem_storage(temp_dir.name)
+    provider_config_1 = {
+        "out_var_names": out_var_names,
+        "crs": crs,
+        "x_coords": coordinates["x_coords"],
+        "y_coords": coordinates["y_coords"],
+        "icechunk_storage": storage,
+    }
+    icechunk_p1 = IcechunkRasterOutputProvider()
+    icechunk_p1.initialize(provider_config_1)
+
+    # Write data from session 1
+    sim_time_1 = datetime(year=2023, month=1, day=1, hour=10)
+    sim_time_2 = datetime(year=2023, month=1, day=1, hour=11)
+    icechunk_p1.write_arrays(maps_dict_session1, sim_time_1)
+    icechunk_p1.write_arrays(maps_dict_session1, sim_time_2)  # Write same data twice
+
+    # Session 2: Create new provider instance with same storage and compatible config
+    provider_config_2 = {
+        "out_var_names": out_var_names,
+        "crs": crs,
+        "x_coords": coordinates["x_coords"],
+        "y_coords": coordinates["y_coords"],
+        "icechunk_storage": storage,  # Same storage as session 1
+    }
+    icechunk_p2 = IcechunkRasterOutputProvider()
+    icechunk_p2.initialize(provider_config_2)
+
+    # Write new data from session 2
+    sim_time_3 = datetime(year=2023, month=1, day=1, hour=12)
+    sim_time_4 = datetime(year=2023, month=1, day=1, hour=13)
+    icechunk_p2.write_arrays(maps_dict_session2, sim_time_3)
+    icechunk_p2.write_arrays(maps_dict_session2, sim_time_4)  # Write different data twice
+
+    # Read all data back
+    repo = icechunk.Repository.open(storage)
+    session = repo.readonly_session("main")
+    ds = xr.open_zarr(session.store)
+
+    # Assert that we have all 4 timesteps
+    assert ds.sizes["time"] == 4, f"Expected 4 timesteps, got {ds.sizes['time']}"
+
+    # Assert that all expected data variables are present
+    expected_var_names = set(out_var_names)
+    actual_var_names = set(ds.data_vars.keys())
+    assert expected_var_names.issubset(actual_var_names)
+
+    # Verify timestamps are correct
+    expected_times = [sim_time_1, sim_time_2, sim_time_3, sim_time_4]
+    actual_times = [pd.to_datetime(t).to_pydatetime() for t in ds["time"].values]
+    assert len(actual_times) == len(expected_times)
+    for actual, expected in zip(actual_times, expected_times):
+        assert actual == expected, f"Expected {expected}, got {actual}"
+
+    # Assert that data values are preserved for each variable at all timesteps
+    for zarr_var_name in out_var_names:
+        if zarr_var_name in ds.data_vars:
+            # Check session 1 data (timesteps 0 and 1)
+            original_data_session1 = maps_dict_session1[zarr_var_name]
+            actual_data_t0 = ds[zarr_var_name].isel(time=0).values
+            actual_data_t1 = ds[zarr_var_name].isel(time=1).values
+            assert np.allclose(actual_data_t0, original_data_session1), (
+                f"Session 1 timestep 0 data mismatch for {zarr_var_name}"
+            )
+            assert np.allclose(actual_data_t1, original_data_session1), (
+                f"Session 1 timestep 1 data mismatch for {zarr_var_name}"
+            )
+            # Check session 2 data (timesteps 2 and 3)
+            original_data_session2 = maps_dict_session2[zarr_var_name]
+            actual_data_t2 = ds[zarr_var_name].isel(time=2).values
+            actual_data_t3 = ds[zarr_var_name].isel(time=3).values
+            assert np.allclose(actual_data_t2, original_data_session2), (
+                f"Session 2 timestep 2 data mismatch for {zarr_var_name}"
+            )
+            assert np.allclose(actual_data_t3, original_data_session2), (
+                f"Session 2 timestep 3 data mismatch for {zarr_var_name}"
+            )
+            # Ensure session 1 and session 2 data are different
+            assert not np.allclose(actual_data_t0, actual_data_t2), (
+                f"Session 1 and session 2 should have different data for {zarr_var_name}"
+            )
+            assert not np.allclose(actual_data_t1, actual_data_t3), (
+                f"Session 1 and session 2 should have different data for {zarr_var_name}"
+            )
+            # Ensure data within each session is consistent
+            assert np.allclose(actual_data_t0, actual_data_t1), (
+                f"Session 1 data should be consistent across timesteps for {zarr_var_name}"
+            )
+            assert np.allclose(actual_data_t2, actual_data_t3), (
+                f"Session 2 data should be consistent across timesteps for {zarr_var_name}"
+            )
+    # Assert that spatial coordinates are preserved
+    assert "x" in ds.coords
+    assert "y" in ds.coords
+    expected_x = coordinates["x_coords"]
+    actual_x = ds.coords["x"].values
+    assert np.allclose(actual_x, expected_x)
+    expected_y = coordinates["y_coords"]
+    actual_y = ds.coords["y"].values
+    assert np.allclose(actual_y, expected_y)
+
+    # Assert that CRS information is preserved
+    crs_actual = pyproj.CRS.from_wkt(ds.attrs["crs_wkt"])
+    assert crs == crs_actual

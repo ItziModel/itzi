@@ -50,24 +50,22 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
         self.y_coords = config["y_coords"]
         # An Icechunk storage object (local, S3, etc.)
         storage = config["icechunk_storage"]
-        is_existing_repo = True
+
         try:
             self.repo = icechunk.Repository.open(storage)
         except icechunk.IcechunkError as e:
             if "repository doesn't exist" in str(e):
                 self.repo = icechunk.Repository.create(storage)
-                is_existing_repo = False
             else:
                 raise
         self.spatial_coordinates = self._get_spatial_coordinates()
         # Make sure new data matches existing one
-        if is_existing_repo:
+        if self.has_existing_data():
             self.check_repo_match()
 
         self.cf_units = {arr_def.key: arr_def.cf_unit for arr_def in ARRAY_DEFINITIONS}
         self.cf_names = {arr_def.key: arr_def.cf_name for arr_def in ARRAY_DEFINITIONS}
         self.descriptions = {arr_def.key: arr_def.description for arr_def in ARRAY_DEFINITIONS}
-        self.num_records = 0
         return self
 
     def _get_spatial_coordinates(self) -> list[tuple[str, np.ndarray, Dict]]:
@@ -91,6 +89,39 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
         ]
         return spatial_coordinates
 
+    def has_existing_data(self) -> bool:
+        """Check if the repository already contains data."""
+        try:
+            session = self.repo.readonly_session("main")
+            existing_ds = xr.open_zarr(session.store)
+            # Check if there are any data variables and if time dimension has records
+            has_vars = len(existing_ds.data_vars) > 0
+            has_time_records = "time" in existing_ds.coords and len(existing_ds.coords["time"]) > 0
+            return has_vars and has_time_records
+        except Exception:
+            return False
+
+    def get_latest_timestamp(self) -> datetime | timedelta | None:
+        """Get the latest timestamp from existing data, or None if no data exists."""
+        session = self.repo.readonly_session("main")
+        try:
+            existing_ds = xr.open_zarr(session.store)
+            if "time" in existing_ds.coords and len(existing_ds.coords["time"]) > 0:
+                latest_time = existing_ds.coords["time"][-1]
+                # Convert numpy datetime64/timedelta64 back to Python types
+                if np.issubdtype(latest_time.dtype, np.datetime64):
+                    return latest_time.values.astype("datetime64[ms]").astype(datetime)
+                elif np.issubdtype(latest_time.dtype, np.timedelta64):
+                    return timedelta(
+                        milliseconds=int(latest_time.values.astype("timedelta64[ms]").astype(int))
+                    )
+                else:
+                    return None
+            else:
+                return None
+        except Exception:
+            return None
+
     def check_repo_match(self):
         """Raises ValueError if entry data does not match the existing repo."""
         crs_match = False
@@ -101,8 +132,9 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
         session = self.repo.readonly_session("main")
         try:
             existing_ds = xr.open_zarr(session.store)
-        except Exception:
-            raise ValueError(f"Existing {session.store} is not a valid zarr store")
+        except Exception as e:
+            raise ValueError(f"Existing {session.store} is not a valid zarr store: {e}")
+
         try:
             existing_crs = pyproj.CRS.from_wkt(existing_ds.attrs["crs_wkt"])
         except Exception:
@@ -125,11 +157,13 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
             except Exception:
                 vars_match_dict[existing_var_name] = False
                 continue
-            try:  # allclose raises ValueError is not same len
+            try:  # allclose raises ValueError if not same len
                 var_x_coords_match = np.allclose(existing_var_x_coords, self.x_coords)
                 var_y_coords_match = np.allclose(existing_var_y_coords, self.y_coords)
                 if var_x_coords_match and var_y_coords_match:
                     vars_match_dict[existing_var_name] = True
+                else:
+                    vars_match_dict[existing_var_name] = False
             except ValueError:
                 vars_match_dict[existing_var_name] = False
             if existing_var_name not in self.out_var_names:
@@ -213,8 +247,9 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
         # Commit to the repo
         commit_message = f"itzi results for simulation time {sim_time}"
         with self.repo.transaction("main", message=commit_message) as store:
-            # /!\ this will overwrite an existing store
-            if self.num_records == 0:
+            # Check if we should create a new store or append to existing one
+            if not self.has_existing_data():
+                # Create new zarr store
                 dataset.to_zarr(
                     store,
                     zarr_format=3,
@@ -225,7 +260,6 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
             else:
                 # Use zarr directly to append data while preserving time encoding
                 self._append_to_zarr_store(store, dataset, sim_time_np)
-        self.num_records += 1
 
     def _append_to_zarr_store(
         self, store, dataset: xr.Dataset, sim_time_np: np.datetime64 | np.timedelta64
