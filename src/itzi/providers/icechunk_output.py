@@ -16,6 +16,7 @@ GNU General Public License for more details.
 from typing import Dict, Self
 from datetime import datetime, timedelta
 
+import icechunk.xarray
 import numpy as np
 
 try:
@@ -189,35 +190,70 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
         self, array_dict: Dict[str, np.ndarray], sim_time: datetime | timedelta
     ) -> None:
         """Write results to an icechunk repository"""
-        vars_to_write = array_dict.keys()
-        if set(self.out_var_names) != set(vars_to_write):
+        vars_to_write = list(array_dict.keys())
+        if not set(self.out_var_names) == set(vars_to_write):
             raise ValueError(
                 "Variables names do not match: "
-                f"Expected: {self.out_var_names} "
+                f"Expected: {self.out_var_names}, "
                 f"Received: {vars_to_write}"
             )
         # prepare the data
-        data_vars = {}
-        if isinstance(sim_time, datetime):
-            time_dtype = "datetime64[ms]"
-            sim_time_np = np.datetime64(sim_time, "ms")
-            time_unit = "milliseconds since 1970-01-01T00:00:00"
-        elif isinstance(sim_time, timedelta):
-            time_dtype = "timedelta64[ms]"
-            sim_time_np = np.timedelta64(sim_time, "ms")
-            time_unit = "milliseconds"
+        dataset = self.get_dataset_from_dict(array_dict, sim_time)
+        time_encoding = dataset[vars_to_write[0]].encoding["time"]
+        sim_time_np = dataset["time"][0]  # the time dimension has only one value
+        # Commit to the repo
+        commit_message = f"itzi results for simulation time {sim_time}"
+        icechunk_session = self.repo.writable_session("main")
+        if not self.has_existing_data():
+            icechunk.xarray.to_icechunk(
+                dataset, icechunk_session, mode="w-", encoding={"time": time_encoding}
+            )
         else:
-            raise ValueError(f"Unknown temporal type: {type(sim_time)}")
+            # icechunk.xarray.to_icechunk(dataset, icechunk_session, mode="a-", append_dim="time")
+            # Use zarr directly to append data while preserving time encoding
+            self._append_to_zarr_store(icechunk_session.store, dataset, sim_time_np)
+        icechunk_session.commit(commit_message)
 
-        time_coordinate = np.array([sim_time_np], dtype=time_dtype)
-        # assert time_coordinate.dtype == time_dtype
-        time_attrs = {}
-        time_encoding = {
-            "units": time_unit,
-            "dtype": time_dtype,
-        }
+    def write_maxs(self, array_dict):
+        max_list = ["hmax", "vmax"]
+        vars_to_write = list(array_dict.keys())
+        write_maxs = set(max_list) == set(vars_to_write)
+        if not write_maxs:
+            raise ValueError(
+                f"Variables names do not match: Expected: {max_list}, Received: {vars_to_write}"
+            )
+        dataset = self.get_dataset_from_dict(array_dict)
+        # Commit to the repo
+        icechunk_session = self.repo.writable_session("main")
+        icechunk.xarray.to_icechunk(dataset, icechunk_session, mode="a")
+        icechunk_session.commit("Maximum values of itzi simulation")
 
-        coordinates = [("time", time_coordinate, time_attrs)] + self.spatial_coordinates
+    def get_dataset_from_dict(self, array_dict, sim_time=None):
+        """From a dict of arrays, return an xarray dataset."""
+        data_vars = {}
+        if sim_time:
+            if isinstance(sim_time, datetime):
+                time_dtype = "datetime64[ms]"
+                sim_time_np = np.datetime64(sim_time, "ms")
+                time_unit = "milliseconds since 1970-01-01T00:00:00"
+            elif isinstance(sim_time, timedelta):
+                time_dtype = "timedelta64[ms]"
+                sim_time_np = np.timedelta64(sim_time, "ms")
+                time_unit = "milliseconds"
+            else:
+                raise ValueError(f"Unknown temporal type: {type(sim_time)}")
+
+            time_coordinate = np.array([sim_time_np], dtype=time_dtype)
+            # assert time_coordinate.dtype == time_dtype
+            time_attrs = {}
+            time_encoding = {
+                "units": time_unit,
+                "dtype": time_dtype,
+            }
+            coordinates = [("time", time_coordinate, time_attrs)] + self.spatial_coordinates
+        else:
+            coordinates = self.spatial_coordinates
+
         for key, arr in array_dict.items():
             coords_shape = (len(self.y_coords), len(self.x_coords))
             if arr.shape != coords_shape:
@@ -230,36 +266,23 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
                 "standard_name": self.cf_names[key],
                 "long_name": self.descriptions[key],
             }
+            if sim_time:
+                arr = np.expand_dims(arr, axis=0)
+
             data_array = xr.DataArray(
-                data=np.expand_dims(arr, axis=0),
+                data=arr,
                 coords=coordinates,
                 name=key,
                 attrs=var_attributes,
             )
-            assert data_array["time"].dtype == time_dtype
-
-            data_array.encoding["time"] = time_encoding
+            if sim_time:
+                assert data_array["time"].dtype == time_dtype
+                data_array.encoding["time"] = time_encoding
             data_vars[key] = data_array
         dataset_attributes = {
             "crs_wkt": self.crs.to_wkt(),
         }
-        dataset = xr.Dataset(data_vars, attrs=dataset_attributes)
-        # Commit to the repo
-        commit_message = f"itzi results for simulation time {sim_time}"
-        with self.repo.transaction("main", message=commit_message) as store:
-            # Check if we should create a new store or append to existing one
-            if not self.has_existing_data():
-                # Create new zarr store
-                dataset.to_zarr(
-                    store,
-                    zarr_format=3,
-                    encoding={"time": time_encoding},
-                    consolidated=False,
-                    mode="w",
-                )
-            else:
-                # Use zarr directly to append data while preserving time encoding
-                self._append_to_zarr_store(store, dataset, sim_time_np)
+        return xr.Dataset(data_vars, attrs=dataset_attributes)
 
     def _append_to_zarr_store(
         self, store, dataset: xr.Dataset, sim_time_np: np.datetime64 | np.timedelta64
@@ -288,7 +311,9 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
 
     def finalize(self, final_data: SimulationData) -> None:
         """Write max values."""
-        if self.out_map_names["water_depth"]:
-            pass
-        if self.out_map_names["v"]:
-            pass
+        arr_dict = {}
+        if "water_depth" in self.out_var_names:
+            arr_dict["hmax"] = final_data.raw_arrays["hmax"]
+        if "v" in self.out_var_names:
+            arr_dict["vmax"] = final_data.raw_arrays["vmax"]
+        self.write_maxs(arr_dict)

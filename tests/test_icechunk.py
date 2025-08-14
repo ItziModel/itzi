@@ -11,6 +11,7 @@ import pyproj
 
 from itzi.providers.icechunk_output import IcechunkRasterOutputProvider
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi.data_containers import SimulationData
 
 
 @pytest.fixture(scope="function")
@@ -576,6 +577,132 @@ def test_multi_session_data_persistence(
                 f"Session 2 data should be consistent across timesteps for {zarr_var_name}"
             )
     # Assert that spatial coordinates are preserved
+    assert "x" in ds.coords
+    assert "y" in ds.coords
+    expected_x = coordinates["x_coords"]
+    actual_x = ds.coords["x"].values
+    assert np.allclose(actual_x, expected_x)
+    expected_y = coordinates["y_coords"]
+    actual_y = ds.coords["y"].values
+    assert np.allclose(actual_y, expected_y)
+
+    # Assert that CRS information is preserved
+    crs_actual = pyproj.CRS.from_wkt(ds.attrs["crs_wkt"])
+    assert crs == crs_actual
+
+
+def test_finalize_max_values(
+    icechunk_provider: IcechunkRasterOutputProvider,
+    temp_dir: tempfile.TemporaryDirectory,
+    maps_dict: Dict,
+    coordinates: Dict,
+    crs: pyproj.CRS,
+    out_var_names: list,
+):
+    """Test that finalize() method properly writes max values arrays
+    and does not affect existing data."""
+
+    # Create initial simulation data with regular arrays
+    sim_time_1 = datetime(year=2023, month=1, day=1, hour=10)
+    sim_time_2 = datetime(year=2023, month=1, day=1, hour=11)
+
+    # Write initial timesteps with regular data
+    icechunk_provider.write_arrays(maps_dict, sim_time_1)
+    icechunk_provider.write_arrays(maps_dict, sim_time_2)
+
+    # Create max value arrays (should be different from regular data)
+    rng = np.random.default_rng(seed=999)
+    arr_shape = next(iter(maps_dict.values())).shape
+    max_arrays = {
+        "hmax": rng.random(size=arr_shape, dtype=np.float32) + 10.0,
+        "vmax": rng.random(size=arr_shape, dtype=np.float32) + 5.0,
+    }
+
+    # Create a SimulationData object for finalize()
+    final_sim_time = datetime(year=2023, month=1, day=1, hour=12)
+
+    final_data = SimulationData(
+        sim_time=final_sim_time,
+        time_step=3600.0,  # 1 hour in seconds
+        time_steps_counter=1,
+        continuity_data=None,  # Not used in finalize()
+        raw_arrays=max_arrays,
+        accumulation_arrays={},  # Not used in finalize()
+        cell_dx=1.0,
+        cell_dy=1.0,
+        drainage_network_data=None,  # Not used in finalize()
+    )
+
+    # Call finalize to write max values
+    icechunk_provider.finalize(final_data)
+
+    # Read the data back and verify
+    storage = icechunk.local_filesystem_storage(temp_dir.name)
+    repo = icechunk.Repository.open(storage)
+    session = repo.readonly_session("main")
+    ds = xr.open_zarr(session.store)
+    print(ds)
+
+    # Assert that we still have 2 timesteps
+    assert ds.sizes["time"] == 2
+
+    # Verify that original data is still intact
+    for var_name in out_var_names:
+        if var_name in ds.data_vars:
+            # Check first timestep data (should be unchanged)
+            original_data = maps_dict[var_name]
+            actual_data_t0 = ds[var_name].isel(time=0).values
+            actual_data_t1 = ds[var_name].isel(time=1).values
+            assert np.allclose(actual_data_t0, original_data), (
+                f"First timestep data was modified for {var_name}"
+            )
+            assert np.allclose(actual_data_t1, original_data), (
+                f"Second timestep data was modified for {var_name}"
+            )
+
+    # Verify that max values are correctly written
+    # Check for hmax
+    if "water_depth" in icechunk_provider.out_var_names:
+        assert "hmax" in ds.data_vars, "hmax should be present in dataset"
+        expected_max_data = max_arrays["hmax"]
+        actual_max_data = ds["hmax"].values
+        assert np.allclose(actual_max_data, expected_max_data), (
+            "hmax data does not match expected values"
+        )
+
+        # Ensure max values are different from regular data
+        regular_water_depth = (
+            ds["water_depth"].isel(time=0).values if "water_depth" in ds.data_vars else None
+        )
+        if regular_water_depth is not None:
+            assert not np.allclose(actual_max_data, regular_water_depth), (
+                "Max values should be different from regular data"
+            )
+
+    # Check for vmax
+    if "v" in icechunk_provider.out_var_names:
+        assert "vmax" in ds.data_vars, "v_vmaxmax should be present in dataset"
+        expected_max_data = max_arrays["vmax"]
+        actual_max_data = ds["vmax"].values
+        assert np.allclose(actual_max_data, expected_max_data), (
+            "vmax data does not match expected values"
+        )
+
+        # Ensure max values are different from regular data
+        regular_v = ds["v"].isel(time=0).values if "v" in ds.data_vars else None
+        if regular_v is not None:
+            assert not np.allclose(actual_max_data, regular_v), (
+                "Max values should be different from regular data"
+            )
+
+    # Verify that timestamps are correct
+    expected_times = [sim_time_1, sim_time_2]
+    actual_times = [pd.to_datetime(t).to_pydatetime() for t in ds["time"].values]
+    assert len(actual_times) == len(expected_times)
+    for actual, expected in zip(actual_times, expected_times):
+        assert actual == expected, f"Expected {expected}, got {actual}"
+
+    # Verify that spatial coordinates are preserved
     assert "x" in ds.coords
     assert "y" in ds.coords
     expected_x = coordinates["x_coords"]
