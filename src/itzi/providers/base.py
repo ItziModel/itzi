@@ -14,11 +14,12 @@ GNU General Public License for more details.
 """
 
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
-from typing import Dict, Self
-import numpy as np
+from typing import Dict, Self, TYPE_CHECKING, Union
 
-from itzi.data_containers import SimulationData, DrainageNetworkData
+if TYPE_CHECKING:
+    from datetime import datetime, timedelta
+    import numpy as np
+    from itzi.data_containers import SimulationData, DrainageNetworkData
 
 
 class RasterOutputProvider(ABC):
@@ -31,13 +32,13 @@ class RasterOutputProvider(ABC):
 
     @abstractmethod
     def write_arrays(
-        self, array_dict: Dict[str, np.ndarray], sim_time: datetime | timedelta
+        self, array_dict: Dict[str, "np.ndarray"], sim_time: Union["datetime", "timedelta"]
     ) -> None:
         """Write all arrays for the current time step."""
         pass
 
     @abstractmethod
-    def finalize(self, final_data: SimulationData) -> None:
+    def finalize(self, final_data: "SimulationData") -> None:
         """Finalize outputs and cleanup."""
         pass
 
@@ -52,12 +53,12 @@ class VectorOutputProvider(ABC):
 
     @abstractmethod
     def write_vector(
-        self, drainage_data: DrainageNetworkData, sim_time: datetime | timedelta
+        self, drainage_data: "DrainageNetworkData", sim_time: Union["datetime", "timedelta"]
     ) -> None:
         """Write simulation data for current time step."""
         pass
 
     @abstractmethod
-    def finalize(self, drainage_data: DrainageNetworkData) -> None:
+    def finalize(self, drainage_data: "DrainageNetworkData") -> None:
         """Finalize outputs and cleanup."""
         pass
