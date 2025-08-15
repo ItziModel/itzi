@@ -21,7 +21,7 @@ from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi import rastermetrics
 
 if TYPE_CHECKING:
-    from itzi.providers.grass_interface import GrassInterface
+    from itzi.providers.base import RasterInputProvider
 
 
 class DomainData:
@@ -77,11 +77,16 @@ class TimedArray:
     array is accessed via get()
     """
 
-    def __init__(self, mkey: str, igis: "GrassInterface", f_arr_def: Callable[[], np.ndarray]):
+    def __init__(
+        self,
+        mkey: str,
+        raster_provider: "RasterInputProvider",
+        f_arr_def: Callable[[], np.ndarray],
+    ):
         assert isinstance(mkey, str), "not a string!"
         assert hasattr(f_arr_def, "__call__"), "not a function!"
         self.mkey = mkey  # An array identifier
-        self.igis = igis  # GIS interface
+        self.raster_provider = raster_provider
         # A function to generate a default array
         self.f_arr_def = f_arr_def
         # default values for start and end
@@ -113,7 +118,7 @@ class TimedArray:
         if GIS return None, set array to default value
         """
         # Retrieve values
-        arr, arr_start, arr_end = self.igis.get_array(self.mkey, sim_time)
+        arr, arr_start, arr_end = self.raster_provider.get_array(self.mkey, sim_time)
         # set to default if no array retrieved
         if not isinstance(arr, np.ndarray):
             arr = self.f_arr_def()

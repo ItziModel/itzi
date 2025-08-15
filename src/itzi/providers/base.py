@@ -14,12 +14,30 @@ GNU General Public License for more details.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Self, TYPE_CHECKING, Union
+from typing import Dict, Self, TYPE_CHECKING, Union, Tuple
 
 if TYPE_CHECKING:
     from datetime import datetime, timedelta
     import numpy as np
     from itzi.data_containers import SimulationData, DrainageNetworkData
+
+
+class RasterInputProvider(ABC):
+    """Abstract base class for handling raster simulation inputs."""
+
+    @abstractmethod
+    def __init__(self, config: Dict) -> None:
+        pass
+
+    @abstractmethod
+    def get_array(
+        self, map_key: str, current_time: "datetime"
+    ) -> Tuple["np.ndarray", "datetime", "datetime"]:
+        """Take a given map key and current time
+        return a numpy array associated with its start and end time
+        if no map is found, return None instead of an array
+        and a default start_time and end_time."""
+        pass
 
 
 class RasterOutputProvider(ABC):

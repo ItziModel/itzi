@@ -105,6 +105,7 @@ def create_grass_simulation(
     """A factory function that returns a Simulation object."""
     msgr.verbose("Setting up models...")
     from itzi.providers.grass_output import GrassRasterOutputProvider, GrassVectorOutputProvider
+    from itzi.providers.grass_input import GrassRasterInputProvider
 
     arr_mask = grass_interface.get_npmask()
     msgr.verbose("Reading maps information from GIS...")
@@ -116,8 +117,9 @@ def create_grass_simulation(
     input_keys = [
         arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT in arr_def.category
     ]
+    raster_input_provider = GrassRasterInputProvider(config={"grass_interface": grass_interface})
     for arr_key in input_keys:
-        tarr[arr_key] = rasterdomain.TimedArray(arr_key, grass_interface, zeros_array)
+        tarr[arr_key] = rasterdomain.TimedArray(arr_key, raster_input_provider, zeros_array)
     msgr.debug("Setting up raster domain...")
     # RasterDomain
     raster_shape = (grass_interface.yr, grass_interface.xr)
