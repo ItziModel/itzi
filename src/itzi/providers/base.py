@@ -14,11 +14,35 @@ GNU General Public License for more details.
 """
 
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
-from typing import Dict, Self
-import numpy as np
+from typing import Dict, Self, TYPE_CHECKING, Union, Tuple
 
-from itzi.data_containers import SimulationData, DrainageNetworkData
+if TYPE_CHECKING:
+    from datetime import datetime, timedelta
+    import numpy as np
+    from itzi.data_containers import SimulationData, DrainageNetworkData
+
+
+class RasterInputProvider(ABC):
+    """Abstract base class for handling raster simulation inputs."""
+
+    @abstractmethod
+    def __init__(self, config: Dict) -> None:
+        pass
+
+    @property
+    @abstractmethod
+    def origin(self):
+        pass
+
+    @abstractmethod
+    def get_array(
+        self, map_key: str, current_time: "datetime"
+    ) -> Tuple["np.ndarray", "datetime", "datetime"]:
+        """Take a given map key and current time
+        return a numpy array associated with its start and end time
+        if no map is found, return None instead of an array
+        and a default start_time and end_time."""
+        pass
 
 
 class RasterOutputProvider(ABC):
@@ -30,12 +54,14 @@ class RasterOutputProvider(ABC):
         pass
 
     @abstractmethod
-    def write_array(self, array: np.ndarray, map_key: str, sim_time: datetime | timedelta) -> None:
-        """Write simulation data for current time step."""
+    def write_arrays(
+        self, array_dict: Dict[str, "np.ndarray"], sim_time: Union["datetime", "timedelta"]
+    ) -> None:
+        """Write all arrays for the current time step."""
         pass
 
     @abstractmethod
-    def finalize(self, final_data: SimulationData) -> None:
+    def finalize(self, final_data: "SimulationData") -> None:
         """Finalize outputs and cleanup."""
         pass
 
@@ -50,12 +76,12 @@ class VectorOutputProvider(ABC):
 
     @abstractmethod
     def write_vector(
-        self, drainage_data: DrainageNetworkData, sim_time: datetime | timedelta
+        self, drainage_data: "DrainageNetworkData", sim_time: Union["datetime", "timedelta"]
     ) -> None:
         """Write simulation data for current time step."""
         pass
 
     @abstractmethod
-    def finalize(self, drainage_data: DrainageNetworkData) -> None:
+    def finalize(self, drainage_data: "DrainageNetworkData") -> None:
         """Finalize outputs and cleanup."""
         pass
