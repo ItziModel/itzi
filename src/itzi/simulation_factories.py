@@ -109,17 +109,24 @@ def create_grass_simulation(
 
     arr_mask = grass_interface.get_npmask()
     msgr.verbose("Reading maps information from GIS...")
-    grass_interface.read(sim_config.input_map_names)
     # Timed arrays
-    tarr = {}
+    timed_arrays = {}
     # TimedArray expects a function as an init parameter
     zeros_array = lambda: np.zeros(shape=raster_shape, dtype=dtype)  # noqa: E731
     input_keys = [
         arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT in arr_def.category
     ]
-    raster_input_provider = GrassRasterInputProvider(config={"grass_interface": grass_interface})
+    raster_input_provider_config = {
+        "grass_interface": grass_interface,
+        "input_map_names": sim_config.input_map_names,
+        "default_start_time": sim_config.start_time,
+        "default_end_time": sim_config.end_time,
+    }
+    raster_input_provider = GrassRasterInputProvider(config=raster_input_provider_config)
     for arr_key in input_keys:
-        tarr[arr_key] = rasterdomain.TimedArray(arr_key, raster_input_provider, zeros_array)
+        timed_arrays[arr_key] = rasterdomain.TimedArray(
+            arr_key, raster_input_provider, zeros_array
+        )
     msgr.debug("Setting up raster domain...")
     # RasterDomain
     raster_shape = (grass_interface.yr, grass_interface.xr)
@@ -231,7 +238,7 @@ def create_grass_simulation(
         report,
         mass_balance_error_threshold=sim_config.surface_flow_parameters.max_error,
     )
-    return (simulation, tarr)
+    return (simulation, timed_arrays)
 
 
 def create_memory_simulation(

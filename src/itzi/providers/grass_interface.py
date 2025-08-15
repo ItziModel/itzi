@@ -152,7 +152,6 @@ class GrassInterface:
         start_time,
         end_time,
         dtype,
-        mkeys,
         region_id,
         raster_mask_id,
         non_blocking_write=True,
@@ -196,8 +195,6 @@ class GrassInterface:
         if self.raster_mask_id:
             self.set_temp_mask()
         self.overwrite = gscript.overwrite()
-        self.mapset = gutils.getenv("MAPSET")
-        self.maps = dict.fromkeys(mkeys)
         # init temporal module
         tgis.init()
         # Create thread and queue for writing raster maps
@@ -370,40 +367,6 @@ class GrassInterface:
         else:
             assert False, "unknown temporal type"
         return start_time_in_stds_unit, end_time_in_stds_unit
-
-    def read(self, map_names):
-        """Read maps names from GIS
-        take as input map_names, a dictionary of maps/STDS names
-        for each entry in map_names:
-            if the name is empty or None, store None
-            if a strds, load all maps in the instance's time extend,
-                store them as a list
-            if a single map, set the start and end time to fit simulation.
-                store it in a list for consistency
-        each map is stored as a MapData namedtuple
-        store result in instance's dictionary
-        """
-        for k, map_name in map_names.items():
-            if not map_name:
-                map_list = None
-                continue
-            elif self.name_is_stds(self.format_id(map_name)):
-                strds_id = self.format_id(map_name)
-                if not self.stds_temporal_sanity(strds_id):
-                    msgr.fatal("{}: inadequate temporal format".format(map_name))
-                map_list = self.raster_list_from_strds(strds_id)
-            elif self.name_is_map(self.format_id(map_name)):
-                map_list = [
-                    self.MapData(
-                        id=self.format_id(map_name),
-                        start_time=self.start_time,
-                        end_time=self.end_time,
-                    )
-                ]
-            else:
-                msgr.fatal("{} not found!".format(map_name))
-            self.maps[k] = map_list
-        return self
 
     def stds_temporal_sanity(self, stds_id):
         """Make the following check on the given stds:
@@ -604,25 +567,6 @@ class GrassInterface:
                 dbtable.insert(attr)
             dbtable.conn.commit()
         return self
-
-    def get_array(self, mkey, sim_time):
-        """take a given map key and simulation time
-        return a numpy array associated with its start and end time
-        if no map is found, return None instead of an array
-        and the start_time and end_time of the simulation
-        """
-        assert isinstance(mkey, str), "not a string!"
-        assert isinstance(sim_time, datetime), "not a datetime object!"
-        assert mkey in self.maps.keys(), f"unknown map key!: {mkey}"
-        if self.maps[mkey] is None:
-            return None, self.start_time, self.end_time
-        else:
-            for m in self.maps[mkey]:
-                if m.start_time <= sim_time <= m.end_time:
-                    arr = self.read_raster_map(m.id)
-                    return arr, m.start_time, m.end_time
-            else:
-                assert None, "No map found for {k} at time {t}".format(k=mkey, t=sim_time)
 
     def register_maps_in_stds(self, stds_title, stds_name, map_list, stds_type, t_type):
         """Create a STDS, create one mapdataset for each map and
