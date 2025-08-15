@@ -13,15 +13,15 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-from typing import Dict, Self
+from typing import Dict, Self, TypedDict, TYPE_CHECKING
 from datetime import datetime, timedelta
 
-import icechunk.xarray
 import numpy as np
 
 try:
     import xarray as xr
     import icechunk
+    import icechunk.xarray
     import zarr
     import pyproj
 except ImportError:
@@ -32,24 +32,30 @@ except ImportError:
     )
 
 from itzi.providers.base import RasterOutputProvider
-from itzi.data_containers import SimulationData
 from itzi.array_definitions import ARRAY_DEFINITIONS
+
+if TYPE_CHECKING:
+    from itzi.data_containers import SimulationData
+
+
+class IcechunkRasterOutputConfig(TypedDict):
+    # A list of var names to be written
+    out_var_names: list[str]
+    crs: pyproj.CRS
+    x_coords: np.ndarray
+    y_coords: np.ndarray
+    icechunk_storage: icechunk.Storage
 
 
 class IcechunkRasterOutputProvider(RasterOutputProvider):
     """Save raster results in an Icechunk store."""
 
-    def initialize(self, config: Dict) -> Self:
+    def initialize(self, config: IcechunkRasterOutputConfig) -> Self:
         """Create a repo in case it does not exists already"""
-        # A list of var names to be written
         self.out_var_names = config["out_var_names"]
-        # A pyproj.CRS object
         self.crs = config["crs"]
-        # An np.ndarray
         self.x_coords = config["x_coords"]
-        # An np.ndarray
         self.y_coords = config["y_coords"]
-        # An Icechunk storage object (local, S3, etc.)
         storage = config["icechunk_storage"]
 
         try:
@@ -309,7 +315,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
             z_group[var_name].resize(combined_data.shape)
             z_group[var_name][:] = combined_data
 
-    def finalize(self, final_data: SimulationData) -> None:
+    def finalize(self, final_data: "SimulationData") -> None:
         """Write max values."""
         arr_dict = {}
         if "water_depth" in self.out_var_names:
