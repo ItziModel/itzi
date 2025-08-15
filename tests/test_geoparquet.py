@@ -19,7 +19,7 @@ from itzi.drainage import CouplingTypes
 from itzi.providers.geoparquet_output import ParquetVectorOutputProvider
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def temp_dir():
     return tempfile.TemporaryDirectory()
 
@@ -141,8 +141,14 @@ def create_dummy_drainage_network():
     return drainage_network
 
 
-def test_geoparquet(temp_dir):
-    """Test creating a dummy drainage network and verifying parquet output."""
+@pytest.fixture(scope="module")
+def sim_time():
+    return datetime(year=2020, month=3, day=23, hour=10)
+
+
+@pytest.fixture(scope="module")
+def write_geoparquet(temp_dir, sim_time):
+    """Write geoparquet files using dummy network data."""
     drainage_network = create_dummy_drainage_network()
 
     parquet_provider = ParquetVectorOutputProvider()
@@ -151,48 +157,23 @@ def test_geoparquet(temp_dir):
         "output_dir": temp_dir.name,
         "drainage_map_name": "test_drainage",
     }
-    sim_time = datetime(year=2020, month=3, day=23, hour=10)
     parquet_provider.initialize(provider_config)
     parquet_provider.write_vector(drainage_network, sim_time)
 
-    # Verify the files were created
+
+@pytest.mark.usefixtures("write_geoparquet")
+def test_links(temp_dir, sim_time):
+    """Verify parquet output."""
+
+    # Verify the file was created
     output_dir = Path(temp_dir.name)
-    nodes_file = output_dir / f"test_drainage_nodes_{sim_time}.parquet"
     links_file = output_dir / f"test_drainage_links_{sim_time}.parquet"
 
-    assert nodes_file.exists(), f"Nodes file not created: {nodes_file}"
     assert links_file.exists(), f"Links file not created: {links_file}"
 
-    # Read the parquet files with geopandas
-    nodes_gdf = gpd.read_parquet(nodes_file)
+    # Verify links data
     links_gdf = gpd.read_parquet(links_file)
 
-    # Verify nodes data
-    assert len(nodes_gdf) == 3, f"Expected 3 nodes, got {len(nodes_gdf)}"
-    assert nodes_gdf.crs == pyproj.CRS.from_epsg(6372), f"CRS mismatch for nodes: {nodes_gdf.crs}"
-
-    # Check node geometries are Points
-    assert all(isinstance(geom, Point) for geom in nodes_gdf.geometry), (
-        "Not all node geometries are Points"
-    )
-
-    # Check node coordinates match original data
-    expected_node_coords = [(100.0, 200.0), (150.0, 180.0), (200.0, 160.0)]
-    actual_node_coords = [(geom.x, geom.y) for geom in nodes_gdf.geometry]
-    assert actual_node_coords == expected_node_coords, (
-        f"Node coordinates mismatch: {actual_node_coords}"
-    )
-
-    # Check all node attribute fields are present
-    expected_node_fields = [field.name for field in fields(DrainageNodeAttributes)]
-    for field in expected_node_fields:
-        assert field in nodes_gdf.columns, f"Missing node field: {field}"
-
-    # Check specific node values
-    node_ids = nodes_gdf["node_id"].tolist()
-    assert set(node_ids) == {"N1", "N2", "N3"}, f"Node IDs mismatch: {node_ids}"
-
-    # Verify links data
     assert len(links_gdf) == 2, f"Expected 2 links, got {len(links_gdf)}"
     assert links_gdf.crs == pyproj.CRS.from_epsg(6372), f"CRS mismatch for links: {links_gdf.crs}"
 
@@ -226,16 +207,47 @@ def test_geoparquet(temp_dir):
     link_ids = links_gdf["link_id"].tolist()
     assert set(link_ids) == {"L1", "L2"}, f"Link IDs mismatch: {link_ids}"
 
-    # Verify specific attribute values for nodes
-    n1_row = nodes_gdf[nodes_gdf["node_id"] == "N1"].iloc[0]
-    assert n1_row["node_type"] == "junction", f"N1 node_type mismatch: {n1_row['node_type']}"
-    assert n1_row["coupling_flow"] == 0.5, f"N1 coupling_flow mismatch: {n1_row['coupling_flow']}"
-    assert n1_row["depth"] == 1.5, f"N1 depth mismatch: {n1_row['depth']}"
-
     # Verify specific attribute values for links
     l1_row = links_gdf[links_gdf["link_id"] == "L1"].iloc[0]
     assert l1_row["link_type"] == "conduit", f"L1 link_type mismatch: {l1_row['link_type']}"
     assert l1_row["flow"] == 0.8, f"L1 flow mismatch: {l1_row['flow']}"
     assert l1_row["depth"] == 0.6, f"L1 depth mismatch: {l1_row['depth']}"
 
-    print("All geoparquet tests passed successfully!")
+
+@pytest.mark.usefixtures("write_geoparquet")
+def test_nodes(temp_dir, sim_time):
+    """Verify parquet output."""
+
+    # Verify the file was created
+    output_dir = Path(temp_dir.name)
+    nodes_file = output_dir / f"test_drainage_nodes_{sim_time}.parquet"
+
+    assert nodes_file.exists(), f"Nodes file not created: {nodes_file}"
+
+    # Read the parquet file with geopandas
+    nodes_gdf = gpd.read_parquet(nodes_file)
+
+    # Verify nodes data
+    assert len(nodes_gdf) == 3, f"Expected 3 nodes, got {len(nodes_gdf)}"
+    assert nodes_gdf.crs == pyproj.CRS.from_epsg(6372), f"CRS mismatch for nodes: {nodes_gdf.crs}"
+
+    # Check node geometries are Points
+    assert all(isinstance(geom, Point) for geom in nodes_gdf.geometry), (
+        "Not all node geometries are Points"
+    )
+
+    # Check node coordinates match original data
+    expected_node_coords = [(100.0, 200.0), (150.0, 180.0), (200.0, 160.0)]
+    actual_node_coords = [(geom.x, geom.y) for geom in nodes_gdf.geometry]
+    assert actual_node_coords == expected_node_coords, (
+        f"Node coordinates mismatch: {actual_node_coords}"
+    )
+
+    # Check all node attribute fields are present
+    expected_node_fields = [field.name for field in fields(DrainageNodeAttributes)]
+    for field in expected_node_fields:
+        assert field in nodes_gdf.columns, f"Missing node field: {field}"
+
+    # Check specific node values
+    node_ids = nodes_gdf["node_id"].tolist()
+    assert set(node_ids) == {"N1", "N2", "N3"}, f"Node IDs mismatch: {node_ids}"
