@@ -29,6 +29,11 @@ class RasterInputProvider(ABC):
     def __init__(self, config: Dict) -> None:
         pass
 
+    @property
+    @abstractmethod
+    def origin(self):
+        pass
+
     @abstractmethod
     def get_array(
         self, map_key: str, current_time: "datetime"

@@ -167,9 +167,9 @@ class SimulationRunner:
 
     @property
     def origin(self):
-        # Get a TimedArray object to reach the GIS interface
+        # Get origin from a TimedArray object
         tarr = next(iter(self.tarr.values()))
-        return tarr.igis.origin
+        return tarr.origin
 
     def set_grass_session(self):
         """Set the GRASS session."""

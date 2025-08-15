@@ -40,7 +40,10 @@ class GrassRasterInputProvider(RasterInputProvider):
         self.start_time = config["default_start_time"]
         self.end_time = config["default_end_time"]
         self.map_lists = self.get_map_lists(config["input_map_names"])
-        print(self.map_lists)
+
+    @property
+    def origin(self):
+        return self.grass_interface.origin
 
     def get_map_lists(
         self, map_names: Mapping[str, str]

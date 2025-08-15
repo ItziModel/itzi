@@ -93,6 +93,8 @@ class TimedArray:
         # intended to trigger update when is_valid() is first called
         self.arr_start = datetime(1, 1, 2)
         self.arr_end = datetime(1, 1, 1)
+        # Necessary for BMI implementation
+        self.origin = raster_provider.origin
         # Placeholder for the numpy array
         self.arr = None
 
