@@ -48,7 +48,7 @@ class IcechunkRasterOutputConfig(TypedDict):
 
 
 class IcechunkRasterOutputProvider(RasterOutputProvider):
-    """Save raster results in an Icechunk store."""
+    """Save raster results in an Icechunk repo."""
 
     def initialize(self, config: IcechunkRasterOutputConfig) -> Self:
         """Create a repo in case it does not exists already"""
