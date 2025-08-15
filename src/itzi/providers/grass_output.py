@@ -13,19 +13,35 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-from datetime import datetime, timedelta
-from typing import Dict, Self
+from typing import Dict, Self, TypedDict, Union, TYPE_CHECKING
 
 import numpy as np
 
 from itzi.providers.base import RasterOutputProvider, VectorOutputProvider
-from itzi.data_containers import SimulationData, DrainageNetworkData
+
+if TYPE_CHECKING:
+    from datetime import datetime, timedelta
+    from itzi.providers.grass_interface import GrassInterface
+    from itzi.data_containers import SimulationData, DrainageNetworkData
+
+
+class GrassRasterOutputConfig(TypedDict):
+    grass_interface: "GrassInterface"
+    out_map_names: Dict[str, str]
+    hmin: float
+    temporal_type: str
+
+
+class GrassVectorOutputConfig(TypedDict):
+    grass_interface: "GrassInterface"
+    drainage_map_name: str
+    temporal_type: str
 
 
 class GrassRasterOutputProvider(RasterOutputProvider):
     """Write simulation outputs to GRASS."""
 
-    def initialize(self, config: Dict) -> Self:
+    def initialize(self, config: GrassRasterOutputConfig) -> Self:
         """Initialize output provider with configuration."""
         self.grass_interface = config["grass_interface"]
         # user-selected map names. Keys are user-facing names
@@ -37,7 +53,7 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         return self
 
     def _write_array(
-        self, array: np.ndarray, map_key: str, sim_time: datetime | timedelta
+        self, array: np.ndarray, map_key: str, sim_time: Union["datetime", "timedelta"]
     ) -> None:
         """Write simulation data for current time step."""
         suffix = str(self.record_counter[map_key]).zfill(4)
@@ -52,7 +68,7 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         self.record_counter[map_key] += 1
 
     def write_arrays(
-        self, array_dict: Dict[str, np.ndarray], sim_time: datetime | timedelta
+        self, array_dict: Dict[str, np.ndarray], sim_time: Union["datetime", "timedelta"]
     ) -> None:
         for arr_key, arr in array_dict.items():
             if isinstance(arr, np.ndarray):
@@ -62,7 +78,7 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         map_max_name = f"{self.out_map_names[map_key]}_max"
         self.grass_interface.write_raster_map(arr_max, map_max_name, map_key, hmin=0.0)
 
-    def finalize(self, final_data: SimulationData) -> None:
+    def finalize(self, final_data: "SimulationData") -> None:
         """Finalize outputs and cleanup."""
 
         # Write the final raster maps
@@ -85,7 +101,7 @@ class GrassRasterOutputProvider(RasterOutputProvider):
 class GrassVectorOutputProvider(VectorOutputProvider):
     """Write drainage simulation outputs to GRASS."""
 
-    def initialize(self, config: Dict) -> Self:
+    def initialize(self, config: GrassVectorOutputConfig) -> Self:
         """Initialize output provider with simulation configuration."""
         self.grass_interface = config["grass_interface"]
         self.drainage_map_name = config["drainage_map_name"]
@@ -96,7 +112,7 @@ class GrassVectorOutputProvider(VectorOutputProvider):
         return self
 
     def write_vector(
-        self, drainage_data: DrainageNetworkData, sim_time: datetime | timedelta
+        self, drainage_data: "DrainageNetworkData", sim_time: Union["datetime", "timedelta"]
     ) -> None:
         """Write drainage simulation data for current time step."""
         if self.drainage_map_name and drainage_data:
@@ -109,7 +125,7 @@ class GrassVectorOutputProvider(VectorOutputProvider):
             self.vector_drainage_maplist.append((map_name, sim_time))
             self.record_counter += 1
 
-    def finalize(self, drainage_data: DrainageNetworkData) -> None:
+    def finalize(self, drainage_data: "DrainageNetworkData") -> None:
         """Finalize outputs and cleanup."""
         if self.drainage_map_name and drainage_data:
             self.grass_interface.register_maps_in_stds(
