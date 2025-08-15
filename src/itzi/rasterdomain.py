@@ -14,11 +14,14 @@ GNU General Public License for more details.
 """
 
 from datetime import datetime
-from typing import Tuple
+from typing import Tuple, Self, Callable, TYPE_CHECKING
 import numpy as np
 
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi import rastermetrics
+
+if TYPE_CHECKING:
+    from itzi.providers.grass_interface import GrassInterface
 
 
 class DomainData:
@@ -74,36 +77,38 @@ class TimedArray:
     array is accessed via get()
     """
 
-    def __init__(self, mkey, igis, f_arr_def):
+    def __init__(self, mkey: str, igis: "GrassInterface", f_arr_def: Callable[[], np.ndarray]):
         assert isinstance(mkey, str), "not a string!"
         assert hasattr(f_arr_def, "__call__"), "not a function!"
-        self.mkey = mkey  # An user-facing array identifier
+        self.mkey = mkey  # An array identifier
         self.igis = igis  # GIS interface
         # A function to generate a default array
         self.f_arr_def = f_arr_def
         # default values for start and end
         # intended to trigger update when is_valid() is first called
-        self.a_start = datetime(1, 1, 2)
-        self.a_end = datetime(1, 1, 1)
+        self.arr_start = datetime(1, 1, 2)
+        self.arr_end = datetime(1, 1, 1)
+        # Placeholder for the numpy array
+        self.arr = None
 
-    def get(self, sim_time):
+    def get(self, sim_time: datetime) -> np.ndarray:
         """Return a numpy array valid for the given time
         If the array stored is not valid, update the values of the object
         """
         assert isinstance(sim_time, datetime), "not a datetime object!"
         if not self.is_valid(sim_time):
-            self.update_values_from_gis(sim_time)
+            self.update_values(sim_time)
         return self.arr
 
-    def is_valid(self, sim_time):
+    def is_valid(self, sim_time: datetime) -> bool:
         """input being a time in datetime
         If the current stored array is within the range of the map,
         return True
         If not return False
         """
-        return bool(self.a_start <= sim_time <= self.a_end)
+        return bool(self.arr_start <= sim_time <= self.arr_end)
 
-    def update_values_from_gis(self, sim_time):
+    def update_values(self, sim_time: datetime) -> Self:
         """Update array, start_time and end_time from GIS
         if GIS return None, set array to default value
         """
@@ -117,8 +122,8 @@ class TimedArray:
         assert isinstance(arr_end, datetime), "not a datetime object!"
         assert arr_start <= sim_time <= arr_end, "wrong time retrieved!"
         # update object values
-        self.a_start = arr_start
-        self.a_end = arr_end
+        self.arr_start = arr_start
+        self.arr_end = arr_end
         self.arr = arr
         return self
 
