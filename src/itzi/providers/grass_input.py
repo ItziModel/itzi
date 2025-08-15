@@ -42,7 +42,9 @@ class GrassRasterInputProvider(RasterInputProvider):
         self.map_lists = self.get_map_lists(config["input_map_names"])
 
     @property
-    def origin(self):
+    def origin(self) -> Tuple[float, float]:
+        """Return the coordinates of the NW corner
+        as a tuple (N, W)"""
         return self.grass_interface.origin
 
     def get_map_lists(

@@ -31,7 +31,9 @@ class RasterInputProvider(ABC):
 
     @property
     @abstractmethod
-    def origin(self):
+    def origin(self) -> Tuple[float, float]:
+        """Return the coordinates of the NW corner
+        as a tuple (N, W)"""
         pass
 
     @abstractmethod
