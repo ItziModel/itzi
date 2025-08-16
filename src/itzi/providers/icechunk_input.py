@@ -29,6 +29,7 @@ except ImportError:
     )
 
 from itzi.providers.base import RasterInputProvider
+from itzi.const import TemporalType
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -42,16 +43,16 @@ class IcechunkRasterInputConfig(TypedDict):
     # A Mapping of dimensions names
     # {"time": "start_time", "x": "longitude"}
     dimension_names: NotRequired[Mapping[str, str]]
-    default_start_time: "datetime"
-    default_end_time: "datetime"
+    simulation_start_time: "datetime"
+    simulation_end_time: "datetime"
 
 
 class IcechunkRasterInputProvider(RasterInputProvider):
     """Abstract base class for handling raster simulation inputs."""
 
     def __init__(self, config: IcechunkRasterInputConfig) -> None:
-        self.start_time = config["default_start_time"]
-        self.end_time = config["default_end_time"]
+        self.sim_start_time = config["simulation_start_time"]
+        self.sim_end_time = config["simulation_end_time"]
         self.input_map_names = config["input_map_names"]
         # Set default if dimension_names are not given
         try:
@@ -61,11 +62,29 @@ class IcechunkRasterInputProvider(RasterInputProvider):
         self.x_dim = dim_names["x"]
         self.y_dim = dim_names["y"]
         self.time_dim = dim_names["time"]
+        # Open dataset
         repo = icechunk.Repository.open(config["icechunk_storage"])
-        self.session = repo.readonly_session(config["icechunk_group"])
-        self.dataset = xr.open_zarr(self.session.store)
+        session = repo.readonly_session(config["icechunk_group"])
+        self.dataset = xr.open_zarr(session.store)
+
         if not self.is_dataset_sorted():
             raise ValueError("Coordinates must be sorted")
+        self.temporal_type = self.detect_temporal_type()
+
+    def detect_temporal_type(self) -> str:
+        """Detect if time coordinates are relative (timedelta) or absolute (datetime)."""
+        try:
+            time_coords = self.dataset[self.time_dim]
+            # Check the dtype of time coordinates
+            if np.issubdtype(time_coords.dtype, np.timedelta64):
+                return TemporalType.RELATIVE
+            elif np.issubdtype(time_coords.dtype, np.datetime64):
+                return TemporalType.ABSOLUTE
+            else:
+                raise ValueError(f"Unsupported temporal type: {time_coords.dtype}")
+        except KeyError:
+            # No time dimension
+            return TemporalType.ABSOLUTE
 
     @property
     def origin(self) -> Tuple[float, float]:
@@ -122,23 +141,34 @@ class IcechunkRasterInputProvider(RasterInputProvider):
         return a numpy array associated with its start and end time
         if no map is found, return None instead of an array
         and a default start_time and end_time."""
+        # Return None if no variable with requested name
         try:
             var_name = self.input_map_names[map_key]
         except KeyError:
-            return None, self.start_time, self.end_time
+            return None, self.sim_start_time, self.sim_end_time
+
         da = self.dataset[var_name]
-        # TODO: manage timedelta repo
-        np_time = np.datetime64(current_time)
         try:
             da_time = da[self.time_dim]
-            da_selected = da.sel({self.time_dim: np_time}, method="ffill")
-            start_np, end_np = self.get_bracket_values(da_time.values, np_time)
-            start_time = pd.to_datetime(start_np).to_pydatetime()
-            end_time = pd.to_datetime(end_np).to_pydatetime()
+            if self.temporal_type == TemporalType.RELATIVE:
+                # convert datetime to timedelta for the search
+                np_time = np.timedelta64(current_time - self.sim_start_time)
+                da_selected = da.sel({self.time_dim: np_time}, method="ffill")
+                start_np, end_np = self.get_bracket_values(da_time.values, np_time)
+                # convert back to datetime
+                start_time = self.sim_start_time + pd.to_timedelta(start_np).to_pytimedelta()
+                end_time = self.sim_start_time + pd.to_timedelta(end_np).to_pytimedelta()
+                pass
+            else:  # absolute time
+                np_time = np.datetime64(current_time)
+                da_selected = da.sel({self.time_dim: np_time}, method="ffill")
+                start_np, end_np = self.get_bracket_values(da_time.values, np_time)
+                start_time = pd.to_datetime(start_np).to_pydatetime()
+                end_time = pd.to_datetime(end_np).to_pydatetime()
         # If no time dimension, send back the whole array
         except KeyError:
-            start_time = self.start_time
-            end_time = self.end_time
+            start_time = self.sim_start_time
+            end_time = self.sim_end_time
             da_selected = da
         assert len(da_selected.shape) == 2
         return da_selected.values, start_time, end_time

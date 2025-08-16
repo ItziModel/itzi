@@ -48,6 +48,72 @@ def time_coordinates():
 
 
 @pytest.fixture(scope="module")
+def relative_time_coordinates():
+    """Generate relative time coordinates (timedelta) for the test data"""
+    time_steps = 5
+    time_step_hours = 1
+    times = [timedelta(hours=i * time_step_hours) for i in range(time_steps)]
+    return times
+
+
+@pytest.fixture
+def icechunk_input_data_relative_time(
+    input_maps_dict: Dict,
+    coordinates: Dict,
+    crs: pyproj.CRS,
+    relative_time_coordinates: list,
+    input_map_names: Dict,
+):
+    """Create an icechunk repository with relative time input data for testing"""
+    storage = icechunk.in_memory_storage()
+    repo = icechunk.Repository.create(storage)
+    session = repo.writable_session("main")
+
+    # Create the dataset
+    time_len = len(relative_time_coordinates)
+
+    # Create data variables - some time-dependent, some static
+    data_vars = {}
+    coords = {
+        "time": relative_time_coordinates,
+        "y": coordinates["y_coords"],
+        "x": coordinates["x_coords"],
+    }
+
+    for itzi_key, zarr_var_name in input_map_names.items():
+        if itzi_key in input_maps_dict:
+            base_data = input_maps_dict[itzi_key]
+
+            # Make some variables time-dependent, others static
+            if itzi_key in ["rainfall", "boundary_conditions"]:
+                # Time-dependent variables
+                time_data = np.stack([base_data * (1 + 0.1 * t) for t in range(time_len)])
+                data_vars[zarr_var_name] = (["time", "y", "x"], time_data)
+            else:
+                # Static variables (no time dimension)
+                data_vars[zarr_var_name] = (["y", "x"], base_data)
+
+    # Create the dataset
+    ds = xr.Dataset(data_vars=data_vars, coords=coords)
+
+    # Add CRS information
+    ds.attrs["crs_wkt"] = crs.to_wkt()
+
+    # Write to zarr
+    ds.to_zarr(session.store, mode="w")
+    session.commit("Initial commit with relative time input data")
+
+    return {
+        "storage": storage,
+        "group": "main",
+        "dataset": ds,
+        "input_maps_dict": input_maps_dict,
+        "input_map_names": input_map_names,
+        "relative_time_coordinates": relative_time_coordinates,
+    }
+
+
+@pytest.fixture(scope="module")
 def input_map_names(input_maps_dict: Dict):
     """Mapping from itzi internal names to zarr variable names"""
     # Create a mapping where some keys map to different variable names in zarr
@@ -135,21 +201,20 @@ def test_icechunk_input_provider_creation(icechunk_input_data: Dict, default_tim
         "icechunk_storage": icechunk_input_data["storage"],
         "icechunk_group": icechunk_input_data["group"],
         "input_map_names": icechunk_input_data["input_map_names"],
-        "default_start_time": default_times["start_time"],
-        "default_end_time": default_times["end_time"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
     }
 
     # Create the provider
     provider = IcechunkRasterInputProvider(config)
 
     # Verify that the provider was created with correct attributes
-    assert provider.start_time == default_times["start_time"]
-    assert provider.end_time == default_times["end_time"]
+    assert provider.sim_start_time == default_times["start_time"]
+    assert provider.sim_end_time == default_times["end_time"]
     assert provider.input_map_names == icechunk_input_data["input_map_names"]
-    assert provider.session is not None
 
     # Verify that the session can access the zarr store
-    ds = xr.open_zarr(provider.session.store)
+    ds = provider.dataset
     assert ds is not None
     assert len(ds.data_vars) > 0
 
@@ -162,8 +227,8 @@ def test_icechunk_input_provider_get_array_static_variable(
         "icechunk_storage": icechunk_input_data["storage"],
         "icechunk_group": icechunk_input_data["group"],
         "input_map_names": icechunk_input_data["input_map_names"],
-        "default_start_time": default_times["start_time"],
-        "default_end_time": default_times["end_time"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
     }
 
     provider = IcechunkRasterInputProvider(config)
@@ -208,8 +273,8 @@ def test_icechunk_input_provider_get_array_time_dependent_variable(
         "icechunk_storage": icechunk_input_data["storage"],
         "icechunk_group": icechunk_input_data["group"],
         "input_map_names": icechunk_input_data["input_map_names"],
-        "default_start_time": default_times["start_time"],
-        "default_end_time": default_times["end_time"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
     }
 
     provider = IcechunkRasterInputProvider(config)
@@ -262,8 +327,8 @@ def test_icechunk_input_provider_get_array_nonexistent_key(
         "icechunk_storage": icechunk_input_data["storage"],
         "icechunk_group": icechunk_input_data["group"],
         "input_map_names": icechunk_input_data["input_map_names"],
-        "default_start_time": default_times["start_time"],
-        "default_end_time": default_times["end_time"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
     }
 
     provider = IcechunkRasterInputProvider(config)
@@ -296,8 +361,8 @@ def test_icechunk_input_provider_origin_property(
         "icechunk_storage": icechunk_input_data["storage"],
         "icechunk_group": icechunk_input_data["group"],
         "input_map_names": icechunk_input_data["input_map_names"],
-        "default_start_time": default_times["start_time"],
-        "default_end_time": default_times["end_time"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
     }
 
     provider = IcechunkRasterInputProvider(config)
@@ -327,8 +392,8 @@ def test_icechunk_input_provider_invalid_storage():
         "icechunk_storage": icechunk.local_filesystem_storage("/tmp/nonexistent/path"),
         "icechunk_group": "main",
         "input_map_names": {"test": "test"},
-        "default_start_time": datetime(2023, 1, 1),
-        "default_end_time": datetime(2023, 1, 2),
+        "simulation_start_time": datetime(2023, 1, 1),
+        "simulation_end_time": datetime(2023, 1, 2),
     }
 
     # Should raise an error when trying to open non-existent repository
@@ -342,8 +407,8 @@ def test_icechunk_input_provider_invalid_group(icechunk_input_data: Dict, defaul
         "icechunk_storage": icechunk_input_data["storage"],
         "icechunk_group": "nonexistent_group",
         "input_map_names": icechunk_input_data["input_map_names"],
-        "default_start_time": default_times["start_time"],
-        "default_end_time": default_times["end_time"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
     }
     # Should raise an error when trying to access non-existent group
     with pytest.raises(icechunk.IcechunkError):
@@ -356,14 +421,13 @@ def test_icechunk_input_provider_data_consistency(icechunk_input_data: Dict, def
         "icechunk_storage": icechunk_input_data["storage"],
         "icechunk_group": icechunk_input_data["group"],
         "input_map_names": icechunk_input_data["input_map_names"],
-        "default_start_time": default_times["start_time"],
-        "default_end_time": default_times["end_time"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
     }
 
     provider = IcechunkRasterInputProvider(config)
 
-    # Verify that we can open the zarr store and access data
-    ds = xr.open_zarr(provider.session.store)
+    ds = provider.dataset
 
     # Check that all expected variables are present
     for itzi_key, zarr_var_name in icechunk_input_data["input_map_names"].items():
@@ -401,8 +465,8 @@ def test_icechunk_input_provider_multiple_variables(
         "icechunk_storage": icechunk_input_data["storage"],
         "icechunk_group": icechunk_input_data["group"],
         "input_map_names": icechunk_input_data["input_map_names"],
-        "default_start_time": default_times["start_time"],
-        "default_end_time": default_times["end_time"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
     }
 
     provider = IcechunkRasterInputProvider(config)
@@ -427,3 +491,58 @@ def test_icechunk_input_provider_multiple_variables(
     except (NotImplementedError, AttributeError, TypeError) as e:
         # Expected since the method is not fully implemented
         pytest.skip(f"get_array method not fully implemented for {map_key}: {e}")
+
+
+def test_icechunk_input_provider_get_array_time_dependent_variable_relative_time(
+    icechunk_input_data_relative_time: Dict, default_times: Dict
+):
+    """Test get_array method for time-dependent variables with relative time (timedelta)"""
+    config: IcechunkRasterInputConfig = {
+        "icechunk_storage": icechunk_input_data_relative_time["storage"],
+        "icechunk_group": icechunk_input_data_relative_time["group"],
+        "input_map_names": icechunk_input_data_relative_time["input_map_names"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
+    }
+
+    provider = IcechunkRasterInputProvider(config)
+
+    # Test with a time-dependent variable (e.g., 'rainfall')
+    test_key = "rainfall"
+    if test_key in icechunk_input_data_relative_time["input_map_names"]:
+        # For relative time, we need to provide a current_time that can be mapped to the relative coordinates
+        # Since the relative time coordinates start at timedelta(hours=0), timedelta(hours=1), etc.
+        # We'll use a datetime that corresponds to the second time step (timedelta(hours=1))
+        current_time = datetime(2023, 1, 1, 1, 30, 0)  # Should correspond to time index 1
+        expected_start_time = datetime(2023, 1, 1, 1, 0, 0)
+        expected_end_time = datetime(2023, 1, 1, 2, 0, 0)
+
+        result = provider.get_array(test_key, current_time)
+
+        # The method should return a tuple of (array, start_time, end_time)
+        assert isinstance(result, tuple)
+        assert len(result) == 3
+
+        array, start_time, end_time = result
+
+        # Verify the array
+        assert isinstance(array, np.ndarray)
+        # For time-dependent variables, should get the data for the specific time
+        assert array.ndim == 2  # Should be 2D after time selection
+
+        # Verify the array values are correct for the specific time
+        # current_time should correspond to time index 1 (timedelta(hours=1))
+        # Expected data: base_data * (1 + 0.1 * 1) = base_data * 1.1
+        expected_time_index = 1
+        base_data = icechunk_input_data_relative_time["input_maps_dict"][test_key]
+        expected_array = base_data * (1 + 0.1 * expected_time_index)
+        assert np.allclose(array, expected_array), (
+            f"Array values don't match expected values for relative time index {expected_time_index}"
+        )
+
+        # Verify times
+        assert isinstance(start_time, datetime)
+        assert isinstance(end_time, datetime)
+        assert start_time <= current_time <= end_time
+        assert start_time == expected_start_time
+        assert end_time == expected_end_time
