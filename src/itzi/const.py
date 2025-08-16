@@ -13,6 +13,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
+from enum import StrEnum
+
 
 class DefaultValues:
     """Default config values"""
@@ -57,3 +59,8 @@ class VerbosityLevel:
     MESSAGE = 2
     VERBOSE = 3
     DEBUG = 4
+
+
+class TemporalType(StrEnum):
+    RELATIVE = "relative"
+    ABSOLUTE = "absolute"

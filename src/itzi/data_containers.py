@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
-from itzi.const import DefaultValues
+from itzi.const import DefaultValues, TemporalType
 
 if TYPE_CHECKING:
     from itzi.drainage import DrainageNode
@@ -184,7 +184,7 @@ class SimulationConfig:
     start_time: datetime
     end_time: datetime
     record_step: timedelta
-    temporal_type: str  # options: [relative, absolute]
+    temporal_type: TemporalType
     # Input and output raster maps
     input_map_names: Dict[str, str]
     output_map_names: Dict[str, str]

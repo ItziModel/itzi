@@ -19,7 +19,7 @@ from configparser import ConfigParser
 from datetime import datetime, timedelta
 
 import itzi.messenger as msgr
-from itzi.const import DefaultValues
+from itzi.const import DefaultValues, TemporalType
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi.data_containers import SurfaceFlowParameters, SimulationConfig
 
@@ -373,9 +373,9 @@ class SimulationTimes:
             msgr.fatal(comb_err_msg)
         # if only duration is given, temporal type is relative
         if b_dur:
-            self.temporal_type = "relative"
+            self.temporal_type = TemporalType.RELATIVE
         else:
-            self.temporal_type = "absolute"
+            self.temporal_type = TemporalType.ABSOLUTE
         return self
 
     def read_timedelta(self, string):

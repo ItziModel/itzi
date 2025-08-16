@@ -29,6 +29,7 @@ import numpy as np
 
 import itzi.messenger as msgr
 from itzi.data_containers import DrainageNetworkData
+from itzi.const import TemporalType
 
 import grass.script as gscript
 import grass.temporal as tgis
@@ -355,13 +356,13 @@ class GrassInterface:
         Return the simulation start_time and end_time, expressed in
         the unit of the input strds
         """
-        if strds.get_temporal_type() == "relative":
+        if strds.get_temporal_type() == TemporalType.RELATIVE:
             # get start time and end time in seconds
             rel_end_time = (self.end_time - self.start_time).total_seconds()
             rel_unit = strds.get_relative_time_unit()
             start_time_in_stds_unit = 0
             end_time_in_stds_unit = self.from_s(rel_unit, rel_end_time)
-        elif strds.get_temporal_type() == "absolute":
+        elif strds.get_temporal_type() == TemporalType.ABSOLUTE:
             start_time_in_stds_unit = self.start_time
             end_time_in_stds_unit = self.end_time
         else:
@@ -421,7 +422,7 @@ class GrassInterface:
             str_lst = ",".join(maps_not_found)
             msgr.fatal(err_msg.format(strds_name, str_lst))
         # change time data to datetime format
-        if strds.get_temporal_type() == "relative":
+        if strds.get_temporal_type() == TemporalType.RELATIVE:
             rel_unit = strds.get_relative_time_unit()
             maplist = [
                 (
@@ -605,10 +606,10 @@ class GrassInterface:
             # load spatial data from map
             map_dts.load()
             # set time
-            if t_type == "relative":
+            if t_type == TemporalType.RELATIVE:
                 rel_time = map_time.total_seconds()
                 map_dts.set_relative_time(rel_time, None, "seconds")
-            elif t_type == "absolute":
+            elif t_type == TemporalType.ABSOLUTE:
                 assert isinstance(map_time, datetime)
                 map_dts.set_absolute_time(start_time=map_time)
             else:
@@ -616,7 +617,7 @@ class GrassInterface:
             # populate the list
             map_dts_lst.append(map_dts)
         # Finally register the maps
-        t_unit = {"relative": "seconds", "absolute": ""}
+        t_unit = {TemporalType.RELATIVE: "seconds", TemporalType.ABSOLUTE: ""}
         stds_corresp = {"strds": "raster", "stvds": "vector"}
         del_empty = {"strds": True, "stvds": False}
         tgis.register.register_map_object_list(
