@@ -691,6 +691,7 @@ dependencies = [
 cloud = [
     { name = "geopandas" },
     { name = "icechunk" },
+    { name = "pandas" },
     { name = "pyarrow" },
     { name = "pyproj" },
     { name = "xarray", extra = ["io", "parallel"] },
@@ -718,6 +719,7 @@ requires-dist = [
     { name = "geopandas", marker = "extra == 'cloud'", specifier = ">=1.1.1" },
     { name = "icechunk", marker = "extra == 'cloud'", specifier = ">=1.1.1" },
     { name = "numpy", specifier = ">=2.2" },
+    { name = "pandas", marker = "extra == 'cloud'", specifier = ">=2.3.1" },
     { name = "pyarrow", marker = "extra == 'cloud'", specifier = ">=21.0.0" },
     { name = "pyproj", marker = "extra == 'cloud'", specifier = ">=3.7.1" },
     { name = "pyswmm", specifier = ">=2.1.0" },
