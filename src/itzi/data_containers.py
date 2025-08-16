@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
-from itzi.const import DefaultValues, TemporalType, InfiltrationModel
+from itzi.const import DefaultValues, TemporalType, InfiltrationModelType
 
 if TYPE_CHECKING:
     from itzi.drainage import DrainageNode
@@ -194,7 +194,7 @@ class SimulationConfig:
     stats_file: str
     # Hydrology parameters
     dtinf: float = DefaultValues.DTINF
-    infiltration_model: InfiltrationModel = InfiltrationModel.NULL
+    infiltration_model: InfiltrationModelType = InfiltrationModelType.NULL
     # Drainage parameters
     swmm_inp: str | None = None
     drainage_output: str | None = None
