@@ -64,3 +64,9 @@ class VerbosityLevel:
 class TemporalType(StrEnum):
     RELATIVE = "relative"
     ABSOLUTE = "absolute"
+
+
+class InfiltrationModel(StrEnum):
+    NULL = "null"
+    CONSTANT = "constant"
+    GREEN_AMPT = "green-ampt"

@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
-from itzi.const import DefaultValues, TemporalType
+from itzi.const import DefaultValues, TemporalType, InfiltrationModel
 
 if TYPE_CHECKING:
     from itzi.drainage import DrainageNode
@@ -194,10 +194,10 @@ class SimulationConfig:
     stats_file: str
     # Hydrology parameters
     dtinf: float = DefaultValues.DTINF
-    infiltration_model: float = None  # options: [null, constant, green-ampt]
+    infiltration_model: InfiltrationModel = InfiltrationModel.NULL
     # Drainage parameters
-    swmm_inp: str = None
-    drainage_output: str = None
+    swmm_inp: str | None = None
+    drainage_output: str | None = None
     orifice_coeff: float = DefaultValues.ORIFICE_COEFF
     free_weir_coeff: float = DefaultValues.FREE_WEIR_COEFF
     submerged_weir_coeff: float = DefaultValues.SUBMERGED_WEIR_COEFF

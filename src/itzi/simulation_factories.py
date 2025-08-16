@@ -31,6 +31,7 @@ from itzi.hydrology import Hydrology
 from itzi.simulation import Simulation
 from itzi.data_containers import DrainageNodeCouplingData
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi.const import InfiltrationModel
 
 if TYPE_CHECKING:
     from itzi.providers.grass_interface import GrassInterface
@@ -263,9 +264,9 @@ def create_memory_simulation(
     dtinf = sim_config.dtinf
     msgr.debug("Setting up raster infiltration...")
     inf_class = {
-        "constant": infiltration.InfConstantRate,
-        "green-ampt": infiltration.InfGreenAmpt,
-        "null": infiltration.InfNull,
+        InfiltrationModel.CONSTANT: infiltration.InfConstantRate,
+        InfiltrationModel.GREEN_AMPT: infiltration.InfGreenAmpt,
+        InfiltrationModel.NULL: infiltration.InfNull,
     }
     try:
         infiltration_model = inf_class[inf_model](raster_domain, dtinf)
