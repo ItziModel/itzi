@@ -340,6 +340,10 @@ class GrassInterface:
         return bool(tgis.SpaceTimeRasterDataset(name).is_in_db())
 
     @staticmethod
+    def get_crs_wkt():
+        return gscript.read_command("g.proj", flags="fw")
+
+    @staticmethod
     def name_is_map(map_id):
         """return True if the given name is a map in the grass database
         False if not

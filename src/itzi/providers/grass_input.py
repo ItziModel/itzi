@@ -20,6 +20,7 @@ import numpy as np
 from itzi.providers.base import RasterInputProvider
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 import itzi.messenger as msgr
+from itzi.providers.domain_data import DomainData
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -46,6 +47,18 @@ class GrassRasterInputProvider(RasterInputProvider):
         """Return the coordinates of the NW corner
         as a tuple (N, W)"""
         return self.grass_interface.origin
+
+    def get_domain_data(self) -> DomainData:
+        """Return a DomainData object"""
+        return DomainData(
+            north=self.grass_interface.region.north,
+            south=self.grass_interface.region.south,
+            east=self.grass_interface.region.east,
+            west=self.grass_interface.region.west,
+            rows=self.grass_interface.region.rows,
+            cols=self.grass_interface.region.cols,
+            crs_wkt=self.grass_interface.get_crs_wkt(),
+        )
 
     def get_map_lists(
         self, map_names: Mapping[str, str]

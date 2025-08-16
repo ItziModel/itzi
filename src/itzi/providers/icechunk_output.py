@@ -13,7 +13,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-from typing import Dict, Self, TypedDict, TYPE_CHECKING
+from typing import Dict, TypedDict, TYPE_CHECKING
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -50,7 +50,7 @@ class IcechunkRasterOutputConfig(TypedDict):
 class IcechunkRasterOutputProvider(RasterOutputProvider):
     """Save raster results in an Icechunk repo."""
 
-    def initialize(self, config: IcechunkRasterOutputConfig) -> Self:
+    def __init__(self, config: IcechunkRasterOutputConfig) -> None:
         """Create a repo in case it does not exists already"""
         self.out_var_names = config["out_var_names"]
         self.crs = config["crs"]
@@ -73,7 +73,6 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
         self.cf_units = {arr_def.key: arr_def.cf_unit for arr_def in ARRAY_DEFINITIONS}
         self.cf_names = {arr_def.key: arr_def.cf_name for arr_def in ARRAY_DEFINITIONS}
         self.descriptions = {arr_def.key: arr_def.description for arr_def in ARRAY_DEFINITIONS}
-        return self
 
     def _get_spatial_coordinates(self) -> list[tuple[str, np.ndarray, Dict]]:
         # Assume both axis have the same unit

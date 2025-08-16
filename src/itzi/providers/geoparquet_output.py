@@ -14,27 +14,40 @@ GNU General Public License for more details.
 """
 
 from datetime import datetime, timedelta
-from typing import Dict, Self, Tuple, TYPE_CHECKING
+from typing import Tuple, TypedDict, Mapping, TYPE_CHECKING
 from dataclasses import asdict
 from pathlib import Path
 
-import geopandas
+try:
+    import geopandas
+except ImportError:
+    raise ImportError(
+        "To use the Icechunk backend, install itzi with: "
+        "'uv tool install itzi[cloud]' "
+        "or 'pip install itzi[cloud]'"
+    )
 
 from itzi.providers.base import VectorOutputProvider
 
 if TYPE_CHECKING:
     from itzi.data_containers import DrainageNetworkData, DrainageNodeData, DrainageLinkData
+    import pyproj
+
+
+class ParquetVectorOutputConfig(TypedDict):
+    crs: "pyproj.CRS"
+    output_dir: Path
+    drainage_map_name: Mapping[str, str]
 
 
 class ParquetVectorOutputProvider(VectorOutputProvider):
     """Save drainage simulation outputs in memory."""
 
-    def initialize(self, config: Dict | None = None) -> Self:
+    def __init__(self, config: ParquetVectorOutputConfig) -> None:
         """Initialize output provider."""
         self.crs = config["crs"]
         self.output_dir = Path(config["output_dir"])
         self.drainage_map_name = config["drainage_map_name"]
-        return self
 
     def write_vector(
         self, drainage_data: "DrainageNetworkData", sim_time: datetime | timedelta

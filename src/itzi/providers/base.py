@@ -14,19 +14,20 @@ GNU General Public License for more details.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Self, TYPE_CHECKING, Union, Tuple
+from typing import Mapping, TYPE_CHECKING, Union, Tuple
 
 if TYPE_CHECKING:
     from datetime import datetime, timedelta
     import numpy as np
     from itzi.data_containers import SimulationData, DrainageNetworkData
+    from itzi.providers.domain_data import DomainData
 
 
 class RasterInputProvider(ABC):
     """Abstract base class for handling raster simulation inputs."""
 
     @abstractmethod
-    def __init__(self, config: Dict) -> None:
+    def __init__(self, config: Mapping) -> None:
         pass
 
     @property
@@ -34,6 +35,11 @@ class RasterInputProvider(ABC):
     def origin(self) -> Tuple[float, float]:
         """Return the coordinates of the NW corner
         as a tuple (N, W)"""
+        pass
+
+    @abstractmethod
+    def get_domain_data(self) -> "DomainData":
+        """Return a DomainData object."""
         pass
 
     @abstractmethod
@@ -51,13 +57,13 @@ class RasterOutputProvider(ABC):
     """Abstract base class for handling raster simulation outputs."""
 
     @abstractmethod
-    def initialize(self, config: Dict) -> Self:
+    def __init__(self, config: Mapping) -> None:
         """Initialize output provider with simulation configuration."""
         pass
 
     @abstractmethod
     def write_arrays(
-        self, array_dict: Dict[str, "np.ndarray"], sim_time: Union["datetime", "timedelta"]
+        self, array_dict: Mapping[str, "np.ndarray"], sim_time: Union["datetime", "timedelta"]
     ) -> None:
         """Write all arrays for the current time step."""
         pass
@@ -72,7 +78,7 @@ class VectorOutputProvider(ABC):
     """Abstract base class for drainage simulation outputs."""
 
     @abstractmethod
-    def initialize(self, config: Dict) -> Self:
+    def __init__(self, config: Mapping) -> None:
         """Initialize output provider with simulation configuration."""
         pass
 

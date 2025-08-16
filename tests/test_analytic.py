@@ -17,7 +17,7 @@ import pytest
 
 from itzi.simulation_factories import create_memory_simulation
 from itzi.configreader import ConfigReader
-from itzi.rasterdomain import DomainData
+from itzi.providers.domain_data import DomainData
 
 ASCIIMetadata = namedtuple(
     "ASCIIMetadata", ["ncols", "nrows", "xllcorner", "yllcorner", "cellsize"]
@@ -98,7 +98,9 @@ def mcdo_norain_sim(test_data_path, test_data_temp_path):
     # Create DEM
     arr_dem = np.tile(arr_topo, (3, 1))
     assert arr_dem.shape == (3, 200)
-    domain_data = DomainData(north=5 * 200, south=0, east=5 * 200, west=0, rows=3, cols=200)
+    domain_data = DomainData(
+        north=5 * 200, south=0, east=5 * 200, west=0, rows=3, cols=200, crs_wkt=""
+    )
     # Manning
     arr_n = np.full_like(arr_dem, fill_value=0.033)
     # Inflow at westmost boundary
@@ -207,7 +209,9 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
     arr_topo = reference["topo"].values
     arr_dem = np.tile(arr_topo, (3, 1))
     assert arr_dem.shape == (3, 200)
-    domain_data = DomainData(north=5 * 200, south=0, east=5 * 200, west=0, rows=3, cols=200)
+    domain_data = DomainData(
+        north=5 * 200, south=0, east=5 * 200, west=0, rows=3, cols=200, crs_wkt=""
+    )
     # Create Manning map
     arr_n = np.full_like(arr_dem, fill_value=0.033)
     # Inflow at westmost boundary

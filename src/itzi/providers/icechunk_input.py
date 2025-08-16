@@ -29,6 +29,7 @@ except ImportError:
     )
 
 from itzi.providers.base import RasterInputProvider
+from itzi.providers.domain_data import DomainData
 from itzi.const import TemporalType
 
 if TYPE_CHECKING:
@@ -93,6 +94,10 @@ class IcechunkRasterInputProvider(RasterInputProvider):
         north = self.dataset[self.y_dim].values.max()
         west = self.dataset[self.x_dim].values.min()
         return north, west
+
+    def get_domain_data(self) -> DomainData:
+        """Return a DomainData object."""
+        pass
 
     def is_dataset_sorted(self) -> bool:
         """Check if all coordinates are sorted"""

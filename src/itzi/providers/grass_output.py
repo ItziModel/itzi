@@ -13,7 +13,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-from typing import Dict, Self, TypedDict, Union, TYPE_CHECKING
+from typing import Dict, TypedDict, Union, TYPE_CHECKING
 
 import numpy as np
 
@@ -41,7 +41,7 @@ class GrassVectorOutputConfig(TypedDict):
 class GrassRasterOutputProvider(RasterOutputProvider):
     """Write simulation outputs to GRASS."""
 
-    def initialize(self, config: GrassRasterOutputConfig) -> Self:
+    def __init__(self, config: GrassRasterOutputConfig) -> None:
         """Initialize output provider with configuration."""
         self.grass_interface = config["grass_interface"]
         # user-selected map names. Keys are user-facing names
@@ -50,7 +50,6 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         self.temporal_type = config["temporal_type"]
         self.record_counter = {k: 0 for k in self.out_map_names.keys()}
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
-        return self
 
     def _write_array(
         self, array: np.ndarray, map_key: str, sim_time: Union["datetime", "timedelta"]
@@ -101,7 +100,7 @@ class GrassRasterOutputProvider(RasterOutputProvider):
 class GrassVectorOutputProvider(VectorOutputProvider):
     """Write drainage simulation outputs to GRASS."""
 
-    def initialize(self, config: GrassVectorOutputConfig) -> Self:
+    def __init__(self, config: GrassVectorOutputConfig) -> None:
         """Initialize output provider with simulation configuration."""
         self.grass_interface = config["grass_interface"]
         self.drainage_map_name = config["drainage_map_name"]
@@ -109,7 +108,6 @@ class GrassVectorOutputProvider(VectorOutputProvider):
 
         self.record_counter = 0
         self.vector_drainage_maplist = []
-        return self
 
     def write_vector(
         self, drainage_data: "DrainageNetworkData", sim_time: Union["datetime", "timedelta"]
