@@ -1,4 +1,3 @@
-import tempfile
 from typing import Dict
 from datetime import datetime, timedelta
 
@@ -10,11 +9,6 @@ import pytest
 import pyproj
 
 from itzi.providers.icechunk_input import IcechunkRasterInputProvider, IcechunkRasterInputConfig
-
-
-@pytest.fixture(scope="function")
-def temp_dir():
-    return tempfile.TemporaryDirectory()
 
 
 @pytest.fixture(scope="module")
@@ -71,7 +65,6 @@ def input_map_names(input_maps_dict: Dict):
 
 @pytest.fixture
 def icechunk_input_data(
-    temp_dir: tempfile.TemporaryDirectory,
     input_maps_dict: Dict,
     coordinates: Dict,
     crs: pyproj.CRS,
@@ -79,7 +72,7 @@ def icechunk_input_data(
     input_map_names: Dict,
 ):
     """Create an icechunk repository with input data for testing"""
-    storage = icechunk.local_filesystem_storage(temp_dir.name)
+    storage = icechunk.in_memory_storage()
     repo = icechunk.Repository.create(storage)
     session = repo.writable_session("main")
 
