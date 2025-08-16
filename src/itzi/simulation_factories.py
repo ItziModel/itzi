@@ -36,6 +36,8 @@ from itzi.const import InfiltrationModel
 if TYPE_CHECKING:
     from itzi.providers.grass_interface import GrassInterface
     from itzi.data_containers import SimulationConfig
+    import icechunk
+    import pyproj
 
 
 def get_nodes_list(
@@ -343,3 +345,185 @@ def create_memory_simulation(
         mass_balance_error_threshold=sim_config.surface_flow_parameters.max_error,
     )
     return simulation
+
+
+def create_icechunk_simulation(
+    sim_config: "SimulationConfig",
+    domain_data: rasterdomain.DomainData,
+    arr_mask: ArrayLike,
+    icechunk_storage: "icechunk.Storage",
+    icechunk_group: str = "main",
+    output_dir: str = ".",
+    crs: "pyproj.CRS" = None,
+    dtype: DTypeLike = np.float32,
+) -> tuple[Simulation, Dict[str, rasterdomain.TimedArray]]:
+    """A factory function that returns a Simulation object with Icechunk raster backend and Parquet vector backend."""
+    msgr.verbose("Setting up models...")
+    from itzi.providers.icechunk_input import IcechunkRasterInputProvider
+    from itzi.providers.icechunk_output import IcechunkRasterOutputProvider
+    from itzi.providers.geoparquet_output import ParquetVectorOutputProvider
+
+    try:
+        import pyproj
+    except ImportError:
+        raise ImportError(
+            "To use the Icechunk backend, install itzi with: "
+            "'uv tool install itzi[cloud]' "
+            "or 'pip install itzi[cloud]'"
+        )
+
+    # Timed arrays
+    timed_arrays = {}
+    # TimedArray expects a function as an init parameter
+    raster_shape = (domain_data.rows, domain_data.cols)
+    zeros_array = lambda: np.zeros(shape=raster_shape, dtype=dtype)  # noqa: E731
+    input_keys = [
+        arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT in arr_def.category
+    ]
+
+    # Set up raster input provider
+    raster_input_provider_config = {
+        "icechunk_storage": icechunk_storage,
+        "icechunk_group": icechunk_group,
+        "input_map_names": sim_config.input_map_names,
+        "simulation_start_time": sim_config.start_time,
+        "simulation_end_time": sim_config.end_time,
+    }
+    raster_input_provider = IcechunkRasterInputProvider(config=raster_input_provider_config)
+    for arr_key in input_keys:
+        timed_arrays[arr_key] = rasterdomain.TimedArray(
+            arr_key, raster_input_provider, zeros_array
+        )
+
+    msgr.debug("Setting up raster domain...")
+    # RasterDomain
+    try:
+        raster_domain = rasterdomain.RasterDomain(
+            dtype=dtype,
+            arr_mask=arr_mask,
+            cell_shape=domain_data.cell_shape,
+        )
+    except MemoryError:
+        msgr.fatal("Out of memory.")
+
+    # Infiltration
+    inf_model = sim_config.infiltration_model
+    dtinf = sim_config.dtinf
+    msgr.debug("Setting up raster infiltration...")
+    inf_class = {
+        InfiltrationModel.CONSTANT: infiltration.InfConstantRate,
+        InfiltrationModel.GREEN_AMPT: infiltration.InfGreenAmpt,
+        InfiltrationModel.NULL: infiltration.InfNull,
+    }
+    try:
+        infiltration_model = inf_class[inf_model](raster_domain, dtinf)
+    except KeyError:
+        assert False, f"Unknow infiltration model: {inf_model}"
+
+    # Hydrology
+    msgr.debug("Setting up hydrologic model...")
+    hydrology_model = Hydrology(raster_domain, dtinf, infiltration_model)
+
+    # Surface flows simulation
+    msgr.debug("Setting up surface model...")
+    surface_flow = SurfaceFlowSimulation(raster_domain, sim_config.surface_flow_parameters)
+
+    # Instantiate Massbal object
+    if sim_config.stats_file:
+        msgr.debug("Setting up mass balance object...")
+        massbal = MassBalanceLogger(
+            file_name=sim_config.stats_file,
+        )
+    else:
+        massbal = None
+
+    # Drainage
+    if sim_config.swmm_inp:
+        msgr.debug("Setting up drainage model...")
+        swmm_sim = pyswmm.Simulation(sim_config.swmm_inp)
+        swmm_inp = SwmmInputParser(sim_config.swmm_inp)
+        # Create Node objects
+        all_nodes = pyswmm.Nodes(swmm_sim)
+        nodes_coors_dict = swmm_inp.get_nodes_id_as_dict()
+        nodes_list = get_nodes_list(
+            all_nodes,
+            nodes_coors_dict,
+            orifice_coeff=sim_config.orifice_coeff,
+            free_weir_coeff=sim_config.free_weir_coeff,
+            submerged_weir_coeff=sim_config.submerged_weir_coeff,
+            domain_data=domain_data,
+            g=sim_config.surface_flow_parameters.g,
+        )
+        # Create Link objects
+        links_vertices_dict = swmm_inp.get_links_id_as_dict()
+        links_list = get_links_list(pyswmm.Links(swmm_sim), links_vertices_dict, nodes_coors_dict)
+        node_objects_only = [i.node_object for i in nodes_list]
+        drainage_sim = DrainageSimulation(swmm_sim, node_objects_only, links_list)
+    else:
+        nodes_list = None
+        drainage_sim = None
+
+    # reporting object
+    msgr.debug("Setting up reporting object...")
+
+    # Set up raster output provider
+    # Generate coordinate arrays from domain_data
+    x_coords = np.linspace(
+        domain_data.west + domain_data.cell_shape[0] / 2,
+        domain_data.east - domain_data.cell_shape[0] / 2,
+        domain_data.cols,
+    )
+    y_coords = np.linspace(
+        domain_data.north - domain_data.cell_shape[1] / 2,
+        domain_data.south + domain_data.cell_shape[1] / 2,
+        domain_data.rows,
+    )
+
+    # Use a default CRS if none provided
+    if crs is None:
+        crs = pyproj.CRS.from_epsg(4326)  # WGS84 as default
+
+    raster_output_provider = IcechunkRasterOutputProvider()
+    raster_output_provider.initialize(
+        {
+            "out_var_names": sim_config.output_map_names,
+            "crs": crs,
+            "x_coords": x_coords,
+            "y_coords": y_coords,
+            "icechunk_storage": icechunk_storage,
+        }
+    )
+
+    # Set up vector output provider
+    vector_output_provider = ParquetVectorOutputProvider()
+    vector_output_provider.initialize(
+        {
+            "crs": crs,
+            "output_dir": output_dir,
+            "drainage_map_name": sim_config.drainage_output,
+        }
+    )
+
+    report = Report(
+        start_time=sim_config.start_time,
+        temporal_type=sim_config.temporal_type,
+        raster_output_provider=raster_output_provider,
+        vector_output_provider=vector_output_provider,
+        mass_balance_logger=massbal,
+        out_map_names=sim_config.output_map_names,
+        dt=sim_config.record_step,
+    )
+
+    msgr.verbose("Models set up")
+    simulation = Simulation(
+        sim_config.start_time,
+        sim_config.end_time,
+        raster_domain,
+        hydrology_model,
+        surface_flow,
+        drainage_sim,
+        nodes_list,
+        report,
+        mass_balance_error_threshold=sim_config.surface_flow_parameters.max_error,
+    )
+    return (simulation, timed_arrays)
