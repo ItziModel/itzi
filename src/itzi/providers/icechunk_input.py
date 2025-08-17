@@ -138,11 +138,17 @@ class IcechunkRasterInputProvider(RasterInputProvider):
 
     def is_dataset_sorted(self) -> bool:
         """Check if all coordinates are sorted"""
+        dim_is_sorted = []
         x_coords = self.dataset[self.x_dim].values
         y_coords = self.dataset[self.y_dim].values
-        time_coords = self.dataset[self.time_dim].values
-        dim_is_sorted = []
-        for coord in [x_coords, y_coords, time_coords]:
+        try:  # Check time if exists
+            time_coords = self.dataset[self.time_dim].values
+            time_ascending = self.is_array_sorted(time_coords, ascending=True)
+            time_descending = self.is_array_sorted(time_coords, ascending=False)
+            dim_is_sorted.append(time_ascending or time_descending)
+        except KeyError:
+            pass
+        for coord in [x_coords, y_coords]:
             coord_ascending = self.is_array_sorted(coord, ascending=True)
             coord_descending = self.is_array_sorted(coord, ascending=False)
             dim_is_sorted.append(coord_ascending or coord_descending)
@@ -151,9 +157,9 @@ class IcechunkRasterInputProvider(RasterInputProvider):
     @staticmethod
     def is_array_sorted(arr: np.ndarray, ascending: bool = True) -> bool:
         if ascending:
-            return np.all(np.diff(arr) >= 0)
+            return bool(np.all(np.diff(arr) >= 0))
         else:
-            return np.all(np.diff(arr) <= 0)
+            return bool(np.all(np.diff(arr) <= 0))
 
     @staticmethod
     def get_bracket_values(coord_array, target_value):

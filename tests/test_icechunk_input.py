@@ -559,3 +559,188 @@ def test_icechunk_input_provider_get_array_time_dependent_variable_relative_time
         assert start_time <= current_time <= end_time
         assert start_time == expected_start_time
         assert end_time == expected_end_time
+
+
+@pytest.fixture
+def unsorted_coordinates_data(input_maps_dict: Dict, crs: pyproj.CRS):
+    """Create an icechunk repository with unsorted coordinates for testing"""
+    storage = icechunk.in_memory_storage()
+    repo = icechunk.Repository.create(storage)
+    session = repo.writable_session("main")
+
+    # Create unsorted coordinates
+    arr_shape = next(iter(input_maps_dict.values())).shape
+    # Create unsorted x and y coordinates
+    x_coords = np.array([2000, 2030, 2010, 2040, 2020, 2050, 2060, 2070, 2080])[: arr_shape[1]]
+    y_coords = np.array([1050, 1000, 1040, 1020, 1030, 1010])[: arr_shape[0]]
+
+    # Create data variables
+    data_vars = {}
+    coords = {
+        "y": y_coords,
+        "x": x_coords,
+    }
+
+    # Add a simple static variable
+    data_vars["dem"] = (["y", "x"], input_maps_dict["dem"])
+
+    # Create the dataset
+    ds = xr.Dataset(data_vars=data_vars, coords=coords)
+    ds.attrs["crs_wkt"] = crs.to_wkt()
+
+    # Write to zarr
+    ds.to_zarr(session.store, mode="w")
+    session.commit("Initial commit with unsorted coordinates")
+
+    return {
+        "storage": storage,
+        "group": "main",
+        "dataset": ds,
+        "input_map_names": {"dem": "dem"},
+    }
+
+
+@pytest.fixture
+def unequal_spacing_data(input_maps_dict: Dict, crs: pyproj.CRS):
+    """Create an icechunk repository with unequally spaced coordinates for testing"""
+    storage = icechunk.in_memory_storage()
+    repo = icechunk.Repository.create(storage)
+    session = repo.writable_session("main")
+
+    # Create unequally spaced but sorted coordinates
+    arr_shape = next(iter(input_maps_dict.values())).shape
+    # Create unequally spaced x and y coordinates (sorted but with varying spacing)
+    x_coords = np.array([2000, 2010, 2025, 2030, 2050, 2060, 2080, 2090, 2100])[: arr_shape[1]]
+    y_coords = np.array([1000, 1005, 1020, 1030, 1050, 1055])[: arr_shape[0]]
+
+    # Create data variables
+    data_vars = {}
+    coords = {
+        "y": y_coords,
+        "x": x_coords,
+    }
+
+    # Add a simple static variable
+    data_vars["dem"] = (["y", "x"], input_maps_dict["dem"])
+
+    # Create the dataset
+    ds = xr.Dataset(data_vars=data_vars, coords=coords)
+    ds.attrs["crs_wkt"] = crs.to_wkt()
+
+    # Write to zarr
+    ds.to_zarr(session.store, mode="w")
+    session.commit("Initial commit with unequal spacing")
+
+    return {
+        "storage": storage,
+        "group": "main",
+        "dataset": ds,
+        "input_map_names": {"dem": "dem"},
+    }
+
+
+def test_is_dataset_sorted_with_sorted_coordinates(icechunk_input_data: Dict, default_times: Dict):
+    """Test is_dataset_sorted() method with properly sorted coordinates"""
+    config: IcechunkRasterInputConfig = {
+        "icechunk_storage": icechunk_input_data["storage"],
+        "icechunk_group": icechunk_input_data["group"],
+        "input_map_names": icechunk_input_data["input_map_names"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
+    }
+
+    provider = IcechunkRasterInputProvider(config)
+
+    # Test the is_dataset_sorted method directly
+    result = provider.is_dataset_sorted()
+
+    # Should return True for properly sorted coordinates
+    assert result is True
+    assert isinstance(result, bool)
+
+
+def test_is_dataset_sorted_with_unsorted_coordinates(
+    unsorted_coordinates_data: Dict, default_times: Dict
+):
+    """Test is_dataset_sorted() method with unsorted coordinates"""
+    # This test should fail during provider creation due to unsorted coordinates
+    config: IcechunkRasterInputConfig = {
+        "icechunk_storage": unsorted_coordinates_data["storage"],
+        "icechunk_group": unsorted_coordinates_data["group"],
+        "input_map_names": unsorted_coordinates_data["input_map_names"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
+    }
+
+    # Should raise ValueError because coordinates are not sorted
+    with pytest.raises(ValueError, match="Coordinates must be sorted"):
+        IcechunkRasterInputProvider(config)
+
+
+def test_is_equal_spacing_with_equal_spacing(icechunk_input_data: Dict, default_times: Dict):
+    """Test is_equal_spacing() method with equally spaced coordinates"""
+    config: IcechunkRasterInputConfig = {
+        "icechunk_storage": icechunk_input_data["storage"],
+        "icechunk_group": icechunk_input_data["group"],
+        "input_map_names": icechunk_input_data["input_map_names"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
+    }
+
+    provider = IcechunkRasterInputProvider(config)
+
+    # Test the is_equal_spacing method directly
+    result = provider.is_equal_spacing()
+
+    # Should return True for equally spaced coordinates
+    assert result is True
+    assert isinstance(result, bool)
+
+
+def test_is_equal_spacing_with_unequal_spacing(unequal_spacing_data: Dict, default_times: Dict):
+    """Test is_equal_spacing() method with unequally spaced coordinates"""
+    # This test should fail during provider creation due to unequal spacing
+    config: IcechunkRasterInputConfig = {
+        "icechunk_storage": unequal_spacing_data["storage"],
+        "icechunk_group": unequal_spacing_data["group"],
+        "input_map_names": unequal_spacing_data["input_map_names"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
+    }
+
+    # Should raise ValueError because coordinates are not equally spaced
+    with pytest.raises(ValueError, match="Spatial coordinates must be equally spaced"):
+        IcechunkRasterInputProvider(config)
+
+
+def test_is_array_sorted_static_method():
+    """Test the static is_array_sorted() method with various arrays"""
+    # Test ascending sorted array
+    ascending_array = np.array([1, 2, 3, 4, 5])
+    assert IcechunkRasterInputProvider.is_array_sorted(ascending_array, ascending=True) is True
+    assert IcechunkRasterInputProvider.is_array_sorted(ascending_array, ascending=False) is False
+
+    # Test descending sorted array
+    descending_array = np.array([5, 4, 3, 2, 1])
+    assert IcechunkRasterInputProvider.is_array_sorted(descending_array, ascending=True) is False
+    assert IcechunkRasterInputProvider.is_array_sorted(descending_array, ascending=False) is True
+
+    # Test unsorted array
+    unsorted_array = np.array([1, 3, 2, 5, 4])
+    assert IcechunkRasterInputProvider.is_array_sorted(unsorted_array, ascending=True) is False
+    assert IcechunkRasterInputProvider.is_array_sorted(unsorted_array, ascending=False) is False
+
+    # Test array with equal values (should be considered sorted)
+    equal_array = np.array([2, 2, 2, 2])
+    assert IcechunkRasterInputProvider.is_array_sorted(equal_array, ascending=True) is True
+    assert IcechunkRasterInputProvider.is_array_sorted(equal_array, ascending=False) is True
+
+    # Test single element array
+    single_array = np.array([42])
+    assert IcechunkRasterInputProvider.is_array_sorted(single_array, ascending=True) is True
+    assert IcechunkRasterInputProvider.is_array_sorted(single_array, ascending=False) is True
+
+    # Test empty array
+    empty_array = np.array([])
+    assert IcechunkRasterInputProvider.is_array_sorted(empty_array, ascending=True) is True
+    assert IcechunkRasterInputProvider.is_array_sorted(empty_array, ascending=False) is True
