@@ -26,9 +26,22 @@ def input_maps_dict():
 def coordinates(input_maps_dict: Dict):
     """Generate x and y coordinates for the test arrays"""
     arr_shape = next(iter(input_maps_dict.values())).shape
-    y_coords = np.linspace(start=1000, stop=1000 + arr_shape[0] * 10, num=arr_shape[0])
-    x_coords = np.linspace(start=2000, stop=2000 + arr_shape[1] * 10, num=arr_shape[1])
-    return {"x_coords": x_coords, "y_coords": y_coords}
+    res = 10
+    y_start = 1000
+    y_stop = y_start + arr_shape[0] * res
+    x_start = 2000
+    x_stop = x_start + arr_shape[1] * res
+    y_coords = np.linspace(start=y_start, stop=y_stop, num=arr_shape[0], endpoint=False)
+    x_coords = np.linspace(start=x_start, stop=x_stop, num=arr_shape[1], endpoint=False)
+    print(f"{x_start=}, {x_stop=} {y_start=}, {y_stop}")
+    return {
+        "x_start": x_start,
+        "x_stop": x_stop,
+        "y_start": y_start,
+        "y_stop": y_stop,
+        "x_coords": x_coords,
+        "y_coords": y_coords,
+    }
 
 
 @pytest.fixture(scope="module")
@@ -379,8 +392,8 @@ def test_icechunk_input_provider_origin_property(
     assert isinstance(west, (int, float))
 
     # Expected NW corner: highest Y (North) and lowest X (West)
-    expected_north = coordinates["y_coords"].max()  # Highest Y coordinate
-    expected_west = coordinates["x_coords"].min()  # Lowest X coordinate
+    expected_north = coordinates["y_coords"].max() + 5  # Highest Y coordinate + half of resolution
+    expected_west = coordinates["x_coords"].min() - 5  # Lowest X coordinate
 
     assert north == expected_north
     assert west == expected_west

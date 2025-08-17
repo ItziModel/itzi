@@ -41,12 +41,7 @@ class GrassRasterInputProvider(RasterInputProvider):
         self.start_time = config["default_start_time"]
         self.end_time = config["default_end_time"]
         self.map_lists = self.get_map_lists(config["input_map_names"])
-
-    @property
-    def origin(self) -> Tuple[float, float]:
-        """Return the coordinates of the NW corner
-        as a tuple (N, W)"""
-        return self.grass_interface.origin
+        self.origin = self.get_origin()
 
     def get_domain_data(self) -> DomainData:
         """Return a DomainData object"""

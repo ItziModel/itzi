@@ -67,10 +67,30 @@ class IcechunkRasterInputProvider(RasterInputProvider):
         repo = icechunk.Repository.open(config["icechunk_storage"])
         session = repo.readonly_session(config["icechunk_group"])
         self.dataset = xr.open_zarr(session.store)
+        try:
+            self.crs_wkt = self.dataset.attrs["crs_wkt"]
+        except KeyError:
+            self.crs_wkt = ""
 
         if not self.is_dataset_sorted():
             raise ValueError("Coordinates must be sorted")
+        if not self.is_equal_spacing():
+            raise ValueError("Spatial coordinates must be equally spaced")
         self.temporal_type = self.detect_temporal_type()
+        self.origin = self.get_origin()
+
+    def is_equal_spacing(self) -> bool:
+        """
+        Check if spatial coordinates are equally spaced.
+        """
+        is_equal = []
+        for dim_name in [self.x_dim, self.y_dim]:
+            coord = self.dataset[dim_name]
+            diffs = np.diff(coord.values if hasattr(coord, "values") else coord)
+            if len(diffs) == 0:
+                return True, None
+            is_equal.append(np.allclose(diffs, diffs[0]))
+        return all(is_equal)
 
     def detect_temporal_type(self) -> str:
         """Detect if time coordinates are relative (timedelta) or absolute (datetime)."""
@@ -87,17 +107,34 @@ class IcechunkRasterInputProvider(RasterInputProvider):
             # No time dimension
             return TemporalType.ABSOLUTE
 
-    @property
-    def origin(self) -> Tuple[float, float]:
-        """Return the coordinates of the NW corner
-        as a tuple (N, W)"""
-        north = self.dataset[self.y_dim].values.max()
-        west = self.dataset[self.x_dim].values.min()
-        return north, west
-
     def get_domain_data(self) -> DomainData:
         """Return a DomainData object."""
-        pass
+        # Coordinates are at the center of the cells
+        y_coords = self.dataset[self.y_dim]
+        rows = len(y_coords)
+        northernmost_cell = y_coords.values.max()
+        southernmost_cell = y_coords.values.min()
+        nsres = (northernmost_cell - southernmost_cell) / (rows - 1)
+        north = northernmost_cell + nsres / 2
+        south = northernmost_cell - nsres / 2
+
+        x_coords = self.dataset[self.x_dim]
+        cols = len(x_coords)
+        easternmost_cell = x_coords.values.max()
+        westernmost_cell = x_coords.values.min()
+        ewres = (easternmost_cell - westernmost_cell) / (cols - 1)
+        east = easternmost_cell + ewres / 2
+        west = westernmost_cell - ewres / 2
+
+        return DomainData(
+            north=north,
+            south=south,
+            east=east,
+            west=west,
+            rows=rows,
+            cols=cols,
+            crs_wkt=self.crs_wkt,
+        )
 
     def is_dataset_sorted(self) -> bool:
         """Check if all coordinates are sorted"""

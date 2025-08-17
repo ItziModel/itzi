@@ -30,12 +30,11 @@ class RasterInputProvider(ABC):
     def __init__(self, config: Mapping) -> None:
         pass
 
-    @property
-    @abstractmethod
-    def origin(self) -> Tuple[float, float]:
+    def get_origin(self) -> Tuple[float, float]:
         """Return the coordinates of the NW corner
         as a tuple (N, W)"""
-        pass
+        domain_data = self.get_domain_data()
+        return (domain_data.north, domain_data.west)
 
     @abstractmethod
     def get_domain_data(self) -> "DomainData":
