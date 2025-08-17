@@ -89,3 +89,19 @@ class DomainData:
         y_coords = np.linspace(self.north - self.nsres / 2, self.south + self.nsres / 2, self.rows)
 
         return {"x": x_coords, "y": y_coords}
+
+    def __repr__(self):
+        return (
+            f"north={self.north}, "
+            f"south={self.south}. "
+            f"east={self.east}, "
+            f"west={self.west}, "
+            f"rows={self.rows}, "
+            f"cols={self.cols}, "
+            f"nsres={self.nsres}, "
+            f"ewres={self.ewres}, "
+            f"cell_area={self.cell_area}, "
+            f"cell_shape={self.cell_shape}, "
+            f"shape={self.shape}, "
+            f"cells={self.cells}, "
+        )
