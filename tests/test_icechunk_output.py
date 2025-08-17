@@ -1,5 +1,5 @@
 import tempfile
-from typing import Dict
+from typing import Dict, Mapping
 from datetime import datetime, timedelta
 
 import icechunk
@@ -46,25 +46,24 @@ def crs():
 
 
 @pytest.fixture(scope="module")
-def out_var_names(maps_dict: Dict):
-    """Output map names for the test arrays"""
-    return list(maps_dict.keys())
+def out_map_names(maps_dict: Dict):
+    """Output map names mapping for the test arrays"""
+    return {key: f"test_{key}" for key in maps_dict.keys()}
 
 
 @pytest.fixture
 def icechunk_provider(
-    temp_dir: tempfile.TemporaryDirectory, coordinates: Dict, crs: pyproj.CRS, out_var_names: list
+    temp_dir: tempfile.TemporaryDirectory, coordinates: Dict, crs: pyproj.CRS, out_map_names: list
 ):
     storage = icechunk.local_filesystem_storage(temp_dir.name)
     provider_config = {
-        "out_var_names": out_var_names,
+        "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
         "y_coords": coordinates["y_coords"],
         "icechunk_storage": storage,
     }
-    icechunk_p = IcechunkRasterOutputProvider()
-    icechunk_p.initialize(provider_config)
+    icechunk_p = IcechunkRasterOutputProvider(provider_config)
     return icechunk_p
 
 
@@ -160,10 +159,10 @@ def test_write_arrays_relative(
 def test_data_consistency(
     icechunk_provider: IcechunkRasterOutputProvider,
     temp_dir: tempfile.TemporaryDirectory,
-    maps_dict: Dict,
+    maps_dict: Mapping[str, np.ndarray],
     coordinates: Dict,
     crs: pyproj.CRS,
-    out_var_names: list,
+    out_map_names: Mapping[str, str],
 ):
     """Test that data values and coordinates are correctly
     preserved when reading from zarr with successive writes."""
@@ -194,9 +193,11 @@ def test_data_consistency(
     assert ds.sizes["time"] == 2
 
     # Assert that all expected data variables are present
-    expected_var_names = set(out_var_names)
+    expected_var_names = set(out_map_names.values())
     actual_var_names = set(ds.data_vars.keys())
-    assert expected_var_names.issubset(actual_var_names)
+    assert expected_var_names.issubset(actual_var_names), (
+        f"Expected {expected_var_names}, actual {actual_var_names}"
+    )
 
     # Assert that spatial coordinates are preserved
     assert "x" in ds.coords
@@ -213,17 +214,17 @@ def test_data_consistency(
     assert np.allclose(actual_y, expected_y)
 
     # Assert that data values are preserved for each variable at both timesteps
-    for zarr_var_name in out_var_names:
+    for internal_key, zarr_var_name in out_map_names.items():
         if zarr_var_name in ds.data_vars:
             # Check first timestep data
-            original_data_1 = maps_dict_1[zarr_var_name]
+            original_data_1 = maps_dict_1[internal_key]
             actual_data_1 = ds[zarr_var_name].isel(time=0).values
             assert np.allclose(actual_data_1, original_data_1), (
                 f"First timestep data mismatch for {zarr_var_name}"
             )
 
             # Check second timestep data
-            original_data_2 = maps_dict_2[zarr_var_name]
+            original_data_2 = maps_dict_2[internal_key]
             actual_data_2 = ds[zarr_var_name].isel(time=1).values
             assert np.allclose(actual_data_2, original_data_2), (
                 f"Second timestep data mismatch for {zarr_var_name}"
@@ -251,7 +252,7 @@ def test_non_matching_shape(
     maps_dict: Dict,
     coordinates: Dict,
     crs: pyproj.CRS,
-    out_var_names: list,
+    out_map_names: Mapping[str, str],
 ):
     """Test that writing arrays to an existing repository
     that does not match the new data fails."""
@@ -259,14 +260,13 @@ def test_non_matching_shape(
     # Create and write original arrays (6x9 from fixture)
     storage = icechunk.local_filesystem_storage(temp_dir.name)
     provider_config_1 = {
-        "out_var_names": out_var_names,
+        "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
         "y_coords": coordinates["y_coords"],
         "icechunk_storage": storage,
     }
-    icechunk_p1 = IcechunkRasterOutputProvider()
-    icechunk_p1.initialize(provider_config_1)
+    icechunk_p1 = IcechunkRasterOutputProvider(provider_config_1)
 
     # Write original data
     sim_time_1 = datetime(year=2023, month=1, day=1, hour=12)
@@ -282,7 +282,7 @@ def test_non_matching_shape(
 
     # Create new provider with different dimensions but same storage
     provider_config_2 = {
-        "out_var_names": out_var_names,
+        "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": new_coordinates["x_coords"],
         "y_coords": new_coordinates["y_coords"],
@@ -290,8 +290,7 @@ def test_non_matching_shape(
     }
     # Non-matching coordinates should raise ValueError
     with pytest.raises(ValueError):
-        icechunk_p2 = IcechunkRasterOutputProvider()
-        icechunk_p2.initialize(provider_config_2)
+        IcechunkRasterOutputProvider(provider_config_2)
 
 
 def test_non_matching_variable_names(
@@ -299,7 +298,7 @@ def test_non_matching_variable_names(
     maps_dict: Dict,
     coordinates: Dict,
     crs: pyproj.CRS,
-    out_var_names: list,
+    out_map_names: Mapping[str, str],
 ):
     """Test that writing arrays to an existing repository
     with different variable names fails."""
@@ -307,23 +306,22 @@ def test_non_matching_variable_names(
     # Create and write original arrays
     storage = icechunk.local_filesystem_storage(temp_dir.name)
     provider_config_1 = {
-        "out_var_names": out_var_names,
+        "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
         "y_coords": coordinates["y_coords"],
         "icechunk_storage": storage,
     }
-    icechunk_p1 = IcechunkRasterOutputProvider()
-    icechunk_p1.initialize(provider_config_1)
+    icechunk_p1 = IcechunkRasterOutputProvider(provider_config_1)
 
     # Write original data
     sim_time_1 = datetime(year=2023, month=1, day=1, hour=12)
     icechunk_p1.write_arrays(maps_dict, sim_time_1)
 
     # Create provider with different variable names
-    different_var_names = [name + "_different" for name in out_var_names]
+    different_map_names = {key: value + "_different" for key, value in out_map_names.items()}
     provider_config_2 = {
-        "out_var_names": different_var_names,
+        "out_map_names": different_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
         "y_coords": coordinates["y_coords"],
@@ -332,8 +330,7 @@ def test_non_matching_variable_names(
 
     # Non-matching variable names should raise ValueError
     with pytest.raises(ValueError):
-        icechunk_p2 = IcechunkRasterOutputProvider()
-        icechunk_p2.initialize(provider_config_2)
+        IcechunkRasterOutputProvider(provider_config_2)
 
 
 def test_non_matching_number_of_variables(
@@ -341,7 +338,7 @@ def test_non_matching_number_of_variables(
     maps_dict: Dict,
     coordinates: Dict,
     crs: pyproj.CRS,
-    out_var_names: list,
+    out_map_names: Mapping[str, str],
 ):
     """Test that writing arrays to an existing repository
     with different number of variables fails."""
@@ -349,23 +346,23 @@ def test_non_matching_number_of_variables(
     # Create and write original arrays
     storage = icechunk.local_filesystem_storage(temp_dir.name)
     provider_config_1 = {
-        "out_var_names": out_var_names,
+        "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
         "y_coords": coordinates["y_coords"],
         "icechunk_storage": storage,
     }
-    icechunk_p1 = IcechunkRasterOutputProvider()
-    icechunk_p1.initialize(provider_config_1)
+    icechunk_p1 = IcechunkRasterOutputProvider(provider_config_1)
 
     # Write original data
     sim_time_1 = datetime(year=2023, month=1, day=1, hour=12)
     icechunk_p1.write_arrays(maps_dict, sim_time_1)
 
     # Create provider with fewer variables
-    fewer_var_names = out_var_names[:-1]  # Remove last variable
+    fewer_map_names = dict(out_map_names.items())
+    del fewer_map_names["water_depth"]
     provider_config_2 = {
-        "out_var_names": fewer_var_names,
+        "out_map_names": fewer_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
         "y_coords": coordinates["y_coords"],
@@ -374,8 +371,7 @@ def test_non_matching_number_of_variables(
 
     # Different number of variables should raise ValueError
     with pytest.raises(ValueError):
-        icechunk_p2 = IcechunkRasterOutputProvider()
-        icechunk_p2.initialize(provider_config_2)
+        IcechunkRasterOutputProvider(provider_config_2)
 
 
 def test_non_matching_coordinates_same_dimensions(
@@ -383,7 +379,7 @@ def test_non_matching_coordinates_same_dimensions(
     maps_dict: Dict,
     coordinates: Dict,
     crs: pyproj.CRS,
-    out_var_names: list,
+    out_map_names: Mapping[str, str],
 ):
     """Test that writing arrays to an existing repository
     with same dimension names and sizes but different coordinate values fails."""
@@ -391,14 +387,13 @@ def test_non_matching_coordinates_same_dimensions(
     # Create and write original arrays
     storage = icechunk.local_filesystem_storage(temp_dir.name)
     provider_config_1 = {
-        "out_var_names": out_var_names,
+        "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
         "y_coords": coordinates["y_coords"],
         "icechunk_storage": storage,
     }
-    icechunk_p1 = IcechunkRasterOutputProvider()
-    icechunk_p1.initialize(provider_config_1)
+    icechunk_p1 = IcechunkRasterOutputProvider(provider_config_1)
 
     # Write original data
     sim_time_1 = datetime(year=2023, month=1, day=1, hour=12)
@@ -410,7 +405,7 @@ def test_non_matching_coordinates_same_dimensions(
     different_x_coords = np.linspace(start=9999, stop=9999 + arr_shape[1], num=arr_shape[1])
 
     provider_config_2 = {
-        "out_var_names": out_var_names,
+        "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": different_x_coords,  # Same shape, different values
         "y_coords": different_y_coords,  # Same shape, different values
@@ -419,8 +414,7 @@ def test_non_matching_coordinates_same_dimensions(
 
     # Non-matching coordinate values should raise ValueError
     with pytest.raises(ValueError):
-        icechunk_p2 = IcechunkRasterOutputProvider()
-        icechunk_p2.initialize(provider_config_2)
+        IcechunkRasterOutputProvider(provider_config_2)
 
 
 def test_non_matching_crs(
@@ -428,7 +422,7 @@ def test_non_matching_crs(
     maps_dict: Dict,
     coordinates: Dict,
     crs: pyproj.CRS,
-    out_var_names: list,
+    out_map_names: Mapping[str, str],
 ):
     """Test that writing arrays to an existing repository
     with different CRS fails."""
@@ -436,14 +430,13 @@ def test_non_matching_crs(
     # Create and write original arrays
     storage = icechunk.local_filesystem_storage(temp_dir.name)
     provider_config_1 = {
-        "out_var_names": out_var_names,
+        "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
         "y_coords": coordinates["y_coords"],
         "icechunk_storage": storage,
     }
-    icechunk_p1 = IcechunkRasterOutputProvider()
-    icechunk_p1.initialize(provider_config_1)
+    icechunk_p1 = IcechunkRasterOutputProvider(provider_config_1)
 
     # Write original data
     sim_time_1 = datetime(year=2023, month=1, day=1, hour=12)
@@ -452,7 +445,7 @@ def test_non_matching_crs(
     # Create provider with different CRS
     different_crs = pyproj.CRS.from_epsg(4326)  # WGS84, different from Mexico LCC
     provider_config_2 = {
-        "out_var_names": out_var_names,
+        "out_map_names": out_map_names,
         "crs": different_crs,  # Different CRS
         "x_coords": coordinates["x_coords"],
         "y_coords": coordinates["y_coords"],
@@ -461,8 +454,7 @@ def test_non_matching_crs(
 
     # Non-matching CRS should raise ValueError
     with pytest.raises(ValueError):
-        icechunk_p2 = IcechunkRasterOutputProvider()
-        icechunk_p2.initialize(provider_config_2)
+        IcechunkRasterOutputProvider(provider_config_2)
 
 
 def test_multi_session_data_persistence(
@@ -470,7 +462,7 @@ def test_multi_session_data_persistence(
     maps_dict: Dict,
     coordinates: Dict,
     crs: pyproj.CRS,
-    out_var_names: list,
+    out_map_names: Mapping[str, str],
 ):
     """Test that writing data with a new provider instance does not overwrite
     data written with a previous provider session."""
@@ -487,14 +479,13 @@ def test_multi_session_data_persistence(
     # Session 1: Create first provider and write initial data
     storage = icechunk.local_filesystem_storage(temp_dir.name)
     provider_config_1 = {
-        "out_var_names": out_var_names,
+        "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
         "y_coords": coordinates["y_coords"],
         "icechunk_storage": storage,
     }
-    icechunk_p1 = IcechunkRasterOutputProvider()
-    icechunk_p1.initialize(provider_config_1)
+    icechunk_p1 = IcechunkRasterOutputProvider(provider_config_1)
 
     # Write data from session 1
     sim_time_1 = datetime(year=2023, month=1, day=1, hour=10)
@@ -504,14 +495,13 @@ def test_multi_session_data_persistence(
 
     # Session 2: Create new provider instance with same storage and compatible config
     provider_config_2 = {
-        "out_var_names": out_var_names,
+        "out_map_names": out_map_names,
         "crs": crs,
         "x_coords": coordinates["x_coords"],
         "y_coords": coordinates["y_coords"],
         "icechunk_storage": storage,  # Same storage as session 1
     }
-    icechunk_p2 = IcechunkRasterOutputProvider()
-    icechunk_p2.initialize(provider_config_2)
+    icechunk_p2 = IcechunkRasterOutputProvider(provider_config_2)
 
     # Write new data from session 2
     sim_time_3 = datetime(year=2023, month=1, day=1, hour=12)
@@ -528,7 +518,7 @@ def test_multi_session_data_persistence(
     assert ds.sizes["time"] == 4, f"Expected 4 timesteps, got {ds.sizes['time']}"
 
     # Assert that all expected data variables are present
-    expected_var_names = set(out_var_names)
+    expected_var_names = set(out_map_names.values())
     actual_var_names = set(ds.data_vars.keys())
     assert expected_var_names.issubset(actual_var_names)
 
@@ -540,10 +530,10 @@ def test_multi_session_data_persistence(
         assert actual == expected, f"Expected {expected}, got {actual}"
 
     # Assert that data values are preserved for each variable at all timesteps
-    for zarr_var_name in out_var_names:
+    for internal_key, zarr_var_name in out_map_names.items():
         if zarr_var_name in ds.data_vars:
             # Check session 1 data (timesteps 0 and 1)
-            original_data_session1 = maps_dict_session1[zarr_var_name]
+            original_data_session1 = maps_dict_session1[internal_key]
             actual_data_t0 = ds[zarr_var_name].isel(time=0).values
             actual_data_t1 = ds[zarr_var_name].isel(time=1).values
             assert np.allclose(actual_data_t0, original_data_session1), (
@@ -553,7 +543,7 @@ def test_multi_session_data_persistence(
                 f"Session 1 timestep 1 data mismatch for {zarr_var_name}"
             )
             # Check session 2 data (timesteps 2 and 3)
-            original_data_session2 = maps_dict_session2[zarr_var_name]
+            original_data_session2 = maps_dict_session2[internal_key]
             actual_data_t2 = ds[zarr_var_name].isel(time=2).values
             actual_data_t3 = ds[zarr_var_name].isel(time=3).values
             assert np.allclose(actual_data_t2, original_data_session2), (
@@ -597,7 +587,7 @@ def test_finalize_max_values(
     maps_dict: Dict,
     coordinates: Dict,
     crs: pyproj.CRS,
-    out_var_names: list,
+    out_map_names: Mapping[str, str],
 ):
     """Test that finalize() method properly writes max values arrays
     and does not affect existing data."""
@@ -647,10 +637,10 @@ def test_finalize_max_values(
     assert ds.sizes["time"] == 2
 
     # Verify that original data is still intact
-    for var_name in out_var_names:
+    for internal_key, var_name in out_map_names.items():
         if var_name in ds.data_vars:
             # Check first timestep data (should be unchanged)
-            original_data = maps_dict[var_name]
+            original_data = maps_dict[internal_key]
             actual_data_t0 = ds[var_name].isel(time=0).values
             actual_data_t1 = ds[var_name].isel(time=1).values
             assert np.allclose(actual_data_t0, original_data), (
@@ -662,10 +652,12 @@ def test_finalize_max_values(
 
     # Verify that max values are correctly written
     # Check for hmax
-    if "water_depth" in icechunk_provider.out_var_names:
-        assert "hmax" in ds.data_vars, "hmax should be present in dataset"
+    if "water_depth" in icechunk_provider.out_map_names:
+        assert "test_water_depth_max" in ds.data_vars, (
+            "test_water_depth_max should be present in dataset"
+        )
         expected_max_data = max_arrays["hmax"]
-        actual_max_data = ds["hmax"].values
+        actual_max_data = ds["test_water_depth_max"].values
         assert np.allclose(actual_max_data, expected_max_data), (
             "hmax data does not match expected values"
         )
@@ -680,10 +672,10 @@ def test_finalize_max_values(
             )
 
     # Check for vmax
-    if "v" in icechunk_provider.out_var_names:
-        assert "vmax" in ds.data_vars, "v_vmaxmax should be present in dataset"
+    if "v" in icechunk_provider.out_map_names:
+        assert "test_v_max" in ds.data_vars, "test_v_max should be present in dataset"
         expected_max_data = max_arrays["vmax"]
-        actual_max_data = ds["vmax"].values
+        actual_max_data = ds["test_v_max"].values
         assert np.allclose(actual_max_data, expected_max_data), (
             "vmax data does not match expected values"
         )

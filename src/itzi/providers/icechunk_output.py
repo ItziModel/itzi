@@ -13,7 +13,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-from typing import Dict, TypedDict, TYPE_CHECKING
+from typing import Dict, Mapping, TypedDict, TYPE_CHECKING
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 class IcechunkRasterOutputConfig(TypedDict):
     # A list of var names to be written
-    out_var_names: list[str]
+    out_map_names: Mapping[str, str]
     crs: pyproj.CRS
     x_coords: np.ndarray
     y_coords: np.ndarray
@@ -52,7 +52,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
 
     def __init__(self, config: IcechunkRasterOutputConfig) -> None:
         """Create a repo in case it does not exists already"""
-        self.out_var_names = config["out_var_names"]
+        self.out_map_names = config["out_map_names"]
         self.crs = config["crs"]
         self.x_coords = config["x_coords"]
         self.y_coords = config["y_coords"]
@@ -74,7 +74,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
         self.cf_names = {arr_def.key: arr_def.cf_name for arr_def in ARRAY_DEFINITIONS}
         self.descriptions = {arr_def.key: arr_def.description for arr_def in ARRAY_DEFINITIONS}
 
-    def _get_spatial_coordinates(self) -> list[tuple[str, np.ndarray, Dict]]:
+    def _get_spatial_coordinates(self) -> list[tuple[str, np.ndarray, Dict[str, str]]]:
         # Assume both axis have the same unit
         unit_name = self.crs.axis_info[0].unit_name
         y_attrs = {
@@ -152,7 +152,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
         # This implies coherence in variables names and dims
         if existing_crs == self.crs:
             crs_match = True
-        new_num_vars = len(self.out_var_names)
+        new_num_vars = len(self.out_map_names)
         vars_match_dict = {}
         for existing_var_name in existing_vars:
             existing_var = existing_ds[existing_var_name]
@@ -172,7 +172,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
                     vars_match_dict[existing_var_name] = False
             except ValueError:
                 vars_match_dict[existing_var_name] = False
-            if existing_var_name not in self.out_var_names:
+            if existing_var_name not in self.out_map_names.values():
                 vars_match_dict[existing_var_name] = False
 
         if all(list(vars_match_dict.values())) and existing_num_vars == new_num_vars:
@@ -188,23 +188,27 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
                 f"New CRS: {self.crs.to_epsg()}, "
                 f"Existing numbers of variables in the store: {existing_num_vars}, "
                 f"Numbers of variables to be written: {new_num_vars}, "
-                f"Matching variables coordinates: {vars_match_dict}. "
+                f"Matching variables coordinates: {vars_match_dict}, "
+                f"Existing vars: {[v for v in existing_vars]}, "
+                f"New vars: {list(self.out_map_names.values())}."
             )
 
     def write_arrays(
-        self, array_dict: Dict[str, np.ndarray], sim_time: datetime | timedelta
+        self, array_dict: Mapping[str, np.ndarray], sim_time: datetime | timedelta
     ) -> None:
         """Write results to an icechunk repository"""
         vars_to_write = list(array_dict.keys())
-        if not set(self.out_var_names) == set(vars_to_write):
+        expected_map_keys = set(self.out_map_names.keys())
+        if not expected_map_keys == set(vars_to_write):
             raise ValueError(
                 "Variables names do not match: "
-                f"Expected: {self.out_var_names}, "
+                f"Expected: {expected_map_keys}, "
                 f"Received: {vars_to_write}"
             )
         # prepare the data
         dataset = self.get_dataset_from_dict(array_dict, sim_time)
-        time_encoding = dataset[vars_to_write[0]].encoding["time"]
+        first_var_name = next(iter(self.out_map_names.values()))
+        time_encoding = dataset[first_var_name].encoding["time"]
         sim_time_np = dataset["time"][0]  # the time dimension has only one value
         # Commit to the repo
         commit_message = f"itzi results for simulation time {sim_time}"
@@ -222,8 +226,8 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
     def write_maxs(self, array_dict):
         max_list = ["hmax", "vmax"]
         vars_to_write = list(array_dict.keys())
-        write_maxs = set(max_list) == set(vars_to_write)
-        if not write_maxs:
+        is_write_maxs = set(max_list) == set(vars_to_write)
+        if not is_write_maxs:
             raise ValueError(
                 f"Variables names do not match: Expected: {max_list}, Received: {vars_to_write}"
             )
@@ -260,6 +264,11 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
             coordinates = self.spatial_coordinates
 
         for key, arr in array_dict.items():
+            if key in ["hmax", "vmax"]:
+                max_mapping = {"hmax": "water_depth", "vmax": "v"}
+                var_name = f"{self.out_map_names[max_mapping[key]]}_max"
+            else:
+                var_name = self.out_map_names[key]
             coords_shape = (len(self.y_coords), len(self.x_coords))
             if arr.shape != coords_shape:
                 raise ValueError(
@@ -277,13 +286,13 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
             data_array = xr.DataArray(
                 data=arr,
                 coords=coordinates,
-                name=key,
+                name=var_name,  # Write the requested name
                 attrs=var_attributes,
             )
             if sim_time:
                 assert data_array["time"].dtype == time_dtype
                 data_array.encoding["time"] = time_encoding
-            data_vars[key] = data_array
+            data_vars[var_name] = data_array
         dataset_attributes = {
             "crs_wkt": self.crs.to_wkt(),
         }
@@ -317,8 +326,8 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
     def finalize(self, final_data: "SimulationData") -> None:
         """Write max values."""
         arr_dict = {}
-        if "water_depth" in self.out_var_names:
+        if self.out_map_names["water_depth"]:
             arr_dict["hmax"] = final_data.raw_arrays["hmax"]
-        if "v" in self.out_var_names:
+        if self.out_map_names["v"]:
             arr_dict["vmax"] = final_data.raw_arrays["vmax"]
         self.write_maxs(arr_dict)
