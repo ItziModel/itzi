@@ -212,7 +212,6 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
         dataset = self.get_dataset_from_dict(array_dict, sim_time)
         first_var_name = next(iter(self.out_map_names.values()))
         time_encoding = dataset[first_var_name].encoding["time"]
-        sim_time_np = dataset["time"][0]  # the time dimension has only one value
         # Commit to the repo
         commit_message = f"itzi results for simulation time {sim_time}"
         icechunk_session = self.repo.writable_session("main")
@@ -222,9 +221,8 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
             )
             self.append_mode = True  # Now there is data
         else:
-            # icechunk.xarray.to_icechunk(dataset, icechunk_session, append_dim="time")
-            # Use zarr directly to append data while preserving time encoding
-            self._append_to_zarr_store(icechunk_session.store, dataset, sim_time_np)
+            # Use zarr append to preserve time encoding
+            self._zarr_append(icechunk_session.store, dataset)
         icechunk_session.commit(commit_message)
 
     def write_maxs(self, array_dict):
@@ -258,7 +256,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
                 raise ValueError(f"Unknown temporal type: {type(sim_time)}")
 
             time_coordinate = np.array([sim_time_np], dtype=time_dtype)
-            # assert time_coordinate.dtype == time_dtype
+            # Don't put any encoding-related attrs since they conflict with encoding
             time_attrs = {}
             time_encoding = {
                 "units": time_unit,
@@ -302,32 +300,34 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
             "crs_wkt": self.crs.to_wkt(),
             "source": f"itzi version {version('itzi')},",
         }
-        return xr.Dataset(data_vars, attrs=dataset_attributes)
+        dataset = xr.Dataset(data_vars, attrs=dataset_attributes)
 
-    def _append_to_zarr_store(
-        self, store, dataset: xr.Dataset, sim_time_np: np.datetime64 | np.timedelta64
-    ) -> None:
-        """Append data to zarr store using zarr directly to preserve time encoding."""
+        # Set encoding on the time coordinate of the dataset itself
+        if sim_time:
+            dataset["time"].encoding.update(time_encoding)
+
+        return dataset
+
+    def _zarr_append(self, store, dataset: xr.Dataset) -> None:
+        """Optimized zarr append using direct indexing instead of concatenation."""
         # Open the zarr group
         z_group = zarr.open_group(store, mode="r+")
 
-        # Get current time array and append new time
-        current_time = z_group["time"][:]
-        new_time_array = np.append(current_time, sim_time_np)
+        # Get the new time value
+        new_time = dataset["time"].values[0]
 
-        # Resize and update time coordinate
-        z_group["time"].resize(len(new_time_array))
-        z_group["time"][:] = new_time_array
+        # Append time coordinate
+        current_time_size = z_group["time"].shape[0]
+        z_group["time"].resize(current_time_size + 1)
+        z_group["time"][current_time_size] = new_time
 
         # Append data for each variable
         for var_name, data_array in dataset.data_vars.items():
-            current_data = z_group[var_name][:]
-            new_data = data_array.values
-            # Concatenate along time dimension (axis 0)
-            combined_data = np.concatenate([current_data, new_data], axis=0)
-            # Resize and update the variable
-            z_group[var_name].resize(combined_data.shape)
-            z_group[var_name][:] = combined_data
+            current_shape = z_group[var_name].shape
+            new_shape = (current_shape[0] + 1,) + current_shape[1:]
+            z_group[var_name].resize(new_shape)
+            # Use direct assignment
+            z_group[var_name][current_shape[0]] = data_array.values[0]
 
     def finalize(self, final_data: "SimulationData") -> None:
         """Write max values."""
