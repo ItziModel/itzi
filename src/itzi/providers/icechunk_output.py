@@ -224,12 +224,13 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
         icechunk_session.commit(commit_message)
 
     def write_maxs(self, array_dict):
-        max_list = ["hmax", "vmax"]
+        # Validate that all provided variables are valid max variables
+        valid_max_vars = ["hmax", "vmax"]
         vars_to_write = list(array_dict.keys())
-        is_write_maxs = set(max_list) == set(vars_to_write)
-        if not is_write_maxs:
+        invalid_vars = [var for var in vars_to_write if var not in valid_max_vars]
+        if invalid_vars:
             raise ValueError(
-                f"Variables names do not match: Expected: {max_list}, Received: {vars_to_write}"
+                f"Invalid max variables: {invalid_vars}. Valid options: {valid_max_vars}"
             )
         dataset = self.get_dataset_from_dict(array_dict)
         # Commit to the repo
@@ -326,8 +327,11 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
     def finalize(self, final_data: "SimulationData") -> None:
         """Write max values."""
         arr_dict = {}
-        if self.out_map_names["water_depth"]:
+        # Only process arrays that are actually configured for output
+        if self.out_map_names.get("water_depth"):
             arr_dict["hmax"] = final_data.raw_arrays["hmax"]
-        if self.out_map_names["v"]:
+        if self.out_map_names.get("v"):
             arr_dict["vmax"] = final_data.raw_arrays["vmax"]
-        self.write_maxs(arr_dict)
+        # Only write max values if there are arrays to write
+        if arr_dict:
+            self.write_maxs(arr_dict)
