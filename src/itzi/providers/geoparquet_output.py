@@ -64,10 +64,14 @@ class ParquetVectorOutputProvider(VectorOutputProvider):
         """Create a geodataframe from multiple drainage nodes"""
         features = []
         for node in nodes:
+            if node.coordinates:
+                geometry = {"type": "Point", "coordinates": node.coordinates}
+            else:
+                geometry = {}
             feature = {
                 "type": "Point",
                 "properties": asdict(node.attributes),
-                "geometry": {"type": "Point", "coordinates": node.coordinates},
+                "geometry": geometry,
             }
             features.append(feature)
         return geopandas.GeoDataFrame.from_features(features, crs=self.crs)
@@ -76,10 +80,20 @@ class ParquetVectorOutputProvider(VectorOutputProvider):
         """Create a geodataframe from multiple drainage links"""
         features = []
         for link in links:
+            # Filter out None coordinates (nodes outside domain)
+            if not link.vertices:
+                valid_vertices = []
+            else:
+                valid_vertices = [v for v in link.vertices if v is not None]
+            # Skip links that don't have at least 2 valid vertices
+            if len(valid_vertices) < 2:
+                geometry = {}
+            else:
+                geometry = {"type": "LineString", "coordinates": valid_vertices}
             feature = {
                 "type": "LineString",
                 "properties": asdict(link.attributes),
-                "geometry": {"type": "LineString", "coordinates": link.vertices},
+                "geometry": geometry,
             }
             features.append(feature)
         return geopandas.GeoDataFrame.from_features(features, crs=self.crs)

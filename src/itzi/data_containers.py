@@ -69,7 +69,7 @@ class DrainageLinkAttributes(DrainageAttributes):
 class DrainageLinkData:
     """Store the instantaneous state of a node during a drainage simulation"""
 
-    vertices: Tuple[Tuple[float, float], ...]
+    vertices: None | Tuple[Tuple[float, float], ...]
     attributes: DrainageLinkAttributes
 
 
@@ -102,7 +102,7 @@ class DrainageNodeAttributes(DrainageAttributes):
 class DrainageNodeData:
     """Store the instantaneous state of a node during a drainage simulation"""
 
-    coordinates: Tuple[float, float]
+    coordinates: None | Tuple[float, float]
     attributes: DrainageNodeAttributes
 
 

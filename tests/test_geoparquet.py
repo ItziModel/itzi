@@ -141,6 +141,79 @@ def create_dummy_drainage_network():
     return drainage_network
 
 
+def create_dummy_drainage_network_no_geometry():
+    """Create a dummy DrainageNetwork object with nodes and links without coordinates/vertices."""
+
+    # Create 2 drainage nodes without coordinates
+    node1_attributes = DrainageNodeAttributes(
+        node_id="N1_no_coords",
+        node_type="junction",
+        coupling_type=CouplingTypes.ORIFICE,
+        coupling_flow=0.5,
+        inflow=1.0,
+        outflow=0.8,
+        lateral_inflow=0.2,
+        losses=0.1,
+        overflow=0.0,
+        depth=1.5,
+        head=101.5,
+        crest_elevation=100.0,
+        invert_elevation=98.0,
+        initial_depth=0.5,
+        full_depth=2.0,
+        surcharge_depth=0.5,
+        ponding_area=10.0,
+        volume=15.0,
+        full_volume=20.0,
+    )
+
+    node2_attributes = DrainageNodeAttributes(
+        node_id="N2_no_coords",
+        node_type="outfall",
+        coupling_type=CouplingTypes.NOT_COUPLED,
+        coupling_flow=0.0,
+        inflow=0.6,
+        outflow=0.6,
+        lateral_inflow=0.0,
+        losses=0.0,
+        overflow=0.0,
+        depth=0.8,
+        head=96.8,
+        crest_elevation=96.0,
+        invert_elevation=94.0,
+        initial_depth=0.2,
+        full_depth=1.5,
+        surcharge_depth=0.3,
+        ponding_area=5.0,
+        volume=4.0,
+        full_volume=7.5,
+    )
+
+    # Create node data objects without coordinates
+    node1 = DrainageNodeData(coordinates=None, attributes=node1_attributes)
+    node2 = DrainageNodeData(coordinates=None, attributes=node2_attributes)
+
+    # Create drainage link without vertices
+    link1_attributes = DrainageLinkAttributes(
+        link_id="L1_no_vertices",
+        link_type="conduit",
+        flow=0.8,
+        depth=0.6,
+        volume=12.0,
+        inlet_offset=0.0,
+        outlet_offset=0.0,
+        froude=0.4,
+    )
+
+    # Create link data object without vertices
+    link1 = DrainageLinkData(vertices=None, attributes=link1_attributes)
+
+    # Create the drainage network
+    drainage_network = DrainageNetworkData(nodes=(node1, node2), links=(link1,))
+
+    return drainage_network
+
+
 @pytest.fixture(scope="module")
 def sim_time():
     return datetime(year=2020, month=3, day=23, hour=10)
@@ -151,13 +224,12 @@ def write_geoparquet(temp_dir, sim_time):
     """Write geoparquet files using dummy network data."""
     drainage_network = create_dummy_drainage_network()
 
-    parquet_provider = ParquetVectorOutputProvider()
     provider_config = {
         "crs": pyproj.CRS.from_epsg(6372),
         "output_dir": temp_dir.name,
         "drainage_map_name": "test_drainage",
     }
-    parquet_provider.initialize(provider_config)
+    parquet_provider = ParquetVectorOutputProvider(provider_config)
     parquet_provider.write_vector(drainage_network, sim_time)
 
 
@@ -251,3 +323,92 @@ def test_nodes(temp_dir, sim_time):
     # Check specific node values
     node_ids = nodes_gdf["node_id"].tolist()
     assert set(node_ids) == {"N1", "N2", "N3"}, f"Node IDs mismatch: {node_ids}"
+
+
+@pytest.fixture(scope="module")
+def write_geoparquet_no_geometry(temp_dir, sim_time):
+    """Write geoparquet files using dummy network data without geometry."""
+    drainage_network = create_dummy_drainage_network_no_geometry()
+
+    provider_config = {
+        "crs": pyproj.CRS.from_epsg(6372),
+        "output_dir": temp_dir.name,
+        "drainage_map_name": "test_drainage_no_geom",
+    }
+    parquet_provider = ParquetVectorOutputProvider(provider_config)
+    parquet_provider.write_vector(drainage_network, sim_time)
+
+
+@pytest.mark.usefixtures("write_geoparquet_no_geometry")
+def test_nodes_without_coordinates(temp_dir, sim_time):
+    """Verify parquet output for nodes without coordinates."""
+
+    # Verify the file was created
+    output_dir = Path(temp_dir.name)
+    nodes_file = output_dir / f"test_drainage_no_geom_nodes_{sim_time}.parquet"
+
+    assert nodes_file.exists(), f"Nodes file not created: {nodes_file}"
+
+    # Read the parquet file with geopandas
+    nodes_gdf = gpd.read_parquet(nodes_file)
+
+    # Verify nodes data
+    assert len(nodes_gdf) == 2, f"Expected 2 nodes, got {len(nodes_gdf)}"
+    assert nodes_gdf.crs == pyproj.CRS.from_epsg(6372), f"CRS mismatch for nodes: {nodes_gdf.crs}"
+
+    # Check that geometries are None/empty for nodes without coordinates
+    assert all(geom is None or geom.is_empty for geom in nodes_gdf.geometry), (
+        "Expected all node geometries to be None or empty"
+    )
+
+    # Check all node attribute fields are present
+    expected_node_fields = [field.name for field in fields(DrainageNodeAttributes)]
+    for field in expected_node_fields:
+        assert field in nodes_gdf.columns, f"Missing node field: {field}"
+
+    # Check specific node values
+    node_ids = nodes_gdf["node_id"].tolist()
+    assert set(node_ids) == {"N1_no_coords", "N2_no_coords"}, f"Node IDs mismatch: {node_ids}"
+
+    # Verify specific attribute values for nodes
+    n1_row = nodes_gdf[nodes_gdf["node_id"] == "N1_no_coords"].iloc[0]
+    assert n1_row["node_type"] == "junction", f"N1 node_type mismatch: {n1_row['node_type']}"
+    assert n1_row["coupling_flow"] == 0.5, f"N1 coupling_flow mismatch: {n1_row['coupling_flow']}"
+    assert n1_row["depth"] == 1.5, f"N1 depth mismatch: {n1_row['depth']}"
+
+
+@pytest.mark.usefixtures("write_geoparquet_no_geometry")
+def test_links_without_vertices(temp_dir, sim_time):
+    """Verify parquet output for links without vertices."""
+
+    # Verify the file was created
+    output_dir = Path(temp_dir.name)
+    links_file = output_dir / f"test_drainage_no_geom_links_{sim_time}.parquet"
+
+    assert links_file.exists(), f"Links file not created: {links_file}"
+
+    # Verify links data
+    links_gdf = gpd.read_parquet(links_file)
+
+    assert len(links_gdf) == 1, f"Expected 1 link, got {len(links_gdf)}"
+    assert links_gdf.crs == pyproj.CRS.from_epsg(6372), f"CRS mismatch for links: {links_gdf.crs}"
+
+    # Check that geometries are None/empty for links without vertices
+    assert all(geom is None or geom.is_empty for geom in links_gdf.geometry), (
+        "Expected all link geometries to be None or empty"
+    )
+
+    # Check all link attribute fields are present
+    expected_link_fields = [field.name for field in fields(DrainageLinkAttributes)]
+    for field in expected_link_fields:
+        assert field in links_gdf.columns, f"Missing link field: {field}"
+
+    # Check specific link values
+    link_ids = links_gdf["link_id"].tolist()
+    assert set(link_ids) == {"L1_no_vertices"}, f"Link IDs mismatch: {link_ids}"
+
+    # Verify specific attribute values for links
+    l1_row = links_gdf[links_gdf["link_id"] == "L1_no_vertices"].iloc[0]
+    assert l1_row["link_type"] == "conduit", f"L1 link_type mismatch: {l1_row['link_type']}"
+    assert l1_row["flow"] == 0.8, f"L1 flow mismatch: {l1_row['flow']}"
+    assert l1_row["depth"] == 0.6, f"L1 depth mismatch: {l1_row['depth']}"
