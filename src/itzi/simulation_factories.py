@@ -14,6 +14,7 @@ GNU General Public License for more details.
 """
 
 from typing import Dict, TYPE_CHECKING, Optional, Tuple
+from pathlib import Path
 
 import numpy as np
 from numpy.typing import ArrayLike, DTypeLike
@@ -350,9 +351,10 @@ def create_memory_simulation(
 def create_icechunk_simulation(
     sim_config: "SimulationConfig",
     arr_mask: ArrayLike,
-    icechunk_storage: "icechunk.Storage",
-    icechunk_group: str = "main",
-    output_dir: str = ".",
+    input_icechunk_storage: "icechunk.Storage",
+    output_icechunk_storage: "icechunk.Storage",
+    input_icechunk_group: str = "main",
+    output_dir: Path = Path("."),
     dtype: DTypeLike = np.float32,
 ) -> tuple[Simulation, Dict[str, rasterdomain.TimedArray]]:
     """A factory function that returns a Simulation object with Icechunk raster backend and Parquet vector backend."""
@@ -374,8 +376,8 @@ def create_icechunk_simulation(
 
     # Set up raster input provider
     raster_input_provider_config: IcechunkRasterInputConfig = {
-        "icechunk_storage": icechunk_storage,
-        "icechunk_group": icechunk_group,
+        "icechunk_storage": input_icechunk_storage,
+        "icechunk_group": input_icechunk_group,
         "input_map_names": sim_config.input_map_names,
         "simulation_start_time": sim_config.start_time,
         "simulation_end_time": sim_config.end_time,
@@ -431,17 +433,19 @@ def create_icechunk_simulation(
 
     # Set up raster output provider
     # Generate coordinate arrays from domain_data
-    x_coords, y_coords = domain_data.get_coordinates()
+    coords = domain_data.get_coordinates()
+    x_coords = coords["x"]
+    y_coords = coords["y"]
 
     crs = pyproj.CRS.from_wkt(domain_data.crs_wkt)
 
     raster_output_provider = IcechunkRasterOutputProvider(
         {
-            "out_var_names": sim_config.output_map_names,
+            "out_map_names": sim_config.output_map_names,
             "crs": crs,
             "x_coords": x_coords,
             "y_coords": y_coords,
-            "icechunk_storage": icechunk_storage,
+            "icechunk_storage": output_icechunk_storage,
         }
     )
 
