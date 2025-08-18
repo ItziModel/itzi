@@ -15,6 +15,7 @@ GNU General Public License for more details.
 
 from typing import Dict, Mapping, TypedDict, TYPE_CHECKING
 from datetime import datetime, timedelta
+from importlib.metadata import version
 
 import numpy as np
 
@@ -66,9 +67,11 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
             else:
                 raise
         self.spatial_coordinates = self._get_spatial_coordinates()
+        self.append_mode = False
         # Make sure new data matches existing one
         if self.has_existing_data():
             self.check_repo_match()
+            self.append_mode = True
 
         self.cf_units = {arr_def.key: arr_def.cf_unit for arr_def in ARRAY_DEFINITIONS}
         self.cf_names = {arr_def.key: arr_def.cf_name for arr_def in ARRAY_DEFINITIONS}
@@ -213,12 +216,13 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
         # Commit to the repo
         commit_message = f"itzi results for simulation time {sim_time}"
         icechunk_session = self.repo.writable_session("main")
-        if not self.has_existing_data():
+        if not self.append_mode:
             icechunk.xarray.to_icechunk(
                 dataset, icechunk_session, mode="w-", encoding={"time": time_encoding}
             )
+            self.append_mode = True  # Now there is data
         else:
-            # icechunk.xarray.to_icechunk(dataset, icechunk_session, mode="a-", append_dim="time")
+            # icechunk.xarray.to_icechunk(dataset, icechunk_session, append_dim="time")
             # Use zarr directly to append data while preserving time encoding
             self._append_to_zarr_store(icechunk_session.store, dataset, sim_time_np)
         icechunk_session.commit(commit_message)
@@ -296,6 +300,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
             data_vars[var_name] = data_array
         dataset_attributes = {
             "crs_wkt": self.crs.to_wkt(),
+            "source": f"itzi version {version('itzi')},",
         }
         return xr.Dataset(data_vars, attrs=dataset_attributes)
 
