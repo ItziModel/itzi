@@ -116,7 +116,7 @@ class IcechunkRasterInputProvider(RasterInputProvider):
         southernmost_cell = y_coords.values.min()
         nsres = (northernmost_cell - southernmost_cell) / (rows - 1)
         north = northernmost_cell + nsres / 2
-        south = northernmost_cell - nsres / 2
+        south = southernmost_cell - nsres / 2
 
         x_coords = self.dataset[self.x_dim]
         cols = len(x_coords)
