@@ -23,8 +23,6 @@ import icechunk.xarray
 from itzi.profiler import profile_context
 from itzi.simulation_factories import create_icechunk_simulation
 
-pytestmark = pytest.mark.skip(reason="Test need work")
-
 
 TEST8B_URL = "https://zenodo.org/api/records/15256842/files/Test8B_dataset_2010.zip/content"
 TEST8B_MD5 = "84b865cedd28f8156cfe70b84004b62c"
@@ -198,7 +196,8 @@ def ea_test8b_sim_icechunk(ea_test8b_icechunk_data, test_data_path, test_data_te
     profile_path = Path(test_data_temp_path) / Path("test8b_icechunk_profile.txt")
 
     # Create mask array (no mask for this test)
-    arr_mask = np.ones(
+    # False = valid cells, True = masked cells
+    arr_mask = np.zeros(
         (ea_test8b_icechunk_data["rows"], ea_test8b_icechunk_data["cols"]), dtype=bool
     )
 
@@ -222,6 +221,7 @@ def ea_test8b_sim_icechunk(ea_test8b_icechunk_data, test_data_path, test_data_te
         swmm_inp=inp_file,
         stats_file="ea8b_icechunk.csv",
         surface_flow_parameters=surface_flow_params,
+        orifice_coeff=1.0,  # Match reference
     )
 
     # Use the icechunk simulation factory
@@ -233,6 +233,12 @@ def ea_test8b_sim_icechunk(ea_test8b_icechunk_data, test_data_path, test_data_te
         input_icechunk_group="main",
         output_dir=str(output_dir),
     )
+
+    # Set arrays
+    for arr_key in ["dem", "friction"]:
+        if arr_key in timed_arrays:
+            initial_array = timed_arrays[arr_key].get(sim_config.start_time)
+            simulation.set_array(arr_key, initial_array)
 
     # Run the simulation
     with profile_context(profile_path):
