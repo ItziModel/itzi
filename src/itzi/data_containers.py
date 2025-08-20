@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
-from itzi.const import DefaultValues
+from itzi.const import DefaultValues, TemporalType, InfiltrationModelType
 
 if TYPE_CHECKING:
     from itzi.drainage import DrainageNode
@@ -69,7 +69,7 @@ class DrainageLinkAttributes(DrainageAttributes):
 class DrainageLinkData:
     """Store the instantaneous state of a node during a drainage simulation"""
 
-    vertices: Tuple[Tuple[float, float], ...]
+    vertices: None | Tuple[Tuple[float, float], ...]
     attributes: DrainageLinkAttributes
 
 
@@ -102,7 +102,7 @@ class DrainageNodeAttributes(DrainageAttributes):
 class DrainageNodeData:
     """Store the instantaneous state of a node during a drainage simulation"""
 
-    coordinates: Tuple[float, float]
+    coordinates: None | Tuple[float, float]
     attributes: DrainageNodeAttributes
 
 
@@ -183,7 +183,7 @@ class SimulationConfig:
     start_time: datetime
     end_time: datetime
     record_step: timedelta
-    temporal_type: str  # options: [relative, absolute]
+    temporal_type: TemporalType
     # Input and output raster maps
     input_map_names: Dict[str, str]
     output_map_names: Dict[str, str]
@@ -193,10 +193,10 @@ class SimulationConfig:
     stats_file: str
     # Hydrology parameters
     dtinf: float = DefaultValues.DTINF
-    infiltration_model: float = None  # options: [null, constant, green-ampt]
+    infiltration_model: InfiltrationModelType = InfiltrationModelType.NULL
     # Drainage parameters
-    swmm_inp: str = None
-    drainage_output: str = None
+    swmm_inp: str | None = None
+    drainage_output: str | None = None
     orifice_coeff: float = DefaultValues.ORIFICE_COEFF
     free_weir_coeff: float = DefaultValues.FREE_WEIR_COEFF
     submerged_weir_coeff: float = DefaultValues.SUBMERGED_WEIR_COEFF
