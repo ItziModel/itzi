@@ -307,8 +307,12 @@ def ea8b_itzi_drainage_results_geoparquet(ea_test8b_sim_icechunk):
 
 
 @pytest.mark.slow
-def test_ea8b_icechunk(
-    ea_test8b_reference, ea8b_itzi_drainage_results_geoparquet, helpers, test_data_temp_path
+def test_ea8b_reference(
+    ea_test8b_reference,
+    ea8b_itzi_drainage_results_geoparquet,
+    ea_test8b_sim_icechunk,
+    helpers,
+    test_data_temp_path,
 ):
     """Test EA8B with icechunk and geoparquet backends."""
     ds_itzi_results = ea8b_itzi_drainage_results_geoparquet
@@ -324,6 +328,63 @@ def test_ea8b_icechunk(
 
     assert nse > 0.99
     assert rsr < 0.01
+
+    ## Check if water_depth maps are correctly written to zarr ##
+    # Access the output icechunk storage from the simulation fixture
+    output_storage = ea_test8b_sim_icechunk["output_storage"]
+
+    # Open the icechunk repository and read the water depth data
+    repo = icechunk.Repository.open(output_storage)
+    session = repo.readonly_session("main")
+
+    # Load the dataset from icechunk
+    output_dataset = xr.open_zarr(session.store)
+
+    # Check if water_depth variable exists
+    assert "test_water_depth" in output_dataset.variables, (
+        "water_depth variable not found in output dataset"
+    )
+
+    # Get the water depth data
+    water_depth_data = output_dataset["test_water_depth"]
+
+    # Check that there are no NaN values in water depth data
+    nan_count = np.sum(np.isnan(water_depth_data.values))
+    assert nan_count == 0, (
+        f"Found {nan_count} NaN values in water depth data - there should be none"
+    )
+
+    # Check that water depth values are between 0 and 5
+    min_depth = np.min(water_depth_data.values)
+    max_depth = np.max(water_depth_data.values)
+
+    assert min_depth >= 0.0, f"Water depth values below 0 found: minimum = {min_depth}"
+    assert max_depth <= 2.0, f"Water depth values above 5 found: maximum = {max_depth}"
+
+    print(f"Water depth range: {min_depth:.3f} to {max_depth:.3f}")
+
+    # Verify the data structure and dimensions
+    assert water_depth_data.ndim == 3, (
+        f"Water depth data should be 3-dimensional, got {water_depth_data.ndim} dimensions"
+    )
+
+    # Check that the spatial dimensions match the expected grid
+    icechunk_data = ea_test8b_sim_icechunk["icechunk_data"]
+    expected_rows = icechunk_data["rows"]
+    expected_cols = icechunk_data["cols"]
+
+    # The water depth should have spatial dimensions matching the grid
+    spatial_shape = water_depth_data.shape[-2:]
+
+    assert spatial_shape[0] == expected_rows, (
+        f"Row dimension mismatch: expected {expected_rows}, got {spatial_shape[0]}"
+    )
+    assert spatial_shape[1] == expected_cols, (
+        f"Column dimension mismatch: expected {expected_cols}, got {spatial_shape[1]}"
+    )
+
+    print(f"Water depth data shape: {water_depth_data.shape}")
+    print(f"Water depth data dimensions: {water_depth_data.dims}")
 
     ## Check if stat file is coherent ##
     stat_file_path = Path(test_data_temp_path) / Path("ea8b_icechunk.csv")
