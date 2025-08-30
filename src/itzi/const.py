@@ -30,7 +30,7 @@ class DefaultValues:
     # Maximum time-step duration (s)
     DTMAX = 5.0
     # Maximum slope (m/m). Not used
-    SLMAX = 0.1
+    SLMAX = 0.8
     # Hydrology time step (s)
     DTINF = 60.0
     # Maximum continuity error allowed
