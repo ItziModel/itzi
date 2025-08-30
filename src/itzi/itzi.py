@@ -88,6 +88,7 @@ class SimulationRunner:
             import grass.script as gscript
         except ImportError:
             self.set_grass_session()
+            import grass.script as gscript
         # Check GRASS version
         grass_version = gscript.parse_command("g.version", flags="g")["version"]
         if grass_version < self.grass_required_version:
