@@ -90,7 +90,7 @@ def speed_GMS(flow_depth, n, slope):
         # 0.1,
         # 1,
         10,
-        100,
+        50,
     ],
 )
 @pytest.mark.parametrize(
@@ -101,7 +101,7 @@ def speed_GMS(flow_depth, n, slope):
         # 0.1,
         # 1,
         10,
-        100,
+        50,
     ],
 )
 @pytest.mark.parametrize(
@@ -129,7 +129,7 @@ def test_sloped_channel(
 ):
     surface_params = SurfaceFlowParameters(
         hmin=min_depth,
-        # cfl=,
+        cfl=0.6,
         # theta=,
         # vrouting=0.1,
         # dtmax=self.sim_param["dtmax"],
