@@ -9,6 +9,7 @@ from configparser import ConfigParser
 from dataclasses import fields
 
 import pytest
+import numpy as np
 import pandas as pd
 import grass.script as gscript
 
@@ -132,6 +133,25 @@ class TestItziTutorial:
         assert float(h_max_univar["max"]) == pytest.approx(2.298454, abs=1e-2)
         assert float(h_max_univar["mean_of_abs"]) == pytest.approx(0.0355, abs=1e-3)
 
+        # Test consistency of stats file
+        stat_file_path = pathlib.Path(test_data_temp_path) / pathlib.Path("nc_itzi_tutorial.csv")
+        df_stats = pd.read_csv(stat_file_path, na_values="-")
+        df_stats.set_index("simulation_time", drop=True, inplace=True, verify_integrity=True)
+        df_stats.index = pd.to_timedelta(df_stats.index)
+        volume_columns = [
+            "boundary_volume",
+            "rainfall_volume",
+            "infiltration_volume",
+            "inflow_volume",
+            "losses_volume",
+            "drainage_network_volume",
+            "volume_error",
+        ]
+        sum_inputs = df_stats[volume_columns].sum(axis=1)
+        assert np.all(np.isclose(sum_inputs, df_stats["volume_change"], atol=1)), (
+            "'volume_change' inconsistent with other values"
+        )
+
     def test_tutorial_drainage(itzi_tutorial, test_data_path, test_data_temp_path, helpers):
         """Run the tutorial simulation with drainage."""
         # Set the config file dynamically to make sure it can find the INP file
@@ -160,6 +180,27 @@ class TestItziTutorial:
         sim_runner = SimulationRunner()
         sim_runner.initialize(config_file)
         sim_runner.run().finalize()
+
+        # Test consistency of stats file
+        stat_file_path = pathlib.Path(test_data_temp_path) / pathlib.Path(
+            "nc_itzi_tutorial_drainage.csv"
+        )
+        df_stats = pd.read_csv(stat_file_path, na_values="-")
+        df_stats.set_index("simulation_time", drop=True, inplace=True, verify_integrity=True)
+        df_stats.index = pd.to_timedelta(df_stats.index)
+        volume_columns = [
+            "boundary_volume",
+            "rainfall_volume",
+            "infiltration_volume",
+            "inflow_volume",
+            "losses_volume",
+            "drainage_network_volume",
+            "volume_error",
+        ]
+        sum_inputs = df_stats[volume_columns].sum(axis=1)
+        assert np.all(np.isclose(sum_inputs, df_stats["volume_change"], atol=1)), (
+            "'volume_change' inconsistent with other values"
+        )
 
         # Check the results at the entry node
         select_cols = ["start_time", "coupling_flow"]
