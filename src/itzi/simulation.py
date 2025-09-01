@@ -187,7 +187,7 @@ class Simulation:
         # Compute continuity error every x time steps
         is_first_ts = self.sim_time == self.start_time
         is_record_due = self.sim_time == self.next_ts["record"]
-        is_ts_over_threshold = self.time_steps_counters["since_start"] % 200 == 0
+        is_ts_over_threshold = self.time_steps_counters["since_last_report"] % 200 == 0
         is_error_comp_due = is_first_ts or is_ts_over_threshold or is_record_due
         if is_error_comp_due:
             self.continuity_data = self.get_continuity_data()
