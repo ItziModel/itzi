@@ -14,7 +14,7 @@ GNU General Public License for more details.
 """
 
 from datetime import datetime, timedelta
-from typing import Self, Union, TYPE_CHECKING
+from typing import Self, Union, TYPE_CHECKING, Dict
 import copy
 
 import numpy as np
@@ -90,7 +90,10 @@ class Simulation:
         # Grid spacing (for BMI)
         self.spacing = (self.raster_domain.dy, self.raster_domain.dx)
         # time step counter
-        self.time_steps_counter: int = 0
+        self.time_steps_counters: Dict[int] = {
+            "since_start": 0,
+            "since_last_report": 0,
+        }
 
     def initialize(self) -> Self:
         """Record the initial stage of the simulation, before time-stepping."""
@@ -183,8 +186,8 @@ class Simulation:
 
         # Compute continuity error every x time steps
         is_first_ts = self.sim_time == self.start_time
-        is_ts_over_threshold = self.time_steps_counter >= 500
         is_record_due = self.sim_time == self.next_ts["record"]
+        is_ts_over_threshold = self.time_steps_counters["since_last_report"] % 200 == 0
         is_error_comp_due = is_first_ts or is_ts_over_threshold or is_record_due
         if is_error_comp_due:
             self.continuity_data = self.get_continuity_data()
@@ -209,7 +212,7 @@ class Simulation:
             simulation_data = SimulationData(
                 sim_time=self.sim_time,
                 time_step=self.dt.total_seconds(),
-                time_steps_counter=self.time_steps_counter,
+                time_steps_counter=self.time_steps_counters["since_last_report"],
                 continuity_data=self.continuity_data,
                 raw_arrays=raw_arrays,
                 accumulation_arrays=accumulation_arrays,
@@ -223,7 +226,7 @@ class Simulation:
 
             # Reset accumulation arrays
             self.old_domain_volume = copy.deepcopy(self.continuity_data.new_domain_vol)
-            self.time_steps_counter = 0
+            self.time_steps_counters["since_last_report"] = 0
             self.raster_domain.reset_accumulations()
             for key in self.accum_update_time:
                 self.accum_update_time[key] = self.sim_time
@@ -244,7 +247,8 @@ class Simulation:
         self.find_dt()
         # update simulation time
         self.sim_time += self.dt
-        self.time_steps_counter += 1
+        for time_steps_counter in self.time_steps_counters.keys():
+            self.time_steps_counters[time_steps_counter] += 1
         return self
 
     def update_until(self, then):
@@ -287,7 +291,7 @@ class Simulation:
         simulation_data = SimulationData(
             sim_time=self.sim_time,
             time_step=self.dt.total_seconds(),
-            time_steps_counter=self.time_steps_counter,
+            time_steps_counter=self.time_steps_counters["since_last_report"],
             continuity_data=self.get_continuity_data(),
             raw_arrays=raw_arrays,
             accumulation_arrays=accumulation_arrays,
