@@ -111,7 +111,6 @@ class SimulationRunner:
             start_time=self.conf.sim_times.start,
             end_time=self.conf.sim_times.end,
             dtype=data_type,
-            mkeys=self.conf.input_map_names.keys(),
             region_id=self.conf.grass_params["region"],
             raster_mask_id=self.conf.grass_params["mask"],
             non_blocking_write=False,
@@ -168,9 +167,9 @@ class SimulationRunner:
 
     @property
     def origin(self):
-        # Get a TimedArray object to reach the GIS interface
+        # Get origin from a TimedArray object
         tarr = next(iter(self.tarr.values()))
-        return tarr.igis.origin
+        return tarr.origin
 
     def set_grass_session(self):
         """Set the GRASS session."""
