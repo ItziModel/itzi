@@ -45,7 +45,8 @@ class SurfaceFlowSimulation:
         self.g = flow_params.g
         self.theta = flow_params.theta
         self.min_flow_depth = flow_params.hmin
-        self.sl_thresh = flow_params.slmax
+        self.slope_threshold = flow_params.slope_threshold
+        self.max_slope = flow_params.max_slope
         self.v_routing = flow_params.vrouting
         self.dx = domain.dx
         self.dy = domain.dy
@@ -179,7 +180,8 @@ class SurfaceFlowSimulation:
             theta=self.theta,
             hf_min=self.min_flow_depth,
             v_rout=self.v_routing,
-            sl_thres=self.sl_thresh,
+            slope_threshold=self.slope_threshold,
+            max_slope=self.max_slope,
         )
         return self
 

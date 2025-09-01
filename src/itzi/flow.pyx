@@ -111,7 +111,8 @@ def solve_q(
     DTYPE_t theta,
     DTYPE_t hf_min,
     DTYPE_t v_rout,
-    DTYPE_t sl_thres,
+    DTYPE_t slope_threshold,
+    DTYPE_t max_slope,
 ):
     """Calculate flow depth at the edges in m and flow in m2/s.
     Flow is positive when going east and south,
@@ -207,7 +208,7 @@ def solve_q(
                 # flow and velocity
                 if hf_e <= 0:
                     qe_new = 0
-                elif hf_e > hf_min and abs(slope_e) < sl_thres:
+                elif hf_e > hf_min and abs(slope_e) < slope_threshold:
                     qe_new = flow_almeida2013(
                         hf=hf_e,
                         n=ne,
@@ -224,7 +225,7 @@ def solve_q(
                     qe_new = flow_GMS(
                         flow_depth=hf_e,
                         n=ne,
-                        slope=fmin(abs(slope_e), sl_thres))  # Threshold is max slope
+                        slope=fmin(abs(slope_e), max_slope))
                     qe_new = copysign(qe_new, slope_e)
             else:
                 qe_new = 0
@@ -291,7 +292,7 @@ def solve_q(
                 slope_s = (wse0 - wse_s) / dy
                 if hf_s <= 0:
                     qs_new = 0
-                elif hf_s > hf_min and abs(slope_s) < sl_thres:
+                elif hf_s > hf_min and abs(slope_s) < slope_threshold:
                     qs_new = flow_almeida2013(
                         hf=hf_s,
                         n=ns,
@@ -308,7 +309,7 @@ def solve_q(
                     qs_new = flow_GMS(
                         flow_depth=hf_s,
                         n=ns,
-                        slope=fmin(abs(slope_s), sl_thres))
+                        slope=fmin(abs(slope_s), max_slope))
                     qs_new = copysign(qs_new, slope_s)
             else:
                 qs_new = 0

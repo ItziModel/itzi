@@ -124,8 +124,17 @@ def speed_GMS(flow_depth, n, slope):
 #         0.2, 0.5, 0.8, 1.0
 #     ]
 # )
+# threshold=0.8 and max_slope=2 raises DtError.
 def test_sloped_channel(
-    long_slope, lat_slope, dx, dy, min_depth=0.005, max_slope=0.8, rows=60, cols=63
+    long_slope,
+    lat_slope,
+    dx,
+    dy,
+    min_depth=0.005,
+    slope_threshold=0.8,
+    max_slope=0.8,
+    rows=60,
+    cols=63,
 ):
     surface_params = SurfaceFlowParameters(
         hmin=min_depth,
@@ -133,7 +142,8 @@ def test_sloped_channel(
         # theta=,
         # vrouting=0.1,
         # dtmax=self.sim_param["dtmax"],
-        slmax=max_slope,
+        slope_threshold=slope_threshold,
+        max_slope=max_slope,
         # max_error=self.sim_param["max_error"],
     )
     output_map_names = {
