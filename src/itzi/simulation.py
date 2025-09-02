@@ -21,7 +21,7 @@ import numpy as np
 
 from itzi.data_containers import ContinuityData, SimulationData
 import itzi.messenger as msgr
-from itzi.itzi_error import NullError, MassBalanceError
+from itzi.itzi_error import NullError, MassBalanceError, DtError
 from itzi import rastermetrics
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
@@ -168,7 +168,10 @@ class Simulation:
         # update arrays of infiltration, rainfall etc.
         self.raster_domain.update_ext_array()
         # force time-step to be the general time-step
-        self.surface_flow.dt = self.dt
+        try:
+            self.surface_flow.dt = self.dt
+        except DtError as e:
+            msgr.fatal(f"{self.sim_time}: Time-step errors detected in simulation: {e}")
         # surface_flow.step() raise NullError in case of NaN/NULL cell
         # if this happen, stop simulation and
         # output a map showing the errors
@@ -177,7 +180,10 @@ class Simulation:
         except NullError:
             msgr.fatal("{}: Null value detected in simulation, terminating".format(self.sim_time))
         # calculate when should happen the next surface time-step
-        self.surface_flow.solve_dt()
+        try:
+            self.surface_flow.solve_dt()
+        except DtError as e:
+            msgr.fatal(f"{self.sim_time}: Time-step computation error detected in simulation: {e}")
         self.next_ts["surface_flow"] += self.surface_flow.dt
 
         # Update accumulation arrays
@@ -236,11 +242,10 @@ class Simulation:
         # Perform a mass balance continuity check.
         if is_error_comp_due:
             if self.continuity_data.continuity_error >= self.mass_balance_error_threshold:
-                raise (
-                    MassBalanceError(
-                        error_percentage=self.continuity_data.continuity_error,
-                        threshold=self.mass_balance_error_threshold,
-                    )
+                raise MassBalanceError(
+                    f"{self.sim_time}: "
+                    f"Mass balance error {self.continuity_data.continuity_error:.2f} "
+                    f"exceeds threshold {self.mass_balance_error_threshold:.2f}."
                 )
 
         # Find next time step
