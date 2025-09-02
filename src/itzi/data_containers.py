@@ -171,7 +171,8 @@ class SurfaceFlowParameters:
     g: float = DefaultValues.G
     vrouting: float = DefaultValues.VROUTING
     dtmax: float = DefaultValues.DTMAX
-    slmax: float = DefaultValues.SLMAX
+    slope_threshold: float = DefaultValues.SLOPE_THRESHOLD
+    max_slope: float = DefaultValues.MAX_SLOPE
     max_error: float = DefaultValues.MAX_ERROR
 
 

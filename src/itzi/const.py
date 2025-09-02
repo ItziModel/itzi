@@ -29,8 +29,10 @@ class DefaultValues:
     VROUTING = 0.1
     # Maximum time-step duration (s)
     DTMAX = 5.0
-    # Maximum slope (m/m). Not used
-    SLMAX = 0.1
+    # Slope threshold (m/m). Value above which the routing is applied
+    SLOPE_THRESHOLD = 0.8
+    # Maximum slope (m/m). Max value of slope to use in routing
+    MAX_SLOPE = SLOPE_THRESHOLD
     # Hydrology time step (s)
     DTINF = 60.0
     # Maximum continuity error allowed

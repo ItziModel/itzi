@@ -66,7 +66,8 @@ class ConfigReader:
             "g": DefaultValues.G,
             "vrouting": DefaultValues.VROUTING,
             "dtmax": DefaultValues.DTMAX,
-            "slmax": DefaultValues.SLMAX,
+            "slope_threshold": DefaultValues.SLOPE_THRESHOLD,
+            "max_slope": DefaultValues.MAX_SLOPE,
             "dtinf": DefaultValues.DTINF,
             "max_error": DefaultValues.MAX_ERROR,
             "inf_model": None,
@@ -277,7 +278,8 @@ class ConfigReader:
             g=self.sim_param["g"],
             vrouting=self.sim_param["vrouting"],
             dtmax=self.sim_param["dtmax"],
-            slmax=self.sim_param["slmax"],
+            max_slope=self.sim_param["max_slope"],
+            slope_threshold=self.sim_param["slope_threshold"],
             max_error=self.sim_param["max_error"],
         )
         sim_config = SimulationConfig(
