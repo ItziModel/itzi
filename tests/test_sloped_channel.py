@@ -14,6 +14,7 @@ GNU General Public License for more details.
 
 import math
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -90,7 +91,7 @@ def speed_GMS(flow_depth, n, slope):
         # 0.1,
         # 1,
         10,
-        50,
+        100,
     ],
 )
 @pytest.mark.parametrize(
@@ -101,15 +102,15 @@ def speed_GMS(flow_depth, n, slope):
         # 0.1,
         # 1,
         10,
-        50,
+        100,
     ],
 )
 @pytest.mark.parametrize(
-    "dx, dy",
+    "dx, dy, cfl, dtmax",
     [
-        # (5, 5),
-        (10, 10),
-        (20, 20),
+        (5, 5, 0.5, 2),
+        (10, 10, 0.5, 3),
+        (20, 20, 0.5, 5),
     ],
 )
 # @pytest.mark.parametrize(
@@ -124,12 +125,15 @@ def speed_GMS(flow_depth, n, slope):
 #         0.2, 0.5, 0.8, 1.0
 #     ]
 # )
-# threshold=0.8 and max_slope=2 raises DtError.
+# threshold=0.8 and max_slope=2 helps raising DtError.
 def test_sloped_channel(
+    test_data_temp_path,
     long_slope,
     lat_slope,
     dx,
     dy,
+    cfl,
+    dtmax,
     min_depth=0.005,
     slope_threshold=0.8,
     max_slope=0.8,
@@ -138,10 +142,10 @@ def test_sloped_channel(
 ):
     surface_params = SurfaceFlowParameters(
         hmin=min_depth,
-        cfl=0.6,
+        cfl=cfl,
         # theta=,
         # vrouting=0.1,
-        # dtmax=self.sim_param["dtmax"],
+        dtmax=dtmax,
         slope_threshold=slope_threshold,
         max_slope=max_slope,
         # max_error=self.sim_param["max_error"],
@@ -152,6 +156,10 @@ def test_sloped_channel(
         "mean_boundary_flow": "mean_boundary_flow",
         "v": "v",
     }
+    stats_file_name = (
+        f"test_sloped_channel_stats_slope({long_slope},{lat_slope})_res({dx},{dy}).csv"
+    )
+    stats_file_path = Path(test_data_temp_path) / Path(stats_file_name)
     sim_config = SimulationConfig(
         start_time=datetime(year=2000, month=1, day=1, hour=0),
         end_time=datetime(year=2000, month=1, day=1, hour=1),
@@ -159,7 +167,7 @@ def test_sloped_channel(
         temporal_type="absolute",
         input_map_names={},
         output_map_names=output_map_names,
-        stats_file=f"test_sloped_channel_stats_slope({long_slope},{lat_slope})_res({dx},{dy}).csv",
+        stats_file=stats_file_path,
         surface_flow_parameters=surface_params,
         infiltration_model="null",
     )
@@ -208,6 +216,7 @@ def test_sloped_channel(
             simulation.set_array("rain", arr_rain_off)
         simulation.update()
     simulation.finalize()
+    # total_time_steps = simulation.time_steps_counters["since_start"]
 
 
 def main():
