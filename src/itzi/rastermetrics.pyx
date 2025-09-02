@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 cimport cython
 from cython.parallel cimport prange
-from libc.math cimport NAN
+from libc.math cimport NAN, isnan
 
 ctypedef cython.floating DTYPE_t
 
@@ -53,11 +53,13 @@ cdef DTYPE_t arr_sum(DTYPE_t[:, ::1] arr, bint padded=False):
     if total_elements <= small_array_size:
         for row_idx in range(row_start, row_end):
             for col_idx in range(col_start, col_end):
-                asum += arr[row_idx, col_idx]
+                if not isnan(arr[row_idx, col_idx]):
+                    asum += arr[row_idx, col_idx]
     else:
         for row_idx in prange(row_start, row_end, nogil=True):
             for col_idx in range(col_start, col_end):
-                asum += arr[row_idx, col_idx]
+                if not isnan(arr[row_idx, col_idx]):
+                    asum += arr[row_idx, col_idx]
     return asum
 
 
