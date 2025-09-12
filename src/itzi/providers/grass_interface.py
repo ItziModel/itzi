@@ -29,6 +29,7 @@ import numpy as np
 
 import itzi.messenger as msgr
 from itzi.data_containers import DrainageNetworkData
+from itzi.const import TemporalType
 
 import grass.script as gscript
 import grass.temporal as tgis
@@ -152,7 +153,6 @@ class GrassInterface:
         start_time,
         end_time,
         dtype,
-        mkeys,
         region_id,
         raster_mask_id,
         non_blocking_write=True,
@@ -191,13 +191,10 @@ class GrassInterface:
             "n": self.region.north,
             "s": self.region.south,
         }
-        self.origin = (self.reg_bbox["n"], self.reg_bbox["w"])
         # Set temporary mask
         if self.raster_mask_id:
             self.set_temp_mask()
         self.overwrite = gscript.overwrite()
-        self.mapset = gutils.getenv("MAPSET")
-        self.maps = dict.fromkeys(mkeys)
         # init temporal module
         tgis.init()
         # Create thread and queue for writing raster maps
@@ -342,6 +339,10 @@ class GrassInterface:
         return bool(tgis.SpaceTimeRasterDataset(name).is_in_db())
 
     @staticmethod
+    def get_crs_wkt():
+        return gscript.read_command("g.proj", flags="fw")
+
+    @staticmethod
     def name_is_map(map_id):
         """return True if the given name is a map in the grass database
         False if not
@@ -358,52 +359,18 @@ class GrassInterface:
         Return the simulation start_time and end_time, expressed in
         the unit of the input strds
         """
-        if strds.get_temporal_type() == "relative":
+        if strds.get_temporal_type() == TemporalType.RELATIVE:
             # get start time and end time in seconds
             rel_end_time = (self.end_time - self.start_time).total_seconds()
             rel_unit = strds.get_relative_time_unit()
             start_time_in_stds_unit = 0
             end_time_in_stds_unit = self.from_s(rel_unit, rel_end_time)
-        elif strds.get_temporal_type() == "absolute":
+        elif strds.get_temporal_type() == TemporalType.ABSOLUTE:
             start_time_in_stds_unit = self.start_time
             end_time_in_stds_unit = self.end_time
         else:
             assert False, "unknown temporal type"
         return start_time_in_stds_unit, end_time_in_stds_unit
-
-    def read(self, map_names):
-        """Read maps names from GIS
-        take as input map_names, a dictionary of maps/STDS names
-        for each entry in map_names:
-            if the name is empty or None, store None
-            if a strds, load all maps in the instance's time extend,
-                store them as a list
-            if a single map, set the start and end time to fit simulation.
-                store it in a list for consistency
-        each map is stored as a MapData namedtuple
-        store result in instance's dictionary
-        """
-        for k, map_name in map_names.items():
-            if not map_name:
-                map_list = None
-                continue
-            elif self.name_is_stds(self.format_id(map_name)):
-                strds_id = self.format_id(map_name)
-                if not self.stds_temporal_sanity(strds_id):
-                    msgr.fatal("{}: inadequate temporal format".format(map_name))
-                map_list = self.raster_list_from_strds(strds_id)
-            elif self.name_is_map(self.format_id(map_name)):
-                map_list = [
-                    self.MapData(
-                        id=self.format_id(map_name),
-                        start_time=self.start_time,
-                        end_time=self.end_time,
-                    )
-                ]
-            else:
-                msgr.fatal("{} not found!".format(map_name))
-            self.maps[k] = map_list
-        return self
 
     def stds_temporal_sanity(self, stds_id):
         """Make the following check on the given stds:
@@ -458,7 +425,7 @@ class GrassInterface:
             str_lst = ",".join(maps_not_found)
             msgr.fatal(err_msg.format(strds_name, str_lst))
         # change time data to datetime format
-        if strds.get_temporal_type() == "relative":
+        if strds.get_temporal_type() == TemporalType.RELATIVE:
             rel_unit = strds.get_relative_time_unit()
             maplist = [
                 (
@@ -605,25 +572,6 @@ class GrassInterface:
             dbtable.conn.commit()
         return self
 
-    def get_array(self, mkey, sim_time):
-        """take a given map key and simulation time
-        return a numpy array associated with its start and end time
-        if no map is found, return None instead of an array
-        and the start_time and end_time of the simulation
-        """
-        assert isinstance(mkey, str), "not a string!"
-        assert isinstance(sim_time, datetime), "not a datetime object!"
-        assert mkey in self.maps.keys(), f"unknown map key!: {mkey}"
-        if self.maps[mkey] is None:
-            return None, self.start_time, self.end_time
-        else:
-            for m in self.maps[mkey]:
-                if m.start_time <= sim_time <= m.end_time:
-                    arr = self.read_raster_map(m.id)
-                    return arr, m.start_time, m.end_time
-            else:
-                assert None, "No map found for {k} at time {t}".format(k=mkey, t=sim_time)
-
     def register_maps_in_stds(self, stds_title, stds_name, map_list, stds_type, t_type):
         """Create a STDS, create one mapdataset for each map and
         register them in the temporal database
@@ -661,10 +609,10 @@ class GrassInterface:
             # load spatial data from map
             map_dts.load()
             # set time
-            if t_type == "relative":
+            if t_type == TemporalType.RELATIVE:
                 rel_time = map_time.total_seconds()
                 map_dts.set_relative_time(rel_time, None, "seconds")
-            elif t_type == "absolute":
+            elif t_type == TemporalType.ABSOLUTE:
                 assert isinstance(map_time, datetime)
                 map_dts.set_absolute_time(start_time=map_time)
             else:
@@ -672,7 +620,7 @@ class GrassInterface:
             # populate the list
             map_dts_lst.append(map_dts)
         # Finally register the maps
-        t_unit = {"relative": "seconds", "absolute": ""}
+        t_unit = {TemporalType.RELATIVE: "seconds", TemporalType.ABSOLUTE: ""}
         stds_corresp = {"strds": "raster", "stvds": "vector"}
         del_empty = {"strds": True, "stvds": False}
         tgis.register.register_map_object_list(
