@@ -48,6 +48,7 @@ dev = [
     "ty>=0.0.1a16",
     "pyinstrument==5.*",
     "matplotlib>=3.10.5",
+    "scikit-optimize>=0.10.2",
 ]
 
 [build-system]
