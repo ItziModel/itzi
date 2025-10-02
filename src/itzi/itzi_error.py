@@ -40,7 +40,7 @@ class MassBalanceError(ItziError):
     """Raised when mass balance error exceeds threshold"""
 
     def __init__(self, msg: str):
-        self.msg
+        self.msg = msg
 
     def __str__(self):
         return repr(self.msg)
