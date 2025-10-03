@@ -23,7 +23,7 @@ import itzi.flow as flow
 from itzi.itzi_error import NullError, DtError
 
 if TYPE_CHECKING:
-    from itzi.configreader import SurfaceFlowParameters
+    from itzi.data_containers import SurfaceFlowParameters
 
 
 class SurfaceFlowSimulation:

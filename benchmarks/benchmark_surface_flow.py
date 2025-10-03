@@ -9,8 +9,8 @@ import datetime
 import numpy as np
 import pytest
 
+from itzi.data_containers import SurfaceFlowParameters
 from itzi.rasterdomain import RasterDomain
-from itzi.const import DefaultValues
 from itzi.surfaceflow import SurfaceFlowSimulation
 
 
@@ -68,15 +68,7 @@ def setup_eggbox_simulation(num_cells=10_000, cell_size=5):
     mask = np.full(shape=array_shape, fill_value=False, dtype=np.bool_)
     manning = np.full(shape=array_shape, fill_value=0.03, dtype=np.float32)
     water_depth = np.full(shape=array_shape, fill_value=starting_depth, dtype=np.float32)
-    sim_param = dict(
-        dtmax=5,
-        cfl=0.7,
-        theta=0.9,
-        hmin=0.005,
-        vrouting=0.1,
-        g=DefaultValues.G,
-        slmax=DefaultValues.SLMAX,
-    )
+    sim_param = SurfaceFlowParameters()  # use default
     raster_domain = RasterDomain(
         dtype=np.float32, arr_mask=mask, cell_shape=(cell_size, cell_size)
     )
