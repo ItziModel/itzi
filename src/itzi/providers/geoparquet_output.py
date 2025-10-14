@@ -22,7 +22,7 @@ try:
     import geopandas
 except ImportError:
     raise ImportError(
-        "To use the Icechunk backend, install itzi with: "
+        "To use the geoparquet backend, install itzi with: "
         "'uv tool install itzi[cloud]' "
         "or 'pip install itzi[cloud]'"
     )
