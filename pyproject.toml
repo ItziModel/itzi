@@ -7,10 +7,10 @@ authors = [
 ]
 dependencies = [
     "numpy>=2.2",
-    "pyswmm>=2.0.1",
+    "pyswmm>=2.1.0",
     "bmipy>=2.0.1",
 ]
-requires-python = ">=3.11,<3.13"  # pyswmm does not support python > 3.12
+requires-python = ">=3.11,<3.14"  # pyswmm does not support python > 3.13
 readme = "README.md"
 license = "GPL-2.0-or-later"
 keywords = ["science", "engineering", "hydrology", "flood"]

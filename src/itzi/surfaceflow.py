@@ -23,7 +23,7 @@ import itzi.flow as flow
 from itzi.itzi_error import NullError, DtError
 
 if TYPE_CHECKING:
-    from itzi.configreader import SurfaceFlowParameters
+    from itzi.data_containers import SurfaceFlowParameters
 
 
 class SurfaceFlowSimulation:
@@ -45,13 +45,16 @@ class SurfaceFlowSimulation:
         self.g = flow_params.g
         self.theta = flow_params.theta
         self.min_flow_depth = flow_params.hmin
-        self.sl_thresh = flow_params.slmax
+        self.slope_threshold = flow_params.slope_threshold
+        self.max_slope = flow_params.max_slope
         self.v_routing = flow_params.vrouting
         self.dx = domain.dx
         self.dy = domain.dy
         self.cell_surf = self.dx * self.dy
 
         self._dt = None
+        # 1e-6 second
+        self._dt_fudge = timedelta.resolution.total_seconds()
 
     def update_flow_dir(self):
         """Return arrays of flow directions used for rain routing
@@ -105,6 +108,8 @@ class SurfaceFlowSimulation:
             self._dt = min(self.dtmax, dt)
         else:
             self._dt = self.dtmax
+        if self._dt <= self._dt_fudge:
+            raise DtError(f"Tiny computed dt ({self._dt}s)")
         return self
 
     @property
@@ -115,16 +120,13 @@ class SurfaceFlowSimulation:
     def dt(self, newdt):
         """return an error if new dt is higher than current one or negative"""
         newdt_s = newdt.total_seconds()
-        fudge = timedelta.resolution.total_seconds()
         if self._dt is None:
             self._dt = newdt_s
         elif newdt_s <= 0:
-            raise DtError("dt must be positive ({})".format(newdt_s))
-        elif newdt_s > self._dt + fudge:
+            raise DtError(f"dt must be positive, not {newdt_s}s")
+        elif newdt_s > self._dt + self._dt_fudge:
             raise DtError(
-                "new dt cannot be longer than current one (old: {}, new: {})".format(
-                    self._dt, newdt_s
-                )
+                f"new dt cannot be longer than current one (old: {self._dt}s, new: {newdt_s}s)"
             )
         else:
             self._dt = newdt_s
@@ -179,7 +181,8 @@ class SurfaceFlowSimulation:
             theta=self.theta,
             hf_min=self.min_flow_depth,
             v_rout=self.v_routing,
-            sl_thres=self.sl_thresh,
+            slope_threshold=self.slope_threshold,
+            max_slope=self.max_slope,
         )
         return self
 

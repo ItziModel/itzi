@@ -39,12 +39,11 @@ class DtError(ItziError):
 class MassBalanceError(ItziError):
     """Raised when mass balance error exceeds threshold"""
 
-    def __init__(self, error_percentage: float, threshold: float):
-        self.error_percentage = error_percentage
-        self.threshold = threshold
-        super().__init__(
-            f"Mass balance error {error_percentage:.2f} exceeds threshold {threshold:.2f}"
-        )
+    def __init__(self, msg: str):
+        self.msg = msg
+
+    def __str__(self):
+        return repr(self.msg)
 
 
 class ItziFatal(ItziError):
