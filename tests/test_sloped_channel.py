@@ -18,7 +18,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-import matplotlib.pyplot as plt
 
 
 from itzi.simulation_factories import create_memory_simulation
@@ -220,19 +219,7 @@ def test_sloped_channel(
 
 
 def main():
-    # Example
-    Z = trapeze_channel(nx=60, ny=33, long_slope=0.1, lat_slope=10, flat_width=3)
-
-    plt.figure(figsize=(8, 4))
-    plt.imshow(Z, origin="lower", cmap="terrain", aspect="auto")
-    plt.colorbar(label="Elevation (m)")
-    plt.title("Synthetic V-shaped channel with flat bottom")
-    plt.xlabel("Downstream (x)")
-    plt.ylabel("Cross-stream (y)")
-    plt.savefig("slope.png")
-
-    flow_test = speed_GMS(flow_depth=1.00, n=0.1, slope=0.0)
-    print(flow_test)
+    pass
 
 
 if __name__ == "__main__":
