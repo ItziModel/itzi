@@ -21,7 +21,7 @@ import pytest
 
 
 from itzi.simulation_factories import create_memory_simulation
-from itzi.rasterdomain import DomainData
+from itzi.providers.domain_data import DomainData
 from itzi.data_containers import SurfaceFlowParameters, SimulationConfig
 
 
@@ -176,7 +176,7 @@ def test_sloped_channel(
     )
     assert arr_dem.shape == (rows, cols)
     domain_data = DomainData(
-        north=rows * dy, south=0, east=cols * dx, west=0, rows=rows, cols=cols
+        north=rows * dy, south=0, east=cols * dx, west=0, rows=rows, cols=cols, crs_wkt=""
     )
 
     arr_rain_off = np.full_like(arr_dem, fill_value=0)
