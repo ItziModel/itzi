@@ -14,7 +14,7 @@ GNU General Public License for more details.
 """
 
 from datetime import datetime, timedelta
-from typing import Tuple, TypedDict, Mapping, TYPE_CHECKING
+from typing import Tuple, TypedDict, TYPE_CHECKING
 from dataclasses import asdict
 from pathlib import Path
 
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 class ParquetVectorOutputConfig(TypedDict):
     crs: "pyproj.CRS"
     output_dir: Path
-    drainage_map_name: Mapping[str, str]
+    drainage_map_name: str
 
 
 class ParquetVectorOutputProvider(VectorOutputProvider):
