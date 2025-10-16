@@ -3,7 +3,7 @@ Integration tests using the EA test case 8b with icechunk and geoparquet backend
 The results from itzi are compared with those from XPSTORM.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 from pathlib import Path
 import zipfile
@@ -22,6 +22,8 @@ import icechunk.xarray
 
 from itzi.profiler import profile_context
 from itzi.simulation_factories import create_icechunk_simulation
+from itzi.data_containers import SimulationConfig, SurfaceFlowParameters
+from itzi.const import TemporalType
 
 
 TEST8B_URL = "https://zenodo.org/api/records/15256842/files/Test8B_dataset_2010.zip/content"
@@ -188,7 +190,6 @@ def ea_test8b_sim_icechunk(ea_test8b_icechunk_data, test_data_path, test_data_te
     inp_file = os.path.join(test_data_path, "EA_test_8", "b", "test8b_drainage_ponding.inp")
 
     # Create simulation configuration for icechunk/geoparquet backends
-    from datetime import datetime, timedelta
 
     sim_start_time = datetime(2000, 1, 1, 0, 0, 0)
     sim_end_time = sim_start_time + timedelta(hours=3, minutes=20)
@@ -202,9 +203,6 @@ def ea_test8b_sim_icechunk(ea_test8b_icechunk_data, test_data_path, test_data_te
     )
 
     # Create simulation configuration directly
-    from itzi.data_containers import SimulationConfig, SurfaceFlowParameters
-    from itzi.const import TemporalType
-
     surface_flow_params = SurfaceFlowParameters(
         cfl=0.5,
         theta=0.7,
@@ -241,6 +239,7 @@ def ea_test8b_sim_icechunk(ea_test8b_icechunk_data, test_data_path, test_data_te
             simulation.set_array(arr_key, initial_array)
 
     # Run the simulation
+    # This does not update any input arrays. Only input is from drainage network
     with profile_context(profile_path):
         simulation.initialize()
         while simulation.sim_time < simulation.end_time:
