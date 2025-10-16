@@ -33,11 +33,13 @@ from itzi.simulation import Simulation
 from itzi.data_containers import DrainageNodeCouplingData
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi.const import InfiltrationModelType
+from itzi.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
 
 if TYPE_CHECKING:
     from itzi.providers.grass_interface import GrassInterface
     from itzi.providers.grass_input import GrassRasterInputConfig
     from itzi.providers.domain_data import DomainData
+    from itzi.providers.base import RasterOutputProvider, VectorOutputProvider
     from itzi.data_containers import SimulationConfig
     import icechunk
 
@@ -107,7 +109,7 @@ def _create_raster_domain(
     arr_mask: ArrayLike,
     cell_shape: tuple,
 ) -> rasterdomain.RasterDomain:
-    """Create a raster domain with error handling."""
+    """Create a raster domain."""
     msgr.debug("Setting up raster domain...")
     try:
         raster_domain = rasterdomain.RasterDomain(
@@ -175,6 +177,47 @@ def _create_drainage_simulation(
     return nodes_list, drainage_sim
 
 
+class ReportFactory:
+    """A factory class to create Report object"""
+
+    def __init__(self, sim_config: "SimulationConfig"):
+        self.sim_config = sim_config
+        if sim_config.stats_file:
+            self.mass_balance = MassBalanceLogger(
+                file_name=self.sim_config.stats_file,
+            )
+        else:
+            self.mass_balance = None
+
+        # Default to memory output
+        self.raster_output_provider: "RasterOutputProvider" = MemoryRasterOutputProvider(
+            {
+                "out_map_names": sim_config.output_map_names,
+            }
+        )
+        self.vector_output_provider: "VectorOutputProvider" = MemoryVectorOutputProvider({})
+
+    def set_raster_output_provider(self, raster_output_provider: "RasterOutputProvider"):
+        self.raster_output_provider = raster_output_provider
+        return self
+
+    def set_vector_output_provider(self, vector_output_provider: "VectorOutputProvider"):
+        self.vector_output_provider = vector_output_provider
+        return self
+
+    def get_report_object(self):
+        report = Report(
+            start_time=self.sim_config.start_time,
+            temporal_type=self.sim_config.temporal_type,
+            raster_output_provider=self.raster_output_provider,
+            vector_output_provider=self.vector_output_provider,
+            mass_balance_logger=self.mass_balance,
+            out_map_names=self.sim_config.output_map_names,
+            dt=self.sim_config.record_step,
+        )
+        return report
+
+
 def create_grass_simulation(
     sim_config: "SimulationConfig",
     grass_interface: "GrassInterface",
@@ -224,18 +267,10 @@ def create_grass_simulation(
     msgr.debug("Setting up surface model...")
     surface_flow = SurfaceFlowSimulation(raster_domain, sim_config.surface_flow_parameters)
 
-    # Instantiate Massbal object
-    if sim_config.stats_file:
-        msgr.debug("Setting up mass balance object...")
-        massbal = MassBalanceLogger(
-            file_name=sim_config.stats_file,
-        )
-    else:
-        massbal = None
-
     # Drainage
     domain_data = raster_input_provider.get_domain_data()
     nodes_list, drainage_sim = _create_drainage_simulation(sim_config, domain_data)
+
     # reporting object
     msgr.debug("Setting up reporting object...")
     raster_output_provider = GrassRasterOutputProvider(
@@ -253,16 +288,12 @@ def create_grass_simulation(
             "drainage_map_name": sim_config.drainage_output,
         }
     )
-
-    report = Report(
-        start_time=sim_config.start_time,
-        temporal_type=sim_config.temporal_type,
-        raster_output_provider=raster_output_provider,
-        vector_output_provider=vector_output_provider,
-        mass_balance_logger=massbal,
-        out_map_names=sim_config.output_map_names,
-        dt=sim_config.record_step,
+    report_factory = (
+        ReportFactory(sim_config)
+        .set_raster_output_provider(raster_output_provider)
+        .set_vector_output_provider(vector_output_provider)
     )
+
     msgr.verbose("Models set up")
     simulation = Simulation(
         sim_config.start_time,
@@ -272,7 +303,7 @@ def create_grass_simulation(
         surface_flow,
         drainage_sim,
         nodes_list,
-        report,
+        report=report_factory.get_report_object(),
         mass_balance_error_threshold=sim_config.surface_flow_parameters.max_error,
     )
     return (simulation, timed_arrays)
@@ -284,8 +315,6 @@ def create_memory_simulation(
     arr_mask: ArrayLike,
     dtype: DTypeLike = np.float32,
 ) -> Simulation:
-    from itzi.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
-
     # raster domain
     raster_domain = _create_raster_domain(
         dtype=dtype,
@@ -304,35 +333,13 @@ def create_memory_simulation(
     msgr.debug("Setting up surface model...")
     surface_flow = SurfaceFlowSimulation(raster_domain, sim_config.surface_flow_parameters)
 
-    # Instantiate Massbal object
-    if sim_config.stats_file:
-        msgr.debug("Setting up mass balance object...")
-        massbal = MassBalanceLogger(
-            file_name=sim_config.stats_file,
-        )
-    else:
-        massbal = None
-
     # Drainage
     nodes_list, drainage_sim = _create_drainage_simulation(sim_config, domain_data)
-    # reporting object
-    msgr.debug("Setting up reporting object...")
-    raster_output_provider = MemoryRasterOutputProvider(
-        {
-            "out_map_names": sim_config.output_map_names,
-        }
-    )
 
-    vector_output_provider = MemoryVectorOutputProvider({})
-    report = Report(
-        start_time=sim_config.start_time,
-        temporal_type=sim_config.temporal_type,
-        raster_output_provider=raster_output_provider,
-        vector_output_provider=vector_output_provider,
-        mass_balance_logger=massbal,
-        out_map_names=sim_config.output_map_names,
-        dt=sim_config.record_step,
-    )
+    # reporting object - Default to memory providers
+    msgr.debug("Setting up reporting object...")
+    report_factory = ReportFactory(sim_config)
+
     msgr.verbose("Models set up")
     simulation = Simulation(
         sim_config.start_time,
@@ -342,7 +349,7 @@ def create_memory_simulation(
         surface_flow,
         drainage_sim,
         nodes_list,
-        report,
+        report=report_factory.get_report_object(),
         mass_balance_error_threshold=sim_config.surface_flow_parameters.max_error,
     )
     return simulation
@@ -416,15 +423,6 @@ def create_icechunk_simulation(
     msgr.debug("Setting up surface model...")
     surface_flow = SurfaceFlowSimulation(raster_domain, sim_config.surface_flow_parameters)
 
-    # Instantiate Massbal object
-    if sim_config.stats_file:
-        msgr.debug("Setting up mass balance object...")
-        massbal = MassBalanceLogger(
-            file_name=sim_config.stats_file,
-        )
-    else:
-        massbal = None
-
     # Drainage
     nodes_list, drainage_sim = _create_drainage_simulation(sim_config, domain_data)
 
@@ -458,14 +456,10 @@ def create_icechunk_simulation(
         }
     )
 
-    report = Report(
-        start_time=sim_config.start_time,
-        temporal_type=sim_config.temporal_type,
-        raster_output_provider=raster_output_provider,
-        vector_output_provider=vector_output_provider,
-        mass_balance_logger=massbal,
-        out_map_names=sim_config.output_map_names,
-        dt=sim_config.record_step,
+    report_factory = (
+        ReportFactory(sim_config)
+        .set_raster_output_provider(raster_output_provider)
+        .set_vector_output_provider(vector_output_provider)
     )
 
     msgr.verbose("Models set up")
@@ -477,7 +471,7 @@ def create_icechunk_simulation(
         surface_flow,
         drainage_sim,
         nodes_list,
-        report,
+        report=report_factory.get_report_object(),
         mass_balance_error_threshold=sim_config.surface_flow_parameters.max_error,
     )
     return (simulation, timed_arrays)
