@@ -1,6 +1,6 @@
 import tempfile
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from dataclasses import fields
 
@@ -549,5 +549,68 @@ def test_links_without_vertices(temp_dir, sim_time):
     assert l1_data[1] == "conduit", f"L1 link_type mismatch: {l1_data[1]}"
     assert l1_data[2] == 0.8, f"L1 flow mismatch: {l1_data[2]}"
     assert l1_data[3] == 0.6, f"L1 depth mismatch: {l1_data[3]}"
+
+    conn.close()
+
+
+@pytest.fixture(scope="module")
+def relative_time():
+    """Fixture for relative time in seconds (ISO 8601 duration)."""
+    return timedelta(seconds=3600)
+
+
+@pytest.fixture(scope="module")
+def write_sqlite_relative_time(temp_dir, relative_time):
+    """Write SQLite database using dummy network data with relative time."""
+    drainage_network = create_dummy_drainage_network()
+
+    provider_config = {
+        "crs": pyproj.CRS.from_epsg(6372),
+        "output_dir": Path(temp_dir.name),
+        "drainage_map_name": "test_drainage_relative",
+    }
+    sqlite_provider = SQLiteVectorOutputProvider(provider_config)
+    sqlite_provider.write_vector(drainage_network, relative_time)
+
+
+@pytest.mark.usefixtures("write_sqlite_relative_time")
+def test_relative_time_storage(temp_dir, relative_time):
+    """Verify SQLite database stores relative time correctly as ISO duration in seconds."""
+
+    output_dir = Path(temp_dir.name)
+    db_file = output_dir / "test_drainage_relative.db"
+
+    assert db_file.exists(), f"Database file not created: {db_file}"
+
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+
+    # Check nodes table
+    cursor.execute("PRAGMA table_info(nodes)")
+    columns = [col[1] for col in cursor.fetchall()]
+    assert "sim_time" in columns, "sim_time column not found in nodes table"
+
+    # Query sim_time from nodes
+    cursor.execute("SELECT DISTINCT sim_time FROM nodes")
+    node_times = cursor.fetchall()
+    assert len(node_times) == 1, f"Expected 1 unique sim_time, got {len(node_times)}"
+
+    # Verify the relative time is stored as an integer (seconds)
+    stored_time = node_times[0][0]
+    assert isinstance(stored_time, str), f"sim_time should be string, got {type(stored_time)}"
+    expected_iso_duration = f"PT{relative_time.total_seconds()}S"
+    assert stored_time == expected_iso_duration, (
+        f"sim_time mismatch: {stored_time} vs expected {expected_iso_duration}"
+    )
+
+    # Check links table
+    cursor.execute("SELECT DISTINCT sim_time FROM links")
+    link_times = cursor.fetchall()
+    assert len(link_times) == 1, f"Expected 1 unique sim_time, got {len(link_times)}"
+
+    stored_time_links = link_times[0][0]
+    assert stored_time_links == expected_iso_duration, (
+        f"Links sim_time mismatch: {stored_time_links} vs expected {expected_iso_duration}"
+    )
 
     conn.close()
