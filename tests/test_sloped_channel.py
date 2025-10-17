@@ -20,8 +20,9 @@ import numpy as np
 import pytest
 
 
-from itzi.simulation_factories import create_memory_simulation
+from itzi.simulation_builder import SimulationBuilder
 from itzi.providers.domain_data import DomainData
+from itzi.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
 from itzi.data_containers import SurfaceFlowParameters, SimulationConfig
 
 
@@ -86,9 +87,6 @@ def speed_GMS(flow_depth, n, slope):
     "long_slope",
     [
         0.001,
-        # 0.01,
-        # 0.1,
-        # 1,
         10,
         100,
     ],
@@ -97,9 +95,6 @@ def speed_GMS(flow_depth, n, slope):
     "lat_slope",
     [
         0.001,
-        # 0.01,
-        # 0.1,
-        # 1,
         10,
         100,
     ],
@@ -192,12 +187,19 @@ def test_sloped_channel(
     array_mask[:, :2] = True  # left 2 columns
     array_mask[:, -2:] = True  # right 2 columns
 
-    simulation = create_memory_simulation(
-        sim_config=sim_config,
-        domain_data=domain_data,
-        arr_mask=array_mask,
-        dtype=np.float32,
+    raster_output = MemoryRasterOutputProvider(
+        {
+            "out_map_names": sim_config.output_map_names,
+        }
     )
+    simulation, _ = (
+        SimulationBuilder(sim_config, array_mask, np.float32)
+        .with_domain_data(domain_data)
+        .with_raster_output_provider(raster_output)
+        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .build()
+    )
+
     # Set the input arrays
     simulation.set_array("dem", arr_dem)  # Must be first
     simulation.set_array("bctype", arr_bctype)

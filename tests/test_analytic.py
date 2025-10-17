@@ -15,9 +15,10 @@ import pandas as pd
 import pytest
 
 
-from itzi.simulation_factories import create_memory_simulation
+from itzi.simulation_builder import SimulationBuilder
 from itzi.configreader import ConfigReader
 from itzi.providers.domain_data import DomainData
+from itzi.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
 
 ASCIIMetadata = namedtuple(
     "ASCIIMetadata", ["ncols", "nrows", "xllcorner", "yllcorner", "cellsize"]
@@ -116,11 +117,17 @@ def mcdo_norain_sim(test_data_path, test_data_temp_path):
     os.chdir(test_data_temp_path)
     config_file = data_dir / Path("mcdo_norain.ini")
     config = ConfigReader(config_file).get_sim_params()
-    simulation = create_memory_simulation(
-        sim_config=config,
-        domain_data=domain_data,
-        arr_mask=array_mask,
-        dtype=np.float32,
+    raster_output = MemoryRasterOutputProvider(
+        {
+            "out_map_names": config.output_map_names,
+        }
+    )
+    simulation, _ = (
+        SimulationBuilder(config, array_mask, np.float32)
+        .with_domain_data(domain_data)
+        .with_raster_output_provider(raster_output)
+        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .build()
     )
     # Set the input arrays
     simulation.set_array("dem", arr_dem)
@@ -229,11 +236,17 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
     os.chdir(test_data_temp_path)
     config_file = data_dir / Path("mcdo_rain.ini")
     config = ConfigReader(config_file).get_sim_params()
-    simulation = create_memory_simulation(
-        sim_config=config,
-        domain_data=domain_data,
-        arr_mask=array_mask,
-        dtype=np.float32,
+    raster_output = MemoryRasterOutputProvider(
+        {
+            "out_map_names": config.output_map_names,
+        }
+    )
+    simulation, _ = (
+        SimulationBuilder(config, array_mask, np.float32)
+        .with_domain_data(domain_data)
+        .with_raster_output_provider(raster_output)
+        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .build()
     )
     # Set the input arrays
     simulation.set_array("dem", arr_dem)
