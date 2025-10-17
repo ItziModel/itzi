@@ -20,7 +20,7 @@ jobs:
     - name: Install dependencies
       run: |
         apt update
-        apt install -y clang build-essential libomp-dev nodejs
+        apt install -y clang build-essential libomp-dev nodejs libsqlite3-mod-spatialite
 
     - name: Install uv and Python
       run: |
@@ -29,7 +29,7 @@ jobs:
 
     - name: Pytest
       run: |
-        $HOME/.local/bin/uv run --python ${{ matrix.python-version }} pytest --cov=src --forked --junitxml=junit/test-results.xml --cov-report=xml --cov-report=html tests/
+        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --forked --junitxml=junit/test-results.xml --cov-report=xml --cov-report=html tests/
 
     - name: Upload coverage
       uses: actions/upload-artifact@v4

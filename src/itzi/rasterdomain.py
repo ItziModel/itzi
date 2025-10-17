@@ -14,58 +14,14 @@ GNU General Public License for more details.
 """
 
 from datetime import datetime
-from typing import Tuple
+from typing import Self, Callable, TYPE_CHECKING
 import numpy as np
 
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi import rastermetrics
 
-
-class DomainData:
-    """Store raster domain information. Alike GRASS region."""
-
-    def __init__(self, north: float, south: float, east: float, west: float, rows: int, cols: int):
-        self.north = north
-        self.south = south
-        self.east = east
-        self.west = west
-        self.rows = rows
-        self.cols = cols
-
-        if self.north < self.south:
-            raise ValueError(f"north must be superior to south. {self.north=}, {self.south=}")
-        if self.east < self.west:
-            raise ValueError(f"east must be superior to west. {self.east=}, {self.west=}")
-
-        self.nsres = (self.north - self.south) / self.rows
-        self.ewres = (self.east - self.west) / self.cols
-        self.cell_area = self.ewres * self.nsres
-        self.cell_shape = (self.ewres, self.nsres)
-        self.shape = (self.rows, self.cols)
-        self.cells = self.rows * self.cols
-
-    def is_in_domain(self, *, x: float, y: float) -> bool:
-        """For a given coordinate pair(x, y),
-        return True is inside the domain, False otherwise.
-        """
-        bool_x = self.west < x < self.east
-        bool_y = self.south < y < self.north
-        return bool(bool_x and bool_y)
-
-    def coordinates_to_pixel(self, *, x: float, y: float) -> Tuple[float, float] | None:
-        """For a given coordinate pair(x, y),
-        return True is inside the domain, False otherwise.
-        """
-        if not self.is_in_domain(x=x, y=y):
-            return None
-        else:
-            norm_row = (y - self.south) / (self.north - self.south)
-            row = int(np.round((1 - norm_row) * (self.rows - 1)))
-
-            norm_col = (x - self.west) / (self.east - self.west)
-            col = int(np.round(norm_col * (self.cols - 1)))
-
-            return (row, col)
+if TYPE_CHECKING:
+    from itzi.providers.base import RasterInputProvider
 
 
 class TimedArray:
@@ -74,51 +30,60 @@ class TimedArray:
     array is accessed via get()
     """
 
-    def __init__(self, mkey, igis, f_arr_def):
+    def __init__(
+        self,
+        mkey: str,
+        raster_provider: "RasterInputProvider",
+        default_array_func: Callable[[], np.ndarray],
+    ):
         assert isinstance(mkey, str), "not a string!"
-        assert hasattr(f_arr_def, "__call__"), "not a function!"
-        self.mkey = mkey  # An user-facing array identifier
-        self.igis = igis  # GIS interface
+        assert hasattr(default_array_func, "__call__"), "not a function!"
+        self.mkey = mkey  # An array identifier
+        self.raster_provider = raster_provider
         # A function to generate a default array
-        self.f_arr_def = f_arr_def
+        self.default_array_func = default_array_func
         # default values for start and end
         # intended to trigger update when is_valid() is first called
-        self.a_start = datetime(1, 1, 2)
-        self.a_end = datetime(1, 1, 1)
+        self.arr_start = datetime(1, 1, 2)
+        self.arr_end = datetime(1, 1, 1)
+        # Necessary for BMI implementation
+        self.origin = raster_provider.origin
+        # Placeholder for the numpy array
+        self.arr = None
 
-    def get(self, sim_time):
+    def get(self, sim_time: datetime) -> np.ndarray:
         """Return a numpy array valid for the given time
         If the array stored is not valid, update the values of the object
         """
         assert isinstance(sim_time, datetime), "not a datetime object!"
         if not self.is_valid(sim_time):
-            self.update_values_from_gis(sim_time)
+            self.update_values(sim_time)
         return self.arr
 
-    def is_valid(self, sim_time):
+    def is_valid(self, sim_time: datetime) -> bool:
         """input being a time in datetime
         If the current stored array is within the range of the map,
         return True
         If not return False
         """
-        return bool(self.a_start <= sim_time <= self.a_end)
+        return bool(self.arr_start <= sim_time <= self.arr_end)
 
-    def update_values_from_gis(self, sim_time):
-        """Update array, start_time and end_time from GIS
-        if GIS return None, set array to default value
+    def update_values(self, sim_time: datetime) -> Self:
+        """Update array, start_time and end_time from provider
+        if the provider returns None, set array to default value
         """
         # Retrieve values
-        arr, arr_start, arr_end = self.igis.get_array(self.mkey, sim_time)
+        arr, arr_start, arr_end = self.raster_provider.get_array(self.mkey, sim_time)
         # set to default if no array retrieved
         if not isinstance(arr, np.ndarray):
-            arr = self.f_arr_def()
+            arr = self.default_array_func()
         # check retrieved values
         assert isinstance(arr_start, datetime), "not a datetime object!"
         assert isinstance(arr_end, datetime), "not a datetime object!"
         assert arr_start <= sim_time <= arr_end, "wrong time retrieved!"
         # update object values
-        self.a_start = arr_start
-        self.a_end = arr_end
+        self.arr_start = arr_start
+        self.arr_end = arr_end
         self.arr = arr
         return self
 

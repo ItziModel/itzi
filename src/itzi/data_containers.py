@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
-from itzi.const import DefaultValues
+from itzi.const import DefaultValues, TemporalType, InfiltrationModelType
 
 if TYPE_CHECKING:
     from itzi.drainage import DrainageNode
@@ -43,11 +43,12 @@ class DrainageNodeCouplingData:
 class DrainageAttributes:
     """A base class for drainage data attributes."""
 
-    def get_columns_definition(self) -> list[tuple[str, str]]:
+    @classmethod
+    def get_columns_definition(cls) -> list[tuple[str, str]]:
         """Return a list of tuples to create DB columns"""
         type_mapping = {str: "TEXT", int: "INT", float: "REAL"}
         db_columns_def = [("cat", "INTEGER PRIMARY KEY")]
-        for f in dataclasses.fields(self):
+        for f in dataclasses.fields(cls):
             db_field = (f.name, type_mapping[f.type])
             db_columns_def.append(db_field)
         return db_columns_def
@@ -69,7 +70,7 @@ class DrainageLinkAttributes(DrainageAttributes):
 class DrainageLinkData:
     """Store the instantaneous state of a node during a drainage simulation"""
 
-    vertices: Tuple[Tuple[float, float], ...]
+    vertices: None | Tuple[Tuple[float, float], ...]
     attributes: DrainageLinkAttributes
 
 
@@ -102,7 +103,7 @@ class DrainageNodeAttributes(DrainageAttributes):
 class DrainageNodeData:
     """Store the instantaneous state of a node during a drainage simulation"""
 
-    coordinates: Tuple[float, float]
+    coordinates: None | Tuple[float, float]
     attributes: DrainageNodeAttributes
 
 
@@ -184,7 +185,7 @@ class SimulationConfig:
     start_time: datetime
     end_time: datetime
     record_step: timedelta
-    temporal_type: str  # options: [relative, absolute]
+    temporal_type: TemporalType
     # Input and output raster maps
     input_map_names: Dict[str, str]
     output_map_names: Dict[str, str]
@@ -194,10 +195,10 @@ class SimulationConfig:
     stats_file: str
     # Hydrology parameters
     dtinf: float = DefaultValues.DTINF
-    infiltration_model: float = None  # options: [null, constant, green-ampt]
+    infiltration_model: InfiltrationModelType = InfiltrationModelType.NULL
     # Drainage parameters
-    swmm_inp: str = None
-    drainage_output: str = None
+    swmm_inp: str | None = None
+    drainage_output: str | None = None
     orifice_coeff: float = DefaultValues.ORIFICE_COEFF
     free_weir_coeff: float = DefaultValues.FREE_WEIR_COEFF
     submerged_weir_coeff: float = DefaultValues.SUBMERGED_WEIR_COEFF

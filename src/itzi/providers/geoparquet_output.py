@@ -1,0 +1,103 @@
+# coding=utf8
+"""
+Copyright (C) 2025 Laurent Courty
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+"""
+
+from datetime import datetime, timedelta
+from typing import Tuple, TypedDict, TYPE_CHECKING
+from dataclasses import asdict
+from pathlib import Path
+
+try:
+    import geopandas
+except ImportError:
+    raise ImportError(
+        "To use the geoparquet backend, install itzi with: "
+        "'uv tool install itzi[cloud]' "
+        "or 'pip install itzi[cloud]'"
+    )
+
+from itzi.providers.base import VectorOutputProvider
+
+if TYPE_CHECKING:
+    from itzi.data_containers import DrainageNetworkData, DrainageNodeData, DrainageLinkData
+    import pyproj
+
+
+class ParquetVectorOutputConfig(TypedDict):
+    crs: "pyproj.CRS"
+    output_dir: Path
+    drainage_map_name: str
+
+
+class ParquetVectorOutputProvider(VectorOutputProvider):
+    """Save drainage simulation outputs in memory."""
+
+    def __init__(self, config: ParquetVectorOutputConfig) -> None:
+        """Initialize output provider."""
+        self.crs = config["crs"]
+        self.output_dir = Path(config["output_dir"])
+        self.drainage_map_name = config["drainage_map_name"]
+
+    def write_vector(
+        self, drainage_data: "DrainageNetworkData", sim_time: datetime | timedelta
+    ) -> None:
+        """Save simulation data for current time step."""
+        df_nodes = self.create_nodes(drainage_data.nodes)
+        df_links = self.create_links(drainage_data.links)
+        links_map_name = f"{self.drainage_map_name}_links_{sim_time}.parquet"
+        nodes_map_name = f"{self.drainage_map_name}_nodes_{sim_time}.parquet"
+        df_nodes.to_parquet(path=self.output_dir / Path(nodes_map_name), index=True)
+        df_links.to_parquet(path=self.output_dir / Path(links_map_name), index=True)
+
+    def create_nodes(self, nodes: Tuple["DrainageNodeData", ...]) -> geopandas.GeoDataFrame:
+        """Create a geodataframe from multiple drainage nodes"""
+        features = []
+        for node in nodes:
+            if node.coordinates:
+                geometry = {"type": "Point", "coordinates": node.coordinates}
+            else:
+                geometry = {}
+            feature = {
+                "type": "Point",
+                "properties": asdict(node.attributes),
+                "geometry": geometry,
+            }
+            features.append(feature)
+        return geopandas.GeoDataFrame.from_features(features, crs=self.crs)
+
+    def create_links(self, links: Tuple["DrainageLinkData", ...]) -> geopandas.GeoDataFrame:
+        """Create a geodataframe from multiple drainage links"""
+        features = []
+        for link in links:
+            # Filter out None coordinates (nodes outside domain)
+            if not link.vertices:
+                valid_vertices = []
+            else:
+                valid_vertices = [v for v in link.vertices if v is not None]
+            # Skip links that don't have at least 2 valid vertices
+            if len(valid_vertices) < 2:
+                geometry = {}
+            else:
+                geometry = {"type": "LineString", "coordinates": valid_vertices}
+            feature = {
+                "type": "LineString",
+                "properties": asdict(link.attributes),
+                "geometry": geometry,
+            }
+            features.append(feature)
+        return geopandas.GeoDataFrame.from_features(features, crs=self.crs)
+
+    def finalize(self, drainage_data: "DrainageNetworkData") -> None:
+        """Function not needed for geoparquet."""
+        pass

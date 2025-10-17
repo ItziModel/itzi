@@ -19,7 +19,7 @@ from configparser import ConfigParser
 from datetime import datetime, timedelta
 
 import itzi.messenger as msgr
-from itzi.const import DefaultValues
+from itzi.const import DefaultValues, TemporalType, InfiltrationModelType
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi.data_containers import SurfaceFlowParameters, SimulationConfig
 
@@ -70,7 +70,7 @@ class ConfigReader:
             "max_slope": DefaultValues.MAX_SLOPE,
             "dtinf": DefaultValues.DTINF,
             "max_error": DefaultValues.MAX_ERROR,
-            "inf_model": None,
+            "inf_model": InfiltrationModelType.NULL,
         }
         self.grass_mandatory = ["grassdata", "location", "mapset"]
         k_grass_params = self.grass_mandatory + ["region", "mask", "grass_bin"]
@@ -214,16 +214,16 @@ class ConfigReader:
         ga_all = all(self.input_map_names[i] for i in self.ga_list)
         # verify parameters
         if not self.input_map_names[inf_k] and not ga_any:
-            self.sim_param["inf_model"] = "null"
+            self.sim_param["inf_model"] = InfiltrationModelType.NULL
         elif self.input_map_names[inf_k] and not ga_any:
-            self.sim_param["inf_model"] = "constant"
+            self.sim_param["inf_model"] = InfiltrationModelType.CONSTANT
         elif self.input_map_names[inf_k] and ga_any:
             msgr.fatal("Infiltration model incompatible with user-defined rate")
         # check if all maps for Green-Ampt are presents
         elif ga_any and not ga_all:
             msgr.fatal("{} are mutualy inclusive".format(self.ga_list))
         elif ga_all and not self.input_map_names[inf_k]:
-            self.sim_param["inf_model"] = "green-ampt"
+            self.sim_param["inf_model"] = InfiltrationModelType.GREEN_AMPT
         return self
 
     def check_general_input(self):
@@ -373,9 +373,9 @@ class SimulationTimes:
             msgr.fatal(comb_err_msg)
         # if only duration is given, temporal type is relative
         if b_dur:
-            self.temporal_type = "relative"
+            self.temporal_type = TemporalType.RELATIVE
         else:
-            self.temporal_type = "absolute"
+            self.temporal_type = TemporalType.ABSOLUTE
         return self
 
     def read_timedelta(self, string):

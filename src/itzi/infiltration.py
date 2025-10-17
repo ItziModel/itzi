@@ -20,7 +20,7 @@ import itzi.flow as flow
 from itzi.itzi_error import DtError
 
 
-class Infiltration:
+class InfiltrationModel:
     """Base class for Infiltration
     infiltration is calculated in m/s
     """
@@ -51,7 +51,7 @@ class Infiltration:
             self._dt = newdt_s
 
 
-class InfConstantRate(Infiltration):
+class InfConstantRate(InfiltrationModel):
     """Calculate infiltration using a constant user-defined infiltration
     rate given by a raster map or serie of maps.
     """
@@ -67,11 +67,11 @@ class InfConstantRate(Infiltration):
         return self
 
 
-class InfGreenAmpt(Infiltration):
+class InfGreenAmpt(InfiltrationModel):
     """Calculate infiltration using Green-Ampt formula"""
 
     def __init__(self, raster_domain, dt_inf):
-        Infiltration.__init__(self, raster_domain, dt_inf)
+        InfiltrationModel.__init__(self, raster_domain, dt_inf)
         # Initial cumulative infiltration set to tiny value
         # (prevent division by zero)
         self.infiltration_amount = np.full(
@@ -93,7 +93,7 @@ class InfGreenAmpt(Infiltration):
         return self
 
 
-class InfNull(Infiltration):
+class InfNull(InfiltrationModel):
     """Dummy class for cases where no infiltration is calculated"""
 
     def step(self):
