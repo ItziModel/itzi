@@ -28,16 +28,16 @@ if TYPE_CHECKING:
     import pyproj
 
 
-class SQLiteVectorOutputConfig(TypedDict):
+class SpatialiteVectorOutputConfig(TypedDict):
     crs: "pyproj.CRS"
     output_dir: Path
     drainage_map_name: str
 
 
-class SQLiteVectorOutputProvider(VectorOutputProvider):
+class SpatialiteVectorOutputProvider(VectorOutputProvider):
     """Save drainage simulation outputs to SQLite/Spatialite database."""
 
-    def __init__(self, config: SQLiteVectorOutputConfig) -> None:
+    def __init__(self, config: SpatialiteVectorOutputConfig) -> None:
         """Initialize output provider and create SQLite database with tables."""
         try:
             self.srid = config["crs"].to_epsg()

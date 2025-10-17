@@ -15,7 +15,7 @@ from itzi.data_containers import (
     DrainageLinkAttributes,
 )
 from itzi.drainage import CouplingTypes
-from itzi.providers.sqlite_output import SQLiteVectorOutputProvider
+from itzi.providers.spatialite_output import SpatialiteVectorOutputProvider
 
 
 @pytest.fixture(scope="module")
@@ -228,7 +228,7 @@ def write_sqlite(temp_dir, sim_time):
         "output_dir": Path(temp_dir.name),
         "drainage_map_name": "test_drainage",
     }
-    sqlite_provider = SQLiteVectorOutputProvider(provider_config)
+    sqlite_provider = SpatialiteVectorOutputProvider(provider_config)
     sqlite_provider.write_vector(drainage_network, sim_time)
 
 
@@ -461,7 +461,7 @@ def write_sqlite_no_geometry(temp_dir, sim_time):
         "output_dir": Path(temp_dir.name),
         "drainage_map_name": "test_drainage_no_geom",
     }
-    sqlite_provider = SQLiteVectorOutputProvider(provider_config)
+    sqlite_provider = SpatialiteVectorOutputProvider(provider_config)
     sqlite_provider.write_vector(drainage_network, sim_time)
 
 
@@ -569,7 +569,7 @@ def write_sqlite_relative_time(temp_dir, relative_time):
         "output_dir": Path(temp_dir.name),
         "drainage_map_name": "test_drainage_relative",
     }
-    sqlite_provider = SQLiteVectorOutputProvider(provider_config)
+    sqlite_provider = SpatialiteVectorOutputProvider(provider_config)
     sqlite_provider.write_vector(drainage_network, relative_time)
 
 
