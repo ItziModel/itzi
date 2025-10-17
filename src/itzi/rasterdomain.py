@@ -69,8 +69,8 @@ class TimedArray:
         return bool(self.arr_start <= sim_time <= self.arr_end)
 
     def update_values(self, sim_time: datetime) -> Self:
-        """Update array, start_time and end_time from GIS
-        if GIS return None, set array to default value
+        """Update array, start_time and end_time from provider
+        if the provider returns None, set array to default value
         """
         # Retrieve values
         arr, arr_start, arr_end = self.raster_provider.get_array(self.mkey, sim_time)
