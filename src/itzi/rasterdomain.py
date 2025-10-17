@@ -34,14 +34,14 @@ class TimedArray:
         self,
         mkey: str,
         raster_provider: "RasterInputProvider",
-        f_arr_def: Callable[[], np.ndarray],
+        default_array_func: Callable[[], np.ndarray],
     ):
         assert isinstance(mkey, str), "not a string!"
-        assert hasattr(f_arr_def, "__call__"), "not a function!"
+        assert hasattr(default_array_func, "__call__"), "not a function!"
         self.mkey = mkey  # An array identifier
         self.raster_provider = raster_provider
         # A function to generate a default array
-        self.f_arr_def = f_arr_def
+        self.default_array_func = default_array_func
         # default values for start and end
         # intended to trigger update when is_valid() is first called
         self.arr_start = datetime(1, 1, 2)
@@ -76,7 +76,7 @@ class TimedArray:
         arr, arr_start, arr_end = self.raster_provider.get_array(self.mkey, sim_time)
         # set to default if no array retrieved
         if not isinstance(arr, np.ndarray):
-            arr = self.f_arr_def()
+            arr = self.default_array_func()
         # check retrieved values
         assert isinstance(arr_start, datetime), "not a datetime object!"
         assert isinstance(arr_end, datetime), "not a datetime object!"
