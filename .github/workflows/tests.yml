@@ -20,7 +20,7 @@ jobs:
     - name: Install dependencies
       run: |
         apt update
-        apt install -y clang build-essential libomp-dev nodejs
+        apt install -y clang build-essential libomp-dev nodejs libsqlite3-mod-spatialite
 
     - name: Install uv and Python
       run: |

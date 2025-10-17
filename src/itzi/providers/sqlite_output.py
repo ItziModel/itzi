@@ -67,8 +67,7 @@ class SQLiteVectorOutputProvider(VectorOutputProvider):
             try:
                 self.conn.load_extension("libspatialite")
             except sqlite3.OperationalError:
-                # Spatialite not available, will use TEXT for geometry
-                pass
+                raise RuntimeError("spatialite not found")
 
         # Initialize spatial metadata
         self.cursor.execute("SELECT InitSpatialMetadata(1)")
