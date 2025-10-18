@@ -81,16 +81,18 @@ class SpatialiteVectorOutputProvider(VectorOutputProvider):
         """Create a nodes or links table with spatialite geometry."""
         # Get column definitions
         if table_name == "nodes":
-            columns = DrainageNodeAttributes.get_columns_definition()
+            columns = DrainageNodeAttributes.get_columns_definition(cat_primary_key=False)
         elif table_name == "links":
-            columns = DrainageLinkAttributes.get_columns_definition()
+            columns = DrainageLinkAttributes.get_columns_definition(cat_primary_key=False)
         else:
             raise ValueError("Unknown table name")
         # Add time column
         columns.append(("sim_time", "TEXT"))
 
-        # Create table
-        cols_sql = ", ".join([f"{name} {dtype}" for name, dtype in columns])
+        # Create table with auto-incrementing primary key
+        cols_sql = "id INTEGER PRIMARY KEY AUTOINCREMENT, " + ", ".join(
+            [f"{name} {dtype}" for name, dtype in columns]
+        )
         create_table = f"CREATE TABLE IF NOT EXISTS {table_name} ({cols_sql})"
         self.cursor.execute(create_table)
 
@@ -152,8 +154,14 @@ class SpatialiteVectorOutputProvider(VectorOutputProvider):
 
             # Create geometry WKT
             if link_data.vertices is not None and len(link_data.vertices) > 0:
-                coords_str = ", ".join([f"{x} {y}" for x, y in link_data.vertices])
-                geom_wkt = f"LINESTRING({coords_str})"
+                # Filter out None vertices
+                valid_vertices = [v for v in link_data.vertices if v is not None]
+                if len(valid_vertices) >= 2:
+                    coords_str = ", ".join([f"{x} {y}" for x, y in valid_vertices])
+                    geom_wkt = f"LINESTRING({coords_str})"
+                else:
+                    # Not enough valid vertices to create a linestring
+                    geom_wkt = None
             else:
                 geom_wkt = None
 

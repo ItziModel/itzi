@@ -1,5 +1,5 @@
 """
-Integration tests using the EA test case 8b with icechunk and geoparquet backends.
+Integration tests using the EA test case 8b with icechunk and spatialite backends.
 The results from itzi are compared with those from XPSTORM.
 """
 
@@ -15,15 +15,18 @@ import pytest
 import xarray as xr
 import rioxarray
 import pyproj
-import geopandas as gpd
+import sqlite3
 import icechunk
 import icechunk.xarray
 
 
 from itzi.profiler import profile_context
-from itzi.simulation_factories import create_icechunk_simulation
+from itzi.simulation_builder import SimulationBuilder
 from itzi.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi.const import TemporalType
+from itzi.providers.icechunk_input import IcechunkRasterInputProvider
+from itzi.providers.icechunk_output import IcechunkRasterOutputProvider
+from itzi.providers.spatialite_output import SpatialiteVectorOutputProvider
 
 
 TEST8B_URL = "https://zenodo.org/api/records/15256842/files/Test8B_dataset_2010.zip/content"
@@ -176,22 +179,27 @@ def ea_test8b_reference(test_data_path):
 
 @pytest.fixture(scope="module")
 def ea_test8b_sim_icechunk(ea_test8b_icechunk_data, test_data_path, test_data_temp_path):
-    """Run simulation with icechunk and geoparquet backends."""
+    """Run simulation with icechunk and spatialite backends."""
     # Keep all generated files in the test_data_temp_path
     os.chdir(test_data_temp_path)
 
-    # Create output directory for geoparquet files
-    output_dir = Path(test_data_temp_path) / "geoparquet_output"
+    # Create output directory for spatialite database
+    output_dir = Path(test_data_temp_path) / "spatialite_output"
     output_dir.mkdir(exist_ok=True)
+
+    # Remove existing database file to ensure fresh schema
+    db_file = output_dir / "out_drainage.db"
+    if db_file.exists():
+        db_file.unlink()
 
     # Create icechunk output storage
     output_storage = icechunk.in_memory_storage()
 
     inp_file = os.path.join(test_data_path, "EA_test_8", "b", "test8b_drainage_ponding.inp")
 
-    # Create simulation configuration for icechunk/geoparquet backends
+    # Create simulation configuration for icechunk/spatialite backends
 
-    sim_start_time = datetime(2000, 1, 1, 0, 0, 0)
+    sim_start_time = datetime.min
     sim_end_time = sim_start_time + timedelta(hours=3, minutes=20)
 
     profile_path = Path(test_data_temp_path) / Path("test8b_icechunk_profile.txt")
@@ -212,24 +220,61 @@ def ea_test8b_sim_icechunk(ea_test8b_icechunk_data, test_data_path, test_data_te
         start_time=sim_start_time,
         end_time=sim_end_time,
         record_step=timedelta(seconds=30),
-        temporal_type=TemporalType.ABSOLUTE,
+        temporal_type=TemporalType.RELATIVE,
         input_map_names={"dem": "dem", "friction": "friction"},
         output_map_names={"water_depth": "test_water_depth"},
         drainage_output="out_drainage",
         swmm_inp=inp_file,
         stats_file="ea8b_icechunk.csv",
         surface_flow_parameters=surface_flow_params,
-        orifice_coeff=1.0,  # Match reference
+        orifice_coeff=1.0,  # Same as reference
     )
 
-    # Use the icechunk simulation factory
-    simulation, timed_arrays = create_icechunk_simulation(
-        sim_config=sim_config,
-        arr_mask=arr_mask,
-        input_icechunk_storage=ea_test8b_icechunk_data["storage"],
-        output_icechunk_storage=output_storage,
-        input_icechunk_group="main",
-        output_dir=str(output_dir),
+    # Set up providers
+    raster_input_provider = IcechunkRasterInputProvider(
+        {
+            "icechunk_storage": ea_test8b_icechunk_data["storage"],
+            "icechunk_group": "main",
+            "input_map_names": sim_config.input_map_names,
+            "simulation_start_time": sim_config.start_time,
+            "simulation_end_time": sim_config.end_time,
+        }
+    )
+    domain_data = raster_input_provider.get_domain_data()
+
+    # Generate coordinate arrays from domain_data
+    coords = domain_data.get_coordinates()
+    x_coords = coords["x"]
+    y_coords = coords["y"]
+    crs = pyproj.CRS.from_wkt(domain_data.crs_wkt)
+
+    # Set up raster output provider
+    raster_output_provider = IcechunkRasterOutputProvider(
+        {
+            "out_map_names": sim_config.output_map_names,
+            "crs": crs,
+            "x_coords": x_coords,
+            "y_coords": y_coords,
+            "icechunk_storage": output_storage,
+        }
+    )
+
+    # Set up vector output provider (spatialite)
+    vector_output_provider = SpatialiteVectorOutputProvider(
+        {
+            "crs": crs,
+            "output_dir": output_dir,
+            "drainage_map_name": sim_config.drainage_output,
+        }
+    )
+
+    # Build simulation
+    simulation, timed_arrays = (
+        SimulationBuilder(sim_config, arr_mask)
+        .with_input_provider(raster_input_provider)
+        .with_raster_output_provider(raster_output_provider)
+        .with_vector_output_provider(vector_output_provider)
+        .build()
     )
 
     # Set arrays
@@ -257,64 +302,63 @@ def ea_test8b_sim_icechunk(ea_test8b_icechunk_data, test_data_path, test_data_te
 
 
 @pytest.fixture(scope="module")
-def ea8b_itzi_drainage_results_geoparquet(ea_test8b_sim_icechunk):
-    """Extract coupling flow from the drainage network using geoparquet files."""
+def ea8b_itzi_drainage_results(ea_test8b_sim_icechunk):
+    """Extract coupling flow from the drainage network using spatialite database."""
     output_dir = ea_test8b_sim_icechunk["output_dir"]
 
-    # Find geoparquet files for nodes
-    node_files = list(output_dir.glob("*_nodes_*.parquet"))
+    # Spatialite database file
+    db_file = output_dir / "out_drainage.db"
 
-    if not node_files:
+    if not db_file.exists():
         pytest.skip("No drainage results found - simulation may not have run properly")
 
-    # Read geoparquet files and extract drainage results
-    all_results = []
-    for node_file in sorted(node_files):
-        # Extract timestamp from filename (format: out_drainage_nodes_2000-01-01 HH:MM:SS)
-        # The timestamp is after the last underscore
-        timestamp_str = node_file.stem.split("_", 3)[-1]  # Split into max 4 parts, take the last
-        # Parse the datetime and convert to seconds since simulation start
-        timestamp_dt = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
-        sim_start_dt = datetime(2000, 1, 1, 0, 0, 0)
-        timestamp_seconds = int((timestamp_dt - sim_start_dt).total_seconds())
+    # Connect to spatialite database
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
 
-        # Read the parquet file
-        gdf = gpd.read_parquet(node_file)
+    # Query nodes table for J1 node
+    # sim_time is stored as datetime string in the database
+    query = """
+    SELECT sim_time, coupling_flow
+    FROM nodes
+    WHERE node_id = 'J1'
+    ORDER BY sim_time
+    """
 
-        # Filter for node J1 (equivalent to the GRASS query)
-        j1_data = gdf[gdf["node_id"] == "J1"]
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    conn.close()
 
-        if not j1_data.empty:
-            coupling_flow = j1_data["coupling_flow"].iloc[0]
-            all_results.append({"start_time": timestamp_seconds, "coupling_flow": coupling_flow})
+    # Parse results using pandas to handle ISO timestamps
+    df_results = pd.DataFrame(rows, columns=["sim_time", "coupling_flow"])
+    # Convert ISO string to timedelta
+    df_results["sim_time"] = pd.to_timedelta(df_results["sim_time"])
+    # convert to total seconds (as the reference)
+    df_results["start_time"] = df_results["sim_time"].dt.total_seconds().astype(int)
 
-    # Convert to pandas series with timedelta index
-    if all_results:
-        df_results = pd.DataFrame(all_results)
-        df_results.set_index("start_time", inplace=True)
+    # Set index and drop unnecessary columns
+    df_results.set_index("start_time", inplace=True)
+    df_results.drop(columns=["sim_time"], inplace=True)
 
-        # Filter for times >= 3000s as in original test
-        df_results = df_results[df_results.index >= 3000]
+    # Filter for times >= 3000s as in reference
+    df_results = df_results[df_results.index >= 3000]
 
-        # Convert index to timedelta
-        df_results.index = pd.to_timedelta(df_results.index, unit="s")
+    # Convert index to timedelta
+    df_results.index = pd.to_timedelta(df_results.index, unit="s")
 
-        return df_results["coupling_flow"]
-    else:
-        # Return empty series if no results found
-        return pd.Series(dtype=float, name="coupling_flow")
+    return df_results["coupling_flow"]
 
 
 @pytest.mark.slow
 def test_ea8b_reference(
     ea_test8b_reference,
-    ea8b_itzi_drainage_results_geoparquet,
+    ea8b_itzi_drainage_results,
     ea_test8b_sim_icechunk,
     helpers,
     test_data_temp_path,
 ):
-    """Test EA8B with icechunk and geoparquet backends."""
-    ds_itzi_results = ea8b_itzi_drainage_results_geoparquet
+    """Test EA8B with icechunk and spatialite backends."""
+    ds_itzi_results = ea8b_itzi_drainage_results
     ds_ref = ea_test8b_reference
 
     # Check if we have results to compare

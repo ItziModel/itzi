@@ -243,7 +243,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
     def get_dataset_from_dict(self, array_dict, sim_time=None):
         """From a dict of arrays, return an xarray dataset."""
         data_vars = {}
-        if sim_time:
+        if sim_time is not None:
             if isinstance(sim_time, datetime):
                 time_dtype = "datetime64[ms]"
                 sim_time_np = np.datetime64(sim_time, "ms")
@@ -283,7 +283,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
                 "standard_name": self.cf_names[key],
                 "long_name": self.descriptions[key],
             }
-            if sim_time:
+            if sim_time is not None:
                 arr = np.expand_dims(arr, axis=0)
 
             data_array = xr.DataArray(
@@ -292,7 +292,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
                 name=var_name,  # Write the requested name
                 attrs=var_attributes,
             )
-            if sim_time:
+            if sim_time is not None:
                 assert data_array["time"].dtype == time_dtype
                 data_array.encoding["time"] = time_encoding
             data_vars[var_name] = data_array
@@ -303,7 +303,7 @@ class IcechunkRasterOutputProvider(RasterOutputProvider):
         dataset = xr.Dataset(data_vars, attrs=dataset_attributes)
 
         # Set encoding on the time coordinate of the dataset itself
-        if sim_time:
+        if sim_time is not None:
             dataset["time"].encoding.update(time_encoding)
 
         return dataset
