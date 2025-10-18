@@ -30,7 +30,7 @@ jobs:
           CIBW_SKIP: pp*  # Don't build pypy wheels
           CIBW_ENVIRONMENT: "ITZI_BDIST_WHEEL=1"  # Trigger generic compiler flags
           CIBW_ENVIRONMENT_MACOS: >
-            MACOSX_DEPLOYMENT_TARGET=14.0
+            MACOSX_DEPLOYMENT_TARGET=15.0
             ITZI_BDIST_WHEEL=1
           CIBW_BEFORE_TEST: "pip install pytest pytest-benchmark pandas"
           CIBW_TEST_SOURCES: tests
