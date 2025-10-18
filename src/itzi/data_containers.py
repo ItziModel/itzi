@@ -44,10 +44,12 @@ class DrainageAttributes:
     """A base class for drainage data attributes."""
 
     @classmethod
-    def get_columns_definition(cls) -> list[tuple[str, str]]:
+    def get_columns_definition(cls, cat_primary_key=True) -> list[tuple[str, str]]:
         """Return a list of tuples to create DB columns"""
         type_mapping = {str: "TEXT", int: "INT", float: "REAL"}
         db_columns_def = [("cat", "INTEGER PRIMARY KEY")]
+        if not cat_primary_key:
+            db_columns_def = [("cat", "INTEGER")]
         for f in dataclasses.fields(cls):
             db_field = (f.name, type_mapping[f.type])
             db_columns_def.append(db_field)
