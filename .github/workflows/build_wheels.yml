@@ -12,8 +12,7 @@ jobs:
     strategy:
       matrix:
         # macos-13 is intel, macos-14 is apple silicon, windows-11-arm
-        # os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-14]
-        os: [macos-14]
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm]
 
     steps:
       - uses: actions/checkout@v4
