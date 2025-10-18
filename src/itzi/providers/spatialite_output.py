@@ -85,12 +85,12 @@ class SpatialiteVectorOutputProvider(VectorOutputProvider):
             columns = DrainageLinkAttributes.get_columns_definition(cat_primary_key=False)
         else:
             raise ValueError("Unknown table name")
-        # Add time column
-        columns.append(("sim_time", "TEXT"))
 
         # Create table with auto-incrementing primary key
-        cols_sql = "id INTEGER PRIMARY KEY AUTOINCREMENT, " + ", ".join(
-            [f"{name} {dtype}" for name, dtype in columns]
+        cols_sql = (
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            + "sim_time TEXT, "
+            + ", ".join([f"{name} {dtype}" for name, dtype in columns])
         )
         create_table = f"CREATE TABLE IF NOT EXISTS {table_name} ({cols_sql})"
         self.cursor.execute(create_table)
@@ -119,7 +119,7 @@ class SpatialiteVectorOutputProvider(VectorOutputProvider):
             sim_time_str = sim_time.isoformat()
 
         # Write nodes
-        for idx, node_data in enumerate(drainage_data.nodes):
+        for node_data in drainage_data.nodes:
             # Convert attributes to dict
             attrs_dict = asdict(node_data.attributes)
 
@@ -131,8 +131,8 @@ class SpatialiteVectorOutputProvider(VectorOutputProvider):
                 geom_wkt = None
 
             # Prepare column names and values
-            columns = ["cat", "sim_time"] + list(attrs_dict.keys())
-            values = [idx + 1, sim_time_str] + list(attrs_dict.values())
+            columns = ["sim_time"] + list(attrs_dict.keys())
+            values = [sim_time_str] + list(attrs_dict.values())
 
             # Build SQL with geometry
             if geom_wkt is not None:
@@ -147,7 +147,7 @@ class SpatialiteVectorOutputProvider(VectorOutputProvider):
             self.cursor.execute(sql, values)
 
         # Write links
-        for idx, link_data in enumerate(drainage_data.links):
+        for link_data in drainage_data.links:
             # Convert attributes to dict
             attrs_dict = asdict(link_data.attributes)
 
@@ -165,8 +165,8 @@ class SpatialiteVectorOutputProvider(VectorOutputProvider):
                 geom_wkt = None
 
             # Prepare column names and values
-            columns = ["cat", "sim_time"] + list(attrs_dict.keys())
-            values = [idx + 1, sim_time_str] + list(attrs_dict.values())
+            columns = ["sim_time"] + list(attrs_dict.keys())
+            values = [sim_time_str] + list(attrs_dict.values())
 
             # Build SQL with geometry
             if geom_wkt is not None:
