@@ -41,6 +41,7 @@ import itzi.messenger as msgr
 from itzi.const import VerbosityLevel
 from itzi import parser
 from itzi.profiler import profile_context
+from itzi.simulation_builder import SimulationBuilder
 
 
 def main():
@@ -104,6 +105,7 @@ class SimulationRunner:
 
         grass_interface.check_output_files(self.conf.output_map_names.values())
         msgr.debug("Output files OK")
+
         data_type = np.float32
         # Create the grass_interface object
         self.g_interface = grass_interface.GrassInterface(
@@ -114,14 +116,45 @@ class SimulationRunner:
             raster_mask_id=self.conf.grass_params["mask"],
             non_blocking_write=False,
         )
-        # Instantiate Simulation object and initialize it
-        from itzi.simulation_factories import create_grass_simulation
+        # Create Simulation with GRASS backend
+        msgr.verbose("Setting up GRASS simulation...")
+        from itzi.providers.grass_input import GrassRasterInputProvider
+        from itzi.providers.grass_output import GrassRasterOutputProvider
+        from itzi.providers.grass_output import GrassVectorOutputProvider
 
-        self.sim, self.tarr = create_grass_simulation(
-            sim_config=sim_config,
-            grass_interface=self.g_interface,
-            dtype=data_type,
+        raster_input_provider = GrassRasterInputProvider(
+            {
+                "grass_interface": self.g_interface,
+                "input_map_names": sim_config.input_map_names,
+                "default_start_time": sim_config.start_time,
+                "default_end_time": sim_config.end_time,
+            }
         )
+
+        raster_output_provider = GrassRasterOutputProvider(
+            {
+                "grass_interface": self.g_interface,
+                "out_map_names": sim_config.output_map_names,
+                "hmin": sim_config.surface_flow_parameters.hmin,
+                "temporal_type": sim_config.temporal_type,
+            }
+        )
+        vector_output_provider = GrassVectorOutputProvider(
+            {
+                "grass_interface": self.g_interface,
+                "temporal_type": sim_config.temporal_type,
+                "drainage_map_name": sim_config.drainage_output,
+            }
+        )
+
+        self.sim, self.tarr = (
+            SimulationBuilder(sim_config, self.g_interface.get_npmask(), data_type)
+            .with_input_provider(raster_input_provider)
+            .with_raster_output_provider(raster_output_provider)
+            .with_vector_output_provider(vector_output_provider)
+            .build()
+        )
+        # Initialize the simulation
         self.update_input_arrays()
         self.sim.initialize()
         return self
