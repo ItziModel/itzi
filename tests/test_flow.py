@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 """
 Tests for flow.pyx optimizations
 Testing mathematical calculations: velocity magnitude and direction

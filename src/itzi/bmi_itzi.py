@@ -1,4 +1,3 @@
-#! /usr/bin/env python3
 """
 Basic Model Interface implementation for the Itzï flood model.
 
