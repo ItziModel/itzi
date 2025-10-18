@@ -24,7 +24,7 @@ FATAL = "ERROR: "
 WARNING = "WARNING: "
 PAD = " " * 20  # Necessary to print a clean line
 
-raise_on_error = False
+raise_on_error = True
 
 
 def verbosity():
