@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 from itzi.const import DefaultValues as DefaultValues
 from itzi.itzi import SimulationRunner as SimulationRunner
 from itzi.bmi_itzi import BmiItzi as BmiItzi

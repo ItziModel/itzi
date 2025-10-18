@@ -1,4 +1,3 @@
-# coding=utf8
 """
 Copyright (C) 2015-2025 Laurent Courty
 
