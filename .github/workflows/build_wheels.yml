@@ -12,13 +12,14 @@ jobs:
     strategy:
       matrix:
         # macos-13 is intel, macos-14 is apple silicon, windows-11-arm
-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-14]
+        # os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-14]
+        os: [macos-15]
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Set-up on MacOS
-        if: ${{ matrix.os == 'macos-14' }}
+        if: ${{ matrix.os == 'macos-15' }}
         run: |
           brew install libomp
 
