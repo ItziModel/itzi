@@ -48,7 +48,7 @@ class DrainageAttributes:
         type_mapping = {str: "TEXT", int: "INT", float: "REAL"}
         db_columns_def = [("cat", "INTEGER PRIMARY KEY")]
         if not cat_primary_key:
-            db_columns_def = [("cat", "INTEGER")]
+            db_columns_def = []
         for f in dataclasses.fields(cls):
             db_field = (f.name, type_mapping[f.type])
             db_columns_def.append(db_field)
