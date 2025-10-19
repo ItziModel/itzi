@@ -1,6 +1,7 @@
 import tempfile
 from datetime import datetime
 from pathlib import Path
+import dataclasses
 
 import pytest
 import pyproj
@@ -221,7 +222,7 @@ def sim_time():
 @pytest.fixture(scope="module")
 def write_csv(temp_dir, sim_time):
     """Write cloud csv using dummy network data."""
-    # drainage_network = create_dummy_drainage_network()
+    drainage_network = create_dummy_drainage_network()
 
     provider_config = {
         "crs": pyproj.CRS.from_epsg(6372),
@@ -229,20 +230,46 @@ def write_csv(temp_dir, sim_time):
         "results_prefix": temp_dir.name,
         "drainage_results_name": "test_drainage",
     }
-    return CSVVectorOutputProvider(provider_config)
-    # sqlite_provider.write_vector(drainage_network, sim_time)
+    csv_provider = CSVVectorOutputProvider(provider_config)
+    csv_provider.write_vector(drainage_network, sim_time)
 
 
 @pytest.mark.usefixtures("write_csv")
 def test_links(temp_dir, sim_time):
     """Verify CSV links file."""
-    nodes_file = Path(temp_dir.name) / Path("test_drainage_nodes.csv")
 
+    links_file = Path(temp_dir.name) / Path("test_drainage_links.csv")
+    assert links_file.exists(), f"Database file not created: {links_file}"
+
+    df_links = pd.read_csv(links_file)
+
+    # Check that sim_time, srid, and geometry columns exist
+    assert "sim_time" in df_links.columns, "sim_time column not found in links table"
+    assert "srid" in df_links.columns, "srid column not found in links table"
+    assert "geometry" in df_links.columns, "Geometry column not found in links table"
+
+    assert len(df_links) == 2, f"Expected 2 links, got {len(df_links)}"
+
+    # Check all link attribute fields are present
+    expected_link_fields = [field.name for field in dataclasses.fields(DrainageLinkAttributes)]
+    for field in expected_link_fields:
+        assert field in df_links.columns, f"Missing link field: {field}"
+    # Verify link IDs
+    link_ids = df_links["link_id"]
+    assert set(link_ids) == {"L1", "L2"}, f"Link IDs mismatch: {link_ids}"
+    print(df_links)
+
+    assert False
+
+
+@pytest.mark.usefixtures("write_csv")
+def test_nodes(temp_dir, sim_time):
+    """Verify CSV nodes file."""
+    nodes_file = Path(temp_dir.name) / Path("test_drainage_nodes.csv")
+    assert nodes_file.exists(), f"Database file not created: {nodes_file}"
     df_nodes = pd.read_csv(nodes_file)
+    assert len(df_nodes) == 3, f"Expected 3 nodes, got {len(df_nodes)}"
+
     print(df_nodes)
-    # with open(nodes_file) as f:
-    #     lines = f.readlines()
-    #     print(lines)
-    # for i in Path(temp_dir.name).iterdir():
-    #     print(i)
+
     assert False
