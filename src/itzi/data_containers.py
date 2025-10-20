@@ -69,7 +69,8 @@ class DrainageLinkAttributes(DrainageAttributes):
 
 @dataclasses.dataclass(frozen=True)
 class DrainageLinkData:
-    """Store the instantaneous state of a node during a drainage simulation"""
+    """Store the instantaneous state of a node during a drainage simulation.
+    Vertices include the coordinates of the start and end nodes."""
 
     vertices: None | Tuple[Tuple[float, float], ...]
     attributes: DrainageLinkAttributes
