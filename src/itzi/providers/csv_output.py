@@ -56,7 +56,10 @@ class CSVVectorOutputProvider(VectorOutputProvider):
 
     def __init__(self, config: CSVVectorOutputConfig) -> None:
         """Initialize output provider with provider configuration."""
-        self.srid = config["crs"].to_epsg()
+        try:
+            self.srid = config["crs"].to_epsg()
+        except AttributeError:
+            self.srid = 0
         self.store = config["store"]
         results_prefix = config["results_prefix"]
 

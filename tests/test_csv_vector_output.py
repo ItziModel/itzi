@@ -52,6 +52,7 @@ def test_csv(test_data_temp_path, sim_time):
 
     for df in [df_links, df_nodes]:
         _validate_common_fields(df, sim_time)
+        assert 6372 == df["srid"][0], f"Expected 6372, got {df['srid'][0]}"
 
     # nodes
     _validate_nodes_attributes(df_nodes)
@@ -61,14 +62,14 @@ def test_csv(test_data_temp_path, sim_time):
     _validate_links_geometries(df_links)
 
 
-def test_csv_no_geom(test_data_temp_path, sim_time):
+def test_csv_no_geom_no_srid(test_data_temp_path, sim_time):
     """Verify CSV vector files without geometries."""
     # Write the drainage network without coordinates
     drainage_network = create_dummy_drainage_network(with_coords=False)
     obj_store = obstore.store.MemoryStore()
     file_prefix = "test_drainage_no_geom"
     provider_config = {
-        "crs": pyproj.CRS.from_epsg(6372),
+        "crs": None,
         "store": obj_store,
         "results_prefix": test_data_temp_path,
         "drainage_results_name": file_prefix,
@@ -88,6 +89,7 @@ def test_csv_no_geom(test_data_temp_path, sim_time):
 
     for df in [df_links, df_nodes]:
         _validate_common_fields(df, sim_time)
+        assert 0 == df["srid"][0], f"Expected 0, got {df['srid'][0]}"
 
     # nodes
     _validate_nodes_attributes(df_nodes)
@@ -106,7 +108,6 @@ def _validate_common_fields(df, sim_time):
     else:
         df["sim_time"] = pd.to_datetime(df["sim_time"])
     assert sim_time == df["sim_time"][0], f"Expected {sim_time}, got {df['sim_time'][0]}"
-    assert 6372 == df["srid"][0], f"Expected {6372}, got {df['srid'][0]}"
 
 
 def _validate_nodes_attributes(df_nodes):
