@@ -379,12 +379,12 @@ def test_ea8b_reference(
         f"Found {nan_count} NaN values in water depth data - there should be none"
     )
 
-    # Check that water depth values are between 0 and 5
+    # Check that water depth values are between 0 and 2
     min_depth = np.min(water_depth_data.values)
     max_depth = np.max(water_depth_data.values)
 
     assert min_depth >= 0.0, f"Water depth values below 0 found: minimum = {min_depth}"
-    assert max_depth <= 2.0, f"Water depth values above 5 found: maximum = {max_depth}"
+    assert max_depth <= 2.0, f"Water depth values above 2 found: maximum = {max_depth}"
 
     print(f"Water depth range: {min_depth:.3f} to {max_depth:.3f}")
 
