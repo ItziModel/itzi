@@ -332,7 +332,7 @@ def ea8b_itzi_drainage_results(ea_test8b_sim_icechunk):
 
 
 @pytest.mark.slow
-def test_ea8b_reference(
+def test_ea8b(
     ea_test8b_reference,
     ea8b_itzi_drainage_results,
     ea_test8b_sim_icechunk,
