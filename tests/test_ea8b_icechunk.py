@@ -5,6 +5,7 @@ The results from itzi are compared with those from XPSTORM.
 
 from datetime import datetime, timedelta
 import os
+from io import StringIO
 from pathlib import Path
 import zipfile
 
@@ -15,10 +16,9 @@ import pytest
 import xarray as xr
 import rioxarray
 import pyproj
-import sqlite3
 import icechunk
 import icechunk.xarray
-
+import obstore
 
 from itzi.profiler import profile_context
 from itzi.simulation_builder import SimulationBuilder
@@ -26,7 +26,7 @@ from itzi.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi.const import TemporalType
 from itzi.providers.icechunk_input import IcechunkRasterInputProvider
 from itzi.providers.icechunk_output import IcechunkRasterOutputProvider
-from itzi.providers.spatialite_output import SpatialiteVectorOutputProvider
+from itzi.providers.csv_output import CSVVectorOutputProvider
 
 
 TEST8B_URL = "https://zenodo.org/api/records/15256842/files/Test8B_dataset_2010.zip/content"
@@ -259,12 +259,15 @@ def ea_test8b_sim_icechunk(ea_test8b_icechunk_data, test_data_path, test_data_te
         }
     )
 
-    # Set up vector output provider (spatialite)
-    vector_output_provider = SpatialiteVectorOutputProvider(
+    # Set up vector output provider (csv)
+    obj_store = obstore.store.MemoryStore()
+    vector_output_provider = CSVVectorOutputProvider(
         {
             "crs": crs,
-            "output_dir": output_dir,
-            "drainage_map_name": sim_config.drainage_output,
+            "store": obj_store,
+            "results_prefix": "",
+            "drainage_results_name": sim_config.drainage_output,
+            "overwrite": True,
         }
     )
 
@@ -292,7 +295,7 @@ def ea_test8b_sim_icechunk(ea_test8b_icechunk_data, test_data_path, test_data_te
         simulation.finalize()
 
     return {
-        "output_dir": output_dir,
+        "obj_store": obj_store,
         "profile_path": profile_path,
         "sim_start_time": sim_start_time,
         "icechunk_data": ea_test8b_icechunk_data,
@@ -304,33 +307,12 @@ def ea_test8b_sim_icechunk(ea_test8b_icechunk_data, test_data_path, test_data_te
 @pytest.fixture(scope="module")
 def ea8b_itzi_drainage_results(ea_test8b_sim_icechunk):
     """Extract coupling flow from the drainage network using spatialite database."""
-    output_dir = ea_test8b_sim_icechunk["output_dir"]
+    obj_store = ea_test8b_sim_icechunk["obj_store"]
+    nodes_csv = StringIO(
+        bytes(obstore.get(obj_store, "out_drainage_nodes.csv").bytes()).decode("utf-8")
+    )
+    df_results = pd.read_csv(nodes_csv)
 
-    # Spatialite database file
-    db_file = output_dir / "out_drainage.db"
-
-    if not db_file.exists():
-        pytest.skip("No drainage results found - simulation may not have run properly")
-
-    # Connect to spatialite database
-    conn = sqlite3.connect(db_file)
-    cursor = conn.cursor()
-
-    # Query nodes table for J1 node
-    # sim_time is stored as datetime string in the database
-    query = """
-    SELECT sim_time, coupling_flow
-    FROM nodes
-    WHERE node_id = 'J1'
-    ORDER BY sim_time
-    """
-
-    cursor.execute(query)
-    rows = cursor.fetchall()
-    conn.close()
-
-    # Parse results using pandas to handle ISO timestamps
-    df_results = pd.DataFrame(rows, columns=["sim_time", "coupling_flow"])
     # Convert ISO string to timedelta
     df_results["sim_time"] = pd.to_timedelta(df_results["sim_time"])
     # convert to total seconds (as the reference)
@@ -350,7 +332,7 @@ def ea8b_itzi_drainage_results(ea_test8b_sim_icechunk):
 
 
 @pytest.mark.slow
-def test_ea8b_reference(
+def test_ea8b(
     ea_test8b_reference,
     ea8b_itzi_drainage_results,
     ea_test8b_sim_icechunk,
@@ -397,12 +379,12 @@ def test_ea8b_reference(
         f"Found {nan_count} NaN values in water depth data - there should be none"
     )
 
-    # Check that water depth values are between 0 and 5
+    # Check that water depth values are between 0 and 2
     min_depth = np.min(water_depth_data.values)
     max_depth = np.max(water_depth_data.values)
 
     assert min_depth >= 0.0, f"Water depth values below 0 found: minimum = {min_depth}"
-    assert max_depth <= 2.0, f"Water depth values above 5 found: maximum = {max_depth}"
+    assert max_depth <= 2.0, f"Water depth values above 2 found: maximum = {max_depth}"
 
     print(f"Water depth range: {min_depth:.3f} to {max_depth:.3f}")
 

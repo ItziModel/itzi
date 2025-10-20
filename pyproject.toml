@@ -37,6 +37,7 @@ itzi = "itzi.itzi:main"
 [project.optional-dependencies]
 cloud = [
     "icechunk>=1.1.1",
+    "obstore>=0.8.2",
     "pandas>=2.3.1",
     "pyproj>=3.7.1",
     "xarray[io,parallel]>=2025.7.1",
