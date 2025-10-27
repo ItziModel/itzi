@@ -13,7 +13,6 @@ GNU General Public License for more details.
 """
 
 from datetime import timedelta
-import numpy as np
 
 import itzi.flow as flow
 from itzi.itzi_error import DtError
@@ -69,14 +68,6 @@ class InfConstantRate(InfiltrationModel):
 class InfGreenAmpt(InfiltrationModel):
     """Calculate infiltration using Green-Ampt formula"""
 
-    def __init__(self, raster_domain, dt_inf):
-        InfiltrationModel.__init__(self, raster_domain, dt_inf)
-        # Initial cumulative infiltration set to tiny value
-        # (prevent division by zero)
-        self.infiltration_amount = np.full(
-            shape=self.dom.shape, fill_value=(1e-4), dtype=self.dom.dtype
-        )
-
     def step(self):
         """update infiltration rate map in m/s."""
         flow.infiltration_ga(
@@ -84,7 +75,7 @@ class InfGreenAmpt(InfiltrationModel):
             arr_eff_por=self.dom.get_array("effective_porosity"),
             arr_pressure=self.dom.get_array("capillary_pressure"),
             arr_conduct=self.dom.get_array("hydraulic_conductivity"),
-            arr_inf_amount=self.infiltration_amount,
+            arr_inf_amount=self.dom.get_array("total_infiltration"),
             arr_water_soil_content=self.dom.get_array("soil_water_content"),
             arr_inf_out=self.dom.get_array("computed_infiltration"),
             dt=self._dt,

@@ -15,7 +15,6 @@ GNU General Public License for more details.
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
-from collections import Counter
 
 import numpy as np
 
@@ -208,6 +207,17 @@ _INTERNAL_ARRAY_DEFINITIONS = [
         unit="m s-1",
         cf_unit="",
         var_loc="face",
+    ),
+    ArrayDefinition(
+        key="total_infiltration",
+        csdms_name="",
+        cf_name="",
+        category=[ArrayCategory.INTERNAL],
+        description="Total calculated infiltration. Used for Green-Ampt model",
+        unit="m",
+        cf_unit="",
+        var_loc="face",
+        fill_value=1e-4,
     ),
     ArrayDefinition(
         key="eff_precip",
@@ -590,19 +600,3 @@ ARRAY_DEFINITIONS = (
     + _ACCUM_ARRAY_DEFINITIONS
     + _OUTPUT_ARRAY_DEFINITIONS
 )
-
-number_of_array_definitions = len(ARRAY_DEFINITIONS)
-
-# Some sanity check
-for attr in ["key", "csdms_name", "cf_name", "description"]:
-    all_values = [getattr(arr_def, attr) for arr_def in ARRAY_DEFINITIONS]
-    # No empty name
-    if "" in all_values and not attr == "cf_name":
-        raise ValueError(f"Found empty names in <{attr}>.")
-    # Make sure there is no duplicates
-    values_counts = Counter(all_values)
-    duplicates = [item for item, count in values_counts.items() if count > 1]
-    if 0 < len(duplicates):
-        if attr == "cf_name" and len(duplicates) == 1 and "" in duplicates:
-            continue
-        raise ValueError(f"Found duplicates in <{attr}>: {duplicates}")

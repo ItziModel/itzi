@@ -104,12 +104,8 @@ class RasterDomain:
 
         # slice for a simple padding (allow stencil calculation on boundary)
         self.simple_pad = (slice(1, -1), slice(1, -1))
-        # Fill values for input arrays
-        self.input_fill_values = {
-            arr_def.key: arr_def.fill_value
-            for arr_def in ARRAY_DEFINITIONS
-            if ArrayCategory.INPUT in arr_def.category
-        }
+        # Fill values
+        self.fill_values = {arr_def.key: arr_def.fill_value for arr_def in ARRAY_DEFINITIONS}
 
         # all keys that will be used for the arrays
         self.k_input = [
@@ -130,14 +126,7 @@ class RasterDomain:
         # Instantiate arrays and padded arrays filled with zeros
         self.arr = dict.fromkeys(self.k_all)
         self.arrp = dict.fromkeys(self.k_all)
-        self.create_arrays()
-
-    def zeros_array(self):
-        """return a np array of the domain dimension, filled with zeros.
-        dtype is set to object's dtype.
-        Intended to be used as default for the input model maps.
-        """
-        return np.zeros(shape=self.shape, dtype=self.dtype)
+        self._create_arrays()
 
     def pad_array(self, arr):
         """Return the original input array
@@ -147,12 +136,13 @@ class RasterDomain:
         arr = arr_p[self.simple_pad]
         return arr, arr_p
 
-    def create_arrays(self):
+    def _create_arrays(self):
         """Instantiate masked arrays and padded arrays
         the unpadded arrays are a slice of the padded ones
         """
         for k in self.arr.keys():
-            self.arr[k], self.arrp[k] = self.pad_array(self.zeros_array())
+            arr = np.full(fill_value=self.fill_values[k], shape=self.shape, dtype=self.dtype)
+            self.arr[k], self.arrp[k] = self.pad_array(arr)
         return self
 
     def update_mask(self, arr):
@@ -196,14 +186,13 @@ class RasterDomain:
 
     def update_array(self, arr_key, arr):
         """Update the values of an array with those of a given array."""
-        fill_value = self.input_fill_values[arr_key]
         if arr.shape != self.shape:
-            return ValueError
+            return ValueError(f"Updated values for array '{arr_key}' do not match domain size.")
         if arr_key == "water_surface_elevation":
             # Calculate actual depth and update the internal depth array
             arr = rastermetrics.calculate_h_from_wse(arr_wse=arr, arr_dem=self.get_array("dem"))
             arr_key = "water_depth"
-        self.mask_array(arr, fill_value)
+        self.mask_array(arr, self.fill_values[arr_key])
         self.arr[arr_key][:], self.arrp[arr_key][:] = self.pad_array(arr)
         return self
 
