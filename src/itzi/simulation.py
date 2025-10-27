@@ -12,13 +12,20 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-from datetime import datetime, timedelta
-from typing import Self, Union, TYPE_CHECKING, Dict
+from __future__ import annotations
+from datetime import datetime, timedelta, timezone
+from typing import Self, Union, TYPE_CHECKING, Dict, Optional
 import copy
+from importlib.metadata import version
+import zipfile
+import io
+import json
+import hashlib
 
 import numpy as np
 
 from itzi.data_containers import ContinuityData, SimulationData
+from itzi.data_containers import SimulationConfig, DrainageNodeCouplingData
 import itzi.messenger as msgr
 from itzi.itzi_error import NullError, MassBalanceError, DtError
 from itzi import rastermetrics
@@ -30,6 +37,7 @@ if TYPE_CHECKING:
     from itzi.surfaceflow import SurfaceFlowSimulation
     from itzi.rasterdomain import RasterDomain
     from itzi.report import Report
+    from itzi.providers.domain_data import DomainData
 
 
 class Simulation:
@@ -37,21 +45,22 @@ class Simulation:
 
     def __init__(
         self,
-        start_time: datetime,
-        end_time: datetime,
-        raster_domain: "RasterDomain",
-        hydrology_model: "Hydrology",
-        surface_flow: "SurfaceFlowSimulation",
-        drainage_model: Union["DrainageSimulation", None],
-        nodes_list: list | None,
-        report: "Report",
-        mass_balance_error_threshold: float,
+        sim_config: SimulationConfig,
+        domain_data: DomainData,
+        raster_domain: RasterDomain,
+        hydrology_model: Hydrology,
+        surface_flow: SurfaceFlowSimulation,
+        drainage_model: Optional[DrainageSimulation],
+        nodes_list: Optional[list[DrainageNodeCouplingData]],
+        report: Report,
     ):
+        self.sim_config = sim_config
         self.raster_domain = raster_domain
-        self.start_time = start_time
-        self.end_time = end_time
+        self.start_time = sim_config.start_time
+        self.end_time = sim_config.end_time
         # set simulation time to start_time
         self.sim_time = self.start_time
+        self.domain_data = domain_data
         self.raster_domain = raster_domain
         self.hydrology_model = hydrology_model
         self.drainage_model = drainage_model
@@ -59,8 +68,8 @@ class Simulation:
         self.surface_flow = surface_flow
         self.report = report
         # Mass balance error checking
-        self.continuity_data: ContinuityData = None
-        self.mass_balance_error_threshold = mass_balance_error_threshold
+        self.continuity_data: Union[ContinuityData, None] = None
+        self.mass_balance_error_threshold = sim_config.surface_flow_parameters.max_error
         # A mapping between source array and the corresponding accumulation array
         self.accum_mapping: dict[str, str] = {
             arr_def.computes_from: arr_def.key
@@ -377,3 +386,63 @@ class Simulation:
             accum_array = self.raster_domain.get_padded(ak)
             rastermetrics.accumulate_rate_to_total(accum_array, rate_array, time_diff, padded=True)
             self.accum_update_time[ak] = sim_time
+
+    def create_hotstart(self) -> io.BytesIO:
+        """Create a hotstart file with the current state of the simulation."""
+        hotstart_version = 1  # Update if any of the components changes
+
+        # Fixed filenames
+        RASTER_STATE_FILENAME = "raster_state.npz"
+        SWMM_HOTSTART_FILENAME = "swmm_hotstart.hsf"
+        JSON_FILENAME = "metadata.json"
+
+        # SWMM hotstart
+        if self.drainage_model:
+            swmm_hotstart: io.BytesIO = self.drainage_model.get_hotstart()
+            swmm_data = swmm_hotstart.getvalue()
+            swmm_hash = hashlib.blake2b(swmm_data).hexdigest()
+        else:
+            swmm_hotstart = None
+            swmm_hash = None
+
+        # State of the raster domain arrays
+        raster_state: io.BytesIO = self.raster_domain.save_state()
+        raster_data = raster_state.getvalue()
+        raster_hash = hashlib.blake2b(raster_data).hexdigest()
+
+        # Create the hotstart structure
+        json_data = {
+            "creation_date": datetime.now(timezone.utc).isoformat(),
+            "itzi_version": version("itzi"),
+            "hotstart_version": hotstart_version,
+            "domain_data": self.domain_data.as_dict(),
+            "simulation_config": self.sim_config.as_str_dict(),
+            "simulation_state": {
+                "sim_time": self.sim_time.isoformat(),
+                "dt": self.dt.total_seconds(),
+                "next_ts": {k: v.isoformat() for k, v in self.next_ts.items()},
+                "time_steps_counters": self.time_steps_counters,
+                "accum_update_time": {k: v.isoformat() for k, v in self.accum_update_time.items()},
+                "old_domain_volume": self.old_domain_volume,
+                "raster_domain_hash": raster_hash,
+                "swmm_hotstart_hash": swmm_hash,
+            },
+        }
+
+        # Create zip file in BytesIO
+        zip_object = io.BytesIO()
+        with zipfile.ZipFile(
+            zip_object, mode="w", compression=zipfile.ZIP_DEFLATED, compresslevel=8
+        ) as zip_file:
+            # Write raster state
+            zip_file.writestr(RASTER_STATE_FILENAME, raster_data)
+            # Write SWMM hotstart if present
+            if swmm_hotstart is not None:
+                zip_file.writestr(SWMM_HOTSTART_FILENAME, swmm_data)
+            # Write metadata JSON
+            json_str = json.dumps(json_data, indent=2)
+            zip_file.writestr(JSON_FILENAME, json_str)
+
+        # Reset BytesIO position to beginning for reading
+        zip_object.seek(0)
+        return zip_object

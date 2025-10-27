@@ -89,18 +89,21 @@ class DomainData:
 
         return {"x": x_coords, "y": y_coords}
 
-    def __repr__(self):
-        return (
-            f"north={self.north}, "
-            f"south={self.south}. "
-            f"east={self.east}, "
-            f"west={self.west}, "
-            f"rows={self.rows}, "
-            f"cols={self.cols}, "
-            f"nsres={self.nsres}, "
-            f"ewres={self.ewres}, "
-            f"cell_area={self.cell_area}, "
-            f"cell_shape={self.cell_shape}, "
-            f"shape={self.shape}, "
-            f"cells={self.cells}, "
+    def as_dict(self):
+        return dict(
+            north=self.north,
+            south=self.south,
+            east=self.east,
+            west=self.west,
+            rows=self.rows,
+            cols=self.cols,
+            nsres=self.nsres,
+            ewres=self.ewres,
+            cell_area=self.cell_area,
+            cell_shape=self.cell_shape,
+            shape=self.shape,
+            cells=self.cells,
         )
+
+    def __repr__(self):
+        return repr(self.as_dict())

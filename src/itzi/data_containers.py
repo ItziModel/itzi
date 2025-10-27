@@ -204,3 +204,10 @@ class SimulationConfig:
     orifice_coeff: float = DefaultValues.ORIFICE_COEFF
     free_weir_coeff: float = DefaultValues.FREE_WEIR_COEFF
     submerged_weir_coeff: float = DefaultValues.SUBMERGED_WEIR_COEFF
+
+    def as_str_dict(self) -> Dict:
+        raw_dict = dataclasses.asdict(self)
+        raw_dict["start_time"] = self.start_time.isoformat()
+        raw_dict["end_time"] = self.end_time.isoformat()
+        raw_dict["record_step"] = self.record_step.total_seconds()
+        return raw_dict
