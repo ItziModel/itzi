@@ -102,7 +102,7 @@ def infiltration_sim(infiltration_parameters):
     while elapsed_time < inf_params.time:
         inf_sim.step()
         elapsed_time += inf_sim._dt
-    return inf_sim.infiltration_amount.max()
+    return raster_domain.get_array("total_infiltration").max()
 
 
 def test_infiltration(reference_infiltration, infiltration_sim):
