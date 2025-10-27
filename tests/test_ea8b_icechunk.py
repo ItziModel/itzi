@@ -8,6 +8,8 @@ import os
 from io import StringIO
 from pathlib import Path
 import zipfile
+import json
+import hashlib
 
 import pandas as pd
 import numpy as np
@@ -292,6 +294,14 @@ def ea_test8b_sim_icechunk(ea_test8b_icechunk_data, test_data_path, test_data_te
         simulation.initialize()
         while simulation.sim_time < simulation.end_time:
             simulation.update()
+        # save hotstart
+        hotstart = simulation.create_hotstart()
+        # Save hotstart to file
+        hotstart_path = Path(test_data_temp_path) / "ea8b_hotstart.zip"
+        with open(hotstart_path, "wb") as f:
+            f.write(hotstart.getvalue())
+
+        # finalize
         simulation.finalize()
 
     return {
@@ -301,6 +311,7 @@ def ea_test8b_sim_icechunk(ea_test8b_icechunk_data, test_data_path, test_data_te
         "icechunk_data": ea_test8b_icechunk_data,
         "output_storage": output_storage,
         "simulation": simulation,
+        "hotstart_path": hotstart_path,
     }
 
 
@@ -439,7 +450,19 @@ def test_ea8b(
             + df_stats["drainage_network_volume"]
             + df_stats["volume_error"]
         )
-        print(df_stats.to_string())
         assert np.allclose(
             df_stats["vol_change_ref"], df_stats["volume_change"], atol=1, rtol=0.01
         )
+
+    # Check hotstart file
+    hotstart_file = ea_test8b_sim_icechunk["hotstart_path"]
+    with zipfile.ZipFile(hotstart_file, "r") as zip_ref:
+        with zip_ref.open("metadata.json") as metadata_file:
+            metadata_dict = json.load(metadata_file)
+            # Check hashes
+            ref_raster_hash = metadata_dict["simulation_state"]["raster_domain_hash"]
+            hash_raster = hashlib.blake2b(zip_ref.read("raster_state.npz")).hexdigest()
+            assert hash_raster == ref_raster_hash
+            ref_swmm_hash = metadata_dict["simulation_state"]["swmm_hotstart_hash"]
+            hash_swmm = hashlib.blake2b(zip_ref.read("swmm_hotstart.hsf")).hexdigest()
+            assert hash_swmm == ref_swmm_hash
