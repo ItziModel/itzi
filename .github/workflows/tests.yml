@@ -15,12 +15,12 @@ jobs:
     runs-on: ubuntu-24.04
     container: osgeo/grass-gis:releasebranch_8_4-ubuntu
     steps:
-    - uses: actions/checkout@v5
-
     - name: Install dependencies
       run: |
         apt update
-        apt install -y clang build-essential libomp-dev nodejs libsqlite3-mod-spatialite
+        apt install -y ca-certificates clang build-essential libomp-dev nodejs libsqlite3-mod-spatialite
+
+    - uses: actions/checkout@v5
 
     - name: Install uv and Python
       run: |
