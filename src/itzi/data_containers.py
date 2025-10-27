@@ -216,6 +216,14 @@ class SimulationConfig(BaseModel):
     free_weir_coeff: float = DefaultValues.FREE_WEIR_COEFF
     submerged_weir_coeff: float = DefaultValues.SUBMERGED_WEIR_COEFF
 
+    def as_str_dict(self) -> Dict:
+        """Convert the configuration to a dictionary with string representations."""
+        raw_dict = self.model_dump()
+        raw_dict["start_time"] = self.start_time.isoformat()
+        raw_dict["end_time"] = self.end_time.isoformat()
+        raw_dict["record_step"] = self.record_step.total_seconds()
+        return raw_dict
+
 
 class GrassParams(BaseModel):
     """Parameters for GRASS GIS session."""

@@ -14,6 +14,8 @@ GNU General Public License for more details.
 
 from datetime import datetime
 from typing import Self, Callable, TYPE_CHECKING
+import io
+
 import numpy as np
 
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
@@ -213,3 +215,12 @@ class RasterDomain:
         for k in self.k_accum:
             self.arr[k][:] = 0.0
         return self
+
+    def save_state(self) -> io.BytesIO:
+        """Pack all the arrays of the domain in a npz file."""
+        npz_file = io.BytesIO()
+        arrays = {"mask": self.mask}
+        arrays.update(self.arr)
+        np.savez(npz_file, allow_pickle=False, **arrays)
+        npz_file.seek(0)
+        return npz_file
