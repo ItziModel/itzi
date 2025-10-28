@@ -122,8 +122,6 @@ class SimulationBuilder:
         # Create simulation
         simulation = Simulation(
             self.sim_config,
-            # self.sim_config.start_time,
-            # self.sim_config.end_time,
             self.domain_data,
             raster_domain,
             hydrology_model,
@@ -131,7 +129,6 @@ class SimulationBuilder:
             drainage_sim,
             nodes_list,
             report=report,
-            # mass_balance_error_threshold=self.sim_config.surface_flow_parameters.max_error,
         )
 
         return simulation, timed_arrays
