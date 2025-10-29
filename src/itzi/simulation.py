@@ -12,6 +12,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
+from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Self, Union, TYPE_CHECKING, Dict
 import copy
@@ -39,12 +40,12 @@ class Simulation:
         self,
         start_time: datetime,
         end_time: datetime,
-        raster_domain: "RasterDomain",
-        hydrology_model: "Hydrology",
-        surface_flow: "SurfaceFlowSimulation",
-        drainage_model: Union["DrainageSimulation", None],
+        raster_domain: RasterDomain,
+        hydrology_model: Hydrology,
+        surface_flow: SurfaceFlowSimulation,
+        drainage_model: Union[DrainageSimulation, None],
         nodes_list: list | None,
-        report: "Report",
+        report: Report,
         mass_balance_error_threshold: float,
     ):
         self.raster_domain = raster_domain
