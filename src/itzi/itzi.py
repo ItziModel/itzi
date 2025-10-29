@@ -233,6 +233,7 @@ class SimulationRunner:
 def sim_runner_worker(conf_file):
     """Run one simulation"""
     msgr.raise_on_error = True
+    msgr._itzi_logger.set_verbosity(msgr.verbosity())
     try:
         # Run the simulation
         msgr.message(f"Starting simulation of {os.path.basename(conf_file)}...")
@@ -262,8 +263,6 @@ def itzi_run_one(conf_file):
 
 def itzi_run(cli_args):
     """Run one or multiple simulations from the command line."""
-    # Do not raise on error when run from CLI
-    msgr.raise_on_error = False
     # set environment variables
     if cli_args.o:
         os.environ["GRASS_OVERWRITE"] = "1"
