@@ -10,6 +10,7 @@ import grass.script as gscript
 import pytest
 
 from itzi import SimulationRunner
+from itzi.configreader import ConfigReader
 from itzi.data_containers import MassBalanceData
 
 
@@ -68,8 +69,9 @@ def test_region_mask(test_data_path):
     init_nulls = int(gscript.parse_command("r.univar", map="z", flags="g")["null_cells"])
     # Set simulation (should set region and mask)
     config_file = os.path.join(test_data_path, "5by5", "5by5_mask.ini")
+    conf_data = ConfigReader(config_file)
     sim_runner = SimulationRunner()
-    sim_runner.initialize(config_file)
+    sim_runner.initialize(conf_data)
     # Run simulation
     sim_runner.run().finalize()
     # Check temporary mask and region

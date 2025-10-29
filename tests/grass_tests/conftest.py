@@ -18,6 +18,7 @@ sys.path.append(grass_python_path)
 import grass.script as gscript  # noqa: E402
 
 from itzi import SimulationRunner  # noqa: E402
+from itzi.configreader import ConfigReader  # noqa: E402
 
 TESTS_ROOT = Path.cwd()
 
@@ -164,7 +165,8 @@ def grass_5by5_sim(grass_5by5, test_data_path):
     config_file = os.path.join(test_data_path, "5by5", "5by5.ini")
     sim_runner = SimulationRunner()
     assert isinstance(sim_runner, SimulationRunner)
-    sim_runner.initialize(config_file)
+    conf_data = ConfigReader(config_file)
+    sim_runner.initialize(conf_data)
     sim_runner.run().finalize()
     return sim_runner
 
@@ -175,7 +177,8 @@ def grass_5by5_max_values_sim(grass_5by5, test_data_path):
     config_file = os.path.join(test_data_path, "5by5", "5by5_max_values.ini")
     sim_runner = SimulationRunner()
     assert isinstance(sim_runner, SimulationRunner)
-    sim_runner.initialize(config_file)
+    conf_data = ConfigReader(config_file)
+    sim_runner.initialize(conf_data)
     sim_runner.run().finalize()
     return sim_runner
 
@@ -186,7 +189,8 @@ def grass_5by5_stats_sim(grass_5by5, test_data_path):
     config_file = os.path.join(test_data_path, "5by5", "5by5_stats.ini")
     sim_runner = SimulationRunner()
     assert isinstance(sim_runner, SimulationRunner)
-    sim_runner.initialize(config_file)
+    conf_data = ConfigReader(config_file)
+    sim_runner.initialize(conf_data)
     sim_runner.run().finalize()
     return sim_runner
 
@@ -197,7 +201,8 @@ def grass_5by5_open_boundaries_sim(grass_5by5, test_data_path):
     config_file = os.path.join(test_data_path, "5by5", "5by5_open_boundaries.ini")
     sim_runner = SimulationRunner()
     assert isinstance(sim_runner, SimulationRunner)
-    sim_runner.initialize(config_file)
+    conf_data = ConfigReader(config_file)
+    sim_runner.initialize(conf_data)
     sim_runner.run().finalize()
     return sim_runner
 
@@ -208,6 +213,7 @@ def grass_5by5_wse_sim(grass_5by5, test_data_path):
     config_file = os.path.join(test_data_path, "5by5", "5by5_wse.ini")
     sim_runner = SimulationRunner()
     assert isinstance(sim_runner, SimulationRunner)
-    sim_runner.initialize(config_file)
+    conf_data = ConfigReader(config_file)
+    sim_runner.initialize(conf_data)
     sim_runner.run().finalize()
     return sim_runner
