@@ -166,11 +166,6 @@ class SimulationRunner:
             self.step()
         return self
 
-    def update_until(self, then):
-        """Run the simulation until a time after start_time"""
-        self.sim.update_until(then)
-        return self
-
     def finalize(self):
         """Tear down the simulation and return to previous state."""
         self.sim.finalize()
