@@ -154,6 +154,7 @@ class Simulation:
             self.hydrology_model.step()
 
         # drainage #
+        # Equality check works because datetime internally uses int
         if self.sim_time == self.next_ts["drainage"] and self.drainage_model:
             self.drainage_model.step()
             # Update drainage nodes
