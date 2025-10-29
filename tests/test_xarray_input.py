@@ -223,32 +223,23 @@ def test_xarray_input_provider_get_array_static_variable(
     test_key = "dem"
     if test_key in xarray_input_data["input_map_names"]:
         current_time = datetime(2023, 1, 1, 12, 0, 0)
+        result = provider.get_array(test_key, current_time)
 
-        # Note: The get_array method is incomplete, so this test will likely fail
-        # until the method is properly implemented. This test serves as a specification
-        # for what the method should do.
-        try:
-            result = provider.get_array(test_key, current_time)
+        # The method should return a tuple of (array, start_time, end_time)
+        assert isinstance(result, tuple)
+        assert len(result) == 3
 
-            # The method should return a tuple of (array, start_time, end_time)
-            assert isinstance(result, tuple)
-            assert len(result) == 3
+        array, start_time, end_time = result
 
-            array, start_time, end_time = result
+        # Verify the array
+        assert isinstance(array, np.ndarray)
+        expected_data = xarray_input_data["input_maps_dict"][test_key]
+        assert array.shape == expected_data.shape
+        assert np.allclose(array, expected_data)
 
-            # Verify the array
-            assert isinstance(array, np.ndarray)
-            expected_data = xarray_input_data["input_maps_dict"][test_key]
-            assert array.shape == expected_data.shape
-            assert np.allclose(array, expected_data)
-
-            # For static variables, times might be the default times
-            assert isinstance(start_time, datetime)
-            assert isinstance(end_time, datetime)
-
-        except (NotImplementedError, AttributeError, TypeError) as e:
-            # Expected since the method is not fully implemented
-            pytest.skip(f"get_array method not fully implemented: {e}")
+        # For static variables, times might be the default times
+        assert isinstance(start_time, datetime)
+        assert isinstance(end_time, datetime)
 
 
 def test_xarray_input_provider_get_array_time_dependent_variable(
