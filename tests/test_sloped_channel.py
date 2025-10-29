@@ -192,7 +192,7 @@ def test_sloped_channel(
             "out_map_names": sim_config.output_map_names,
         }
     )
-    simulation, _ = (
+    simulation = (
         SimulationBuilder(sim_config, array_mask, np.float32)
         .with_domain_data(domain_data)
         .with_raster_output_provider(raster_output)

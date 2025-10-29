@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 from datetime import datetime, timedelta
-from typing import Self, Union, TYPE_CHECKING, Dict
+from typing import Self, TYPE_CHECKING, Dict, Optional
 import copy
 
 import numpy as np
@@ -26,10 +26,11 @@ from itzi import rastermetrics
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
 if TYPE_CHECKING:
+    from itzi.data_containers import SimulationConfig, DrainageNodeCouplingData
     from itzi.drainage import DrainageSimulation
     from itzi.hydrology import Hydrology
     from itzi.surfaceflow import SurfaceFlowSimulation
-    from itzi.rasterdomain import RasterDomain
+    from itzi.rasterdomain import RasterDomain, TimedArray
     from itzi.report import Report
 
 
@@ -38,27 +39,30 @@ class Simulation:
 
     def __init__(
         self,
-        start_time: datetime,
-        end_time: datetime,
+        sim_config: SimulationConfig,
         raster_domain: RasterDomain,
+        timed_arrays: Optional[list[TimedArray]],
         hydrology_model: Hydrology,
         surface_flow: SurfaceFlowSimulation,
-        drainage_model: Union[DrainageSimulation, None],
-        nodes_list: list | None,
+        drainage_model: Optional[DrainageSimulation],
+        drainage_nodes_list: Optional[list[DrainageNodeCouplingData]],
         report: Report,
         mass_balance_error_threshold: float,
     ):
         self.raster_domain = raster_domain
-        self.start_time = start_time
-        self.end_time = end_time
+        self.start_time = sim_config.start_time
+        self.end_time = sim_config.end_time
         # set simulation time to start_time
         self.sim_time = self.start_time
         self.raster_domain = raster_domain
+        self.timed_arrays = timed_arrays
         self.hydrology_model = hydrology_model
         self.drainage_model = drainage_model
-        self.nodes_list = nodes_list
+        self.drainage_nodes_list = drainage_nodes_list
         self.surface_flow = surface_flow
         self.report = report
+
+        self.input_wse = bool(sim_config.input_map_names.get("water_surface_elevation"))
         # Mass balance error checking
         self.continuity_data: ContinuityData = None
         self.mass_balance_error_threshold = mass_balance_error_threshold
@@ -85,7 +89,9 @@ class Simulation:
             self.next_ts["drainage"] = self.end_time
         else:
             self.node_id_to_loc = {
-                n.node_id: (n.row, n.col) for n in self.nodes_list if n.node_object.is_coupled()
+                n.node_id: (n.row, n.col)
+                for n in self.drainage_nodes_list
+                if n.node_object.is_coupled()
             }
         # Grid spacing (for BMI)
         self.spacing = (self.raster_domain.dy, self.raster_domain.dx)
@@ -94,6 +100,8 @@ class Simulation:
             "since_start": 0,
             "since_last_report": 0,
         }
+        # Update input arrays
+        self.update_input_arrays()
 
     def initialize(self) -> Self:
         """Record the initial stage of the simulation, before time-stepping."""
@@ -254,11 +262,13 @@ class Simulation:
         self.sim_time += self.dt
         for time_steps_counter in self.time_steps_counters.keys():
             self.time_steps_counters[time_steps_counter] += 1
+
+        # Update input arrays()
+        self.update_input_arrays()
         return self
 
-    def update_until(self, then):
+    def update_until(self, then: timedelta):
         """Run the simulation until a time in seconds after start_time"""
-        assert isinstance(then, timedelta)
         end_time = self.start_time + then
         if end_time <= self.sim_time:
             raise ValueError("End time must be superior to current time")
@@ -307,10 +317,48 @@ class Simulation:
         # write final report.
         self.report.end(simulation_data)
 
-    def set_array(self, arr_id, arr):
-        """Set an array of the simulation domain"""
-        assert isinstance(arr_id, str)
-        assert isinstance(arr, np.ndarray)
+    def update_input_arrays(self):
+        """Get new array using TimedArrays,
+        convert units, and update the rasterdomain
+        """
+        if self.timed_arrays is None:
+            return self
+        # DEM is needed for WSE and rain routing direction
+        if not self.timed_arrays["dem"].is_valid(self.sim_time):
+            self.set_array("dem", self.timed_arrays["dem"].get(self.sim_time))
+        # loop through the arrays
+        for arr_key, ta in self.timed_arrays.items():
+            # DEM done before
+            if arr_key == "dem":
+                continue
+            # WSE is updating water depth, either one of the other should update
+            if (arr_key == "water_depth" and self.input_wse) or (
+                arr_key == "water_surface_elevation" and not self.input_wse
+            ):
+                continue
+            if not ta.is_valid(self.sim_time):
+                # Convert mm/h to m/s
+                if arr_key in [
+                    "rain",
+                    "hydraulic_conductivity",
+                    "infiltration",
+                    "losses",
+                ]:
+                    new_arr = ta.get(self.sim_time) / (1000 * 3600)
+                # Convert mm to m
+                elif arr_key in [
+                    "capillary_pressure",
+                ]:
+                    new_arr = ta.get(self.sim_time) / 1000
+                else:
+                    new_arr = ta.get(self.sim_time)
+                # update array
+                msgr.debug("{}: update input array <{}>".format(self.sim_time, arr_key))
+                self.set_array(arr_key, new_arr)
+        return self
+
+    def set_array(self, arr_id: str, arr: np.ndarray):
+        """Set an array of the simulation domain."""
         if arr_id in ["inflow", "rain"]:
             self._update_accum_array(arr_id, self.sim_time)
         self.raster_domain.update_array(arr_id, arr)
@@ -318,9 +366,8 @@ class Simulation:
             self.surface_flow.update_flow_dir()
         return self
 
-    def get_array(self, arr_id):
-        """ """
-        assert isinstance(arr_id, str)
+    def get_array(self, arr_id: str):
+        """Here form BMI interface."""
         return self.raster_domain.get_array(arr_id)
 
     def find_dt(self):

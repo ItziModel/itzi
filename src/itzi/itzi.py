@@ -63,7 +63,6 @@ class SimulationRunner:
         self.conf = None
         self.sim = None
         self.grass_required_version = "8.4.0"
-        self.input_wse = False
 
     def initialize(self, conf_data: ConfigReader):
         """Parse the configuration file, set GRASS,
@@ -74,9 +73,6 @@ class SimulationRunner:
 
         # display parameters (if verbose)
         self.conf.display_sim_param()
-
-        if self.conf.input_map_names["water_surface_elevation"]:
-            self.input_wse = True
 
         # Check GRASS version
         import grass.script as gscript
@@ -138,7 +134,7 @@ class SimulationRunner:
             }
         )
 
-        self.sim, self.tarr = (
+        self.sim = (
             SimulationBuilder(sim_config, self.g_interface.get_npmask(), data_type)
             .with_input_provider(raster_input_provider)
             .with_raster_output_provider(raster_output_provider)
@@ -146,7 +142,6 @@ class SimulationRunner:
             .build()
         )
         # Initialize the simulation
-        self.update_input_arrays()
         self.sim.initialize()
         return self
 
@@ -177,52 +172,13 @@ class SimulationRunner:
     def step(self):
         """Do one simulation step."""
         self.sim.update()
-        self.update_input_arrays()
         return self
 
     @property
     def origin(self):
         # Get origin from a TimedArray object
-        tarr = next(iter(self.tarr.values()))
+        tarr = next(iter(self.sim.timed_arrays.values()))
         return tarr.origin
-
-    def update_input_arrays(self):
-        """Get new array using TimedArray
-        And update
-        """
-        # DEM is needed for WSE and rain routing direction
-        if not self.tarr["dem"].is_valid(self.sim.sim_time):
-            self.sim.set_array("dem", self.tarr["dem"].get(self.sim.sim_time))
-        # loop through the arrays
-        for arr_key, ta in self.tarr.items():
-            # DEM done before
-            if arr_key == "dem":
-                continue
-            # WSE is updating water depth, either one of the other should update
-            if (arr_key == "water_depth" and self.input_wse) or (
-                arr_key == "water_surface_elevation" and not self.input_wse
-            ):
-                continue
-            if not ta.is_valid(self.sim.sim_time):
-                # Convert mm/h to m/s
-                if arr_key in [
-                    "rain",
-                    "hydraulic_conductivity",
-                    "infiltration",
-                    "losses",
-                ]:
-                    new_arr = ta.get(self.sim.sim_time) / (1000 * 3600)
-                # Convert mm to m
-                elif arr_key in [
-                    "capillary_pressure",
-                ]:
-                    new_arr = ta.get(self.sim.sim_time) / 1000
-                else:
-                    new_arr = ta.get(self.sim.sim_time)
-                # update array
-                msgr.debug("{}: update input array <{}>".format(self.sim.sim_time, arr_key))
-                self.sim.set_array(arr_key, new_arr)
-        return self
 
 
 def sim_runner_worker(conf_file):

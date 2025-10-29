@@ -272,7 +272,7 @@ def ea_test8b_sim_icechunk(ea_test8b_icechunk_data, test_data_path, test_data_te
     )
 
     # Build simulation
-    simulation, timed_arrays = (
+    simulation = (
         SimulationBuilder(sim_config, arr_mask)
         .with_input_provider(raster_input_provider)
         .with_raster_output_provider(raster_output_provider)
@@ -280,14 +280,7 @@ def ea_test8b_sim_icechunk(ea_test8b_icechunk_data, test_data_path, test_data_te
         .build()
     )
 
-    # Set arrays
-    for arr_key in ["dem", "friction"]:
-        if arr_key in timed_arrays:
-            initial_array = timed_arrays[arr_key].get(sim_config.start_time)
-            simulation.set_array(arr_key, initial_array)
-
     # Run the simulation
-    # This does not update any input arrays. Only input is from drainage network
     with profile_context(profile_path):
         simulation.initialize()
         while simulation.sim_time < simulation.end_time:
