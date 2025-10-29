@@ -60,7 +60,7 @@ class DomainData:
 
     def coordinates_to_pixel(self, *, x: float, y: float) -> Tuple[float, float] | None:
         """For a given coordinate pair(x, y),
-        return True is inside the domain, False otherwise.
+        return the corresponding row and column indices.
         """
         if not self.is_in_domain(x=x, y=y):
             return None
