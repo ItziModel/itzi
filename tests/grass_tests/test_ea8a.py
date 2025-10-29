@@ -16,6 +16,7 @@ import pandas as pd
 import grass.script as gscript
 
 from itzi import SimulationRunner
+from itzi.configreader import ConfigReader
 from itzi.profiler import profile_context
 
 MapInfo = namedtuple("MapInfo", ["name", "start", "end", "value"])
@@ -189,10 +190,11 @@ def ea_test8a_sim(ea_test8a, test_data_path, test_data_temp_path):
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     assert current_mapset == "ea8a"
     config_file = os.path.join(test_data_path, "EA_test_8", "a", "ea2dt8a.ini")
+    config_data = ConfigReader(config_file)
     profile_path = Path(test_data_temp_path) / Path("test8a_profile.txt")
     with profile_context(profile_path):
         sim_runner = SimulationRunner()
-        sim_runner.initialize(config_file)
+        sim_runner.initialize(config_data)
         sim_runner.run().finalize()
     return sim_runner
 

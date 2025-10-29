@@ -28,7 +28,6 @@ import sys
 import os
 import time
 import traceback
-import subprocess
 from importlib.metadata import version
 from multiprocessing import Process
 from datetime import datetime, timedelta
@@ -42,6 +41,7 @@ from itzi.const import VerbosityLevel
 from itzi import parser
 from itzi.profiler import profile_context
 from itzi.simulation_builder import SimulationBuilder
+from itzi.grass_session import GrassSessionManager
 
 
 def main():
@@ -57,39 +57,30 @@ def main():
 
 
 class SimulationRunner:
-    """Provide the necessary tools to run one simulation,
-    including setting-up and tearing down GRASS session.
-    """
+    """Provide the necessary tools to run one simulation from a config file."""
 
     def __init__(self):
         self.conf = None
         self.sim = None
-        self.grass_session = None
         self.grass_required_version = "8.4.0"
         self.input_wse = False
 
-    def initialize(self, conf_file):
+    def initialize(self, conf_data: ConfigReader):
         """Parse the configuration file, set GRASS,
         and initialize the simulation.
         """
-        # parsing configuration file
-        self.conf = ConfigReader(conf_file)
+        self.conf = conf_data
         sim_config = self.conf.get_sim_params()
 
         # display parameters (if verbose)
-        msgr.message(f"Starting simulation of {os.path.basename(conf_file)}...")
         self.conf.display_sim_param()
 
         if self.conf.input_map_names["water_surface_elevation"]:
             self.input_wse = True
 
-        # If run outside of grass, set session
-        try:
-            import grass.script as gscript
-        except ImportError:
-            self.set_grass_session()
-            import grass.script as gscript
         # Check GRASS version
+        import grass.script as gscript
+
         grass_version = gscript.parse_command("g.version", flags="g")["version"]
         if grass_version < self.grass_required_version:
             msgr.fatal(
@@ -186,9 +177,6 @@ class SimulationRunner:
         # Cleanup the grass interface object
         self.g_interface.finalize()
         self.g_interface.cleanup()
-        # Close GRASS session
-        if self.grass_session is not None:
-            self.grass_session.finish()
         return self
 
     def step(self):
@@ -202,39 +190,6 @@ class SimulationRunner:
         # Get origin from a TimedArray object
         tarr = next(iter(self.tarr.values()))
         return tarr.origin
-
-    def set_grass_session(self):
-        """Set the GRASS session."""
-        gisdb = self.conf.grass_params["grassdata"]
-        location = self.conf.grass_params["location"]
-        mapset = self.conf.grass_params["mapset"]
-        if location is None:
-            msgr.fatal(("[grass] section is missing."))
-
-        # Check if the given parameters exist and can be accessed
-        error_msg = "'{}' does not exist or does not have adequate permissions"
-        if not os.access(gisdb, os.R_OK):
-            msgr.fatal(error_msg.format(gisdb))
-        elif not os.access(os.path.join(gisdb, location), os.R_OK):
-            msgr.fatal(error_msg.format(location))
-        elif not os.access(os.path.join(gisdb, location, mapset), os.W_OK):
-            msgr.fatal(error_msg.format(mapset))
-
-        # Set GRASS python path
-        if self.conf.grass_params["grass_bin"]:
-            grassbin = self.conf.grass_params["grass_bin"]
-        else:
-            grassbin = "grass"
-        grass_cmd = [grassbin, "--config", "python_path"]
-        grass_python_path = subprocess.check_output(grass_cmd, text=True).strip()
-        sys.path.append(grass_python_path)
-        # Now we can import grass modules
-        import grass.script as gscript
-
-        # set up session
-        self.grass_session = gscript.setup.init(
-            path=gisdb, location=location, mapset=mapset, grass_path=grassbin
-        )
 
     def update_input_arrays(self):
         """Get new array using TimedArray
@@ -279,10 +234,13 @@ def sim_runner_worker(conf_file):
     """Run one simulation"""
     msgr.raise_on_error = True
     try:
-        with profile_context():
-            # Run the simulation
-            sim_runner = SimulationRunner()
-            sim_runner.initialize(conf_file).run().finalize()
+        # Run the simulation
+        msgr.message(f"Starting simulation of {os.path.basename(conf_file)}...")
+        conf_data = ConfigReader(conf_file)
+        with GrassSessionManager(conf_data.grass_params):
+            with profile_context():
+                sim_runner = SimulationRunner()
+                sim_runner.initialize(conf_data).run().finalize()
     except itzi_error.ItziError:
         # if an Itzï error, only print the last line of the traceback
         traceback_lines = traceback.format_exc().splitlines()

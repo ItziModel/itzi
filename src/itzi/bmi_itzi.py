@@ -19,7 +19,9 @@ from datetime import timedelta
 import numpy as np
 from bmipy import Bmi
 
-import itzi
+from itzi import SimulationRunner
+from itzi.configreader import ConfigReader
+from itzi.grass_session import GrassSessionManager
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
 
@@ -55,6 +57,7 @@ class BmiItzi(Bmi):
     def __init__(self):
         """Create a BmiItzi model that is ready for initialization."""
         self.itzi = None
+        self.grass_session_manager = None
 
     # Model control functions #
 
@@ -66,8 +69,12 @@ class BmiItzi(Bmi):
         filename : str, optional
             Path to name of input file.
         """
-        self.itzi = itzi.SimulationRunner()
-        self.itzi.initialize(conf_file=filename)
+        conf_data = ConfigReader(filename)
+        self.grass_session_manager = GrassSessionManager(conf_data.grass_params)
+        self.grass_session_manager.open()
+
+        self.itzi = SimulationRunner()
+        self.itzi.initialize(conf_data)
 
     def update(self):
         """Advance model by one time step."""
@@ -87,6 +94,7 @@ class BmiItzi(Bmi):
     def finalize(self):
         """Finalize model."""
         self.itzi.finalize()
+        self.grass_session_manager.close()
 
     # Model information functions #
 
@@ -358,3 +366,7 @@ class BmiItzi(Bmi):
 
     def get_grid_z(self, grid, z):
         raise NotImplementedError("get_grid_z")
+
+    def __del__(self):
+        """Close the GRASS session even if finalize() is not called"""
+        self.grass_session_manager.close()

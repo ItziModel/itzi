@@ -14,6 +14,7 @@ import pandas as pd
 import grass.script as gscript
 
 from itzi import SimulationRunner
+from itzi.configreader import ConfigReader
 from itzi.data_containers import DrainageNodeAttributes, DrainageLinkAttributes
 from itzi.profiler import profile_context
 
@@ -119,12 +120,14 @@ class TestItziTutorial:
         """Run the tutorial simulation. Check the results."""
         # Run the simulation
         config_file = os.path.join(test_data_path, "tutorial_files", "tutorial.ini")
+        conf_data = ConfigReader(config_file)
+
         profile_path = pathlib.Path(test_data_temp_path) / pathlib.Path(
             "test_tutorial_profile.txt"
         )
         with profile_context(profile_path):
             sim_runner = SimulationRunner()
-            sim_runner.initialize(config_file)
+            sim_runner.initialize(conf_data)
             sim_runner.run().finalize()
         # Check the results
         h_max_univar = gscript.parse_command(
@@ -177,8 +180,9 @@ class TestItziTutorial:
             parser.write(f)
 
         # Run the simulation
+        conf_data = ConfigReader(config_file)
         sim_runner = SimulationRunner()
-        sim_runner.initialize(config_file)
+        sim_runner.initialize(conf_data)
         sim_runner.run().finalize()
 
         # Test consistency of stats file
