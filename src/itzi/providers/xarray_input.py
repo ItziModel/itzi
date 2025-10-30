@@ -18,7 +18,6 @@ import numpy as np
 
 try:
     import xarray as xr
-    import icechunk
     import pandas as pd
 except ImportError:
     raise ImportError(
@@ -35,9 +34,8 @@ if TYPE_CHECKING:
     from datetime import datetime
 
 
-class IcechunkRasterInputConfig(TypedDict):
-    icechunk_storage: icechunk.Storage
-    icechunk_group: str
+class XarrayRasterInputConfig(TypedDict):
+    dataset: xr.Dataset
     # A dict of key: input names
     input_map_names: Mapping[str, str]
     # A Mapping of dimensions names
@@ -47,10 +45,10 @@ class IcechunkRasterInputConfig(TypedDict):
     simulation_end_time: "datetime"
 
 
-class IcechunkRasterInputProvider(RasterInputProvider):
+class XarrayRasterInputProvider(RasterInputProvider):
     """Abstract base class for handling raster simulation inputs."""
 
-    def __init__(self, config: IcechunkRasterInputConfig) -> None:
+    def __init__(self, config: XarrayRasterInputConfig) -> None:
         self.sim_start_time = config["simulation_start_time"]
         self.sim_end_time = config["simulation_end_time"]
         self.input_map_names = config["input_map_names"]
@@ -63,9 +61,7 @@ class IcechunkRasterInputProvider(RasterInputProvider):
         self.y_dim = dim_names["y"]
         self.time_dim = dim_names["time"]
         # Open dataset
-        repo = icechunk.Repository.open(config["icechunk_storage"])
-        session = repo.readonly_session(config["icechunk_group"])
-        self.dataset = xr.open_zarr(session.store)
+        self.dataset = config["dataset"]
         try:
             self.crs_wkt = self.dataset.attrs["crs_wkt"]
         except KeyError:

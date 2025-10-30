@@ -24,7 +24,7 @@ from itzi.profiler import profile_context
 from itzi.simulation_builder import SimulationBuilder
 from itzi.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi.const import TemporalType
-from itzi.providers.icechunk_input import IcechunkRasterInputProvider
+from itzi.providers.xarray_input import XarrayRasterInputProvider
 from itzi.providers.icechunk_output import IcechunkRasterOutputProvider
 from itzi.providers.csv_output import CSVVectorOutputProvider
 
@@ -138,19 +138,8 @@ def ea_test8b_icechunk_data(test8b_file, test_data_temp_path):
         attrs={"crs_wkt": crs.to_wkt()},
     )
 
-    # Create icechunk storage
-    storage = icechunk.in_memory_storage()
-
-    # Save to icechunk
-    repo = icechunk.Repository.create(storage)
-    session = repo.writable_session("main")
-
-    # Convert to zarr and save
-    icechunk.xarray.to_icechunk(dataset, session, mode="w")
-    session.commit("Initial EA8B test data")
-
     return {
-        "storage": storage,
+        "dataset": dataset,
         "crs": crs,
         "x_coords": x_coords,
         "y_coords": y_coords,
@@ -231,10 +220,9 @@ def ea_test8b_sim_icechunk(ea_test8b_icechunk_data, test_data_path, test_data_te
     )
 
     # Set up providers
-    raster_input_provider = IcechunkRasterInputProvider(
+    raster_input_provider = XarrayRasterInputProvider(
         {
-            "icechunk_storage": ea_test8b_icechunk_data["storage"],
-            "icechunk_group": "main",
+            "dataset": ea_test8b_icechunk_data["dataset"],
             "input_map_names": sim_config.input_map_names,
             "simulation_start_time": sim_config.start_time,
             "simulation_end_time": sim_config.end_time,
