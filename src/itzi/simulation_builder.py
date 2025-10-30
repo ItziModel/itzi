@@ -121,9 +121,9 @@ class SimulationBuilder:
 
         # Create simulation
         simulation = Simulation(
-            self.sim_config.start_time,
-            self.sim_config.end_time,
+            self.sim_config,
             raster_domain,
+            timed_arrays,
             hydrology_model,
             surface_flow,
             drainage_sim,
@@ -132,7 +132,7 @@ class SimulationBuilder:
             mass_balance_error_threshold=self.sim_config.surface_flow_parameters.max_error,
         )
 
-        return simulation, timed_arrays
+        return simulation
 
     def _create_timed_arrays(self) -> Dict[str, rasterdomain.TimedArray]:
         """ """

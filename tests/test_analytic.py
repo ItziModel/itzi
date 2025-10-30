@@ -119,7 +119,7 @@ def mcdo_norain_sim(test_data_path, test_data_temp_path):
             "out_map_names": config.output_map_names,
         }
     )
-    simulation, _ = (
+    simulation = (
         SimulationBuilder(config, array_mask, np.float32)
         .with_domain_data(domain_data)
         .with_raster_output_provider(raster_output)
@@ -238,7 +238,7 @@ def mcdo_rain_sim(test_data_path, test_data_temp_path):
             "out_map_names": config.output_map_names,
         }
     )
-    simulation, _ = (
+    simulation = (
         SimulationBuilder(config, array_mask, np.float32)
         .with_domain_data(domain_data)
         .with_raster_output_provider(raster_output)
