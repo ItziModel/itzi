@@ -321,33 +321,17 @@ def ea_test8a_sim(ea_test8a_xarray_data, test_data_path, test_data_temp_path):
     # Note: with_input_provider() automatically sets domain_data
     profile_path = Path(test_data_temp_path) / Path("test8a_profile.txt")
     with profile_context(profile_path):
-        simulation, timed_arrays = (
+        simulation = (
             SimulationBuilder(sim_config, array_mask, np.float32)
             .with_input_provider(input_provider)
             .with_raster_output_provider(raster_output)
             .with_vector_output_provider(vector_output)
             .build()
         )
-
-        # Helper function to update input arrays (similar to SimulationRunner.update_input_arrays)
-        def update_input_arrays():
-            """Get new arrays using TimedArray and update simulation"""
-            for arr_key, ta in timed_arrays.items():
-                if not ta.is_valid(simulation.sim_time):
-                    # Convert mm/h to m/s for rainfall
-                    if arr_key in ["rain"]:
-                        new_arr = ta.get(simulation.sim_time) / (1000 * 3600)
-                    else:
-                        new_arr = ta.get(simulation.sim_time)
-                    # update array
-                    simulation.set_array(arr_key, new_arr)
-
         # Run the simulation
-        update_input_arrays()  # Update arrays before initialize
         simulation.initialize()
         while simulation.sim_time < simulation.end_time:
             simulation.update()
-            update_input_arrays()  # Update arrays after each step
         simulation.finalize()
 
     return simulation, output_points, domain_data
