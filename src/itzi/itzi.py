@@ -180,6 +180,11 @@ class SimulationRunner:
         tarr = next(iter(self.sim.timed_arrays.values()))
         return tarr.origin
 
+    def __del__(self):
+        # Cleanup the grass interface object
+        self.g_interface.finalize()
+        self.g_interface.cleanup()
+
 
 def sim_runner_worker(conf_file):
     """Run one simulation"""

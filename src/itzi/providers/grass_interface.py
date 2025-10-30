@@ -213,6 +213,10 @@ class GrassInterface:
         self.finalize()
         self.cleanup()
 
+    def __del__(self):
+        self.finalize()
+        self.cleanup()
+
     def finalize(self):
         """Make sure that all maps are written."""
         if self.non_blocking_write:
