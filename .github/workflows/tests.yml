@@ -18,7 +18,7 @@ jobs:
     - name: Install dependencies
       run: |
         apt update
-        apt install -y ca-certificates clang build-essential libomp-dev nodejs libsqlite3-mod-spatialite
+        apt install -y ca-certificates clang build-essential libomp-dev nodejs
 
     - uses: actions/checkout@v5
 
