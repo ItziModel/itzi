@@ -10,6 +10,7 @@ jobs:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         # macos-13 is intel, macos-14 is apple silicon, windows-11-arm
         os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm]
