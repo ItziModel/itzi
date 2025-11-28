@@ -78,7 +78,7 @@ class SimulationBuilder:
         self.vector_output_provider = provider
         return self
 
-    def build(self) -> tuple[Simulation, Optional[Dict[str, rasterdomain.TimedArray]]]:
+    def build(self) -> Simulation:
         """Build and return the simulation with optional timed arrays."""
         # Validate required components
         if self.domain_data is None:
