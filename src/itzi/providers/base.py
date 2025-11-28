@@ -12,6 +12,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import Mapping, TYPE_CHECKING, Union, Tuple
 
@@ -36,14 +38,14 @@ class RasterInputProvider(ABC):
         return (domain_data.north, domain_data.west)
 
     @abstractmethod
-    def get_domain_data(self) -> "DomainData":
+    def get_domain_data(self) -> DomainData:
         """Return a DomainData object."""
         pass
 
     @abstractmethod
     def get_array(
-        self, map_key: str, current_time: "datetime"
-    ) -> Tuple["np.ndarray", "datetime", "datetime"]:
+        self, map_key: str, current_time: datetime
+    ) -> Tuple[np.ndarray, datetime, datetime]:
         """Take a given map key and current time
         return a numpy array associated with its start and end time
         if no map is found, return None instead of an array
@@ -61,13 +63,13 @@ class RasterOutputProvider(ABC):
 
     @abstractmethod
     def write_arrays(
-        self, array_dict: Mapping[str, "np.ndarray"], sim_time: Union["datetime", "timedelta"]
+        self, array_dict: Mapping[str, np.ndarray], sim_time: Union[datetime, timedelta]
     ) -> None:
         """Write all arrays for the current time step."""
         pass
 
     @abstractmethod
-    def finalize(self, final_data: "SimulationData") -> None:
+    def finalize(self, final_data: SimulationData) -> None:
         """Finalize outputs and cleanup."""
         pass
 
@@ -82,12 +84,12 @@ class VectorOutputProvider(ABC):
 
     @abstractmethod
     def write_vector(
-        self, drainage_data: "DrainageNetworkData", sim_time: Union["datetime", "timedelta"]
+        self, drainage_data: DrainageNetworkData | None, sim_time: Union[datetime, timedelta]
     ) -> None:
         """Write simulation data for current time step."""
         pass
 
     @abstractmethod
-    def finalize(self, drainage_data: "DrainageNetworkData") -> None:
+    def finalize(self, drainage_data: DrainageNetworkData | None) -> None:
         """Finalize outputs and cleanup."""
         pass
