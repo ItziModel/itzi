@@ -16,7 +16,6 @@ import os
 from pathlib import Path
 from collections import namedtuple
 from datetime import datetime, timedelta
-import dataclasses
 from typing import Self
 
 # from multiprocessing import Process, JoinableQueue
@@ -225,7 +224,6 @@ class GrassInterface:
 
     def cleanup(self):
         """Remove temporary region and mask."""
-        msgr.debug("Reset mask and region")
         if self.raster_mask_id:
             msgr.debug("Remove temp MASK...")
             self.del_temp_mask()
@@ -542,9 +540,7 @@ class GrassInterface:
                     # The write function of the vector map set the layer to the one we set earlier
                     vector_map.write(point, cat=cat_num)
                 # Get DB attributes even if no associated geometry
-                node_attributes = tuple(
-                    value for _, value in dataclasses.asdict(node.attributes).items()
-                )
+                node_attributes = tuple(value for _, value in node.attributes.model_dump().items())
                 attrs = (cat_num,) + node_attributes
                 db_info["node"].append(attrs)
                 cat_num += 1
@@ -560,9 +556,7 @@ class GrassInterface:
                     # The write function of the vector map set the layer to the one we set earlier
                     vector_map.write(line_object, cat=cat_num)
                 # Get DB attributes even if no associated geometry
-                link_attributes = tuple(
-                    value for _, value in dataclasses.asdict(link.attributes).items()
-                )
+                link_attributes = tuple(value for _, value in link.attributes.model_dump().items())
                 attrs = (cat_num,) + link_attributes
                 db_info["link"].append(attrs)
                 cat_num += 1

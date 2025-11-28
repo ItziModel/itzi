@@ -2,7 +2,6 @@
 
 import os
 from io import StringIO
-import dataclasses
 
 import pandas as pd
 import numpy as np
@@ -123,7 +122,7 @@ def test_stats_file(test_data_temp_path):
     assert os.path.exists(stats_path)
     df = pd.read_csv(stats_path)
 
-    expected_cols = [f.name for f in dataclasses.fields(MassBalanceData)]
+    expected_cols = list(MassBalanceData.model_fields.keys())
     assert df.columns.to_list() == expected_cols
 
     # Domain area in m2

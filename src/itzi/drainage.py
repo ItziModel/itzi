@@ -352,3 +352,9 @@ class DrainageLink(object):
 
     def get_data(self) -> DrainageLinkData:
         return DrainageLinkData(vertices=self.vertices, attributes=self.get_attrs())
+
+
+# Rebuild Pydantic models that have forward references to DrainageNode
+from itzi.data_containers import DrainageNodeCouplingData  # noqa E402
+
+DrainageNodeCouplingData.model_rebuild()

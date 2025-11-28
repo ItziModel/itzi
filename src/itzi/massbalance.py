@@ -15,7 +15,6 @@ GNU General Public License for more details.
 from datetime import datetime
 import csv
 import numbers
-import dataclasses
 
 from itzi.data_containers import MassBalanceData
 
@@ -28,7 +27,7 @@ class MassBalanceLogger:
         file_name: str,
     ):
         """Initializes the logger and creates the output file with headers."""
-        self.fields = [f.name for f in dataclasses.fields(MassBalanceData)]
+        self.fields = list(MassBalanceData.model_fields.keys())
         self.file_name = self._set_file_name(file_name)
         self._create_file()
 
@@ -48,7 +47,7 @@ class MassBalanceLogger:
         """Writes a single line of data to the CSV file."""
         line_to_write = {}
 
-        for key, value in dataclasses.asdict(report_data).items():
+        for key, value in report_data.model_dump().items():
             if value != value:  # test for NaN
                 line_to_write[key] = "-"
             elif "percent_error" == key:

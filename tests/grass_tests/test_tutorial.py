@@ -6,7 +6,6 @@ import requests
 import pathlib
 import tempfile
 from configparser import ConfigParser
-from dataclasses import fields
 
 import pytest
 import numpy as np
@@ -272,7 +271,7 @@ class TestItziTutorial:
         assert len(link_entries) == 2
         # link DB columns are as expected
         actual_link_columns = v_db_select[0].split("|")
-        expected_link_columns = ["cat"] + [field.name for field in fields(DrainageLinkAttributes)]
+        expected_link_columns = ["cat"] + list(DrainageLinkAttributes.model_fields.keys())
         assert expected_link_columns == actual_link_columns
 
         # Check nodes DB table
@@ -282,5 +281,5 @@ class TestItziTutorial:
         assert len(nodes_entries) == 3
         # node DB columns are as expected
         actual_nodes_columns = v_db_select[0].split("|")
-        expected_nodes_columns = ["cat"] + [field.name for field in fields(DrainageNodeAttributes)]
+        expected_nodes_columns = ["cat"] + list(DrainageNodeAttributes.model_fields.keys())
         assert expected_nodes_columns == actual_nodes_columns
