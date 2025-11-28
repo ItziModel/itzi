@@ -13,6 +13,7 @@ GNU General Public License for more details.
 """
 
 from __future__ import annotations
+
 from datetime import datetime, timedelta
 from typing import TypedDict, TYPE_CHECKING, Tuple, List
 from io import StringIO
@@ -88,9 +89,11 @@ class CSVVectorOutputProvider(VectorOutputProvider):
         print(self.existing_max_time)
 
     def write_vector(
-        self, drainage_data: DrainageNetworkData, sim_time: datetime | timedelta
+        self, drainage_data: DrainageNetworkData | None, sim_time: datetime | timedelta
     ) -> None:
         """Save simulation data for current time step."""
+        if not drainage_data:
+            return
         # Validate time on first write
         self._validate_time_on_first_write(sim_time)
         # Convert sim_time to ISO8601 format
@@ -106,7 +109,7 @@ class CSVVectorOutputProvider(VectorOutputProvider):
         self._update_csv(sim_time_str, "link", drainage_data.links)
         self.number_of_writes["link"] += 1
 
-    def finalize(self, drainage_data: DrainageNetworkData) -> None:
+    def finalize(self, drainage_data: DrainageNetworkData | None) -> None:
         """Finalize outputs and cleanup."""
         pass
 

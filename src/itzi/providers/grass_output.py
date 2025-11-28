@@ -12,6 +12,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
+from __future__ import annotations
+
 from typing import Dict, TypedDict, Union, TYPE_CHECKING
 
 import numpy as np
@@ -51,7 +53,7 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
 
     def _write_array(
-        self, array: np.ndarray, map_key: str, sim_time: Union["datetime", "timedelta"]
+        self, array: np.ndarray, map_key: str, sim_time: Union[datetime, timedelta]
     ) -> None:
         """Write simulation data for current time step."""
         suffix = str(self.record_counter[map_key]).zfill(4)
@@ -66,7 +68,7 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         self.record_counter[map_key] += 1
 
     def write_arrays(
-        self, array_dict: Dict[str, np.ndarray], sim_time: Union["datetime", "timedelta"]
+        self, array_dict: Dict[str, np.ndarray], sim_time: Union[datetime, timedelta]
     ) -> None:
         for arr_key, arr in array_dict.items():
             if isinstance(arr, np.ndarray):
@@ -76,7 +78,7 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         map_max_name = f"{self.out_map_names[map_key]}_max"
         self.grass_interface.write_raster_map(arr_max, map_max_name, map_key, hmin=0.0)
 
-    def finalize(self, final_data: "SimulationData") -> None:
+    def finalize(self, final_data: SimulationData) -> None:
         """Finalize outputs and cleanup."""
 
         # Write the final raster maps
@@ -109,7 +111,7 @@ class GrassVectorOutputProvider(VectorOutputProvider):
         self.vector_drainage_maplist = []
 
     def write_vector(
-        self, drainage_data: "DrainageNetworkData", sim_time: Union["datetime", "timedelta"]
+        self, drainage_data: DrainageNetworkData | None, sim_time: Union[datetime, timedelta]
     ) -> None:
         """Write drainage simulation data for current time step."""
         if self.drainage_map_name and drainage_data:
@@ -122,7 +124,7 @@ class GrassVectorOutputProvider(VectorOutputProvider):
             self.vector_drainage_maplist.append((map_name, sim_time))
             self.record_counter += 1
 
-    def finalize(self, drainage_data: "DrainageNetworkData") -> None:
+    def finalize(self, drainage_data: DrainageNetworkData | None) -> None:
         """Finalize outputs and cleanup."""
         if self.drainage_map_name and drainage_data:
             self.grass_interface.register_maps_in_stds(
