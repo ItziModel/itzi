@@ -28,10 +28,11 @@ jobs:
         env:
           CIBW_ARCHS: auto64  # Don't build 32 bits wheels
           CIBW_SKIP: pp*  # Don't build pypy wheels
-          CIBW_ENVIRONMENT: "ITZI_BDIST_WHEEL=1"  # Trigger generic compiler flags
+          CIBW_ENVIRONMENT: "ITZI_BDIST_WHEEL=1 NO_STABLE_ABI=1"  # Trigger generic compiler flags
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=14.0
-            ITZI_BDIST_WHEEL=1
+            ITZI_BDIST_WHEEL=1 
+            NO_STABLE_ABI=1
           CIBW_BEFORE_TEST: "pip install pytest pytest-benchmark pandas"
           CIBW_TEST_SOURCES: tests
           CIBW_TEST_COMMAND: >  # Fast tests which do not require GRASS
