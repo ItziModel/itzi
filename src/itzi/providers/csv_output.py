@@ -18,7 +18,6 @@ from datetime import datetime, timedelta
 from typing import TypedDict, TYPE_CHECKING, Tuple, List
 from io import StringIO
 import csv
-import dataclasses
 
 import pandas as pd
 
@@ -74,8 +73,8 @@ class CSVVectorOutputProvider(VectorOutputProvider):
             self.append_mode = {"link": False, "node": False}
 
         for geom_type, obj in [("node", DrainageNodeAttributes), ("link", DrainageLinkAttributes)]:
-            base_headers = [field.name for field in dataclasses.fields(obj)]
-            self.headers[geom_type] = ["sim_time"] + list(base_headers) + ["srid", "geometry"]
+            base_headers = list(obj.model_fields.keys())
+            self.headers[geom_type] = ["sim_time"] + base_headers + ["srid", "geometry"]
 
             results_name = f"{config['drainage_results_name']}_{geom_type}s.csv"
             self.file_paths[geom_type] = results_prefix + "/" + results_name
@@ -207,7 +206,7 @@ class CSVVectorOutputProvider(VectorOutputProvider):
             # IDs must match
             new_ids = set(
                 [
-                    dataclasses.asdict(drainage_elem.attributes)[f"{geom_type}_id"]
+                    drainage_elem.attributes.model_dump()[f"{geom_type}_id"]
                     for drainage_elem in drainage_elements
                 ]
             )
@@ -232,7 +231,7 @@ class CSVVectorOutputProvider(VectorOutputProvider):
     def _attrs_line(self, drainage_element: DrainageNodeData | DrainageLinkData) -> List[str, ...]:
         """Return a list of attributes"""
         # Convert attributes to list
-        attributes = [str(a) for a in dataclasses.asdict(drainage_element.attributes).values()]
+        attributes = [str(a) for a in drainage_element.attributes.model_dump().values()]
         # Create geometry WKT
         if isinstance(drainage_element, DrainageNodeData):
             if drainage_element.coordinates is not None:

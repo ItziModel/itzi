@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 from pathlib import Path
 from io import StringIO
-import dataclasses
 
 import numpy as np
 import pytest
@@ -125,7 +124,7 @@ def _validate_nodes_attributes(df_nodes):
         f"Expected {expected_times_num} individual times, got {len(set(df_nodes['sim_time']))}"
     )
     # Check all attribute fields are present
-    expected_node_fields = [field.name for field in dataclasses.fields(DrainageNodeAttributes)]
+    expected_node_fields = list(DrainageNodeAttributes.model_fields.keys())
     for field in expected_node_fields:
         assert field in df_nodes.columns, f"Missing node field: {field}"
     # Verify IDs
@@ -169,7 +168,7 @@ def _validate_links_attributes(df_links):
         f"Expected {expected_times_num} individual times, got {len(set(df_links['sim_time']))}"
     )
     # Check all link attribute fields are present
-    expected_link_fields = [field.name for field in dataclasses.fields(DrainageLinkAttributes)]
+    expected_link_fields = list(DrainageLinkAttributes.model_fields.keys())
     for field in expected_link_fields:
         assert field in df_links.columns, f"Missing link field: {field}"
     # Verify link IDs
