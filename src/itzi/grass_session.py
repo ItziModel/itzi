@@ -12,13 +12,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import sys
 import os
 import subprocess
 import importlib
 
 import itzi.messenger as msgr
-from itzi.data_containers import GrassParams
+
+if TYPE_CHECKING:
+    from itzi.data_containers import GrassParams
 
 
 class GrassSessionManager:
