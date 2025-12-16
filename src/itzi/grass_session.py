@@ -12,6 +12,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import sys
 import os
 import subprocess
@@ -19,11 +21,14 @@ import importlib
 
 import itzi.messenger as msgr
 
+if TYPE_CHECKING:
+    from itzi.data_containers import GrassParams
+
 
 class GrassSessionManager:
     """Manages GRASS session lifecycle."""
 
-    def __init__(self, grass_params):
+    def __init__(self, grass_params: GrassParams):
         self.grass_params = grass_params
         self.session = None
         if importlib.util.find_spec("grass"):
@@ -36,11 +41,15 @@ class GrassSessionManager:
         if self._is_active:
             return  # Already started
 
-        gisdb = self.grass_params["grassdata"]
-        location = self.grass_params["location"]
-        mapset = self.grass_params["mapset"]
-        if location is None:
-            msgr.fatal(("[grass] section is missing."))
+        # Check if mandatory GRASS parameters are present
+        if not all(
+            [self.grass_params.grassdata, self.grass_params.location, self.grass_params.mapset]
+        ):
+            msgr.fatal("No GRASS parameters to create a session.")
+
+        gisdb = self.grass_params.grassdata
+        location = self.grass_params.location
+        mapset = self.grass_params.mapset
 
         # Check if the given parameters exist and can be accessed
         error_msg = "'{}' does not exist or does not have adequate permissions"
@@ -52,8 +61,8 @@ class GrassSessionManager:
             msgr.fatal(error_msg.format(mapset))
 
         # Set GRASS python path
-        if self.grass_params["grass_bin"]:
-            grassbin = self.grass_params["grass_bin"]
+        if self.grass_params.grass_bin:
+            grassbin = self.grass_params.grass_bin
         else:
             grassbin = "grass"
         grass_cmd = [grassbin, "--config", "python_path"]

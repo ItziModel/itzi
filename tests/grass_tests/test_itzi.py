@@ -78,7 +78,6 @@ def test_region_mask(test_data_path):
     # Check tear down
     assert int(gscript.parse_command("g.region", flags="pg")["cells"]) == init_ncells
     assert int(gscript.parse_command("r.univar", map="z", flags="g")["null_cells"]) == init_nulls
-    return sim_runner
 
 
 # TODO: Add test for asymmetrical cells

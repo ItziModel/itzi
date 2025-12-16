@@ -70,6 +70,7 @@ class SimulationRunner:
         """
         self.conf = conf_data
         sim_config = self.conf.get_sim_params()
+        grass_params = self.conf.get_grass_params()
 
         # display parameters (if verbose)
         self.conf.display_sim_param()
@@ -99,8 +100,8 @@ class SimulationRunner:
             start_time=self.conf.sim_times.start,
             end_time=self.conf.sim_times.end,
             dtype=data_type,
-            region_id=self.conf.grass_params["region"],
-            raster_mask_id=self.conf.grass_params["mask"],
+            region_id=grass_params.region,
+            raster_mask_id=grass_params.mask,
             non_blocking_write=False,
         )
         # Create Simulation with GRASS backend
@@ -194,7 +195,8 @@ def sim_runner_worker(conf_file):
         # Run the simulation
         msgr.message(f"Starting simulation of {os.path.basename(conf_file)}...")
         conf_data = ConfigReader(conf_file)
-        with GrassSessionManager(conf_data.grass_params):
+        grass_params = conf_data.get_grass_params()
+        with GrassSessionManager(grass_params):
             with profile_context():
                 sim_runner = SimulationRunner()
                 sim_runner.initialize(conf_data).run().finalize()
