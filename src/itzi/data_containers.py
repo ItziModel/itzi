@@ -215,3 +215,16 @@ class SimulationConfig(BaseModel):
     orifice_coeff: float = DefaultValues.ORIFICE_COEFF
     free_weir_coeff: float = DefaultValues.FREE_WEIR_COEFF
     submerged_weir_coeff: float = DefaultValues.SUBMERGED_WEIR_COEFF
+
+
+class GrassParams(BaseModel):
+    """Parameters for GRASS GIS session."""
+
+    model_config = ConfigDict(frozen=True)
+
+    grassdata: str | None = None
+    location: str | None = None
+    mapset: str | None = None
+    region: str | None = None
+    mask: str | None = None
+    grass_bin: str | None = None

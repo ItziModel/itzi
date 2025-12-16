@@ -148,11 +148,11 @@ class GrassInterface:
 
     def __init__(
         self,
-        start_time,
-        end_time,
+        start_time: datetime,
+        end_time: datetime,
         dtype,
-        region_id,
-        raster_mask_id,
+        region_id: str | None,
+        raster_mask_id: str | None,
         non_blocking_write=True,
     ):
         assert isinstance(start_time, datetime), "start_time not a datetime object!"

@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 import itzi.messenger as msgr
 from itzi.const import DefaultValues, TemporalType, InfiltrationModelType
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
-from itzi.data_containers import SurfaceFlowParameters, SimulationConfig
+from itzi.data_containers import SurfaceFlowParameters, SimulationConfig, GrassParams
 
 
 class ConfigReader:
@@ -76,7 +76,7 @@ class ConfigReader:
         self.raw_input_times = dict.fromkeys(k_raw_input_times)
         self.output_map_names = dict.fromkeys(k_output_map_names)
         self.input_map_names = dict.fromkeys(k_input_map_names)
-        self.grass_params = dict.fromkeys(k_grass_params)
+        self._grass_params = dict.fromkeys(k_grass_params)
         self.out_prefix = f"itzi_results_{datetime.now().strftime('%Y%m%dT%H%M%S')}"
         self.stats_file = None
         return self
@@ -113,9 +113,9 @@ class ConfigReader:
         for k in self.sim_param:
             if params.has_option("options", k):
                 self.sim_param[k] = params.getfloat("options", k)
-        for k in self.grass_params:
+        for k in self._grass_params:
             if params.has_option("grass", k):
-                self.grass_params[k] = params.get("grass", k)
+                self._grass_params[k] = params.get("grass", k)
         # check for deprecated input names
         input_deprecated_list = [  # (old, new)
             ("drainage_capacity", "losses"),
@@ -196,8 +196,8 @@ class ConfigReader:
 
     def check_grass_params(self):
         """Check if all grass params are presents if one is given"""
-        grass_any = any(self.grass_params[i] for i in self.grass_mandatory)
-        grass_all = all(self.grass_params[i] for i in self.grass_mandatory)
+        grass_any = any(self._grass_params[i] for i in self.grass_mandatory)
+        grass_all = all(self._grass_params[i] for i in self.grass_mandatory)
         if grass_any and not grass_all:
             msgr.fatal("{} are mutualy inclusive".format(self.grass_mandatory))
         return self
@@ -299,6 +299,17 @@ class ConfigReader:
             submerged_weir_coeff=self.drainage_params["submerged_weir_coeff"],
         )
         return sim_config
+
+    def get_grass_params(self) -> GrassParams:
+        """Return a GrassParams object"""
+        return GrassParams(
+            grassdata=self._grass_params["grassdata"],
+            location=self._grass_params["location"],
+            mapset=self._grass_params["mapset"],
+            region=self._grass_params["region"],
+            mask=self._grass_params["mask"],
+            grass_bin=self._grass_params["grass_bin"],
+        )
 
 
 class SimulationTimes:
