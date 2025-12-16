@@ -413,7 +413,12 @@ class Simulation:
         else:
             continuity_error = volume_error / volume_change
 
-        return ContinuityData(new_domain_vol, volume_change, volume_error, continuity_error)
+        return ContinuityData(
+            new_domain_vol=new_domain_vol,
+            volume_change=volume_change,
+            volume_error=volume_error,
+            continuity_error=continuity_error,
+        )
 
     def _update_accum_array(self, k: str, sim_time: datetime) -> None:
         """Update the accumulation arrays."""

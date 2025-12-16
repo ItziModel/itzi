@@ -12,11 +12,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
+from __future__ import annotations
+
 from typing import Dict, Tuple, TYPE_CHECKING
-import dataclasses
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import numpy as np
+from pydantic import BaseModel, ConfigDict
 
 from itzi.const import DefaultValues, TemporalType, InfiltrationModelType
 
@@ -24,9 +27,10 @@ if TYPE_CHECKING:
     from itzi.drainage import DrainageNode
 
 
-@dataclasses.dataclass(frozen=True)
-class DrainageNodeCouplingData:
+class DrainageNodeCouplingData(BaseModel):
     """Store the translation between coordinates and array location for a given drainage node."""
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     node_id: str  # Name of the drainage node
     node_object: "DrainageNode"
@@ -38,9 +42,10 @@ class DrainageNodeCouplingData:
     col: int | None
 
 
-@dataclasses.dataclass(frozen=True)
-class DrainageAttributes:
+class DrainageAttributes(BaseModel):
     """A base class for drainage data attributes."""
+
+    model_config = ConfigDict(frozen=True)
 
     @classmethod
     def get_columns_definition(cls, cat_primary_key=True) -> list[tuple[str, str]]:
@@ -49,13 +54,12 @@ class DrainageAttributes:
         db_columns_def = [("cat", "INTEGER PRIMARY KEY")]
         if not cat_primary_key:
             db_columns_def = []
-        for f in dataclasses.fields(cls):
-            db_field = (f.name, type_mapping[f.type])
+        for field_name, field_info in cls.model_fields.items():
+            db_field = (field_name, type_mapping[field_info.annotation])
             db_columns_def.append(db_field)
         return db_columns_def
 
 
-@dataclasses.dataclass(frozen=True)
 class DrainageLinkAttributes(DrainageAttributes):
     link_id: str
     link_type: str
@@ -67,16 +71,16 @@ class DrainageLinkAttributes(DrainageAttributes):
     froude: float
 
 
-@dataclasses.dataclass(frozen=True)
-class DrainageLinkData:
+class DrainageLinkData(BaseModel):
     """Store the instantaneous state of a node during a drainage simulation.
     Vertices include the coordinates of the start and end nodes."""
 
-    vertices: None | Tuple[Tuple[float, float], ...]
+    model_config = ConfigDict(frozen=True)
+
+    vertices: None | Tuple[Tuple[float, float] | None, ...]
     attributes: DrainageLinkAttributes
 
 
-@dataclasses.dataclass(frozen=True)
 class DrainageNodeAttributes(DrainageAttributes):
     node_id: str
     node_type: str
@@ -101,23 +105,26 @@ class DrainageNodeAttributes(DrainageAttributes):
     full_volume: float
 
 
-@dataclasses.dataclass(frozen=True)
-class DrainageNodeData:
+class DrainageNodeData(BaseModel):
     """Store the instantaneous state of a node during a drainage simulation"""
+
+    model_config = ConfigDict(frozen=True)
 
     coordinates: None | Tuple[float, float]
     attributes: DrainageNodeAttributes
 
 
-@dataclasses.dataclass(frozen=True)
-class DrainageNetworkData:
+class DrainageNetworkData(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     nodes: Tuple[DrainageNodeData, ...]
     links: Tuple[DrainageLinkData, ...]
 
 
-@dataclasses.dataclass(frozen=True)
-class ContinuityData:
+class ContinuityData(BaseModel):
     """Store information about simulation continuity"""
+
+    model_config = ConfigDict(frozen=True)
 
     new_domain_vol: float
     volume_change: float
@@ -125,8 +132,7 @@ class ContinuityData:
     continuity_error: float
 
 
-@dataclasses.dataclass(frozen=True)
-class SimulationData:
+class SimulationData(BaseModel):
     """Immutable data container for passing raw simulation state to Report.
 
     This is a pure data structure containing only the "raw ingredients"
@@ -134,10 +140,12 @@ class SimulationData:
     average rates) are performed by the Report class itself.
     """
 
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     sim_time: datetime
     time_step: float  # time step duration
     time_steps_counter: int  # number of time steps since last update
-    continuity_data: ContinuityData
+    continuity_data: ContinuityData | None  # Made optional for use in tests
     raw_arrays: Dict[str, np.ndarray]
     accumulation_arrays: Dict[str, np.ndarray]
     cell_dx: float  # cell size in east-west direction
@@ -145,11 +153,12 @@ class SimulationData:
     drainage_network_data: DrainageNetworkData | None
 
 
-@dataclasses.dataclass(frozen=True)
-class MassBalanceData:
+class MassBalanceData(BaseModel):
     """Contains the fields written to the mass balance file"""
 
-    simulation_time: datetime
+    model_config = ConfigDict(frozen=True)
+
+    simulation_time: datetime | timedelta
     average_timestep: float
     timesteps: int
     boundary_volume: float
@@ -164,9 +173,10 @@ class MassBalanceData:
     percent_error: float
 
 
-@dataclasses.dataclass(frozen=True)
-class SurfaceFlowParameters:
+class SurfaceFlowParameters(BaseModel):
     """Parameters for the surface flow model."""
+
+    model_config = ConfigDict(frozen=True)
 
     hmin: float = DefaultValues.HFMIN
     cfl: float = DefaultValues.CFL
@@ -179,9 +189,10 @@ class SurfaceFlowParameters:
     max_error: float = DefaultValues.MAX_ERROR
 
 
-@dataclasses.dataclass(frozen=True)
-class SimulationConfig:
+class SimulationConfig(BaseModel):
     """Configuration data for a simulation run."""
+
+    model_config = ConfigDict(frozen=True)
 
     # Simulation times
     start_time: datetime
@@ -189,12 +200,12 @@ class SimulationConfig:
     record_step: timedelta
     temporal_type: TemporalType
     # Input and output raster maps
-    input_map_names: Dict[str, str]
-    output_map_names: Dict[str, str]
+    input_map_names: Dict[str, str | None]
+    output_map_names: Dict[str, str | None]
     # Surface flow parameters
     surface_flow_parameters: SurfaceFlowParameters
     # Mass balance file
-    stats_file: str
+    stats_file: str | Path | None = None
     # Hydrology parameters
     dtinf: float = DefaultValues.DTINF
     infiltration_model: InfiltrationModelType = InfiltrationModelType.NULL

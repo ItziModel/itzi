@@ -9,6 +9,7 @@ dependencies = [
     "numpy>=2.2",
     "pyswmm>=2.1.0",
     "bmipy>=2.0.1",
+    "pydantic>=2.12.5",
 ]
 requires-python = ">=3.11,<3.14"  # pyswmm does not support python > 3.13
 readme = "README.md"
