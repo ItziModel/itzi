@@ -511,8 +511,8 @@ def solve_h(
             vdir = vdir + 360. * (vdir < 0)
             arr_vdir[r, c] = vdir
 
-            # Froude number
-            arr_fr[r, c] = v / c_sqrt(g * h_new)
+            # Froude number - use epsilon to avoid division by zero
+            arr_fr[r, c] = v / c_sqrt(g * fmax(h_new, eps)) * (h_new > 0.)
 
 
 @cython.wraparound(False)  # Disable negative index check
