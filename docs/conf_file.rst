@@ -220,6 +220,8 @@ This does not apply to the map of maximum values.
 
 If an exported map is totally empty, it is deleted at the end of the simulation when registered in the STRDS.
 
+When the water depth is zero, the Froude number is set to zero to prevent undefined values.
+
 [statistics]
 ------------
 
