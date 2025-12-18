@@ -12,8 +12,6 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-from typing import Tuple, Mapping
-
 import numpy as np
 
 
@@ -30,22 +28,22 @@ class DomainData:
         cols: int,
         crs_wkt: str,
     ):
-        self.north = north
-        self.south = south
-        self.east = east
-        self.west = west
-        self.rows = rows
-        self.cols = cols
-        self.crs_wkt = crs_wkt
+        self.north = float(north)
+        self.south = float(south)
+        self.east = float(east)
+        self.west = float(west)
+        self.rows = int(rows)
+        self.cols = int(cols)
+        self.crs_wkt = str(crs_wkt)
 
         if self.north < self.south:
             raise ValueError(f"north must be superior to south. {self.north=}, {self.south=}")
         if self.east < self.west:
             raise ValueError(f"east must be superior to west. {self.east=}, {self.west=}")
 
-        self.nsres = (self.north - self.south) / self.rows
-        self.ewres = (self.east - self.west) / self.cols
-        self.cell_area = self.ewres * self.nsres
+        self.nsres = float((self.north - self.south) / self.rows)
+        self.ewres = float((self.east - self.west) / self.cols)
+        self.cell_area = float(self.ewres * self.nsres)
         self.cell_shape = (self.ewres, self.nsres)
         self.shape = (self.rows, self.cols)
         self.cells = self.rows * self.cols
@@ -54,26 +52,26 @@ class DomainData:
         """For a given coordinate pair(x, y),
         return True is inside the domain, False otherwise.
         """
-        bool_x = self.west < x < self.east
-        bool_y = self.south < y < self.north
+        bool_x: bool = self.west < x < self.east
+        bool_y: bool = self.south < y < self.north
         return bool(bool_x and bool_y)
 
-    def coordinates_to_pixel(self, *, x: float, y: float) -> Tuple[float, float] | None:
+    def coordinates_to_pixel(self, *, x: float, y: float) -> tuple[float, float] | None:
         """For a given coordinate pair(x, y),
         return the corresponding row and column indices.
         """
         if not self.is_in_domain(x=x, y=y):
             return None
         else:
-            norm_row = (y - self.south) / (self.north - self.south)
+            norm_row = float((y - self.south) / (self.north - self.south))
             row = int(np.round((1 - norm_row) * (self.rows - 1)))
 
-            norm_col = (x - self.west) / (self.east - self.west)
+            norm_col = float((x - self.west) / (self.east - self.west))
             col = int(np.round(norm_col * (self.cols - 1)))
 
             return (row, col)
 
-    def get_coordinates(self) -> Mapping[str, np.ndarray]:
+    def get_coordinates(self) -> dict[str, np.ndarray]:
         """Return x and y coordinates as numpy arrays representing the center of each cell.
         Returns:
             A mapping with 'x' and 'y' keys containing 1D numpy arrays.
@@ -81,11 +79,15 @@ class DomainData:
             - 'y': array of shape (rows,) with y-coordinates of cell centers
         """
         # X coordinates: from west + half cell width, incrementing by cell width
-        x_coords = np.linspace(self.west + self.ewres / 2, self.east - self.ewres / 2, self.cols)
+        x_start: float = self.west + self.ewres / 2
+        x_stop: float = self.east - self.ewres / 2
+        x_coords: np.ndarray = np.linspace(x_start, x_stop, num=self.cols)
 
         # Y coordinates: from north - half cell height, decrementing by cell height
         # (raster coordinates typically go from north to south)
-        y_coords = np.linspace(self.north - self.nsres / 2, self.south + self.nsres / 2, self.rows)
+        y_start: float = self.north - self.nsres / 2
+        y_stop: float = self.south + self.nsres / 2
+        y_coords: np.ndarray = np.linspace(y_start, y_stop, num=self.rows)
 
         return {"x": x_coords, "y": y_coords}
 
