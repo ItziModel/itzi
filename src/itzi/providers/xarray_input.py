@@ -119,10 +119,10 @@ class XarrayRasterInputProvider(RasterInputProvider):
         self.crs_wkt: str = self.dataset.attrs.get("crs_wkt", "")
 
         # Set dimensions Mapping
-        dim_names = config.get("dimension_names")
+        dim_names: DimensionsDict | None = config.get("dimension_names")
         input_var_names: list[str] = [str(var_name) for var_name in self.dataset.data_vars.keys()]
         dim_formatter = DimensionsDictFormatter(input_var_names, dim_names)
-        self.dataset_dims = dim_formatter.get_formatted_dims()
+        self.dataset_dims: DimensionsDict = dim_formatter.get_formatted_dims()
 
         # Data validation
         self._validate_map_names_are_variables()
@@ -132,7 +132,7 @@ class XarrayRasterInputProvider(RasterInputProvider):
         self._validate_coordinates_are_sorted()
         self._validate_equality_of_spatial_dims()
 
-        self.temporal_types = self.detect_temporal_type()
+        self.temporal_types: dict[str, TemporalType] = self.detect_temporal_type()
         self.origin: tuple[float, float] = self.get_origin()
 
     def _validate_map_names_are_variables(self):
@@ -253,9 +253,14 @@ class XarrayRasterInputProvider(RasterInputProvider):
         """Detect if time coordinates are relative (timedelta) or absolute (datetime)."""
         temporal_type_dict: dict[str, TemporalType] = {}
         try:
-            time_dim_names: set[str] = {
-                self.dataset_dims[var_name]["time"] for var_name in self.input_map_names.values()
-            }
+            # Only collect time dimension names if they actually exist in the variable's dimensions
+            time_dim_names: set[str] = set()
+            for var_name in self.input_map_names.values():
+                da_var: xr.DataArray = self.dataset[var_name]
+                time_dim: str = self.dataset_dims[var_name]["time"]
+                # Check if this variable actually has the time dimension
+                if time_dim in da_var.dims:
+                    time_dim_names.add(time_dim)
         # If no time dimension, return empty dict
         except KeyError:
             return temporal_type_dict
