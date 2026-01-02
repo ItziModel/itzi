@@ -22,6 +22,17 @@ jobs:
 
     - uses: actions/checkout@v5
 
+    - name: Cache downloaded Zenodo test data
+      uses: actions/cache@v4
+      with:
+        path: |
+          tests/test_data_temp/Test8A_dataset_2010.zip
+          tests/test_data_temp/Test8B_dataset_2010.zip
+          tests/test_data_temp/elev_lid792_1m.gtiff
+        key: zenodo-data-${{ hashFiles('tests/test_ea8a.py', 'tests/test_ea8b_icechunk.py', 'tests/grass_tests/test_tutorial.py') }}
+        restore-keys: |
+          zenodo-data-
+
     - name: Install uv and Python
       run: |
         curl -LsSf https://astral.sh/uv/install.sh | sh
