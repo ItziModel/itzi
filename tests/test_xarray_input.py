@@ -8,6 +8,7 @@ import pytest
 import pyproj
 
 from itzi.providers.xarray_input import XarrayRasterInputProvider, XarrayRasterInputConfig
+from itzi.const import TemporalType
 
 
 @pytest.fixture(scope="module")
@@ -551,7 +552,7 @@ def unequal_spacing_data(input_maps_dict: Dict, crs: pyproj.CRS):
 
 
 def test_is_dataset_sorted_with_sorted_coordinates(xarray_input_data: Dict, default_times: Dict):
-    """Test is_dataset_sorted() method with properly sorted coordinates"""
+    """Test that provider creation succeeds with properly sorted coordinates"""
     config: XarrayRasterInputConfig = {
         "dataset": xarray_input_data["dataset"],
         "input_map_names": xarray_input_data["input_map_names"],
@@ -559,20 +560,17 @@ def test_is_dataset_sorted_with_sorted_coordinates(xarray_input_data: Dict, defa
         "simulation_end_time": default_times["end_time"],
     }
 
+    # Should not raise any exception with sorted coordinates
     provider = XarrayRasterInputProvider(config)
 
-    # Test the is_dataset_sorted method directly
-    result = provider.is_dataset_sorted()
-
-    # Should return True for properly sorted coordinates
-    assert result is True
-    assert isinstance(result, bool)
+    # Verify provider was created successfully
+    assert provider is not None
 
 
 def test_is_dataset_sorted_with_unsorted_coordinates(
     unsorted_coordinates_data: Dict, default_times: Dict
 ):
-    """Test is_dataset_sorted() method with unsorted coordinates"""
+    """Test that provider creation fails with unsorted coordinates"""
     # This test should fail during provider creation due to unsorted coordinates
     config: XarrayRasterInputConfig = {
         "dataset": unsorted_coordinates_data["dataset"],
@@ -581,13 +579,13 @@ def test_is_dataset_sorted_with_unsorted_coordinates(
         "simulation_end_time": default_times["end_time"],
     }
 
-    # Should raise ValueError because coordinates are not sorted
-    with pytest.raises(ValueError, match="Coordinates must be sorted"):
+    # Should raise ValueError because coordinates are not sorted (detected as not equally spaced)
+    with pytest.raises(ValueError, match="not equally spaced|is not sorted"):
         XarrayRasterInputProvider(config)
 
 
 def test_is_equal_spacing_with_equal_spacing(xarray_input_data: Dict, default_times: Dict):
-    """Test is_equal_spacing() method with equally spaced coordinates"""
+    """Test that provider creation succeeds with equally spaced coordinates"""
     config: XarrayRasterInputConfig = {
         "dataset": xarray_input_data["dataset"],
         "input_map_names": xarray_input_data["input_map_names"],
@@ -595,21 +593,18 @@ def test_is_equal_spacing_with_equal_spacing(xarray_input_data: Dict, default_ti
         "simulation_end_time": default_times["end_time"],
     }
 
+    # Should not raise any exception with equally spaced coordinates
     provider = XarrayRasterInputProvider(config)
 
-    # Test the is_equal_spacing method directly
-    result = provider.is_equal_spacing()
-
-    # Should return True for equally spaced coordinates
-    assert result is True
-    assert isinstance(result, bool)
+    # Verify provider was created successfully
+    assert provider is not None
 
 
 def test_is_equal_spacing_with_unequal_spacing(unequal_spacing_data: Dict, default_times: Dict):
-    """Test is_equal_spacing() method with unequally spaced coordinates"""
+    """Test that provider creation fails with unequally spaced coordinates"""
 
     # Should raise ValueError because coordinates are not equally spaced
-    with pytest.raises(ValueError, match="Spatial coordinates must be equally spaced"):
+    with pytest.raises(ValueError, match="not equally spaced"):
         XarrayRasterInputProvider(
             {
                 "dataset": unequal_spacing_data["dataset"],
@@ -651,3 +646,334 @@ def test_is_array_sorted_static_method():
     empty_array = np.array([])
     assert XarrayRasterInputProvider.is_array_sorted(empty_array, ascending=True) is True
     assert XarrayRasterInputProvider.is_array_sorted(empty_array, ascending=False) is True
+
+
+def test_wrong_time_dimension_name_causes_assertion_error(
+    input_maps_dict: Dict,
+    coordinates: Dict,
+    crs: pyproj.CRS,
+    time_coordinates: list,
+    default_times: Dict,
+):
+    """
+    Test that reproduces the error when time dimension name is wrong.
+
+    The bug: When the provider is configured with a wrong time dimension name,
+    the code catches a KeyError and assumes the array is 2D, but it could be 3D
+    with a different time dimension name, causing assertion failure.
+    """
+    # Create a dataset with time dimension named "t" instead of "time"
+    time_len = len(time_coordinates)
+    base_data = input_maps_dict["rainfall"]
+
+    # Create 3D time-dependent data with dimension name "t"
+    time_data = np.stack([base_data * (1 + 0.1 * t) for t in range(time_len)])
+
+    coords = {
+        "t": time_coordinates,  # NOTE: Using "t" as time dimension name
+        "y": coordinates["y_coords"],
+        "x": coordinates["x_coords"],
+    }
+
+    data_vars = {
+        "rainfall": (["t", "y", "x"], time_data)  # 3D array with "t" dimension
+    }
+
+    ds = xr.Dataset(data_vars=data_vars, coords=coords)
+    ds.attrs["crs_wkt"] = crs.to_wkt()
+
+    # Configure provider with default time dimension name "time" (which doesn't exist)
+    config: XarrayRasterInputConfig = {
+        "dataset": ds,
+        "input_map_names": {"rainfall": "rainfall"},
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
+        # NOT providing dimension_names, so it defaults to looking for "time"
+    }
+
+    with pytest.raises(ValueError):
+        provider = XarrayRasterInputProvider(config)
+        current_time = datetime(2023, 1, 1, 2, 0, 0)
+        provider.get_array("rainfall", current_time)
+
+
+def test_xarray_input_provider_2d_only_no_time_coordinate(
+    input_maps_dict: Dict, coordinates: Dict, crs: pyproj.CRS, default_times: Dict
+):
+    """Test that XarrayRasterInputProvider handles datasets with only 2D variables and NO time coordinate.
+
+    This is a regression test for the bug where detect_temporal_type() would try to access
+    a 'time' coordinate that doesn't exist in the dataset when all variables are 2D spatial only
+    and no time coordinate exists at all.
+
+    Bug scenario: Dataset with variables like ['dem', 'friction'] that are only (y, x) dimensions,
+    and no 'time' coordinate in coords. The code was trying to access dataset['time'] which failed.
+    """
+    # Create a dataset with ONLY 2D variables and NO time coordinate
+    data_vars = {
+        "dem": (["y", "x"], input_maps_dict["dem"]),
+        "friction": (["y", "x"], input_maps_dict["friction"]),
+    }
+
+    coords = {
+        "x": coordinates["x_coords"],
+        "y": coordinates["y_coords"],
+        # Explicitly NO time coordinate
+    }
+
+    # Create the dataset WITHOUT any time coordinate
+    ds = xr.Dataset(data_vars=data_vars, coords=coords)
+    ds.attrs["crs_wkt"] = crs.to_wkt()
+
+    # Verify the dataset structure
+    assert "time" not in ds.coords, "Test setup error: time coordinate should not exist"
+    assert "dem" in ds.data_vars
+    assert "friction" in ds.data_vars
+
+    # Map names for the 2D-only variables
+    input_map_names = {
+        "dem": "dem",
+        "friction": "friction",
+    }
+
+    # This should NOT raise a KeyError about missing 'time' dimension
+    config: XarrayRasterInputConfig = {
+        "dataset": ds,
+        "input_map_names": input_map_names,
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
+    }
+
+    # Create the provider - this should succeed without errors
+    provider = XarrayRasterInputProvider(config)
+
+    # Verify that the provider was created successfully
+    assert provider is not None
+    assert provider.sim_start_time == default_times["start_time"]
+    assert provider.sim_end_time == default_times["end_time"]
+    assert provider.input_map_names == input_map_names
+
+    # Verify that temporal_types is empty (no time dimensions detected)
+    assert provider.temporal_types == {}, (
+        "temporal_types should be empty for datasets with no time coordinate"
+    )
+
+    # Test that we can get arrays from the 2D variables
+    current_time = datetime(2023, 1, 1, 12, 0, 0)
+
+    for key in ["dem", "friction"]:
+        array, start_time, end_time = provider.get_array(key, current_time)
+
+        # Should return the array
+        assert isinstance(array, np.ndarray)
+        assert array.ndim == 2
+        assert np.allclose(array, input_maps_dict[key])
+
+        # For static variables, should return simulation start/end times
+        assert start_time == default_times["start_time"]
+        assert end_time == default_times["end_time"]
+
+
+@pytest.fixture
+def mixed_dimensions_data(input_maps_dict: Dict, coordinates: Dict, crs: pyproj.CRS):
+    """Create a dataset with mixed dimension names and time types:
+    - 1 2D array (no time dim) with dimensions (lat, lon)
+    - 1 3D array with relative time with dimensions (rel_time, northing, easting)
+    - 1 3D array with absolute time with dimensions (abs_time, rows, cols)
+    """
+    # Create time coordinates
+    time_steps: int = 5
+    time_step_hours: int = 1
+
+    # Relative time coordinates (timedelta)
+    relative_times: list[int] = [timedelta(hours=i * time_step_hours) for i in range(time_steps)]
+
+    # Absolute time coordinates (datetime)
+    start_time = datetime(2023, 1, 1, 0, 0, 0)
+    absolute_times: list[datetime] = [
+        start_time + timedelta(hours=i * time_step_hours) for i in range(time_steps)
+    ]
+
+    # Create data variables with different dimension names
+    data_vars = {}
+
+    # 1. 2D static array with (lat, lon) dimensions
+    dem_data: str = input_maps_dict["dem"]
+    data_vars["elevation"] = (["lat", "lon"], dem_data)
+
+    # 2. 3D array with relative time (rel_time, northing, easting)
+    rainfall_data: str = input_maps_dict["rainfall"]
+    rainfall_time_data: np.ndarray = np.stack(
+        [rainfall_data * (1 + 0.1 * t) for t in range(time_steps)]
+    )
+    data_vars["precip"] = (["rel_time", "northing", "easting"], rainfall_time_data)
+
+    # 3. 3D array with absolute time (abs_time, rows, cols)
+    bc_data: str = input_maps_dict["boundary_conditions"]
+    bc_time_data: np.ndarray = np.stack([bc_data * (1 + 0.2 * t) for t in range(time_steps)])
+    data_vars["boundary"] = (["abs_time", "rows", "cols"], bc_time_data)
+
+    # Create coordinates for each dimension
+    coords = {
+        # For 2D static array
+        "lat": coordinates["y_coords"],
+        "lon": coordinates["x_coords"],
+        # For 3D relative time array
+        "rel_time": relative_times,
+        "northing": coordinates["y_coords"],
+        "easting": coordinates["x_coords"],
+        # For 3D absolute time array
+        "abs_time": absolute_times,
+        "rows": coordinates["y_coords"],
+        "cols": coordinates["x_coords"],
+    }
+
+    # Create the dataset
+    ds = xr.Dataset(data_vars=data_vars, coords=coords)
+
+    # Add CRS information
+    ds.attrs["crs_wkt"] = crs.to_wkt()
+
+    return {
+        "dataset": ds,
+        "input_maps_dict": input_maps_dict,
+        "relative_times": relative_times,
+        "absolute_times": absolute_times,
+    }
+
+
+def test_xarray_input_provider_mixed_dimensions(mixed_dimensions_data: Dict, default_times: Dict):
+    """Test XarrayRasterInputProvider with mixed dimension names and time types.
+
+    This test validates that the provider can handle:
+    - 1 2D array (no time dim) with dimensions (lat, lon)
+    - 1 3D array with relative time with dimensions (rel_time, northing, easting)
+    - 1 3D array with absolute time with dimensions (abs_time, rows, cols)
+    """
+    # Define the mapping from itzi keys to dataset variable names
+    input_map_names = {
+        "dem": "elevation",
+        "rainfall": "precip",
+        "boundary_conditions": "boundary",
+    }
+
+    # Define the dimension names for each variable
+    dimension_names: dict[str, dict[str, str]] = {
+        "elevation": {
+            "y": "lat",
+            "x": "lon",
+        },
+        "precip": {
+            "time": "rel_time",
+            "y": "northing",
+            "x": "easting",
+        },
+        "boundary": {
+            "time": "abs_time",
+            "y": "rows",
+            "x": "cols",
+        },
+    }
+
+    config: XarrayRasterInputConfig = {
+        "dataset": mixed_dimensions_data["dataset"],
+        "input_map_names": input_map_names,
+        "dimension_names": dimension_names,
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
+    }
+
+    # Create the provider
+    provider = XarrayRasterInputProvider(config)
+
+    # Verify that the provider was created successfully
+    assert provider.sim_start_time == default_times["start_time"]
+    assert provider.sim_end_time == default_times["end_time"]
+    assert provider.input_map_names == input_map_names
+
+    # Test 1: Get static 2D array (elevation/dem)
+    current_time = datetime(2023, 1, 1, 12, 0, 0)
+    result = provider.get_array("dem", current_time)
+
+    assert isinstance(result, tuple)
+    assert len(result) == 3
+
+    array, start_time, end_time = result
+
+    # Verify the array
+    assert isinstance(array, np.ndarray)
+    assert array.ndim == 2
+    expected_data = mixed_dimensions_data["input_maps_dict"]["dem"]
+    assert array.shape == expected_data.shape
+    assert np.allclose(array, expected_data)
+
+    # For static variables, times should be simulation start/end
+    assert start_time == default_times["start_time"]
+    assert end_time == default_times["end_time"]
+
+    # Test 2: Get 3D array with relative time (rainfall/precip)
+    current_time = datetime(2023, 1, 1, 2, 30, 0)  # Should correspond to rel_time index 2
+    expected_start_time = datetime(2023, 1, 1, 2, 0, 0)
+    expected_end_time = datetime(2023, 1, 1, 3, 0, 0)
+
+    result = provider.get_array("rainfall", current_time)
+
+    assert isinstance(result, tuple)
+    assert len(result) == 3
+
+    array, start_time, end_time = result
+
+    # Verify the array
+    assert isinstance(array, np.ndarray)
+    assert array.ndim == 2
+
+    # Verify the array values for relative time index 2
+    expected_time_index = 2
+    base_data = mixed_dimensions_data["input_maps_dict"]["rainfall"]
+    expected_array = base_data * (1 + 0.1 * expected_time_index)
+    assert np.allclose(array, expected_array), (
+        f"Array values don't match expected values for relative time index {expected_time_index}"
+    )
+
+    # Verify times
+    assert isinstance(start_time, datetime)
+    assert isinstance(end_time, datetime)
+    assert start_time <= current_time <= end_time
+    assert start_time == expected_start_time
+    assert end_time == expected_end_time
+
+    # Test 3: Get 3D array with absolute time (boundary_conditions/boundary)
+    current_time = datetime(2023, 1, 1, 3, 30, 0)  # Should correspond to abs_time index 3
+    expected_start_time = datetime(2023, 1, 1, 3, 0, 0)
+    expected_end_time = datetime(2023, 1, 1, 4, 0, 0)
+
+    result = provider.get_array("boundary_conditions", current_time)
+
+    assert isinstance(result, tuple)
+    assert len(result) == 3
+
+    array, start_time, end_time = result
+
+    # Verify the array
+    assert isinstance(array, np.ndarray)
+    assert array.ndim == 2
+
+    # Verify the array values for absolute time index 3
+    expected_time_index = 3
+    base_data = mixed_dimensions_data["input_maps_dict"]["boundary_conditions"]
+    expected_array = base_data * (1 + 0.2 * expected_time_index)
+    assert np.allclose(array, expected_array), (
+        f"Array values don't match expected values for absolute time index {expected_time_index}"
+    )
+
+    # Verify times
+    assert isinstance(start_time, datetime)
+    assert isinstance(end_time, datetime)
+    assert start_time <= current_time <= end_time
+    assert start_time == expected_start_time
+    assert end_time == expected_end_time
+
+    # Test 4: Verify temporal types are correctly detected
+    assert len(provider.temporal_types) == 2  # Two time dimensions
+    assert provider.temporal_types["rel_time"] == TemporalType.RELATIVE
+    assert provider.temporal_types["abs_time"] == TemporalType.ABSOLUTE

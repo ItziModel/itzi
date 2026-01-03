@@ -10,7 +10,7 @@ jobs:
   test:
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.12", "3.13"]
 
     runs-on: ubuntu-24.04
     container: osgeo/grass-gis:releasebranch_8_4-ubuntu

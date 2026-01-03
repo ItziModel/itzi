@@ -11,7 +11,7 @@ dependencies = [
     "bmipy>=2.0.1",
     "pydantic>=2.12.5",
 ]
-requires-python = ">=3.11,<3.14"  # pyswmm does not support python > 3.13
+requires-python = ">=3.12,<3.14"  # 3.12 for typing. pyswmm does not support python > 3.13
 readme = "README.md"
 license = "GPL-2.0-or-later"
 keywords = ["science", "engineering", "hydrology", "flood"]
