@@ -8,6 +8,7 @@ import pytest
 import pyproj
 
 from itzi.providers.xarray_input import XarrayRasterInputProvider, XarrayRasterInputConfig
+from itzi.const import TemporalType
 
 
 @pytest.fixture(scope="module")
@@ -771,3 +772,208 @@ def test_xarray_input_provider_2d_only_no_time_coordinate(
         # For static variables, should return simulation start/end times
         assert start_time == default_times["start_time"]
         assert end_time == default_times["end_time"]
+
+
+@pytest.fixture
+def mixed_dimensions_data(input_maps_dict: Dict, coordinates: Dict, crs: pyproj.CRS):
+    """Create a dataset with mixed dimension names and time types:
+    - 1 2D array (no time dim) with dimensions (lat, lon)
+    - 1 3D array with relative time with dimensions (rel_time, northing, easting)
+    - 1 3D array with absolute time with dimensions (abs_time, rows, cols)
+    """
+    # Create time coordinates
+    time_steps: int = 5
+    time_step_hours: int = 1
+
+    # Relative time coordinates (timedelta)
+    relative_times: list[int] = [timedelta(hours=i * time_step_hours) for i in range(time_steps)]
+
+    # Absolute time coordinates (datetime)
+    start_time = datetime(2023, 1, 1, 0, 0, 0)
+    absolute_times: list[datetime] = [
+        start_time + timedelta(hours=i * time_step_hours) for i in range(time_steps)
+    ]
+
+    # Create data variables with different dimension names
+    data_vars = {}
+
+    # 1. 2D static array with (lat, lon) dimensions
+    dem_data: str = input_maps_dict["dem"]
+    data_vars["elevation"] = (["lat", "lon"], dem_data)
+
+    # 2. 3D array with relative time (rel_time, northing, easting)
+    rainfall_data: str = input_maps_dict["rainfall"]
+    rainfall_time_data: np.ndarray = np.stack(
+        [rainfall_data * (1 + 0.1 * t) for t in range(time_steps)]
+    )
+    data_vars["precip"] = (["rel_time", "northing", "easting"], rainfall_time_data)
+
+    # 3. 3D array with absolute time (abs_time, rows, cols)
+    bc_data: str = input_maps_dict["boundary_conditions"]
+    bc_time_data: np.ndarray = np.stack([bc_data * (1 + 0.2 * t) for t in range(time_steps)])
+    data_vars["boundary"] = (["abs_time", "rows", "cols"], bc_time_data)
+
+    # Create coordinates for each dimension
+    coords = {
+        # For 2D static array
+        "lat": coordinates["y_coords"],
+        "lon": coordinates["x_coords"],
+        # For 3D relative time array
+        "rel_time": relative_times,
+        "northing": coordinates["y_coords"],
+        "easting": coordinates["x_coords"],
+        # For 3D absolute time array
+        "abs_time": absolute_times,
+        "rows": coordinates["y_coords"],
+        "cols": coordinates["x_coords"],
+    }
+
+    # Create the dataset
+    ds = xr.Dataset(data_vars=data_vars, coords=coords)
+
+    # Add CRS information
+    ds.attrs["crs_wkt"] = crs.to_wkt()
+
+    return {
+        "dataset": ds,
+        "input_maps_dict": input_maps_dict,
+        "relative_times": relative_times,
+        "absolute_times": absolute_times,
+    }
+
+
+def test_xarray_input_provider_mixed_dimensions(mixed_dimensions_data: Dict, default_times: Dict):
+    """Test XarrayRasterInputProvider with mixed dimension names and time types.
+
+    This test validates that the provider can handle:
+    - 1 2D array (no time dim) with dimensions (lat, lon)
+    - 1 3D array with relative time with dimensions (rel_time, northing, easting)
+    - 1 3D array with absolute time with dimensions (abs_time, rows, cols)
+    """
+    # Define the mapping from itzi keys to dataset variable names
+    input_map_names = {
+        "dem": "elevation",
+        "rainfall": "precip",
+        "boundary_conditions": "boundary",
+    }
+
+    # Define the dimension names for each variable
+    dimension_names: dict[str, dict[str, str]] = {
+        "elevation": {
+            "y": "lat",
+            "x": "lon",
+        },
+        "precip": {
+            "time": "rel_time",
+            "y": "northing",
+            "x": "easting",
+        },
+        "boundary": {
+            "time": "abs_time",
+            "y": "rows",
+            "x": "cols",
+        },
+    }
+
+    config: XarrayRasterInputConfig = {
+        "dataset": mixed_dimensions_data["dataset"],
+        "input_map_names": input_map_names,
+        "dimension_names": dimension_names,
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
+    }
+
+    # Create the provider
+    provider = XarrayRasterInputProvider(config)
+
+    # Verify that the provider was created successfully
+    assert provider.sim_start_time == default_times["start_time"]
+    assert provider.sim_end_time == default_times["end_time"]
+    assert provider.input_map_names == input_map_names
+
+    # Test 1: Get static 2D array (elevation/dem)
+    current_time = datetime(2023, 1, 1, 12, 0, 0)
+    result = provider.get_array("dem", current_time)
+
+    assert isinstance(result, tuple)
+    assert len(result) == 3
+
+    array, start_time, end_time = result
+
+    # Verify the array
+    assert isinstance(array, np.ndarray)
+    assert array.ndim == 2
+    expected_data = mixed_dimensions_data["input_maps_dict"]["dem"]
+    assert array.shape == expected_data.shape
+    assert np.allclose(array, expected_data)
+
+    # For static variables, times should be simulation start/end
+    assert start_time == default_times["start_time"]
+    assert end_time == default_times["end_time"]
+
+    # Test 2: Get 3D array with relative time (rainfall/precip)
+    current_time = datetime(2023, 1, 1, 2, 30, 0)  # Should correspond to rel_time index 2
+    expected_start_time = datetime(2023, 1, 1, 2, 0, 0)
+    expected_end_time = datetime(2023, 1, 1, 3, 0, 0)
+
+    result = provider.get_array("rainfall", current_time)
+
+    assert isinstance(result, tuple)
+    assert len(result) == 3
+
+    array, start_time, end_time = result
+
+    # Verify the array
+    assert isinstance(array, np.ndarray)
+    assert array.ndim == 2
+
+    # Verify the array values for relative time index 2
+    expected_time_index = 2
+    base_data = mixed_dimensions_data["input_maps_dict"]["rainfall"]
+    expected_array = base_data * (1 + 0.1 * expected_time_index)
+    assert np.allclose(array, expected_array), (
+        f"Array values don't match expected values for relative time index {expected_time_index}"
+    )
+
+    # Verify times
+    assert isinstance(start_time, datetime)
+    assert isinstance(end_time, datetime)
+    assert start_time <= current_time <= end_time
+    assert start_time == expected_start_time
+    assert end_time == expected_end_time
+
+    # Test 3: Get 3D array with absolute time (boundary_conditions/boundary)
+    current_time = datetime(2023, 1, 1, 3, 30, 0)  # Should correspond to abs_time index 3
+    expected_start_time = datetime(2023, 1, 1, 3, 0, 0)
+    expected_end_time = datetime(2023, 1, 1, 4, 0, 0)
+
+    result = provider.get_array("boundary_conditions", current_time)
+
+    assert isinstance(result, tuple)
+    assert len(result) == 3
+
+    array, start_time, end_time = result
+
+    # Verify the array
+    assert isinstance(array, np.ndarray)
+    assert array.ndim == 2
+
+    # Verify the array values for absolute time index 3
+    expected_time_index = 3
+    base_data = mixed_dimensions_data["input_maps_dict"]["boundary_conditions"]
+    expected_array = base_data * (1 + 0.2 * expected_time_index)
+    assert np.allclose(array, expected_array), (
+        f"Array values don't match expected values for absolute time index {expected_time_index}"
+    )
+
+    # Verify times
+    assert isinstance(start_time, datetime)
+    assert isinstance(end_time, datetime)
+    assert start_time <= current_time <= end_time
+    assert start_time == expected_start_time
+    assert end_time == expected_end_time
+
+    # Test 4: Verify temporal types are correctly detected
+    assert len(provider.temporal_types) == 2  # Two time dimensions
+    assert provider.temporal_types["rel_time"] == TemporalType.RELATIVE
+    assert provider.temporal_types["abs_time"] == TemporalType.ABSOLUTE
