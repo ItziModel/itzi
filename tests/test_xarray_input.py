@@ -694,3 +694,80 @@ def test_wrong_time_dimension_name_causes_assertion_error(
         provider = XarrayRasterInputProvider(config)
         current_time = datetime(2023, 1, 1, 2, 0, 0)
         provider.get_array("rainfall", current_time)
+
+
+def test_xarray_input_provider_2d_only_no_time_coordinate(
+    input_maps_dict: Dict, coordinates: Dict, crs: pyproj.CRS, default_times: Dict
+):
+    """Test that XarrayRasterInputProvider handles datasets with only 2D variables and NO time coordinate.
+
+    This is a regression test for the bug where detect_temporal_type() would try to access
+    a 'time' coordinate that doesn't exist in the dataset when all variables are 2D spatial only
+    and no time coordinate exists at all.
+
+    Bug scenario: Dataset with variables like ['dem', 'friction'] that are only (y, x) dimensions,
+    and no 'time' coordinate in coords. The code was trying to access dataset['time'] which failed.
+    """
+    # Create a dataset with ONLY 2D variables and NO time coordinate
+    data_vars = {
+        "dem": (["y", "x"], input_maps_dict["dem"]),
+        "friction": (["y", "x"], input_maps_dict["friction"]),
+    }
+
+    coords = {
+        "x": coordinates["x_coords"],
+        "y": coordinates["y_coords"],
+        # Explicitly NO time coordinate
+    }
+
+    # Create the dataset WITHOUT any time coordinate
+    ds = xr.Dataset(data_vars=data_vars, coords=coords)
+    ds.attrs["crs_wkt"] = crs.to_wkt()
+
+    # Verify the dataset structure
+    assert "time" not in ds.coords, "Test setup error: time coordinate should not exist"
+    assert "dem" in ds.data_vars
+    assert "friction" in ds.data_vars
+
+    # Map names for the 2D-only variables
+    input_map_names = {
+        "dem": "dem",
+        "friction": "friction",
+    }
+
+    # This should NOT raise a KeyError about missing 'time' dimension
+    config: XarrayRasterInputConfig = {
+        "dataset": ds,
+        "input_map_names": input_map_names,
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
+    }
+
+    # Create the provider - this should succeed without errors
+    provider = XarrayRasterInputProvider(config)
+
+    # Verify that the provider was created successfully
+    assert provider is not None
+    assert provider.sim_start_time == default_times["start_time"]
+    assert provider.sim_end_time == default_times["end_time"]
+    assert provider.input_map_names == input_map_names
+
+    # Verify that temporal_types is empty (no time dimensions detected)
+    assert provider.temporal_types == {}, (
+        "temporal_types should be empty for datasets with no time coordinate"
+    )
+
+    # Test that we can get arrays from the 2D variables
+    current_time = datetime(2023, 1, 1, 12, 0, 0)
+
+    for key in ["dem", "friction"]:
+        array, start_time, end_time = provider.get_array(key, current_time)
+
+        # Should return the array
+        assert isinstance(array, np.ndarray)
+        assert array.ndim == 2
+        assert np.allclose(array, input_maps_dict[key])
+
+        # For static variables, should return simulation start/end times
+        assert start_time == default_times["start_time"]
+        assert end_time == default_times["end_time"]
