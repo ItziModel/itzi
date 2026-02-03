@@ -5,6 +5,7 @@ import os
 import pytest
 
 from itzi import SimulationRunner
+from itzi.configreader import ConfigReader
 from itzi.profiler import profile_context
 
 from tests.grass_tests.test_tutorial import (  # noqa: F401
@@ -20,8 +21,9 @@ def run_simulation(config_file, test_data_temp_path):
     """
     profile_path = os.path.join(test_data_temp_path, "tutorial_profile.txt")
     with profile_context(profile_path):
+        conf_data = ConfigReader(config_file)
         sim_runner = SimulationRunner()
-        sim_runner.initialize(config_file)
+        sim_runner.initialize(conf_data)
         sim_runner.run().finalize()
 
 
