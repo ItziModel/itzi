@@ -16,7 +16,6 @@ import math
 from datetime import timedelta
 from enum import StrEnum
 from io import BytesIO
-import os
 import tempfile
 
 import pyswmm
@@ -114,18 +113,16 @@ class DrainageSimulation:
 
     def get_hotstart(self) -> BytesIO:
         """Save a temp SWMM hotstart, return a binary object."""
-        with tempfile.NamedTemporaryFile(suffix=".hsf", delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(suffix=".hsf", delete_on_close=False) as tmp:
             temp_hotstart = tmp.name
-        try:
+            # Close the file handle so SWMM can open it exclusively
+            tmp.close()
             self.swmm_model.swmm_save_hotstart(temp_hotstart)
             with open(temp_hotstart, "rb") as f:
                 buffer = BytesIO(f.read())
             buffer.seek(0)
             return buffer
-        finally:
-            # Clean up temporary file
-            if os.path.exists(temp_hotstart):
-                os.remove(temp_hotstart)
+        # File is automatically deleted on context manager exit, even on exception
 
 
 class DrainageNode(object):
