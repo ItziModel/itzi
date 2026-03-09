@@ -15,13 +15,11 @@ from itzi.data_containers import (
     DrainageLinkData,
     DrainageNetworkData,
 )
-from itzi.providers.csv_output import CSVVectorOutputProvider
+from itzi.providers.csv_output import CSVVectorOutputConfig, CSVVectorOutputProvider
 from itzi.drainage import CouplingTypes
 
 from tests.fixtures_vector_output import create_dummy_drainage_network
 from tests.fixtures_vector_output import expected_node_coords, expected_vertices
-
-pytest_plugins = ["tests.fixtures_vector_output"]
 
 
 def test_csv(test_data_temp_path, sim_time):
@@ -30,7 +28,7 @@ def test_csv(test_data_temp_path, sim_time):
     drainage_network = create_dummy_drainage_network()
     obj_store = obstore.store.MemoryStore()
     file_prefix = "test_drainage"
-    provider_config = {
+    provider_config: CSVVectorOutputConfig = {
         "crs": pyproj.CRS.from_epsg(6372),
         "store": obj_store,
         "results_prefix": test_data_temp_path,

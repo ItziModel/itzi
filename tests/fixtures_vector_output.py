@@ -1,7 +1,3 @@
-from datetime import datetime, timedelta
-
-import pytest
-
 from itzi.data_containers import (
     DrainageNetworkData,
     DrainageNodeData,
@@ -159,10 +155,3 @@ def create_dummy_drainage_network(with_coords=True):
     drainage_network = DrainageNetworkData(nodes=(node1, node2, node3), links=(link1, link2))
 
     return drainage_network
-
-
-@pytest.fixture(
-    scope="module", params=[datetime(year=2020, month=3, day=23, hour=10), timedelta(seconds=0)]
-)
-def sim_time(request):
-    return request.param
