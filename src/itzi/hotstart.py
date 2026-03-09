@@ -53,36 +53,30 @@ class HotstartWriter:
         """
         Create a hotstart archive from provided state payloads.
 
+        Hashes for ``raster_state_bytes`` and (optionally) ``swmm_hotstart_bytes``
+        are computed here and injected into a copy of ``simulation_state`` before
+        the archive is serialised.  Callers do not need to supply hash values.
+
         Args:
             domain_data: Domain metadata
             simulation_config: Simulation configuration
-            simulation_state: Runtime state (sim_time, dt, counters, etc.)
+            simulation_state: Runtime state (sim_time, dt, counters, etc.).
+                The ``raster_domain_hash`` and ``swmm_hotstart_hash`` fields are
+                ignored; the writer always computes them from the binary payloads.
             raster_state_bytes: Serialized raster domain state (.npz format)
             swmm_hotstart_bytes: Optional SWMM hotstart file bytes
 
         Returns:
             BytesIO containing the complete hotstart archive
-
-        Raises:
-            HotstartError: If hash validation fails
         """
-        # Compute hashes for validation
+        # Compute hashes from the binary payloads and inject them into state.
         raster_hash = hashlib.blake2b(raster_state_bytes).hexdigest()
         swmm_hash = None
         if swmm_hotstart_bytes is not None:
             swmm_hash = hashlib.blake2b(swmm_hotstart_bytes).hexdigest()
-
-        # Verify hashes match what's in simulation_state
-        if raster_hash != simulation_state.raster_domain_hash:
-            raise HotstartError(
-                f"Raster hash mismatch: computed {raster_hash} != "
-                f"provided {simulation_state.raster_domain_hash}"
-            )
-        if swmm_hash != simulation_state.swmm_hotstart_hash:
-            raise HotstartError(
-                f"SWMM hash mismatch: computed {swmm_hash} != "
-                f"provided {simulation_state.swmm_hotstart_hash}"
-            )
+        simulation_state = simulation_state.model_copy(
+            update={"raster_domain_hash": raster_hash, "swmm_hotstart_hash": swmm_hash}
+        )
 
         # Build metadata using Pydantic model for validation
         metadata = HotstartMetadata(
@@ -253,9 +247,8 @@ class HotstartLoader:
         Raises:
             HotstartError: If version is unsupported
         """
-        if "hotstart_version" not in metadata:
-            raise HotstartError("Hotstart metadata missing version field")
-
+        # hotstart_version is a required field; if it were absent Pydantic would
+        # have already raised a ValidationError during model_validate_json().
         archive_version = metadata.hotstart_version
 
         if archive_version != HOTSTART_VERSION:

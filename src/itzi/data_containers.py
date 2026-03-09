@@ -237,8 +237,10 @@ class HotstartSimulationState(BaseModel):
     time_steps_counters: Dict[str, int]
     accum_update_time: Dict[str, str]  # ISO format datetimes
     old_domain_volume: float
-    raster_domain_hash: str
-    swmm_hotstart_hash: str | None
+    # Hashes are computed by HotstartWriter and injected before serialization;
+    # callers building the state before archive creation leave them as empty defaults.
+    raster_domain_hash: str = ""
+    swmm_hotstart_hash: str | None = None
 
 
 class HotstartMetadata(BaseModel):

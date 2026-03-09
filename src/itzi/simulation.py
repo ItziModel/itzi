@@ -13,19 +13,17 @@ GNU General Public License for more details.
 """
 
 from __future__ import annotations
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Self, TYPE_CHECKING, Dict, Optional
 import copy
-from importlib.metadata import version
-import zipfile
 import io
-import json
-import hashlib
 
 import numpy as np
 
 from itzi.data_containers import ContinuityData, SimulationData
 from itzi.data_containers import SimulationConfig, DrainageNodeCouplingData
+from itzi.data_containers import HotstartSimulationState
+from itzi.hotstart import HotstartWriter
 import itzi.messenger as msgr
 from itzi.itzi_error import NullError, MassBalanceError, DtError
 from itzi import rastermetrics
@@ -105,7 +103,7 @@ class Simulation:
         # Grid spacing (for BMI)
         self.spacing = (self.raster_domain.dy, self.raster_domain.dx)
         # time step counter
-        self.time_steps_counters: Dict[int] = {
+        self.time_steps_counters: Dict[str, int] = {
             "since_start": 0,
             "since_last_report": 0,
         }
@@ -442,61 +440,45 @@ class Simulation:
             self.accum_update_time[ak] = sim_time
 
     def create_hotstart(self) -> io.BytesIO:
-        """Create a hotstart file with the current state of the simulation."""
-        hotstart_version = 1  # Update if any of the components changes
+        """Create a hotstart file with the current state of the simulation.
 
-        # Fixed filenames
-        RASTER_STATE_FILENAME = "raster_state.npz"
-        SWMM_HOTSTART_FILENAME = "swmm_hotstart.hsf"
-        JSON_FILENAME = "metadata.json"
+        Raises:
+            RuntimeError: If called before initialize() has established valid state.
+        """
+        # Guard: Check that initialize() has been called
+        # accum_update_time values are set to None in __init__ and only
+        # become valid datetime objects after initialize() is called
+        if any(v is None for v in self.accum_update_time.values()):
+            raise RuntimeError(
+                "Cannot create hotstart: simulation has not been initialized. "
+                "Call initialize() before creating a hotstart."
+            )
 
-        # SWMM hotstart
+        # Get SWMM hotstart bytes if drainage is enabled
+        swmm_hotstart_bytes: bytes | None = None
         if self.drainage_model:
             swmm_hotstart: io.BytesIO = self.drainage_model.get_hotstart()
-            swmm_data = swmm_hotstart.getvalue()
-            swmm_hash = hashlib.blake2b(swmm_data).hexdigest()
-        else:
-            swmm_hotstart = None
-            swmm_hash = None
+            swmm_hotstart_bytes = swmm_hotstart.getvalue()
 
-        # State of the raster domain arrays
+        # Get raster domain state bytes
         raster_state: io.BytesIO = self.raster_domain.save_state()
-        raster_data = raster_state.getvalue()
-        raster_hash = hashlib.blake2b(raster_data).hexdigest()
+        raster_state_bytes = raster_state.getvalue()
 
-        # Create the hotstart structure
-        json_data = {
-            "creation_date": datetime.now(timezone.utc).isoformat(),
-            "itzi_version": version("itzi"),
-            "hotstart_version": hotstart_version,
-            "domain_data": self.domain_data.model_dump(),
-            "simulation_config": self.sim_config.as_str_dict(),
-            "simulation_state": {
-                "sim_time": self.sim_time.isoformat(),
-                "dt": self.dt.total_seconds(),
-                "next_ts": {k: v.isoformat() for k, v in self.next_ts.items()},
-                "time_steps_counters": self.time_steps_counters,
-                "accum_update_time": {k: v.isoformat() for k, v in self.accum_update_time.items()},
-                "old_domain_volume": self.old_domain_volume,
-                "raster_domain_hash": raster_hash,
-                "swmm_hotstart_hash": swmm_hash,
-            },
-        }
+        # Build simulation state using Pydantic model.
+        simulation_state = HotstartSimulationState(
+            sim_time=self.sim_time.isoformat(),
+            dt=self.dt.total_seconds(),
+            next_ts={k: v.isoformat() for k, v in self.next_ts.items()},
+            time_steps_counters=self.time_steps_counters,
+            accum_update_time={k: v.isoformat() for k, v in self.accum_update_time.items()},
+            old_domain_volume=self.old_domain_volume,
+        )
 
-        # Create zip file in BytesIO
-        zip_object = io.BytesIO()
-        with zipfile.ZipFile(
-            zip_object, mode="w", compression=zipfile.ZIP_DEFLATED, compresslevel=8
-        ) as zip_file:
-            # Write raster state
-            zip_file.writestr(RASTER_STATE_FILENAME, raster_data)
-            # Write SWMM hotstart if present
-            if swmm_hotstart is not None:
-                zip_file.writestr(SWMM_HOTSTART_FILENAME, swmm_data)
-            # Write metadata JSON
-            json_str = json.dumps(json_data, indent=2)
-            zip_file.writestr(JSON_FILENAME, json_str)
-
-        # Reset BytesIO position to beginning for reading
-        zip_object.seek(0)
-        return zip_object
+        # Delegate archive creation to HotstartWriter
+        return HotstartWriter.create(
+            domain_data=self.domain_data,
+            simulation_config=self.sim_config,
+            simulation_state=simulation_state,
+            raster_state_bytes=raster_state_bytes,
+            swmm_hotstart_bytes=swmm_hotstart_bytes,
+        )
