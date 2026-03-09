@@ -1,5 +1,6 @@
 import hashlib
 import os
+from datetime import datetime, timedelta
 
 import pytest
 import numpy as np
@@ -70,3 +71,15 @@ def test_data_temp_path():
     if not os.path.exists(temp_path):
         os.makedirs(temp_path)
     return temp_path
+
+
+@pytest.fixture(
+    scope="module", params=[datetime(year=2020, month=3, day=23, hour=10), timedelta(seconds=0)]
+)
+def sim_time(request):
+    """Fixture for simulation time in parametrized tests.
+
+    Provides both datetime and timedelta representations for testing
+    CSV vector output with different time formats.
+    """
+    return request.param
