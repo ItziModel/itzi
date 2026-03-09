@@ -22,6 +22,7 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict
 
 from itzi.const import DefaultValues, TemporalType, InfiltrationModelType
+from itzi.providers.domain_data import DomainData
 
 if TYPE_CHECKING:
     from itzi.drainage import DrainageNode
@@ -223,6 +224,38 @@ class SimulationConfig(BaseModel):
         raw_dict["end_time"] = self.end_time.isoformat()
         raw_dict["record_step"] = self.record_step.total_seconds()
         return raw_dict
+
+
+class HotstartSimulationState(BaseModel):
+    """Runtime state to be restored from a hotstart file."""
+
+    model_config = ConfigDict(frozen=True)
+
+    sim_time: str  # ISO format datetime
+    dt: float  # seconds
+    next_ts: Dict[str, str]  # ISO format datetimes
+    time_steps_counters: Dict[str, int]
+    accum_update_time: Dict[str, str]  # ISO format datetimes
+    old_domain_volume: float
+    raster_domain_hash: str
+    swmm_hotstart_hash: str | None
+
+
+class HotstartMetadata(BaseModel):
+    """Metadata schema for hotstart archive files.
+
+    Provides a single source of truth for hotstart metadata structure,
+    enabling validation during both creation and loading.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    creation_date: datetime
+    itzi_version: str
+    hotstart_version: int
+    domain_data: DomainData
+    simulation_config: SimulationConfig
+    simulation_state: HotstartSimulationState
 
 
 class GrassParams(BaseModel):

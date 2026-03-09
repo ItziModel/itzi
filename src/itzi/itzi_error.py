@@ -51,3 +51,13 @@ class ItziFatal(ItziError):
 
     def __str__(self):
         return repr(self.msg)
+
+
+class HotstartError(ItziError):
+    """Raised when hotstart file operations fail."""
+
+    def __init__(self, msg):
+        self.msg = msg
+
+    def __str__(self):
+        return repr(self.msg)

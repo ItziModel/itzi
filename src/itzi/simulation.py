@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 from datetime import datetime, timedelta, timezone
-from typing import Self, Union, TYPE_CHECKING, Dict, Optional
+from typing import Self, TYPE_CHECKING, Dict, Optional
 import copy
 from importlib.metadata import version
 import zipfile
@@ -73,7 +73,7 @@ class Simulation:
 
         self.input_wse = bool(sim_config.input_map_names.get("water_surface_elevation"))
         # Mass balance error checking
-        self.continuity_data: Union[ContinuityData, None] = None
+        self.continuity_data: ContinuityData | None = None
         self.mass_balance_error_threshold = sim_config.surface_flow_parameters.max_error
         # A mapping between source array and the corresponding accumulation array
         self.accum_mapping: dict[str, str] = {
@@ -469,7 +469,7 @@ class Simulation:
             "creation_date": datetime.now(timezone.utc).isoformat(),
             "itzi_version": version("itzi"),
             "hotstart_version": hotstart_version,
-            "domain_data": self.domain_data.as_dict(),
+            "domain_data": self.domain_data.model_dump(),
             "simulation_config": self.sim_config.as_str_dict(),
             "simulation_state": {
                 "sim_time": self.sim_time.isoformat(),
