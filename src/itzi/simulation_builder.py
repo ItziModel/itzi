@@ -12,7 +12,11 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
+from __future__ import annotations
+
 from typing import Dict, TYPE_CHECKING, Optional, Tuple
+import io
+from pathlib import Path
 
 import numpy as np
 from numpy.typing import ArrayLike, DTypeLike
@@ -31,6 +35,8 @@ from itzi.simulation import Simulation
 from itzi.data_containers import DrainageNodeCouplingData
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi.const import InfiltrationModelType
+from itzi.hotstart import HotstartLoader
+from itzi.itzi_error import HotstartError
 
 if TYPE_CHECKING:
     from itzi.providers.domain_data import DomainData
@@ -52,10 +58,38 @@ class SimulationBuilder:
         self.dtype = dtype
 
         # Optional components (set via builder methods)
-        self.raster_input_provider: Optional["RasterInputProvider"] = None
-        self.domain_data: Optional["DomainData"] = None
-        self.raster_output_provider: Optional["RasterOutputProvider"] = None
-        self.vector_output_provider: Optional["VectorOutputProvider"] = None
+        self.raster_input_provider: RasterInputProvider | None = None
+        self.domain_data: DomainData | None = None
+        self.raster_output_provider: RasterOutputProvider | None = None
+        self.vector_output_provider: VectorOutputProvider | None = None
+
+        # Hotstart data (set via with_hotstart)
+        self.hotstart_loader: HotstartLoader | None = None
+
+    def with_hotstart(
+        self, hotstart_path_or_bytes: Path | str | io.BytesIO | bytes
+    ) -> "SimulationBuilder":
+        """Load and store validated hotstart data for state restoration during build.
+
+        This method loads and validates the hotstart archive but does not perform
+        congruence checks against providers. Congruence validation happens during
+        build() when all providers are available.
+
+        Args:
+            hotstart_path_or_bytes: Path to hotstart file, or hotstart data as
+                BytesIO/bytes.
+
+        Returns:
+            self for method chaining.
+
+        Raises:
+            HotstartError: If the hotstart archive is invalid or corrupted.
+        """
+        if isinstance(hotstart_path_or_bytes, (Path, str)):
+            self.hotstart_loader = HotstartLoader.from_file(hotstart_path_or_bytes)
+        else:
+            self.hotstart_loader = HotstartLoader.from_bytes(hotstart_path_or_bytes)
+        return self
 
     def with_input_provider(self, provider: "RasterInputProvider") -> "SimulationBuilder":
         """Set the raster input provider."""
@@ -78,6 +112,109 @@ class SimulationBuilder:
         self.vector_output_provider = provider
         return self
 
+    def _validate_hotstart_congruence(self) -> None:
+        """Validate hotstart data against builder configuration.
+
+        This method performs congruence checks between the hotstart metadata
+        and the current builder configuration. It must be called after all
+        providers are attached but before any state mutation.
+
+        Raises:
+            HotstartError: If any congruence check fails.
+        """
+
+        hotstart_domain = self.hotstart_loader.get_domain_data()
+        hotstart_config = self.hotstart_loader.get_simulation_config()
+
+        # Validate domain metadata
+        self._validate_domain_congruence(hotstart_domain)
+
+        # Validate mask compatibility
+        self._validate_mask_congruence(hotstart_domain)
+
+        # Validate drainage expectations
+        self._validate_drainage_congruence(hotstart_config)
+
+    def _validate_domain_congruence(self, hotstart_domain: DomainData) -> None:
+        """Validate that domain metadata matches between hotstart and builder."""
+        assert self.domain_data is not None  # Already validated in build()
+
+        # Check spatial bounds
+        if not np.isclose(self.domain_data.north, hotstart_domain.north):
+            raise HotstartError(
+                f"Domain north mismatch: builder={self.domain_data.north}, "
+                f"hotstart={hotstart_domain.north}"
+            )
+        if not np.isclose(self.domain_data.south, hotstart_domain.south):
+            raise HotstartError(
+                f"Domain south mismatch: builder={self.domain_data.south}, "
+                f"hotstart={hotstart_domain.south}"
+            )
+        if not np.isclose(self.domain_data.east, hotstart_domain.east):
+            raise HotstartError(
+                f"Domain east mismatch: builder={self.domain_data.east}, "
+                f"hotstart={hotstart_domain.east}"
+            )
+        if not np.isclose(self.domain_data.west, hotstart_domain.west):
+            raise HotstartError(
+                f"Domain west mismatch: builder={self.domain_data.west}, "
+                f"hotstart={hotstart_domain.west}"
+            )
+
+        # Check dimensions
+        if self.domain_data.rows != hotstart_domain.rows:
+            raise HotstartError(
+                f"Domain rows mismatch: builder={self.domain_data.rows}, "
+                f"hotstart={hotstart_domain.rows}"
+            )
+        if self.domain_data.cols != hotstart_domain.cols:
+            raise HotstartError(
+                f"Domain cols mismatch: builder={self.domain_data.cols}, "
+                f"hotstart={hotstart_domain.cols}"
+            )
+
+        # Check CRS
+        if self.domain_data.crs_wkt != hotstart_domain.crs_wkt:
+            raise HotstartError(
+                "Domain CRS mismatch: builder and hotstart have different coordinate reference systems."
+            )
+
+    def _validate_mask_congruence(self, hotstart_domain: DomainData) -> None:
+        """Validate that the builder mask is compatible with hotstart mask.
+
+        The mask shape must match. The actual mask values will be validated
+        during raster state restoration in RasterDomain.load_state().
+        """
+        expected_shape = hotstart_domain.shape
+        builder_shape = self.arr_mask.shape
+
+        if builder_shape != expected_shape:
+            raise HotstartError(
+                f"Mask shape mismatch: builder mask has shape {builder_shape}, "
+                f"hotstart expects {expected_shape}"
+            )
+
+    def _validate_drainage_congruence(self, hotstart_config: "SimulationConfig") -> None:
+        """Validate drainage expectations match between hotstart and current config."""
+        hotstart_has_drainage = hotstart_config.swmm_inp is not None
+        builder_has_drainage = self.sim_config.swmm_inp is not None
+
+        if hotstart_has_drainage and not builder_has_drainage:
+            raise HotstartError(
+                "Hotstart contains drainage state but current configuration has no drainage model"
+            )
+
+        if not hotstart_has_drainage and builder_has_drainage:
+            raise HotstartError(
+                "Hotstart has no drainage state but current configuration includes a drainage model"
+            )
+
+        # If both have drainage, check that SWMM hotstart bytes are present
+        if hotstart_has_drainage and not self.hotstart_loader.has_swmm_hotstart():
+            raise HotstartError(
+                "Hotstart metadata indicates drainage but SWMM hotstart file is missing from archive"
+            )
+
     def build(self) -> Simulation:
         """Build and return the simulation with optional timed arrays."""
         # Validate required components
@@ -85,6 +222,11 @@ class SimulationBuilder:
             raise ValueError("Domain data must be set via input provider or directly")
         if self.raster_output_provider is None or self.vector_output_provider is None:
             raise ValueError("Output providers are mandatory")
+
+        # Validate hotstart congruence before building
+        if self.hotstart_loader:
+            self._validate_hotstart_congruence()
+
         # Create timed arrays if input provider exists
         timed_arrays = None
         if self.raster_input_provider:
