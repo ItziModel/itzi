@@ -111,11 +111,7 @@ def grass_5by5(grass_xy_session, test_data_path):
     assert float(univar_start_wse["null_cells"]) == 0
     assert float(univar_start_wse["min"]) == 0
     assert float(univar_start_wse["max"]) == z_high_value + 0.2
-    # Symmetry control points
-    control_points = os.path.join(test_data_path, "5by5", "control_points.csv")
-    gscript.run_command(
-        "v.in.ascii", input=control_points, output="control_points", separator="comma"
-    )
+
     # Boundary condition map
     boundary_points = f"""
     {resolution / 2},{resolution / 2}
@@ -163,54 +159,6 @@ def grass_5by5(grass_xy_session, test_data_path):
 def grass_5by5_sim(grass_5by5, test_data_path):
     """ """
     config_file = os.path.join(test_data_path, "5by5", "5by5.ini")
-    sim_runner = SimulationRunner()
-    assert isinstance(sim_runner, SimulationRunner)
-    conf_data = ConfigReader(config_file)
-    sim_runner.initialize(conf_data)
-    sim_runner.run().finalize()
-    return sim_runner
-
-
-@pytest.fixture(scope="class")
-def grass_5by5_max_values_sim(grass_5by5, test_data_path):
-    """ """
-    config_file = os.path.join(test_data_path, "5by5", "5by5_max_values.ini")
-    sim_runner = SimulationRunner()
-    assert isinstance(sim_runner, SimulationRunner)
-    conf_data = ConfigReader(config_file)
-    sim_runner.initialize(conf_data)
-    sim_runner.run().finalize()
-    return sim_runner
-
-
-@pytest.fixture(scope="class")
-def grass_5by5_stats_sim(grass_5by5, test_data_path):
-    """ """
-    config_file = os.path.join(test_data_path, "5by5", "5by5_stats.ini")
-    sim_runner = SimulationRunner()
-    assert isinstance(sim_runner, SimulationRunner)
-    conf_data = ConfigReader(config_file)
-    sim_runner.initialize(conf_data)
-    sim_runner.run().finalize()
-    return sim_runner
-
-
-@pytest.fixture(scope="class")
-def grass_5by5_open_boundaries_sim(grass_5by5, test_data_path):
-    """ """
-    config_file = os.path.join(test_data_path, "5by5", "5by5_open_boundaries.ini")
-    sim_runner = SimulationRunner()
-    assert isinstance(sim_runner, SimulationRunner)
-    conf_data = ConfigReader(config_file)
-    sim_runner.initialize(conf_data)
-    sim_runner.run().finalize()
-    return sim_runner
-
-
-@pytest.fixture(scope="class")
-def grass_5by5_wse_sim(grass_5by5, test_data_path):
-    """ """
-    config_file = os.path.join(test_data_path, "5by5", "5by5_wse.ini")
     sim_runner = SimulationRunner()
     assert isinstance(sim_runner, SimulationRunner)
     conf_data = ConfigReader(config_file)
