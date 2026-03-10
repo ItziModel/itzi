@@ -267,3 +267,39 @@ class TestNumberOfOutput:
         """volume_error should have 3 outputs."""
         output_dict = sim_5by5.report.raster_provider.output_maps_dict
         assert len(output_dict["volume_error"]) == 3
+
+
+class TestFlowSymmetry:
+    """Test that water depths at 4 symmetric control points around center are equal.
+
+    On a 5x5 grid, the center is [2, 2]. The 4 symmetric neighbours are:
+    - [1, 2] (above center)
+    - [3, 2] (below center)
+    - [2, 1] (left of center)
+    - [2, 3] (right of center)
+
+    After a dam-break, flow should spread symmetrically in all directions.
+    """
+
+    def test_flow_symmetry(self, sim_5by5):
+        """Water depths at symmetric points should be equal after dam-break."""
+        output_dict = sim_5by5.report.raster_provider.output_maps_dict
+
+        # Get the last water_depth output (index -1 or 2)
+        # The GRASS test uses water_depth_0002 which is the last time step
+        _, h_array = output_dict["water_depth"][-1]
+
+        # Sample at the 4 symmetric control points around center
+        # Center is at [2, 2], neighbours are at [1,2], [3,2], [2,1], [2,3]
+        h_above = h_array[1, 2]  # row 1, col 2
+        h_below = h_array[3, 2]  # row 3, col 2
+        h_left = h_array[2, 1]  # row 2, col 1
+        h_right = h_array[2, 3]  # row 2, col 3
+
+        # All 4 values should be approximately equal due to symmetry
+        values = [h_above, h_below, h_left, h_right]
+        assert np.allclose(values[:-1], values[1:]), (
+            f"Symmetric points should have equal depths: "
+            f"above={h_above:.6f}, below={h_below:.6f}, "
+            f"left={h_left:.6f}, right={h_right:.6f}"
+        )
