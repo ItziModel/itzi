@@ -482,3 +482,51 @@ class Simulation:
             raster_state_bytes=raster_state_bytes,
             swmm_hotstart_bytes=swmm_hotstart_bytes,
         )
+
+    def restore_state(self, simulation_state: HotstartSimulationState) -> Self:
+        """Restore simulation runtime state from hotstart data.
+
+        This method restores scheduler and runtime state after raster state
+        has been loaded. It must be called after the simulation object exists
+        and after raster domain state has been restored.
+
+        Args:
+            simulation_state: Validated hotstart simulation state containing
+                sim_time, dt, next_ts, counters, accum_update_time, and
+                old_domain_volume.
+
+        Returns:
+            Self for method chaining.
+
+        Note:
+            - nextstep is recomputed from next_ts via find_dt() rather than
+              restored directly, ensuring scheduler invariants are maintained.
+            - This method does NOT restore raster state; use
+              RasterDomain.load_state() for that purpose.
+        """
+        # Restore simulation time
+        self.sim_time = datetime.fromisoformat(simulation_state.sim_time)
+
+        # Restore time step
+        self.dt = timedelta(seconds=simulation_state.dt)
+
+        # Restore next timestamp schedule
+        # Parse ISO format strings back to datetime objects
+        self.next_ts = {k: datetime.fromisoformat(v) for k, v in simulation_state.next_ts.items()}
+
+        # Restore time step counters
+        self.time_steps_counters = dict(simulation_state.time_steps_counters)
+
+        # Restore accumulation update timestamps
+        self.accum_update_time = {
+            k: datetime.fromisoformat(v) for k, v in simulation_state.accum_update_time.items()
+        }
+
+        # Restore old domain volume for continuity tracking
+        self.old_domain_volume = simulation_state.old_domain_volume
+
+        # Recompute nextstep from the restored next_ts to maintain scheduler invariants
+        # This ensures find_dt() and update() will work correctly
+        self.nextstep = min(self.next_ts.values())
+
+        return self

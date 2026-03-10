@@ -14,7 +14,8 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 
-from typing import Dict, TYPE_CHECKING, Optional, Tuple
+import tempfile
+from typing import TYPE_CHECKING
 import io
 from pathlib import Path
 
@@ -49,7 +50,7 @@ class SimulationBuilder:
 
     def __init__(
         self,
-        sim_config: "SimulationConfig",
+        sim_config: SimulationConfig,
         arr_mask: ArrayLike,
         dtype: DTypeLike = np.float32,
     ):
@@ -91,23 +92,23 @@ class SimulationBuilder:
             self.hotstart_loader = HotstartLoader.from_bytes(hotstart_path_or_bytes)
         return self
 
-    def with_input_provider(self, provider: "RasterInputProvider") -> "SimulationBuilder":
+    def with_input_provider(self, provider: RasterInputProvider) -> SimulationBuilder:
         """Set the raster input provider."""
         self.raster_input_provider = provider
         self.domain_data = provider.get_domain_data()
         return self
 
-    def with_domain_data(self, domain_data: "DomainData") -> "SimulationBuilder":
+    def with_domain_data(self, domain_data: DomainData) -> SimulationBuilder:
         """Set domain data directly (for memory simulations without input provider)."""
         self.domain_data = domain_data
         return self
 
-    def with_raster_output_provider(self, provider: "RasterOutputProvider") -> "SimulationBuilder":
+    def with_raster_output_provider(self, provider: RasterOutputProvider) -> SimulationBuilder:
         """Set the raster output provider."""
         self.raster_output_provider = provider
         return self
 
-    def with_vector_output_provider(self, provider: "VectorOutputProvider") -> "SimulationBuilder":
+    def with_vector_output_provider(self, provider: VectorOutputProvider) -> SimulationBuilder:
         """Set the vector output provider."""
         self.vector_output_provider = provider
         return self
@@ -194,7 +195,7 @@ class SimulationBuilder:
                 f"hotstart expects {expected_shape}"
             )
 
-    def _validate_drainage_congruence(self, hotstart_config: "SimulationConfig") -> None:
+    def _validate_drainage_congruence(self, hotstart_config: SimulationConfig) -> None:
         """Validate drainage expectations match between hotstart and current config."""
         hotstart_has_drainage = hotstart_config.swmm_inp is not None
         builder_has_drainage = self.sim_config.swmm_inp is not None
@@ -216,7 +217,35 @@ class SimulationBuilder:
             )
 
     def build(self) -> Simulation:
-        """Build and return the simulation with optional timed arrays."""
+        """Build and return the simulation with optional timed arrays.
+
+        Hotstart Restore Order (when hotstart is provided):
+        ============================================================
+        The restore sequence is carefully ordered to work with the existing
+        constructor side effects:
+
+        1. Validate hotstart congruence (before any object creation)
+        2. Build normal objects from providers/config:
+           - timed arrays (if input provider exists)
+           - raster domain
+           - infiltration model
+           - hydrology model
+           - surface flow model
+           - drainage model (with SWMM hotstart injection if applicable)
+           - report
+        3. Create Simulation object (constructor calls update_input_arrays())
+        4. Restore hotstart raster state into the domain
+        5. Restore hotstart simulation runtime/scheduler state
+        6. No explicit post-restore adjustments needed - the restore methods
+           maintain the required invariants.
+
+        This order ensures:
+        - Provider-driven construction remains intact
+        - SWMM hotstart is injected during drainage construction (required by pyswmm)
+        - Raster state is restored after Simulation.__init__ to avoid being
+          clobbered by update_input_arrays()
+        - Scheduler invariants are maintained via restore_state()
+        """
         # Validate required components
         if self.domain_data is None:
             raise ValueError("Domain data must be set via input provider or directly")
@@ -242,7 +271,7 @@ class SimulationBuilder:
             raster_domain, self.sim_config.surface_flow_parameters
         )
 
-        # Create drainage
+        # Create drainage with optional SWMM hotstart injection
         nodes_list, drainage_sim = self._create_drainage_simulation()
 
         # Create report
@@ -274,9 +303,21 @@ class SimulationBuilder:
             report=report,
         )
 
+        # Apply hotstart restore if hotstart data is present
+        if self.hotstart_loader:
+            # Restore raster state after simulation object exists
+            # This must happen after Simulation.__init__ because the constructor
+            # calls update_input_arrays() which could modify domain arrays
+            raster_state_buffer = self.hotstart_loader.get_raster_state_buffer()
+            raster_domain.load_state(raster_state_buffer)
+
+            # Restore simulation runtime/scheduler state
+            simulation_state = self.hotstart_loader.get_simulation_state()
+            simulation.restore_state(simulation_state)
+
         return simulation
 
-    def _create_timed_arrays(self) -> Dict[str, rasterdomain.TimedArray]:
+    def _create_timed_arrays(self) -> dict[str, rasterdomain.TimedArray]:
         """ """
         timed_arrays = {}
         input_keys = [
@@ -324,8 +365,13 @@ class SimulationBuilder:
             assert False, f"Unknow infiltration model: {inf_model}"
         return infiltration_model
 
-    def _create_drainage_simulation(self) -> Tuple[Optional[list], Optional[DrainageSimulation]]:
-        """Create drainage simulation components if SWMM input is provided."""
+    def _create_drainage_simulation(self) -> tuple[list | None, DrainageSimulation | None]:
+        """Create drainage simulation components if SWMM input is provided.
+
+        If hotstart data includes SWMM state, writes the SWMM hotstart bytes
+        to a temporary file and passes it to DrainageSimulation for restoration.
+        The temporary file is cleaned up after DrainageSimulation reads it.
+        """
         if not self.sim_config.swmm_inp:
             return None, None
 
@@ -349,14 +395,28 @@ class SimulationBuilder:
         links_vertices_dict = swmm_inp.get_links_id_as_dict()
         links_list = get_links_list(pyswmm.Links(swmm_sim), links_vertices_dict, nodes_coors_dict)
         node_objects_only = [i.node_object for i in nodes_list]
-        drainage_sim = DrainageSimulation(swmm_sim, node_objects_only, links_list)
+
+        # Handle SWMM hotstart injection if present
+        if self.hotstart_loader and self.hotstart_loader.has_swmm_hotstart():
+            swmm_bytes = self.hotstart_loader.get_swmm_hotstart_bytes()
+            # Create a temporary file for SWMM to read.
+            # delete_on_close=False keeps the file after closing so SWMM can open it.
+            with tempfile.NamedTemporaryFile(suffix=".hsf", delete_on_close=False) as tmp:
+                tmp.write(swmm_bytes)
+                hotstart_filename = tmp.name
+                tmp.close()  # Allows SWMM to exclusively open the file
+                drainage_sim = DrainageSimulation(
+                    swmm_sim, node_objects_only, links_list, hotstart_filename=hotstart_filename
+                )
+        else:
+            drainage_sim = DrainageSimulation(swmm_sim, node_objects_only, links_list)
 
         return nodes_list, drainage_sim
 
     def _get_nodes_list(
         self,
         pswmm_nodes: list,
-        nodes_coor_dict: Dict,
+        nodes_coor_dict: dict,
         orifice_coeff: float,
         free_weir_coeff: float,
         submerged_weir_coeff: float,
