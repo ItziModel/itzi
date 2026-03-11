@@ -18,8 +18,8 @@ from itzi.data_containers import (
 from itzi.providers.csv_output import CSVVectorOutputConfig, CSVVectorOutputProvider
 from itzi.drainage import CouplingTypes
 
-from tests.fixtures_vector_output import create_dummy_drainage_network
-from tests.fixtures_vector_output import expected_node_coords, expected_vertices
+from tests.core.fixtures_vector_output import create_dummy_drainage_network
+from tests.core.fixtures_vector_output import expected_node_coords, expected_vertices
 
 
 def test_csv(test_data_temp_path, sim_time):

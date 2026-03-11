@@ -16,6 +16,7 @@ def bmi_object(grass_5by5, test_data_path):
     return itzi_bmi
 
 
+@pytest.mark.forked
 class TestBmi:
     # Model control functions #
     def test_initialize(self, bmi_object):

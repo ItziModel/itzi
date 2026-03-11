@@ -120,6 +120,7 @@ def speed_GMS(flow_depth, n, slope):
 #     ]
 # )
 # threshold=0.8 and max_slope=2 helps raising DtError.
+@pytest.mark.slow
 def test_sloped_channel(
     test_data_temp_path,
     long_slope,

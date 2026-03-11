@@ -112,6 +112,7 @@ def itzi_tutorial(grass_tutorial_session, tutorial_test_file):
     return None
 
 
+@pytest.mark.forked
 @pytest.mark.slow
 @pytest.mark.usefixtures("itzi_tutorial", "test_data_path")
 class TestItziTutorial:

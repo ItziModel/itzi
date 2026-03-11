@@ -313,6 +313,7 @@ def ea8b_itzi_drainage_results(ea_test8b_sim_icechunk):
 
 
 @pytest.mark.slow
+# @pytest.mark.forked  # Avoid pyswmm.errors.MultiSimulationError: Multi-Simulation Error.
 def test_ea8b(
     ea_test8b_reference,
     ea8b_itzi_drainage_results,

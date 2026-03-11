@@ -9,6 +9,7 @@ from itzi import SimulationRunner
 from itzi.configreader import ConfigReader
 
 
+@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5_sim")
 def test_number_of_output():
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
@@ -43,6 +44,7 @@ def test_number_of_output():
     assert len(verr_map_list) == 3
 
 
+@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_region_mask(test_data_path):
     """Check if temporary mask and region are set and teared down."""
