@@ -1,5 +1,5 @@
 """
-Define pytest fixture common to various test modules.
+Define pytest fixture common to GRASS-based test modules.
 """
 
 import os
