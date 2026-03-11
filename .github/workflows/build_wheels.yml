@@ -31,12 +31,12 @@ jobs:
           CIBW_ENVIRONMENT: "ITZI_BDIST_WHEEL=1 NO_STABLE_ABI=1"  # Trigger generic compiler flags
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=14.0
-            ITZI_BDIST_WHEEL=1 
+            ITZI_BDIST_WHEEL=1
             NO_STABLE_ABI=1
           CIBW_BEFORE_TEST: "pip install pytest pytest-benchmark pandas"
           CIBW_TEST_SOURCES: tests
           CIBW_TEST_COMMAND: >  # Fast tests which do not require GRASS
-            pytest tests/test_flow.py tests/test_analytic.py tests/test_rastermetrics.py
+            pytest -m "not slow" tests/core/
 
       - uses: actions/upload-artifact@v4
         with:
