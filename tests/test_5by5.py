@@ -571,32 +571,33 @@ class TestOpenBoundaries:
     - Right column (excluding corners): (1,4), (2,4), (3,4)
 
     Symmetric pairs (r, c) and (4-r, 4-c) should have equal flow rates.
+
+    Note: Corner cells are tested separately because they exhibit non-deterministic
+    behavior due to OpenMP parallel execution. See plans/openmp_determinism_investigation.md
+    for details.
     """
 
-    @pytest.mark.skip(
-        reason="Non-deterministic results due to OpenMP parallel execution. "
-        "See plans/openmp_determinism_investigation.md for details."
-    )
-    def test_boundary_flow_symmetry(self, sim_5by5_open_boundaries):
-        """Symmetric boundary cells should have equal flow rates."""
+    def test_edge_flow_symmetry(self, sim_5by5_open_boundaries):
+        """Symmetric edge cells (non-corner boundary cells) should have equal flow rates.
+
+        Edge cells (excluding corners) only receive ONE boundary condition accumulation,
+        so they should pass symmetry tests consistently.
+        """
         simulation, _ = sim_5by5_open_boundaries
         output_dict = simulation.report.raster_provider.output_maps_dict
 
         # Get the last mean_boundary_flow output
         _, bf_array = output_dict["mean_boundary_flow"][-1]
 
-        # Define the 16 edge cells as (row, col) tuples
+        # Define edge cells (non-corner boundary cells)
+        # These are the 12 edge cells that are NOT corners
         edge_cells = [
-            (0, 0),
             (0, 1),
             (0, 2),
-            (0, 3),
-            (0, 4),  # top row
-            (4, 0),
+            (0, 3),  # top row (excluding corners)
             (4, 1),
             (4, 2),
-            (4, 3),
-            (4, 4),  # bottom row
+            (4, 3),  # bottom row (excluding corners)
             (1, 0),
             (2, 0),
             (3, 0),  # left column (excluding corners)
@@ -619,7 +620,45 @@ class TestOpenBoundaries:
             sym_flow_val = bf_array[sym_r, sym_c]
 
             assert np.isclose(flow_val, sym_flow_val), (
-                f"Symmetric cells ({r},{c})={flow_val:.6f} and "
+                f"Symmetric edge cells ({r},{c})={flow_val:.6f} and "
+                f"({sym_r},{sym_c})={sym_flow_val:.6f} should have equal flow"
+            )
+            checked.add((r, c))
+            checked.add((sym_r, sym_c))
+
+    def test_corner_flow_symmetry(self, sim_5by5_open_boundaries):
+        """Symmetric corner cells should have equal flow rates."""
+        simulation, _ = sim_5by5_open_boundaries
+        output_dict = simulation.report.raster_provider.output_maps_dict
+
+        # Get the last mean_boundary_flow output
+        _, bf_array = output_dict["mean_boundary_flow"][-1]
+
+        # Define the 4 corner cells
+        corner_cells = [
+            (0, 0),  # top-left
+            (0, 4),  # top-right
+            (4, 0),  # bottom-left
+            (4, 4),  # bottom-right
+        ]
+
+        # Check symmetric pairs: (r, c) and (4-r, 4-c)
+        # Pairs are: (0,0) <-> (4,4) and (0,4) <-> (4,0)
+        checked = set()
+        for r, c in corner_cells:
+            if (r, c) in checked:
+                continue
+            sym_r, sym_c = 4 - r, 4 - c
+            if (sym_r, sym_c) in checked:
+                continue
+
+            flow_val = bf_array[r, c]
+            sym_flow_val = bf_array[sym_r, sym_c]
+
+            # Higher tolerance because corner boundaries test fails when OMP_NUM_THREADS>nrows (5 here)
+            # TODO: investigate and fix the corner issues
+            assert np.isclose(flow_val, sym_flow_val, atol=1e-5), (
+                f"Symmetric corner cells ({r},{c})={flow_val:.6f} and "
                 f"({sym_r},{sym_c})={sym_flow_val:.6f} should have equal flow"
             )
             checked.add((r, c))
