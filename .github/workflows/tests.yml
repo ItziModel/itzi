@@ -29,7 +29,10 @@ jobs:
 
     - name: Pytest
       run: |
-        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-results.xml --cov-report=xml --cov-report=html tests/
+        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-core-results.xml --cov-report=xml --cov-report=html tests/core
+        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-itzi-results.xml --cov-report=xml --cov-report=html tests/grass/test_itzi.py
+        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-bmi-results.xml --cov-report=xml --cov-report=html tests/grass/test_bmi.py
+        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-tutorial-results.xml --cov-report=xml --cov-report=html tests/grass/test_tutorial.py
 
     - name: Upload coverage
       uses: actions/upload-artifact@v4
