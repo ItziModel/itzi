@@ -82,6 +82,7 @@ pythonpath = ["src", "."]
 addopts = ["--import-mode=importlib", "--benchmark-min-rounds=7"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "cloud: marks tests using cloud functions (deselect with '-m \"not cloud\"')",
 ]
 
 [tool.ruff]

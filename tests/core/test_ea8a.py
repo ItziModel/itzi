@@ -23,6 +23,10 @@ from itzi.providers.xarray_input import XarrayRasterInputProvider
 from itzi.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
 
 
+# Mark all tests in this module as cloud tests
+pytestmark = pytest.mark.cloud
+
+
 TEST8A_URL = "https://zenodo.org/api/records/15256842/files/Test8A_dataset_2010.zip/content"
 TEST8A_MD5 = "46b589ee000ff87c9077fcc51fa71e8e"
 

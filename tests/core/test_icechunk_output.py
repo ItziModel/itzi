@@ -14,6 +14,10 @@ from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi.data_containers import SimulationData
 
 
+# Mark all tests in this module as cloud tests
+pytestmark = pytest.mark.cloud
+
+
 @pytest.fixture(scope="function")
 def temp_dir():
     return tempfile.TemporaryDirectory()

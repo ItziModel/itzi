@@ -29,6 +29,10 @@ from itzi.providers.icechunk_output import IcechunkRasterOutputProvider
 from itzi.providers.csv_output import CSVVectorOutputProvider
 
 
+# Mark all tests in this module as cloud tests
+pytestmark = pytest.mark.cloud
+
+
 TEST8B_URL = "https://zenodo.org/api/records/15256842/files/Test8B_dataset_2010.zip/content"
 TEST8B_MD5 = "84b865cedd28f8156cfe70b84004b62c"
 

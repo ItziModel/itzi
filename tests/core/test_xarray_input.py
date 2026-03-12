@@ -11,6 +11,10 @@ from itzi.providers.xarray_input import XarrayRasterInputProvider, XarrayRasterI
 from itzi.const import TemporalType
 
 
+# Mark all tests in this module as cloud tests
+pytestmark = pytest.mark.cloud
+
+
 @pytest.fixture(scope="module")
 def input_maps_dict():
     """A dict representing the input arrays to be stored as xarray.dataset"""
