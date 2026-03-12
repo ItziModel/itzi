@@ -2,16 +2,26 @@ import tempfile
 from typing import Dict, Mapping
 from datetime import datetime, timedelta
 
-import icechunk
-import xarray as xr
 import numpy as np
 import pandas as pd
 import pytest
+
+# Skip entire module if optional dependencies are missing
+pytest.importorskip("icechunk")
+pytest.importorskip("xarray")
+pytest.importorskip("pyproj")
+
+import icechunk
+import xarray as xr
 import pyproj
 
 from itzi.providers.icechunk_output import IcechunkRasterOutputProvider
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi.data_containers import SimulationData
+
+
+# Mark all tests in this module as cloud tests
+pytestmark = pytest.mark.cloud
 
 
 @pytest.fixture(scope="function")

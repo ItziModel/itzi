@@ -55,7 +55,7 @@ Testing
 -------
 
 Testing is done with pytest.
-Due to global variables in GRASS (`see issue <https://github.com/OSGeo/grass/issues/629>`__),
+Due to mapset switching issues in GRASS (`see issue <https://github.com/OSGeo/grass/issues/629>`__),
 the tests must be run in separate processes using *pytest-forked*.
 
 .. code:: sh
@@ -67,6 +67,18 @@ To estimate the test coverage:
 .. code:: sh
 
     uv run pytest --cov=itzi --forked -v tests/
+
+The GRASS-specific tests could be sped up a bit by running them separately:
+
+.. code:: sh
+    uv run pytest tests/grass/test_itzi.py && uv run pytest tests/grass/test_bmi.py && uv run pytest tests/grass/test_tutorial.py
+
+
+The tests not relying on GRASS can be run directly:
+
+.. code:: sh
+    uv run pytest tests/core
+
 
 Select the python version to test against with the *--python* option.
 For example *uv run --python 3.12 pytest tests/* for python 3.12.

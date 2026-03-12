@@ -11,8 +11,17 @@ import zipfile
 
 import pandas as pd
 import numpy as np
-import requests
 import pytest
+
+# Skip entire module if optional dependencies are missing
+pytest.importorskip("requests")
+pytest.importorskip("xarray")
+pytest.importorskip("rioxarray")
+pytest.importorskip("pyproj")
+pytest.importorskip("icechunk")
+pytest.importorskip("obstore")
+
+import requests
 import xarray as xr
 import rioxarray
 import pyproj
@@ -27,6 +36,10 @@ from itzi.const import TemporalType
 from itzi.providers.xarray_input import XarrayRasterInputProvider
 from itzi.providers.icechunk_output import IcechunkRasterOutputProvider
 from itzi.providers.csv_output import CSVVectorOutputProvider
+
+
+# Mark all tests in this module as cloud tests
+pytestmark = pytest.mark.cloud
 
 
 TEST8B_URL = "https://zenodo.org/api/records/15256842/files/Test8B_dataset_2010.zip/content"
@@ -313,6 +326,7 @@ def ea8b_itzi_drainage_results(ea_test8b_sim_icechunk):
 
 
 @pytest.mark.slow
+# @pytest.mark.forked  # Avoid pyswmm.errors.MultiSimulationError: Multi-Simulation Error.
 def test_ea8b(
     ea_test8b_reference,
     ea8b_itzi_drainage_results,

@@ -10,8 +10,14 @@ import zipfile
 
 import pandas as pd
 import numpy as np
-import requests
 import pytest
+
+# Skip entire module if optional dependencies are missing
+pytest.importorskip("requests")
+pytest.importorskip("xarray")
+pytest.importorskip("rioxarray")
+
+import requests
 import xarray as xr
 import rioxarray
 
@@ -21,6 +27,10 @@ from itzi.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi.const import TemporalType, VerbosityLevel
 from itzi.providers.xarray_input import XarrayRasterInputProvider
 from itzi.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
+
+
+# Mark all tests in this module as cloud tests
+pytestmark = pytest.mark.cloud
 
 
 TEST8A_URL = "https://zenodo.org/api/records/15256842/files/Test8A_dataset_2010.zip/content"

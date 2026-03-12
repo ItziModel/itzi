@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 import pytest
 import numpy as np
 
+from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+
 
 class Helpers:
     @staticmethod
@@ -49,6 +51,32 @@ class Helpers:
             for chunk in iter(lambda: f.read(4096), b""):
                 hash_md5.update(chunk)
         return hash_md5.hexdigest()
+
+    @staticmethod
+    def make_input_map_names(**overrides) -> dict[str, str | None]:
+        """Generate default input_map_names dict from ARRAY_DEFINITIONS.
+
+        Keys set to None are inactive; keys set to a truthy string activate features.
+        """
+        names = {ad.key: None for ad in ARRAY_DEFINITIONS if ArrayCategory.INPUT in ad.category}
+        names.update(overrides)
+        return names
+
+    @staticmethod
+    def make_output_map_names(prefix: str, keys: list[str]) -> dict[str, str | None]:
+        """Generate output_map_names dict from ARRAY_DEFINITIONS.
+
+        Args:
+            prefix: Prefix for output map names (e.g., "out_5by5")
+            keys: List of output keys to activate
+
+        Returns:
+            Dict with all OUTPUT-category keys, activated ones set to "prefix_keyname"
+        """
+        names = {ad.key: None for ad in ARRAY_DEFINITIONS if ArrayCategory.OUTPUT in ad.category}
+        for k in keys:
+            names[k] = f"{prefix}_{k}"
+        return names
 
 
 @pytest.fixture(scope="session")

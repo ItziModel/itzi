@@ -1,4 +1,4 @@
-""" """
+"""Test the Basic Model Interface implementation."""
 
 import os
 
@@ -16,7 +16,11 @@ def bmi_object(grass_5by5, test_data_path):
     return itzi_bmi
 
 
-class TestBmi:
+@pytest.mark.forked
+class TestBmiMutating:
+    """Those functions mutate the BMI model state.
+    Needs forking to recreate the state every time."""
+
     # Model control functions #
     def test_initialize(self, bmi_object):
         assert hasattr(bmi_object, "itzi")
@@ -38,6 +42,19 @@ class TestBmi:
 
     def test_finalize(self, bmi_object):
         bmi_object.finalize()
+
+    def test_set_value(self, bmi_object):
+        var_name = "land_surface__elevation"
+        grid_id = bmi_object.get_var_grid(var_name)
+        grid_shape = bmi_object.get_grid_shape(grid_id)
+        value = np.ones(grid_shape)
+        assert np.all(value != bmi_object.get_value_ptr(var_name))
+        bmi_object.set_value(var_name, value)
+        assert np.all(value == bmi_object.get_value_ptr(var_name))
+
+
+class TestBmi:
+    """Test non-mutating functions. No forking needed."""
 
     # Model information functions #
     def test_get_component_name(self, bmi_object):
@@ -120,15 +137,6 @@ class TestBmi:
         value = bmi_object.get_value_at_indices("land_surface__elevation", 2)
         print(value)
         assert value.item() == 0
-
-    def test_set_value(self, bmi_object):
-        var_name = "land_surface__elevation"
-        grid_id = bmi_object.get_var_grid(var_name)
-        grid_shape = bmi_object.get_grid_shape(grid_id)
-        value = np.ones(grid_shape)
-        assert np.all(value != bmi_object.get_value_ptr(var_name))
-        bmi_object.set_value(var_name, value)
-        assert np.all(value == bmi_object.get_value_ptr(var_name))
 
     # Grid information functions #
     def test_get_grid_rank(self, bmi_object):

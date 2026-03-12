@@ -61,6 +61,7 @@ def drainage_sim_results(test_data_path):
     return ds_results
 
 
+@pytest.mark.forked  # Avoid pyswmm.errors.MultiSimulationError: Multi-Simulation Error.
 def test_drainage_coupling_stability(drainage_sim_results, helpers):
     """Test the stability of the drainage coupling."""
     # roughness = helpers.roughness(drainage_sim_results)

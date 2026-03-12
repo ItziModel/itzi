@@ -22,7 +22,7 @@ MD5_SUM = "224f73dfa37244722b879a5f653682c9"
 DATA_EPSG = "3358"
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def tutorial_test_file(test_data_temp_path, helpers):
     """Download the tutorial main file."""
     file_name = "elev_lid792_1m.gtiff"
@@ -112,6 +112,7 @@ def itzi_tutorial(grass_tutorial_session, tutorial_test_file):
     return None
 
 
+@pytest.mark.forked
 @pytest.mark.slow
 @pytest.mark.usefixtures("itzi_tutorial", "test_data_path")
 class TestItziTutorial:
