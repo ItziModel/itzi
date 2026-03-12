@@ -1,5 +1,5 @@
 """
-Copyright (C) 2025 Laurent Courty
+Copyright (C) 2025-2026 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -17,6 +17,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import TypedDict, TYPE_CHECKING, Tuple, List
 from io import StringIO
+from pathlib import PurePosixPath
 import csv
 
 import pandas as pd
@@ -77,7 +78,7 @@ class CSVVectorOutputProvider(VectorOutputProvider):
             self.headers[geom_type] = ["sim_time"] + base_headers + ["srid", "geometry"]
 
             results_name = f"{config['drainage_results_name']}_{geom_type}s.csv"
-            self.file_paths[geom_type] = results_prefix + "/" + results_name
+            self.file_paths[geom_type] = str(PurePosixPath(results_prefix) / results_name)
             # No need to check if we overwrite
             if not config["overwrite"]:
                 self._check_existing_csv(geom_type)
