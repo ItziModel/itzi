@@ -6,6 +6,10 @@ import math
 from collections import namedtuple
 import pytest
 import numpy as np
+
+# Skip entire module if optional dependencies are missing
+pytest.importorskip("scipy")
+
 from scipy.special import lambertw
 
 from itzi import InfGreenAmpt

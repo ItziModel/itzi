@@ -4,6 +4,11 @@ from io import StringIO
 
 import numpy as np
 import pytest
+
+# Skip entire module if optional dependencies are missing
+pytest.importorskip("pyproj")
+pytest.importorskip("obstore")
+
 import pyproj
 import obstore
 import pandas as pd

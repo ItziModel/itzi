@@ -2,11 +2,17 @@ import tempfile
 from typing import Dict, Mapping
 from datetime import datetime, timedelta
 
-import icechunk
-import xarray as xr
 import numpy as np
 import pandas as pd
 import pytest
+
+# Skip entire module if optional dependencies are missing
+pytest.importorskip("icechunk")
+pytest.importorskip("xarray")
+pytest.importorskip("pyproj")
+
+import icechunk
+import xarray as xr
 import pyproj
 
 from itzi.providers.icechunk_output import IcechunkRasterOutputProvider

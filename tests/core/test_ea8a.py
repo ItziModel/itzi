@@ -10,8 +10,14 @@ import zipfile
 
 import pandas as pd
 import numpy as np
-import requests
 import pytest
+
+# Skip entire module if optional dependencies are missing
+pytest.importorskip("requests")
+pytest.importorskip("xarray")
+pytest.importorskip("rioxarray")
+
+import requests
 import xarray as xr
 import rioxarray
 

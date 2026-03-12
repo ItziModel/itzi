@@ -1,10 +1,15 @@
 from typing import Dict
 from datetime import datetime, timedelta
 
-import xarray as xr
 import numpy as np
 import pandas as pd
 import pytest
+
+# Skip entire module if optional dependencies are missing
+pytest.importorskip("xarray")
+pytest.importorskip("pyproj")
+
+import xarray as xr
 import pyproj
 
 from itzi.providers.xarray_input import XarrayRasterInputProvider, XarrayRasterInputConfig
