@@ -62,8 +62,13 @@ class CSVVectorOutputProvider(VectorOutputProvider):
         except AttributeError:
             self.srid = 0
         self.store = config["store"]
-        # Convert to POSIX path for obstore (requires forward slashes)
-        results_prefix = Path(config["results_prefix"]).as_posix()
+        # Normalize path for obstore (requires forward slashes)
+        # Use resolve() to handle relative paths like "./out", but skip for empty strings
+        prefix_str = config["results_prefix"]
+        if prefix_str:
+            results_prefix = Path(prefix_str).resolve().as_posix()
+        else:
+            results_prefix = ""
 
         self.existing_ids = {"link": None, "node": None}  # Objects ids already in the file
         self.existing_max_time = {"link": None, "node": None}  # Max of sim_time in existing_file
