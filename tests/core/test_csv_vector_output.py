@@ -138,8 +138,8 @@ def _validate_nodes_attributes(df_nodes):
 
 def _validate_nodes_geometries(df_nodes):
     for node_row in df_nodes.loc[:, ["node_id", "geometry"]].iterrows():
-        node_id = node_row[1][0]
-        geom_wkt = node_row[1][1]
+        node_id = node_row[1]["node_id"]
+        geom_wkt = node_row[1]["geometry"]
         assert geom_wkt.startswith("POINT"), f"Node {node_id} geometry is not a POINT: {geom_wkt}"
         coords_str = geom_wkt.replace("POINT(", "").replace(")", "").strip()
         x, y = map(float, coords_str.split())
@@ -181,8 +181,8 @@ def _validate_links_attributes(df_links):
 
 def _validate_links_geometries(df_links):
     for link_row in df_links.loc[:, ["link_id", "geometry"]].iterrows():
-        link_id = link_row[1][0]
-        wkt = link_row[1][1]
+        link_id = link_row[1]["link_id"]
+        wkt = link_row[1]["geometry"]
         assert wkt.startswith("LINESTRING"), f"Link {link_id} geometry is not a LINESTRING: {wkt}"
         # Extract coordinates from WKT
         coords_str = wkt.replace("LINESTRING(", "").replace(")", "").strip()
