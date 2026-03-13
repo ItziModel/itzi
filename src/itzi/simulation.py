@@ -1,5 +1,5 @@
 """
-Copyright (C) 2015-2025 Laurent Courty
+Copyright (C) 2015-2026 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -16,10 +16,14 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Self, TYPE_CHECKING, Dict, Optional
 import copy
+import io
 
 import numpy as np
 
 from itzi.data_containers import ContinuityData, SimulationData
+from itzi.data_containers import SimulationConfig, DrainageNodeCouplingData
+from itzi.data_containers import HotstartSimulationState
+from itzi.hotstart import HotstartWriter
 import itzi.messenger as msgr
 from itzi.itzi_error import NullError, MassBalanceError, DtError
 from itzi import rastermetrics
@@ -32,6 +36,7 @@ if TYPE_CHECKING:
     from itzi.surfaceflow import SurfaceFlowSimulation
     from itzi.rasterdomain import RasterDomain, TimedArray
     from itzi.report import Report
+    from itzi.providers.domain_data import DomainData
 
 
 class Simulation:
@@ -40,20 +45,22 @@ class Simulation:
     def __init__(
         self,
         sim_config: SimulationConfig,
+        domain_data: DomainData,
         raster_domain: RasterDomain,
-        timed_arrays: Optional[list[TimedArray]],
+        timed_arrays: Dict[str, TimedArray] | None,
         hydrology_model: Hydrology,
         surface_flow: SurfaceFlowSimulation,
         drainage_model: Optional[DrainageSimulation],
         drainage_nodes_list: Optional[list[DrainageNodeCouplingData]],
         report: Report,
-        mass_balance_error_threshold: float,
     ):
+        self.sim_config = sim_config
         self.raster_domain = raster_domain
         self.start_time = sim_config.start_time
         self.end_time = sim_config.end_time
         # set simulation time to start_time
         self.sim_time = self.start_time
+        self.domain_data = domain_data
         self.raster_domain = raster_domain
         self.timed_arrays = timed_arrays
         self.hydrology_model = hydrology_model
@@ -64,8 +71,8 @@ class Simulation:
 
         self.input_wse = bool(sim_config.input_map_names.get("water_surface_elevation"))
         # Mass balance error checking
-        self.continuity_data: ContinuityData = None
-        self.mass_balance_error_threshold = mass_balance_error_threshold
+        self.continuity_data: ContinuityData | None = None
+        self.mass_balance_error_threshold = sim_config.surface_flow_parameters.max_error
         # A mapping between source array and the corresponding accumulation array
         self.accum_mapping: dict[str, str] = {
             arr_def.computes_from: arr_def.key
@@ -96,7 +103,7 @@ class Simulation:
         # Grid spacing (for BMI)
         self.spacing = (self.raster_domain.dy, self.raster_domain.dx)
         # time step counter
-        self.time_steps_counters: Dict[int] = {
+        self.time_steps_counters: Dict[str, int] = {
             "since_start": 0,
             "since_last_report": 0,
         }
@@ -431,3 +438,95 @@ class Simulation:
             accum_array = self.raster_domain.get_padded(ak)
             rastermetrics.accumulate_rate_to_total(accum_array, rate_array, time_diff, padded=True)
             self.accum_update_time[ak] = sim_time
+
+    def create_hotstart(self) -> io.BytesIO:
+        """Create a hotstart file with the current state of the simulation.
+
+        Raises:
+            RuntimeError: If called before initialize() has established valid state.
+        """
+        # Guard: Check that initialize() has been called
+        # accum_update_time values are set to None in __init__ and only
+        # become valid datetime objects after initialize() is called
+        if any(v is None for v in self.accum_update_time.values()):
+            raise RuntimeError(
+                "Cannot create hotstart: simulation has not been initialized. "
+                "Call initialize() before creating a hotstart."
+            )
+
+        # Get SWMM hotstart bytes if drainage is enabled
+        swmm_hotstart_bytes: bytes | None = None
+        if self.drainage_model:
+            swmm_hotstart: io.BytesIO = self.drainage_model.get_hotstart()
+            swmm_hotstart_bytes = swmm_hotstart.getvalue()
+
+        # Get raster domain state bytes
+        raster_state: io.BytesIO = self.raster_domain.save_state()
+        raster_state_bytes = raster_state.getvalue()
+
+        # Build simulation state using Pydantic model.
+        simulation_state = HotstartSimulationState(
+            sim_time=self.sim_time.isoformat(),
+            dt=self.dt.total_seconds(),
+            next_ts={k: v.isoformat() for k, v in self.next_ts.items()},
+            time_steps_counters=self.time_steps_counters,
+            accum_update_time={k: v.isoformat() for k, v in self.accum_update_time.items()},
+            old_domain_volume=self.old_domain_volume,
+        )
+
+        # Delegate archive creation to HotstartWriter
+        return HotstartWriter.create(
+            domain_data=self.domain_data,
+            simulation_config=self.sim_config,
+            simulation_state=simulation_state,
+            raster_state_bytes=raster_state_bytes,
+            swmm_hotstart_bytes=swmm_hotstart_bytes,
+        )
+
+    def restore_state(self, simulation_state: HotstartSimulationState) -> Self:
+        """Restore simulation runtime state from hotstart data.
+
+        This method restores scheduler and runtime state after raster state
+        has been loaded. It must be called after the simulation object exists
+        and after raster domain state has been restored.
+
+        Args:
+            simulation_state: Validated hotstart simulation state containing
+                sim_time, dt, next_ts, counters, accum_update_time, and
+                old_domain_volume.
+
+        Returns:
+            Self for method chaining.
+
+        Note:
+            - nextstep is recomputed from next_ts via find_dt() rather than
+              restored directly, ensuring scheduler invariants are maintained.
+            - This method does NOT restore raster state; use
+              RasterDomain.load_state() for that purpose.
+        """
+        # Restore simulation time
+        self.sim_time = datetime.fromisoformat(simulation_state.sim_time)
+
+        # Restore time step
+        self.dt = timedelta(seconds=simulation_state.dt)
+
+        # Restore next timestamp schedule
+        # Parse ISO format strings back to datetime objects
+        self.next_ts = {k: datetime.fromisoformat(v) for k, v in simulation_state.next_ts.items()}
+
+        # Restore time step counters
+        self.time_steps_counters = dict(simulation_state.time_steps_counters)
+
+        # Restore accumulation update timestamps
+        self.accum_update_time = {
+            k: datetime.fromisoformat(v) for k, v in simulation_state.accum_update_time.items()
+        }
+
+        # Restore old domain volume for continuity tracking
+        self.old_domain_volume = simulation_state.old_domain_volume
+
+        # Recompute nextstep from the restored next_ts to maintain scheduler invariants
+        # This ensures find_dt() and update() will work correctly
+        self.nextstep = min(self.next_ts.values())
+
+        return self

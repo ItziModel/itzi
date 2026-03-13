@@ -1,5 +1,5 @@
 """
-Copyright (C) 2025 Laurent Courty
+Copyright (C) 2025-2026 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -14,95 +14,85 @@ GNU General Public License for more details.
 
 import numpy as np
 
+from pydantic import BaseModel, ConfigDict, computed_field, model_validator
 
-class DomainData:
+
+class DomainData(BaseModel):
     """Store raster domain information. Alike GRASS region."""
 
-    def __init__(
-        self,
-        north: float,
-        south: float,
-        east: float,
-        west: float,
-        rows: int,
-        cols: int,
-        crs_wkt: str,
-    ):
-        self.north = float(north)
-        self.south = float(south)
-        self.east = float(east)
-        self.west = float(west)
-        self.rows = int(rows)
-        self.cols = int(cols)
-        self.crs_wkt = str(crs_wkt)
+    model_config = ConfigDict(frozen=True)
 
+    north: float
+    south: float
+    east: float
+    west: float
+    rows: int
+    cols: int
+    crs_wkt: str
+
+    @model_validator(mode="after")
+    def check_bounds(self) -> "DomainData":
         if self.north < self.south:
             raise ValueError(f"north must be superior to south. {self.north=}, {self.south=}")
         if self.east < self.west:
             raise ValueError(f"east must be superior to west. {self.east=}, {self.west=}")
+        return self
 
-        self.nsres = float((self.north - self.south) / self.rows)
-        self.ewres = float((self.east - self.west) / self.cols)
-        self.cell_area = float(self.ewres * self.nsres)
-        self.cell_shape = (self.ewres, self.nsres)
-        self.shape = (self.rows, self.cols)
-        self.cells = self.rows * self.cols
+    # --- Computed fields (derived, read-only properties) ---
+
+    @computed_field
+    @property
+    def nsres(self) -> float:
+        return (self.north - self.south) / self.rows
+
+    @computed_field
+    @property
+    def ewres(self) -> float:
+        return (self.east - self.west) / self.cols
+
+    @computed_field
+    @property
+    def cell_area(self) -> float:
+        return self.ewres * self.nsres
+
+    @computed_field
+    @property
+    def cell_shape(self) -> tuple[float, float]:
+        return (self.ewres, self.nsres)
+
+    @computed_field
+    @property
+    def shape(self) -> tuple[int, int]:
+        return (self.rows, self.cols)
+
+    @computed_field
+    @property
+    def cells(self) -> int:
+        return self.rows * self.cols
 
     def is_in_domain(self, *, x: float, y: float) -> bool:
-        """For a given coordinate pair(x, y),
-        return True is inside the domain, False otherwise.
-        """
-        bool_x: bool = self.west < x < self.east
-        bool_y: bool = self.south < y < self.north
-        return bool(bool_x and bool_y)
+        """Return True if (x, y) is inside the domain, False otherwise."""
+        return self.west < x < self.east and self.south < y < self.north
 
-    def coordinates_to_pixel(self, *, x: float, y: float) -> tuple[float, float] | None:
-        """For a given coordinate pair(x, y),
-        return the corresponding row and column indices.
-        """
+    def coordinates_to_pixel(self, *, x: float, y: float) -> tuple[int, int] | None:
+        """Return (row, col) pixel indices for a given (x, y) coordinate, or None if outside domain."""
         if not self.is_in_domain(x=x, y=y):
             return None
-        else:
-            norm_row = float((y - self.south) / (self.north - self.south))
-            row = int(np.round((1 - norm_row) * (self.rows - 1)))
-
-            norm_col = float((x - self.west) / (self.east - self.west))
-            col = int(np.round(norm_col * (self.cols - 1)))
-
-            return (row, col)
+        norm_row = (y - self.south) / (self.north - self.south)
+        row = int(np.round((1 - norm_row) * (self.rows - 1)))
+        norm_col = (x - self.west) / (self.east - self.west)
+        col = int(np.round(norm_col * (self.cols - 1)))
+        return (row, col)
 
     def get_coordinates(self) -> dict[str, np.ndarray]:
-        """Return x and y coordinates as numpy arrays representing the center of each cell.
-        Returns:
-            A mapping with 'x' and 'y' keys containing 1D numpy arrays.
-            - 'x': array of shape (cols,) with x-coordinates of cell centers
-            - 'y': array of shape (rows,) with y-coordinates of cell centers
-        """
-        # X coordinates: from west + half cell width, incrementing by cell width
-        x_start: float = self.west + self.ewres / 2
-        x_stop: float = self.east - self.ewres / 2
-        x_coords: np.ndarray = np.linspace(x_start, x_stop, num=self.cols)
-
-        # Y coordinates: from north - half cell height, decrementing by cell height
-        # (raster coordinates typically go from north to south)
-        y_start: float = self.north - self.nsres / 2
-        y_stop: float = self.south + self.nsres / 2
-        y_coords: np.ndarray = np.linspace(y_start, y_stop, num=self.rows)
-
+        """Return x and y coordinates as 1D arrays of cell centers."""
+        x_coords = np.linspace(
+            self.west + self.ewres / 2, self.east - self.ewres / 2, num=self.cols
+        )
+        y_coords = np.linspace(
+            self.north - self.nsres / 2, self.south + self.nsres / 2, num=self.rows
+        )
         return {"x": x_coords, "y": y_coords}
 
     def __repr__(self):
-        return (
-            f"north={self.north}, "
-            f"south={self.south}. "
-            f"east={self.east}, "
-            f"west={self.west}, "
-            f"rows={self.rows}, "
-            f"cols={self.cols}, "
-            f"nsres={self.nsres}, "
-            f"ewres={self.ewres}, "
-            f"cell_area={self.cell_area}, "
-            f"cell_shape={self.cell_shape}, "
-            f"shape={self.shape}, "
-            f"cells={self.cells}, "
-        )
+        return repr(self.model_dump())

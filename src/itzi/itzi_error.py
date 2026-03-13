@@ -1,5 +1,5 @@
 """
-Copyright (C) 2015-2017  Laurent Courty
+Copyright (C) 2015-2026 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -46,6 +46,16 @@ class MassBalanceError(ItziError):
 
 
 class ItziFatal(ItziError):
+    def __init__(self, msg):
+        self.msg = msg
+
+    def __str__(self):
+        return repr(self.msg)
+
+
+class HotstartError(ItziError):
+    """Raised when hotstart file operations fail."""
+
     def __init__(self, msg):
         self.msg = msg
 

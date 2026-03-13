@@ -1,5 +1,5 @@
 """
-Copyright (C) 2016-2025 Laurent Courty
+Copyright (C) 2016-2026 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -15,6 +15,8 @@ GNU General Public License for more details.
 import math
 from datetime import timedelta
 from enum import StrEnum
+from io import BytesIO
+import tempfile
 
 import pyswmm
 import numpy as np
@@ -41,7 +43,7 @@ class CouplingTypes(StrEnum):
 class DrainageSimulation:
     """manage simulation of the pipe network"""
 
-    def __init__(self, pyswmm_sim, nodes_list, links_list):
+    def __init__(self, pyswmm_sim, nodes_list, links_list, hotstart_filename=None):
         # A list of DrainageNode object
         self.nodes = nodes_list
         # A list of DrainageLink objects
@@ -52,6 +54,9 @@ class DrainageSimulation:
         # Check if the unit is m3/s
         if self.swmm_sim.flow_units != "CMS":
             msgr.fatal("SWMM simulation unit must be CMS")
+        # Start model
+        if hotstart_filename:
+            self.swmm_model.swmm_use_hotstart(hotstart_filename)
         self.swmm_model.swmm_start()
         # allow ponding
         # TODO: check if allowing ponding is necessary
@@ -105,6 +110,19 @@ class DrainageSimulation:
         for link in self.links:
             links_data.append(link.get_data())
         return DrainageNetworkData(nodes=tuple(nodes_data), links=tuple(links_data))
+
+    def get_hotstart(self) -> BytesIO:
+        """Save a temp SWMM hotstart, return a binary object."""
+        with tempfile.NamedTemporaryFile(suffix=".hsf", delete_on_close=False) as tmp:
+            temp_hotstart = tmp.name
+            # Close the file handle so SWMM can open it exclusively
+            tmp.close()
+            self.swmm_model.swmm_save_hotstart(temp_hotstart)
+            with open(temp_hotstart, "rb") as f:
+                buffer = BytesIO(f.read())
+            buffer.seek(0)
+            return buffer
+        # File is automatically deleted on context manager exit, even on exception
 
 
 class DrainageNode(object):

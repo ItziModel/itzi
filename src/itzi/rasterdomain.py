@@ -1,5 +1,5 @@
 """
-Copyright (C) 2016-2025 Laurent Courty
+Copyright (C) 2016-2026 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -14,10 +14,13 @@ GNU General Public License for more details.
 
 from datetime import datetime
 from typing import Self, Callable, TYPE_CHECKING
+import io
+
 import numpy as np
 
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi import rastermetrics
+from itzi.itzi_error import HotstartError
 
 if TYPE_CHECKING:
     from itzi.providers.base import RasterInputProvider
@@ -212,4 +215,100 @@ class RasterDomain:
         """Set accumulation arrays to zeros"""
         for k in self.k_accum:
             self.arr[k][:] = 0.0
+        return self
+
+    def save_state(self) -> io.BytesIO:
+        """Pack all the arrays of the domain in a npz file."""
+        npz_file = io.BytesIO()
+        arrays = {"mask": self.mask}
+        arrays.update(self.arr)
+        np.savez(npz_file, allow_pickle=False, **arrays)
+        npz_file.seek(0)
+        return npz_file
+
+    def load_state(self, npz_data: io.BytesIO) -> Self:
+        """Restore domain arrays from an in-memory npz buffer.
+
+        This method validates the loaded state against the current domain
+        configuration before mutating any state.
+
+        Args:
+            npz_data: BytesIO containing an npz archive from save_state().
+
+        Returns:
+            Self for method chaining.
+
+        Raises:
+            HotstartError: If the state is incompatible with the current domain.
+        """
+        # Load the npz archive from the in-memory buffer
+        npz_data.seek(0)
+        try:
+            npz = np.load(npz_data, allow_pickle=False)
+        except Exception as e:
+            raise HotstartError(f"Failed to load raster state: {e}") from e
+
+        # Get the set of keys from the archive (excluding 'mask')
+        archive_keys = set(npz.files) - {"mask"}
+        expected_keys = self.k_all
+
+        # Verify required keys are present
+        missing_keys = expected_keys - archive_keys
+        if missing_keys:
+            raise HotstartError(
+                f"Raster state missing required arrays: {', '.join(sorted(missing_keys))}"
+            )
+
+        # Check for unexpected keys (warning, not error - for forward compatibility)
+        extra_keys = archive_keys - expected_keys
+        if extra_keys:
+            # Log or ignore extra keys - they're not harmful
+            pass
+
+        # Verify mask is present
+        if "mask" not in npz.files:
+            raise HotstartError("Raster state missing 'mask' array")
+
+        # Verify mask shape matches
+        stored_mask = npz["mask"]
+        if stored_mask.shape != self.mask.shape:
+            raise HotstartError(
+                f"Mask shape mismatch: archive has {stored_mask.shape}, "
+                f"domain expects {self.mask.shape}"
+            )
+
+        # Verify mask content matches
+        if not np.array_equal(stored_mask, self.mask):
+            raise HotstartError(
+                "Mask content mismatch: the hotstart domain mask does not match "
+                "the current domain mask"
+            )
+
+        # Verify all array shapes match the domain
+        for key in expected_keys:
+            stored_arr = npz[key]
+            if stored_arr.shape != self.shape:
+                raise HotstartError(
+                    f"Array '{key}' shape mismatch: archive has {stored_arr.shape}, "
+                    f"domain expects {self.shape}"
+                )
+
+        # Verify dtype compatibility (allow safe casting)
+        for key in expected_keys:
+            stored_arr = npz[key]
+            if not np.can_cast(stored_arr.dtype, self.dtype, casting="safe"):
+                raise HotstartError(
+                    f"Array '{key}' dtype mismatch: archive has {stored_arr.dtype}, "
+                    f"domain expects {self.dtype} (or a safely castable type)"
+                )
+
+        # All validations passed - restore the arrays
+        for key in expected_keys:
+            # Get the stored array and convert to domain dtype
+            arr = npz[key].astype(self.dtype)
+            # Apply mask fill values
+            self.mask_array(arr, self.fill_values[key])
+            # Store in unpadded and padded forms
+            self.arr[key][:], self.arrp[key][:] = self.pad_array(arr)
+
         return self
