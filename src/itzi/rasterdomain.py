@@ -218,10 +218,11 @@ class RasterDomain:
         return self
 
     def save_state(self) -> io.BytesIO:
-        """Pack all the arrays of the domain in a npz file."""
+        """Pack all the padded arrays of the domain in a npz file."""
         npz_file = io.BytesIO()
         arrays = {"mask": self.mask}
-        arrays.update(self.arr)
+        # Save padded arrays to preserve solver-computed boundary values
+        arrays.update(self.arrp)
         np.savez(npz_file, allow_pickle=False, **arrays)
         npz_file.seek(0)
         return npz_file
@@ -284,13 +285,16 @@ class RasterDomain:
                 "the current domain mask"
             )
 
-        # Verify all array shapes match the domain
+        # Padded shape is (rows+2, cols+2) due to 1-cell padding on all sides
+        padded_shape = (self.shape[0] + 2, self.shape[1] + 2)
+
+        # Verify all array shapes match the padded domain
         for key in expected_keys:
             stored_arr = npz[key]
-            if stored_arr.shape != self.shape:
+            if stored_arr.shape != padded_shape:
                 raise HotstartError(
                     f"Array '{key}' shape mismatch: archive has {stored_arr.shape}, "
-                    f"domain expects {self.shape}"
+                    f"domain expects padded shape {padded_shape}"
                 )
 
         # Verify dtype compatibility (allow safe casting)
@@ -304,11 +308,11 @@ class RasterDomain:
 
         # All validations passed - restore the arrays
         for key in expected_keys:
-            # Get the stored array and convert to domain dtype
-            arr = npz[key].astype(self.dtype)
-            # Apply mask fill values
-            self.mask_array(arr, self.fill_values[key])
-            # Store in unpadded and padded forms
-            self.arr[key][:], self.arrp[key][:] = self.pad_array(arr)
+            # Get the stored padded array and convert to domain dtype
+            arrp = npz[key].astype(self.dtype)
+            # Store the padded array directly
+            self.arrp[key][:] = arrp
+            # Extract the interior (unpadded) slice for self.arr using simple_pad
+            self.arr[key][:] = arrp[self.simple_pad]
 
         return self

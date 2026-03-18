@@ -241,6 +241,10 @@ class HotstartSimulationState(BaseModel):
     # callers building the state before archive creation leave them as empty defaults.
     raster_domain_hash: str = ""
     swmm_hotstart_hash: str | None = None
+    # SWMM elapsed time in seconds at the hotstart point.
+    # Required to correctly initialise DrainageSimulation.elapsed_time so that
+    # the first swmm_step() after hotstart restoration computes the correct _dt.
+    swmm_elapsed_time: float | None = None
 
 
 class HotstartMetadata(BaseModel):

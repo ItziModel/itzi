@@ -14,7 +14,10 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 
+import os
+import re
 import tempfile
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 import io
 from pathlib import Path
@@ -315,6 +318,13 @@ class SimulationBuilder:
             simulation_state = self.hotstart_loader.get_simulation_state()
             simulation.restore_state(simulation_state)
 
+            # Restore drainage coupling state from the saved n_drain raster.
+            # DrainageNode.coupling_flow is always 0 after object creation, and
+            # SWMM's generated_inflow is not preserved in the SWMM hotstart binary.
+            # restore_drainage_coupling_state() reads n_drain (already restored above)
+            # to fix both problems before the first drainage step runs.
+            simulation.restore_drainage_coupling_state()
+
         return simulation
 
     def _create_timed_arrays(self) -> dict[str, rasterdomain.TimedArray]:
@@ -365,18 +375,103 @@ class SimulationBuilder:
             assert False, f"Unknow infiltration model: {inf_model}"
         return infiltration_model
 
+    def _swmm_preconfig_for_hotstart(
+        self, elapsed_seconds: float
+    ) -> pyswmm.SimulationPreConfig | None:
+        """Build a SimulationPreConfig that advances SWMM's START_DATE/TIME.
+
+        When SWMM is restarted from a hotstart file it always begins reading its
+        timeseries from its .inp START_DATE/TIME (i.e. T=0).  If the original
+        simulation had time-varying inputs (e.g. inflow hydrographs), those inputs
+        would be read from the wrong point in time.
+
+        This method creates a SimulationPreConfig that shifts START_DATE/TIME
+        forward by ``elapsed_seconds`` so that SWMM's timeseries position exactly
+        matches the split point of the resumed simulation.
+
+        Args:
+            elapsed_seconds: Seconds elapsed in the SWMM simulation at the hotstart
+                point (DrainageSimulation.elapsed_time at create_hotstart() call).
+
+        Returns:
+            A configured SimulationPreConfig, or None if the start time cannot be
+            parsed from the .inp file (in which case SWMM timeseries will start at
+            T=0 with a warning).
+        """
+        with open(self.sim_config.swmm_inp, "r") as f:
+            content = f.read()
+
+        date_m = re.search(r"START_DATE\s+(\S+)", content)
+        time_m = re.search(r"START_TIME\s+(\S+)", content)
+        if not (date_m and time_m):
+            msgr.warning(
+                "Hotstart: cannot parse SWMM START_DATE/START_TIME – "
+                "timeseries will restart from T=0 (results may differ from uninterrupted run)."
+            )
+            return None
+
+        try:
+            orig_start = datetime.strptime(
+                f"{date_m.group(1)} {time_m.group(1)}", "%m/%d/%Y %H:%M:%S"
+            )
+        except ValueError:
+            msgr.warning(
+                "Hotstart: unexpected SWMM date format – "
+                "timeseries will restart from T=0 (results may differ from uninterrupted run)."
+            )
+            return None
+
+        new_start = orig_start + timedelta(seconds=elapsed_seconds)
+        new_date = new_start.strftime("%m/%d/%Y")
+        new_time = new_start.strftime("%H:%M:%S")
+
+        conf = pyswmm.SimulationPreConfig()
+        conf.add_update_by_token("OPTIONS", "START_DATE", 1, new_date)
+        conf.add_update_by_token("OPTIONS", "START_TIME", 1, new_time)
+        # Also advance REPORT_START_DATE/TIME when present so reporting is consistent
+        if "REPORT_START_DATE" in content:
+            conf.add_update_by_token("OPTIONS", "REPORT_START_DATE", 1, new_date)
+        if "REPORT_START_TIME" in content:
+            conf.add_update_by_token("OPTIONS", "REPORT_START_TIME", 1, new_time)
+        return conf
+
     def _create_drainage_simulation(self) -> tuple[list | None, DrainageSimulation | None]:
         """Create drainage simulation components if SWMM input is provided.
 
         If hotstart data includes SWMM state, writes the SWMM hotstart bytes
         to a temporary file and passes it to DrainageSimulation for restoration.
         The temporary file is cleaned up after DrainageSimulation reads it.
+
+        When resuming from a hotstart with time-varying SWMM inputs (hydrographs,
+        patterns etc.), the SWMM simulation START_DATE/TIME is also advanced via
+        SimulationPreConfig so that those inputs are read from the correct point in
+        their timeseries rather than restarting from T=0.
         """
         if not self.sim_config.swmm_inp:
             return None, None
 
         msgr.debug("Setting up drainage model...")
-        swmm_sim = pyswmm.Simulation(self.sim_config.swmm_inp)
+
+        # Build a SimulationPreConfig that shifts the SWMM start time when resuming
+        # from a hotstart.  pyswmm.Simulation writes a temporary '<inp>_mod.inp'
+        # file; we delete it immediately after Simulation.__init__ reads it.
+        sim_preconfig: pyswmm.SimulationPreConfig | None = None
+        if self.hotstart_loader is not None:
+            sim_state = self.hotstart_loader.get_simulation_state()
+            swmm_elapsed = sim_state.swmm_elapsed_time
+            if swmm_elapsed is not None and swmm_elapsed > 0:
+                sim_preconfig = self._swmm_preconfig_for_hotstart(swmm_elapsed)
+
+        swmm_sim = pyswmm.Simulation(self.sim_config.swmm_inp, sim_preconfig=sim_preconfig)
+
+        # SimulationPreConfig creates "<inp>_mod.inp" which is no longer needed
+        # once pyswmm has read it in Simulation.__init__ (swmm_open).
+        if sim_preconfig is not None:
+            mod_path = self.sim_config.swmm_inp[:-4] + sim_preconfig.filename_suffix + ".inp"
+            if os.path.exists(mod_path):
+                os.unlink(mod_path)
+
+        # Always parse node/link coordinates from the original .inp file
         swmm_inp = SwmmInputParser(self.sim_config.swmm_inp)
 
         # Create Node objects

@@ -11,6 +11,7 @@ import json
 import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pytest
@@ -31,6 +32,9 @@ from itzi.data_containers import (
 from itzi.providers.domain_data import DomainData
 from itzi.itzi_error import HotstartError
 from itzi.const import TemporalType
+
+if TYPE_CHECKING:
+    pass
 
 
 @pytest.fixture

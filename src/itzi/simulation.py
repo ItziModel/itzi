@@ -465,6 +465,7 @@ class Simulation:
         raster_state_bytes = raster_state.getvalue()
 
         # Build simulation state using Pydantic model.
+        swmm_elapsed_time = self.drainage_model.elapsed_time if self.drainage_model else None
         simulation_state = HotstartSimulationState(
             sim_time=self.sim_time.isoformat(),
             dt=self.dt.total_seconds(),
@@ -472,6 +473,7 @@ class Simulation:
             time_steps_counters=self.time_steps_counters,
             accum_update_time={k: v.isoformat() for k, v in self.accum_update_time.items()},
             old_domain_volume=self.old_domain_volume,
+            swmm_elapsed_time=swmm_elapsed_time,
         )
 
         # Delegate archive creation to HotstartWriter
@@ -482,6 +484,41 @@ class Simulation:
             raster_state_bytes=raster_state_bytes,
             swmm_hotstart_bytes=swmm_hotstart_bytes,
         )
+
+    def restore_drainage_coupling_state(self) -> None:
+        """Restore DrainageNode.coupling_flow and SWMM generated_inflow from n_drain.
+
+        Must be called after raster domain state is restored from hotstart.
+
+        Fixes two hotstart issues with the drainage coupling:
+
+        1. DrainageNode.coupling_flow is always initialised to 0.0 on object creation.
+           With RELAXATION_FACTOR=0.8 the first apply_coupling() call blends the new
+           flow with 0 instead of the saved previous flow, producing wrong inflow to SWMM
+           and a wrong n_drain value used by the surface-flow solver.
+
+        2. SWMM's internal generated_inflow (set via pyswmm) is not persisted in the
+           SWMM hotstart binary, so without this restoration the first swmm_step()
+           runs with zero lateral inflow at each coupled junction.
+
+        Both problems are fixed by reading the saved n_drain raster (restored from
+        the hotstart zip) and using those values to initialise coupling_flow and to
+        pre-inject the inflows into SWMM before the first drainage step.
+        """
+        if not self.drainage_model or not self.drainage_nodes_list:
+            return
+        arr_qd = self.raster_domain.get_array("n_drain")
+        cell_area = self.raster_domain.cell_area
+        for node_data in self.drainage_nodes_list:
+            if node_data.row is None or node_data.col is None:
+                continue  # node is not in the domain, skip
+            node = node_data.node_object
+            row, col = node_data.row, node_data.col
+            coupling_flow = float(arr_qd[row, col]) * cell_area
+            # Restore previous coupling_flow for correct relaxation/damping behaviour
+            node.coupling_flow = coupling_flow
+            # Pre-inject into SWMM so the first drainage step sees the correct inflow
+            node.pyswmm_node.generated_inflow(np.float64(-coupling_flow))
 
     def restore_state(self, simulation_state: HotstartSimulationState) -> Self:
         """Restore simulation runtime state from hotstart data.
