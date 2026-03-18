@@ -2,7 +2,8 @@
 
 ## Common commands
 - Run a single test: `uv run pytest tests/my_test.py`
-- The GRASS tests need `--forked`: `uv run pytest --forked tests/grass`. This is not needed for core tests.
+- The GRASS-based tests need `--forked` so each tests run in a separate process: `uv run pytest --forked tests/grass`.
+- It is not necessary to run core tests with `--forked`. Additionally, `--forked` prevents the display of print statements and other outputs.
 - Enforce code formatting: `uvx ruff format .`
 
 ## Code style
