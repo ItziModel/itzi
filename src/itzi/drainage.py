@@ -83,10 +83,8 @@ class DrainageSimulation:
         if hotstart_filename:
             self.swmm_model.swmm_use_hotstart(hotstart_filename)
         if hotstart_start_datetime is not None:
-            from pyswmm.toolkitapi import SimulationTime
-
             self.swmm_model.setSimulationDateTime(
-                SimulationTime.StartDateTime, hotstart_start_datetime
+                pyswmm.toolkitapi.SimulationTime.StartDateTime, hotstart_start_datetime
             )
         self.swmm_model.swmm_start()
         # allow ponding

@@ -240,29 +240,104 @@ def test_ea8b_hotstart_roundtrip(
 
     nodes_csv_bytes = bytes(obstore.get(obj_store, "out_drainage_nodes.csv").bytes())
     df_resumed = pd.read_csv(io.StringIO(nodes_csv_bytes.decode("utf-8")))
-    print("\n=== Resumed simulation: first 10 drainage node rows ===")
-    print(df_resumed[["sim_time", "node_id", "coupling_flow", "depth"]].head(10).to_string())
-    print("=== Resumed simulation: last 10 drainage node rows ===")
-    print(df_resumed[["sim_time", "node_id", "coupling_flow", "depth"]].tail(10).to_string())
-    print(f"Total rows: {len(df_resumed)}, coupling_flow stats:")
-    print(df_resumed["coupling_flow"].describe().to_string())
 
-    # Load reference drainage CSV written by the uninterrupted simulation (LocalStore)
-    # The LocalStore prefix is test_data_temp_path, and drainage_results_name = "out_drainage"
-    ref_nodes_path = Path(test_data_temp_path) / "out_drainage_nodes.csv"
-    if ref_nodes_path.exists():
-        df_ref = pd.read_csv(ref_nodes_path)
-        df_ref_second_half = df_ref[df_ref["sim_time"] >= split_time.isoformat()]
-        print("\n=== Uninterrupted simulation (second half): first 10 rows ===")
-        print(
-            df_ref_second_half[["sim_time", "node_id", "coupling_flow", "depth"]]
-            .head(10)
-            .to_string()
-        )
-        print("Reference coupling_flow stats (second half):")
-        print(df_ref_second_half["coupling_flow"].describe().to_string())
-    else:
-        print(f"\nReference CSV not found at {ref_nodes_path}")
+    diagnostic_path = Path(test_data_temp_path) / "ea8b_hotstart_diagnostic.txt"
+    with open(diagnostic_path, "w") as f:
+        f.write("=== Resumed simulation: first 10 drainage node rows ===\n")
+        f.write(df_resumed[["sim_time", "node_id", "coupling_flow", "depth"]].head(10).to_string())
+        f.write("\n\n=== Resumed simulation: last 10 drainage node rows ===\n")
+        f.write(df_resumed[["sim_time", "node_id", "coupling_flow", "depth"]].tail(10).to_string())
+        f.write(f"\n\nTotal rows: {len(df_resumed)}, coupling_flow stats:\n")
+        f.write(df_resumed["coupling_flow"].describe().to_string())
+
+        # Load reference drainage CSV written by the uninterrupted simulation (LocalStore)
+        # The LocalStore prefix is test_data_temp_path, and drainage_results_name = "out_drainage"
+        ref_nodes_path = Path(test_data_temp_path) / "out_drainage_nodes.csv"
+        if ref_nodes_path.exists():
+            df_ref = pd.read_csv(ref_nodes_path)
+
+            # Convert sim_time to timedelta for proper comparison
+            # CSV uses ISO 8601 duration format (PT6000.0S)
+            df_ref["sim_time_td"] = pd.to_timedelta(df_ref["sim_time"])
+            df_resumed["sim_time_td"] = pd.to_timedelta(df_resumed["sim_time"])
+
+            # Split time as timedelta
+            split_time_td = pd.Timedelta(hours=1, minutes=40)
+
+            # Filter to second half (>= split_time)
+            df_ref_second_half = df_ref[df_ref["sim_time_td"] >= split_time_td]
+            df_resumed_second_half = df_resumed[df_resumed["sim_time_td"] >= split_time_td]
+
+            f.write("\n\n=== Uninterrupted simulation (second half): first 10 rows ===\n")
+            f.write(
+                df_ref_second_half[["sim_time", "node_id", "coupling_flow", "depth"]]
+                .head(10)
+                .to_string()
+            )
+            f.write("\n\nReference coupling_flow stats (second half):\n")
+            f.write(df_ref_second_half["coupling_flow"].describe().to_string())
+
+            # Compare coupling_flow between resumed and reference for second half
+            f.write("\n\n=== Coupling flow comparison (resumed vs reference) ===\n")
+            f.write(f"Resumed second half rows: {len(df_resumed_second_half)}\n")
+            f.write(f"Reference second half rows: {len(df_ref_second_half)}\n")
+
+            # Detailed comparison for J1 (the diverging node)
+            j1_resumed = df_resumed_second_half[
+                df_resumed_second_half["node_id"] == "J1"
+            ].sort_values("sim_time_td")
+            j1_ref = df_ref_second_half[df_ref_second_half["node_id"] == "J1"].sort_values(
+                "sim_time_td"
+            )
+            if len(j1_resumed) > 0 and len(j1_ref) > 0:
+                f.write("\n\n=== J1 detailed comparison (first 5 timesteps) ===\n")
+                f.write("Resumed J1:\n")
+                f.write(
+                    j1_resumed[["sim_time", "coupling_flow", "depth", "head", "inflow"]]
+                    .head(5)
+                    .to_string()
+                )
+                f.write("\n\nReference J1:\n")
+                f.write(
+                    j1_ref[["sim_time", "coupling_flow", "depth", "head", "inflow"]]
+                    .head(5)
+                    .to_string()
+                )
+                # Also show depth and head differences
+                if "depth" in j1_resumed.columns and "depth" in j1_ref.columns:
+                    f.write("\n\n=== J1 depth/head comparison ===\n")
+                    for i in range(min(5, len(j1_resumed))):
+                        r = j1_resumed.iloc[i]
+                        ref = j1_ref.iloc[i]
+                        f.write(
+                            f"  {r['sim_time']}: depth resumed={r['depth']:.6f} ref={ref['depth']:.6f} "
+                            f"diff={r['depth'] - ref['depth']:.6f}\n"
+                        )
+
+            # Group by node_id and compare
+            for node_id in df_resumed_second_half["node_id"].unique():
+                resumed_node = df_resumed_second_half[
+                    df_resumed_second_half["node_id"] == node_id
+                ].sort_values("sim_time_td")
+                ref_node = df_ref_second_half[
+                    df_ref_second_half["node_id"] == node_id
+                ].sort_values("sim_time_td")
+                if len(resumed_node) > 0 and len(ref_node) > 0:
+                    # Compare coupling_flow values
+                    resumed_cf = resumed_node["coupling_flow"].values
+                    ref_cf = ref_node["coupling_flow"].values
+                    if len(resumed_cf) == len(ref_cf):
+                        max_diff = np.max(np.abs(resumed_cf - ref_cf))
+                        mean_diff = np.mean(np.abs(resumed_cf - ref_cf))
+                        f.write(
+                            f"Node {node_id}: max_diff={max_diff:.6f}, mean_diff={mean_diff:.6f}\n"
+                        )
+                    else:
+                        f.write(
+                            f"Node {node_id}: length mismatch (resumed={len(resumed_cf)}, ref={len(ref_cf)})\n"
+                        )
+        else:
+            f.write(f"\n\nReference CSV not found at {ref_nodes_path}\n")
 
     # =========================================================================
     # Compare final results with uninterrupted simulation
