@@ -23,13 +23,12 @@ class Hydrology:
 
     def __init__(self, raster_domain, dt, infiltration):
         self.dom = raster_domain
-        self.def_dt = dt
+        self._dt = dt
         # an infiltration model object
         self.infiltration = infiltration
 
     def solve_dt(self):
         """time-step is by default equal to the default time-step"""
-        self._dt = self.def_dt
         self.infiltration.solve_dt()
         return self
 
