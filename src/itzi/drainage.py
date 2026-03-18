@@ -12,6 +12,9 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 import math
 from datetime import timedelta
 from enum import StrEnum
@@ -31,6 +34,10 @@ from itzi.data_containers import (
     DrainageNodeAttributes,
 )
 
+if TYPE_CHECKING:
+    from datetime import datetime
+    from pyswmm.swmm5 import PySWMM
+
 
 class CouplingTypes(StrEnum):
     NOT_COUPLED = "not coupled"
@@ -43,20 +50,44 @@ class CouplingTypes(StrEnum):
 class DrainageSimulation:
     """manage simulation of the pipe network"""
 
-    def __init__(self, pyswmm_sim, nodes_list, links_list, hotstart_filename=None):
+    def __init__(
+        self,
+        pyswmm_sim: pyswmm.Simulation,
+        nodes_list: list[DrainageNode],
+        links_list: list[DrainageLink],
+        hotstart_filename: str | None = None,
+        hotstart_start_datetime: datetime | None = None,
+    ):
+        """Initialize the drainage simulation.
+
+        Args:
+            pyswmm_sim: A pyswmm Simulation object.
+            nodes_list: List of DrainageNode objects.
+            links_list: List of DrainageLink objects.
+            hotstart_filename: Path to SWMM hotstart file (.hsf) to restore state from.
+            hotstart_start_datetime: datetime to set as SWMM's start time after hotstart
+                restore. This is used to ensure SWMM reads timeseries from the correct
+                point after resuming from a hotstart.
+        """
         # A list of DrainageNode object
         self.nodes = nodes_list
         # A list of DrainageLink objects
         self.links = links_list
         # create swmm object, open files and start simulation
         self.swmm_sim = pyswmm_sim
-        self.swmm_model = self.swmm_sim._model
+        self.swmm_model: PySWMM = self.swmm_sim._model
         # Check if the unit is m3/s
         if self.swmm_sim.flow_units != "CMS":
             msgr.fatal("SWMM simulation unit must be CMS")
         # Start model
         if hotstart_filename:
             self.swmm_model.swmm_use_hotstart(hotstart_filename)
+        if hotstart_start_datetime is not None:
+            from pyswmm.toolkitapi import SimulationTime
+
+            self.swmm_model.setSimulationDateTime(
+                SimulationTime.StartDateTime, hotstart_start_datetime
+            )
         self.swmm_model.swmm_start()
         # allow ponding
         # TODO: check if allowing ponding is necessary

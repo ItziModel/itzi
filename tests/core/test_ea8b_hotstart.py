@@ -37,6 +37,7 @@ import pyproj
 import icechunk
 import icechunk.xarray
 import obstore
+import pandas as pd
 
 from itzi.simulation_builder import SimulationBuilder
 from itzi.data_containers import SimulationConfig, SurfaceFlowParameters
@@ -237,12 +238,8 @@ def test_ea8b_hotstart_roundtrip(
     # Diagnostic: inspect drainage node coupling flow in resumed simulation
     # =========================================================================
 
-    from io import StringIO
-    import obstore
-    import pandas as pd
-
     nodes_csv_bytes = bytes(obstore.get(obj_store, "out_drainage_nodes.csv").bytes())
-    df_resumed = pd.read_csv(StringIO(nodes_csv_bytes.decode("utf-8")))
+    df_resumed = pd.read_csv(io.StringIO(nodes_csv_bytes.decode("utf-8")))
     print("\n=== Resumed simulation: first 10 drainage node rows ===")
     print(df_resumed[["sim_time", "node_id", "coupling_flow", "depth"]].head(10).to_string())
     print("=== Resumed simulation: last 10 drainage node rows ===")

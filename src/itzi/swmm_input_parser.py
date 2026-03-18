@@ -1,5 +1,5 @@
 """
-Copyright (C) 2016-2025 Laurent Courty
+Copyright (C) 2016-2026 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -14,6 +14,7 @@ GNU General Public License for more details.
 
 import os
 from collections import namedtuple
+from datetime import datetime
 
 
 class SwmmInputParser(object):
@@ -146,3 +147,26 @@ class SwmmInputParser(object):
                     vertex_c = self.Coordinates(float(vertex[1]), float(vertex[2]))
                     vertices.append(vertex_c)
         return vertices
+
+    def get_start_datetime(self) -> datetime | None:
+        """Parse START_DATE and START_TIME from the [OPTIONS] section.
+
+        Returns:
+            datetime if both are found, None otherwise.
+        """
+        if not self.inp.get("option"):
+            return None
+        start_date = None
+        start_time = None
+        for line in self.inp["option"]:
+            if len(line) >= 2:
+                if line[0].upper() == "START_DATE":
+                    start_date = line[1]
+                elif line[0].upper() == "START_TIME":
+                    start_time = line[1]
+        if start_date and start_time:
+            try:
+                return datetime.strptime(f"{start_date} {start_time}", "%m/%d/%Y %H:%M:%S")
+            except ValueError:
+                return None
+        return None
