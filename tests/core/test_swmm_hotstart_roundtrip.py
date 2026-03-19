@@ -18,6 +18,9 @@ from itzi import SwmmInputParser
 
 SECONDS_PER_DAY = 24 * 3600
 SPLIT_TIME = timedelta(hours=1, minutes=40)
+SWMM_J1_TOTAL_INFLOW_MAX_DIFF = 0.25
+SWMM_C0_FLOW_MAX_DIFF = 0.25
+SWMM_J1_INTEGRATED_INFLOW_MAX_DIFF = 2.0
 
 
 def _record_snapshot(
@@ -110,152 +113,10 @@ def _integrated_volume(elapsed_seconds: np.ndarray, flows: np.ndarray) -> float:
     return float(np.trapezoid(flows, elapsed_seconds))
 
 
-def _format_focus_window(
-    elapsed_reference: np.ndarray,
-    elapsed_resumed: np.ndarray,
-    reference_values: np.ndarray,
-    resumed_values: np.ndarray,
-    focus_index: int,
-    label: str,
-    window_size: int = 8,
-) -> list[str]:
-    lines = [f"{label} around max diff:"]
-    start = max(0, focus_index - window_size)
-    end = min(len(elapsed_reference), focus_index + window_size + 1)
-    lines.append("idx  t_ref  t_res  resumed  reference  diff")
-    for idx in range(start, end):
-        resumed_value = resumed_values[idx]
-        reference_value = reference_values[idx]
-        lines.append(
-            f"{idx:4d} {elapsed_reference[idx]:6.1f} {elapsed_resumed[idx]:6.1f} "
-            f"{resumed_value:8.5f} {reference_value:10.5f} "
-            f"{(resumed_value - reference_value):9.5f}"
-        )
-    return lines
-
-
-def _build_diagnostic_report(
-    reference: dict[str, tuple[str, ...] | np.ndarray],
-    resumed: dict[str, tuple[str, ...] | np.ndarray],
-) -> str:
-    node_ids = reference["node_ids"]
-    link_ids = reference["link_ids"]
-    elapsed_reference = np.asarray(reference["elapsed_seconds"])
-    elapsed_resumed = np.asarray(resumed["elapsed_seconds"])
-    focus_nodes = ("J0", "J1")
-    focus_links = ("C0",)
-
-    metric_defs = {
-        "node_depths": node_ids,
-        "node_heads": node_ids,
-        "node_total_inflow": node_ids,
-        "node_cumulative_inflow": node_ids,
-        "node_volumes": node_ids,
-        "node_overflow": node_ids,
-        "link_flows": link_ids,
-        "link_depths": link_ids,
-        "link_volumes": link_ids,
-    }
-
-    lines = [
-        "Standalone SWMM hotstart roundtrip diagnostics",
-        "",
-        "Global maxima:",
-    ]
-    for metric_name, ids in metric_defs.items():
-        reference_values = np.asarray(reference[metric_name])
-        resumed_values = np.asarray(resumed[metric_name])
-        diff = np.abs(resumed_values - reference_values)
-        max_time_idx, max_entity_idx = np.unravel_index(np.argmax(diff), diff.shape)
-        lines.append(
-            "- "
-            f"{metric_name}: max_diff={diff[max_time_idx, max_entity_idx]:.6f} "
-            f"at t_ref={elapsed_reference[max_time_idx]:.1f}s "
-            f"t_res={elapsed_resumed[max_time_idx]:.1f}s "
-            f"id={ids[max_entity_idx]}"
-        )
-
-    lines.extend(["", "Focused nodes/links in first 60s after restart:"])
-    early_window = (elapsed_reference >= SPLIT_TIME.total_seconds()) & (
-        elapsed_reference <= SPLIT_TIME.total_seconds() + 60.0
-    )
-    for node_id in focus_nodes:
-        node_idx = node_ids.index(node_id)
-        for metric_name in (
-            "node_depths",
-            "node_total_inflow",
-            "node_volumes",
-            "node_overflow",
-        ):
-            reference_values = np.asarray(reference[metric_name])[early_window, node_idx]
-            resumed_values = np.asarray(resumed[metric_name])[early_window, node_idx]
-            diff = np.abs(resumed_values - reference_values)
-            lines.append(
-                f"- {node_id} {metric_name}: max_diff={diff.max():.6f} mean_diff={diff.mean():.6f}"
-            )
-
-    for link_id in focus_links:
-        link_idx = link_ids.index(link_id)
-        for metric_name in ("link_flows", "link_depths", "link_volumes"):
-            reference_values = np.asarray(reference[metric_name])[early_window, link_idx]
-            resumed_values = np.asarray(resumed[metric_name])[early_window, link_idx]
-            diff = np.abs(resumed_values - reference_values)
-            lines.append(
-                f"- {link_id} {metric_name}: max_diff={diff.max():.6f} mean_diff={diff.mean():.6f}"
-            )
-
-    lines.extend(["", "Integrated flow volume after restart:"])
-    c0_idx = link_ids.index("C0")
-    j1_idx = node_ids.index("J1")
-    c0_reference = np.asarray(reference["link_flows"])[:, c0_idx]
-    c0_resumed = np.asarray(resumed["link_flows"])[:, c0_idx]
-    j1_reference = np.asarray(reference["node_total_inflow"])[:, j1_idx]
-    j1_resumed = np.asarray(resumed["node_total_inflow"])[:, j1_idx]
-    lines.append(
-        "- "
-        f"C0 integrated flow volume: resumed={_integrated_volume(elapsed_resumed, c0_resumed):.3f} m3, "
-        f"reference={_integrated_volume(elapsed_reference, c0_reference):.3f} m3, "
-        f"diff={_integrated_volume(elapsed_resumed, c0_resumed) - _integrated_volume(elapsed_reference, c0_reference):.3f} m3"
-    )
-    lines.append(
-        "- "
-        f"J1 integrated total inflow: resumed={_integrated_volume(elapsed_resumed, j1_resumed):.3f} m3, "
-        f"reference={_integrated_volume(elapsed_reference, j1_reference):.3f} m3, "
-        f"diff={_integrated_volume(elapsed_resumed, j1_resumed) - _integrated_volume(elapsed_reference, j1_reference):.3f} m3"
-    )
-
-    lines.extend(["", "Detailed windows around largest discrepancies:"])
-    detail_specs = (
-        ("node_depths", "J0"),
-        ("node_total_inflow", "J1"),
-        ("node_volumes", "J0"),
-        ("link_flows", "C0"),
-    )
-    for metric_name, entity_id in detail_specs:
-        ids = node_ids if metric_name.startswith("node_") else link_ids
-        entity_idx = ids.index(entity_id)
-        reference_values = np.asarray(reference[metric_name])[:, entity_idx]
-        resumed_values = np.asarray(resumed[metric_name])[:, entity_idx]
-        max_time_idx = int(np.argmax(np.abs(resumed_values - reference_values)))
-        lines.extend(
-            _format_focus_window(
-                elapsed_reference,
-                elapsed_resumed,
-                reference_values,
-                resumed_values,
-                max_time_idx,
-                f"{entity_id} {metric_name}",
-            )
-        )
-        lines.append("")
-
-    return "\n".join(lines).rstrip() + "\n"
-
-
-def _rewrite_j1_ponded_area(inp_text: str, ponded_area: int) -> str:
-    target = "J1               29.46        2.0          0       100        1"
-    replacement = f"J1               29.46        2.0          0       100        {ponded_area}"
-    assert target in inp_text, "Could not find J1 junction definition"
+def _rewrite_allow_ponding(inp_text: str, enabled: bool) -> str:
+    target = "ALLOW_PONDING        YES"
+    replacement = f"ALLOW_PONDING        {'YES' if enabled else 'NO'}"
+    assert target in inp_text, "Could not find ALLOW_PONDING option"
     return inp_text.replace(target, replacement, 1)
 
 
@@ -290,9 +151,9 @@ def _run_ab_ponding_diagnostic(
     results: dict[str, dict[str, float]] = {}
 
     with tempfile.TemporaryDirectory(dir=test_data_temp_path) as tmp_dir:
-        for label, ponded_area in (("ponding_on", 1), ("ponding_off", 0)):
+        for label, allow_ponding in (("ponding_on", True), ("ponding_off", False)):
             inp_path = Path(tmp_dir) / f"{label}.inp"
-            inp_path.write_text(_rewrite_j1_ponded_area(base_text, ponded_area))
+            inp_path.write_text(_rewrite_allow_ponding(base_text, allow_ponding))
 
             reference = _run_uninterrupted(str(inp_path), SPLIT_TIME.total_seconds())
             resumed = _run_with_hotstart(str(inp_path), SPLIT_TIME.total_seconds())
@@ -497,21 +358,54 @@ def test_swmm_hotstart_roundtrip(test_data_path: str) -> None:
 
 @pytest.mark.slow
 @pytest.mark.forked  # Avoid pyswmm.errors.MultiSimulationError.
-def test_swmm_hotstart_roundtrip_diagnostics(
-    test_data_path: str,
-    test_data_temp_path: str,
-) -> None:
-    """Write a focused SWMM-only diagnostic report for the EA8b hotstart split."""
+def test_swmm_hotstart_roundtrip_guardrails(test_data_path: str) -> None:
+    """Keep a standalone SWMM guardrail on the known resume-sensitive quantities.
+
+    SWMM hotstart is not restart-exact for the EA8b network, especially around the
+    ponded J1 state, so the exact-comparison test above remains xfailed. This test
+    keeps a narrower regression guardrail on the resumed-vs-uninterrupted metrics
+    that were useful during the investigation, without relying on large diagnostic
+    artifacts.
+    """
     inp_file = Path(test_data_path) / "EA_test_8" / "b" / "test8b_drainage_ponding.inp"
     split_seconds = SPLIT_TIME.total_seconds()
 
     reference = _run_uninterrupted(str(inp_file), split_seconds)
     resumed = _run_with_hotstart(str(inp_file), split_seconds)
 
-    report_path = Path(test_data_temp_path) / "swmm_hotstart_roundtrip_diagnostic.txt"
-    report_path.write_text(_build_diagnostic_report(reference, resumed))
+    ref_times = np.asarray(reference["elapsed_seconds"])
+    resumed_times = np.asarray(resumed["elapsed_seconds"])
+    ref_node_ids = reference["node_ids"]
+    resumed_node_ids = resumed["node_ids"]
+    ref_link_ids = reference["link_ids"]
+    resumed_link_ids = resumed["link_ids"]
 
-    assert report_path.exists()
+    j1_total_inflow_max_diff = _aligned_max_abs_diff(
+        ref_times,
+        np.asarray(reference["node_total_inflow"])[:, ref_node_ids.index("J1")],
+        resumed_times,
+        np.asarray(resumed["node_total_inflow"])[:, resumed_node_ids.index("J1")],
+    )
+    c0_flow_max_diff = _aligned_max_abs_diff(
+        ref_times,
+        np.asarray(reference["link_flows"])[:, ref_link_ids.index("C0")],
+        resumed_times,
+        np.asarray(resumed["link_flows"])[:, resumed_link_ids.index("C0")],
+    )
+    j1_integrated_inflow_diff = abs(
+        _integrated_volume(
+            resumed_times,
+            np.asarray(resumed["node_total_inflow"])[:, resumed_node_ids.index("J1")],
+        )
+        - _integrated_volume(
+            ref_times,
+            np.asarray(reference["node_total_inflow"])[:, ref_node_ids.index("J1")],
+        )
+    )
+
+    assert j1_total_inflow_max_diff < SWMM_J1_TOTAL_INFLOW_MAX_DIFF
+    assert c0_flow_max_diff < SWMM_C0_FLOW_MAX_DIFF
+    assert j1_integrated_inflow_diff < SWMM_J1_INTEGRATED_INFLOW_MAX_DIFF
 
 
 @pytest.mark.slow
@@ -520,21 +414,16 @@ def test_swmm_hotstart_roundtrip_ponding_ab(
     test_data_path: str,
     test_data_temp_path: str,
 ) -> None:
-    """Compare standalone SWMM hotstart divergence with J1 ponding enabled vs disabled."""
+    """Verify that disabling global ponding reduces standalone SWMM resume divergence."""
     original_inp = Path(test_data_path) / "EA_test_8" / "b" / "test8b_drainage_ponding.inp"
     results = _run_ab_ponding_diagnostic(original_inp, test_data_temp_path)
 
-    report_lines = [
-        "SWMM hotstart ponding A/B diagnostic",
-        "",
-    ]
-    for label in ("ponding_on", "ponding_off"):
-        report_lines.append(f"{label}:")
-        for key, value in results[label].items():
-            report_lines.append(f"- {key}: {value:.6f}")
-        report_lines.append("")
-
-    comparison_path = Path(test_data_temp_path) / "swmm_hotstart_ponding_ab.txt"
-    comparison_path.write_text("\n".join(report_lines).rstrip() + "\n")
-
-    assert comparison_path.exists()
+    assert (
+        results["ponding_off"]["j1_volume_max_diff"] < results["ponding_on"]["j1_volume_max_diff"]
+    )
+    assert (
+        results["ponding_off"]["j1_overflow_max_diff"]
+        < results["ponding_on"]["j1_overflow_max_diff"]
+    )
+    assert results["ponding_off"]["j0_depth_max_diff"] < results["ponding_on"]["j0_depth_max_diff"]
+    assert results["ponding_off"]["c0_flow_max_diff"] < results["ponding_on"]["c0_flow_max_diff"]
