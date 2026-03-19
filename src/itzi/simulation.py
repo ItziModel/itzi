@@ -322,8 +322,10 @@ class Simulation:
             cell_dy=self.raster_domain.dy,
             drainage_network_data=drainage_network_data,
         )
-        # write final report.
+        # Write final report and close swmm simulation
         self.report.end(simulation_data)
+        if self.drainage_model:
+            self.drainage_model.close()
 
     def update_input_arrays(self):
         """Get new array using TimedArrays,

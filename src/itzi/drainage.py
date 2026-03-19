@@ -91,11 +91,31 @@ class DrainageSimulation:
         # TODO: check if allowing ponding is necessary
         self._dt = 0.0
         self.elapsed_time = 0.0
+        self._closed = False
 
     def __del__(self):
         """Make sure the swmm simulation is ended and closed properly."""
-        self.swmm_model.swmm_report()
-        self.swmm_model.swmm_close()
+        self.close()
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        try:
+            self.swmm_model.swmm_end()
+        except Exception:
+            pass
+        try:
+            self.swmm_model.swmm_report()
+        except Exception:
+            pass
+        try:
+            self.swmm_sim.close()
+        except Exception:
+            try:
+                self.swmm_model.swmm_close()
+            except Exception:
+                pass
+        self._closed = True
 
     @property
     def dt(self):
