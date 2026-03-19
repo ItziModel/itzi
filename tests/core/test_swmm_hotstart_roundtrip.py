@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 import pytest
 import pyswmm
+from pyswmm.simulation import _sim_state_instance
 from pyswmm.toolkitapi import NodeResults, SimulationTime
 
 from itzi import SwmmInputParser
@@ -93,6 +94,8 @@ def _close_swmm_simulation(swmm_sim: pyswmm.Simulation) -> None:
                 getattr(model, method_name)()
             except Exception:
                 pass
+    finally:
+        _sim_state_instance.sim_is_instantiated = False
 
 
 def _step_to_elapsed_seconds(model, target_seconds: float) -> float:
