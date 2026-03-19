@@ -7,12 +7,19 @@ import zipfile
 import numpy as np
 import pandas as pd
 import pytest
-import icechunk
-import obstore
-import xarray as xr
-import rioxarray
-import pyproj
 
+# Skip the whole EA8b package cleanly when optional cloud dependencies are missing.
+# This conftest is imported during collection, before `-m "not cloud"` deselection
+# takes effect, so plain imports would raise ModuleNotFoundError in minimal test
+# environments such as wheel-build checks.
+pytest.importorskip("requests")
+icechunk = pytest.importorskip("icechunk")
+obstore = pytest.importorskip("obstore")
+xr = pytest.importorskip("xarray")
+rioxarray = pytest.importorskip("rioxarray")
+pyproj = pytest.importorskip("pyproj")
+
+# ruff: noqa: E402
 from itzi.simulation_builder import SimulationBuilder
 from itzi.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi.const import TemporalType
