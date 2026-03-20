@@ -1,5 +1,5 @@
 """
-Copyright (C) 2025 Laurent Courty
+Copyright (C) 2025-2026 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -22,6 +22,7 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict
 
 from itzi.const import DefaultValues, TemporalType, InfiltrationModelType
+from itzi.providers.domain_data import DomainData
 
 if TYPE_CHECKING:
     from itzi.drainage import DrainageNode
@@ -215,6 +216,52 @@ class SimulationConfig(BaseModel):
     orifice_coeff: float = DefaultValues.ORIFICE_COEFF
     free_weir_coeff: float = DefaultValues.FREE_WEIR_COEFF
     submerged_weir_coeff: float = DefaultValues.SUBMERGED_WEIR_COEFF
+
+    def as_str_dict(self) -> Dict:
+        """Convert the configuration to a dictionary with string representations."""
+        raw_dict = self.model_dump()
+        raw_dict["start_time"] = self.start_time.isoformat()
+        raw_dict["end_time"] = self.end_time.isoformat()
+        raw_dict["record_step"] = self.record_step.total_seconds()
+        return raw_dict
+
+
+class HotstartSimulationState(BaseModel):
+    """Runtime state to be restored from a hotstart file."""
+
+    model_config = ConfigDict(frozen=True)
+
+    sim_time: str  # ISO format datetime
+    dt: float  # seconds
+    next_ts: Dict[str, str]  # ISO format datetimes
+    time_steps_counters: Dict[str, int]
+    accum_update_time: Dict[str, str]  # ISO format datetimes
+    old_domain_volume: float
+    # Hashes are computed by HotstartWriter and injected before serialization;
+    # callers building the state before archive creation leave them as empty defaults.
+    raster_domain_hash: str = ""
+    swmm_hotstart_hash: str | None = None
+    # SWMM elapsed time in seconds at the hotstart point.
+    # Required to correctly initialise DrainageSimulation.elapsed_time so that
+    # the first swmm_step() after hotstart restoration computes the correct _dt.
+    swmm_elapsed_time: float | None = None
+
+
+class HotstartMetadata(BaseModel):
+    """Metadata schema for hotstart archive files.
+
+    Provides a single source of truth for hotstart metadata structure,
+    enabling validation during both creation and loading.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    creation_date: datetime
+    itzi_version: str
+    hotstart_version: int
+    domain_data: DomainData
+    simulation_config: SimulationConfig
+    simulation_state: HotstartSimulationState
 
 
 class GrassParams(BaseModel):

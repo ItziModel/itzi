@@ -1,5 +1,5 @@
 """
-Copyright (C) 2016-2025 Laurent Courty
+Copyright (C) 2016-2026 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -12,9 +12,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 import math
 from datetime import timedelta
 from enum import StrEnum
+from io import BytesIO
+import tempfile
 
 import pyswmm
 import numpy as np
@@ -29,6 +34,10 @@ from itzi.data_containers import (
     DrainageNodeAttributes,
 )
 
+if TYPE_CHECKING:
+    from datetime import datetime
+    from pyswmm.swmm5 import PySWMM
+
 
 class CouplingTypes(StrEnum):
     NOT_COUPLED = "not coupled"
@@ -41,27 +50,72 @@ class CouplingTypes(StrEnum):
 class DrainageSimulation:
     """manage simulation of the pipe network"""
 
-    def __init__(self, pyswmm_sim, nodes_list, links_list):
+    def __init__(
+        self,
+        pyswmm_sim: pyswmm.Simulation,
+        nodes_list: list[DrainageNode],
+        links_list: list[DrainageLink],
+        hotstart_filename: str | None = None,
+        hotstart_start_datetime: datetime | None = None,
+    ):
+        """Initialize the drainage simulation.
+
+        Args:
+            pyswmm_sim: A pyswmm Simulation object.
+            nodes_list: List of DrainageNode objects.
+            links_list: List of DrainageLink objects.
+            hotstart_filename: Path to SWMM hotstart file (.hsf) to restore state from.
+            hotstart_start_datetime: datetime to set as SWMM's start time after hotstart
+                restore. This is used to ensure SWMM reads timeseries from the correct
+                point after resuming from a hotstart.
+        """
         # A list of DrainageNode object
         self.nodes = nodes_list
         # A list of DrainageLink objects
         self.links = links_list
         # create swmm object, open files and start simulation
         self.swmm_sim = pyswmm_sim
-        self.swmm_model = self.swmm_sim._model
+        self.swmm_model: PySWMM = self.swmm_sim._model
         # Check if the unit is m3/s
         if self.swmm_sim.flow_units != "CMS":
             msgr.fatal("SWMM simulation unit must be CMS")
+        # Start model
+        if hotstart_filename:
+            self.swmm_model.swmm_use_hotstart(hotstart_filename)
+        if hotstart_start_datetime is not None:
+            self.swmm_model.setSimulationDateTime(
+                pyswmm.toolkitapi.SimulationTime.StartDateTime, hotstart_start_datetime
+            )
         self.swmm_model.swmm_start()
         # allow ponding
         # TODO: check if allowing ponding is necessary
         self._dt = 0.0
         self.elapsed_time = 0.0
+        self._closed = False
 
     def __del__(self):
         """Make sure the swmm simulation is ended and closed properly."""
-        self.swmm_model.swmm_report()
-        self.swmm_model.swmm_close()
+        self.close()
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        try:
+            self.swmm_model.swmm_end()
+        except Exception:
+            pass
+        try:
+            self.swmm_model.swmm_report()
+        except Exception:
+            pass
+        try:
+            self.swmm_sim.close()
+        except Exception:
+            try:
+                self.swmm_model.swmm_close()
+            except Exception:
+                pass
+        self._closed = True
 
     @property
     def dt(self):
@@ -105,6 +159,19 @@ class DrainageSimulation:
         for link in self.links:
             links_data.append(link.get_data())
         return DrainageNetworkData(nodes=tuple(nodes_data), links=tuple(links_data))
+
+    def get_hotstart(self) -> BytesIO:
+        """Save a temp SWMM hotstart, return a binary object."""
+        with tempfile.NamedTemporaryFile(suffix=".hsf", delete_on_close=False) as tmp:
+            temp_hotstart = tmp.name
+            # Close the file handle so SWMM can open it exclusively
+            tmp.close()
+            self.swmm_model.swmm_save_hotstart(temp_hotstart)
+            with open(temp_hotstart, "rb") as f:
+                buffer = BytesIO(f.read())
+            buffer.seek(0)
+            return buffer
+        # File is automatically deleted on context manager exit, even on exception
 
 
 class DrainageNode(object):
