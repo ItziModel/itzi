@@ -56,8 +56,8 @@ class BmiItzi(Bmi):
 
     def __init__(self):
         """Create a BmiItzi model that is ready for initialization."""
-        self.itzi = None
-        self.grass_session_manager = None
+        self.itzi: SimulationRunner
+        self.grass_session_manager: GrassSessionManager
 
     # Model control functions #
 
@@ -70,12 +70,12 @@ class BmiItzi(Bmi):
             Path to name of input file.
         """
         conf_data = ConfigReader(filename)
+        sim_params = conf_data.get_sim_params()
         grass_params = conf_data.get_grass_params()
         self.grass_session_manager = GrassSessionManager(grass_params)
         self.grass_session_manager.open()
 
-        self.itzi = SimulationRunner()
-        self.itzi.initialize(conf_data)
+        self.itzi = SimulationRunner(sim_params, grass_params)
 
     def update(self):
         """Advance model by one time step."""

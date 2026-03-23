@@ -24,13 +24,16 @@ COPYRIGHT: (C) 2015-2025 by Laurent Courty
             GNU General Public License for more details.
 """
 
-import sys
+from __future__ import annotations
+
 import os
+import sys
 import time
 import traceback
+from datetime import datetime, timedelta
 from importlib.metadata import version
 from multiprocessing import Process
-from datetime import datetime, timedelta
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -42,6 +45,11 @@ from itzi import parser
 from itzi.profiler import profile_context
 from itzi.simulation_builder import SimulationBuilder
 from itzi.grass_session import GrassSessionManager
+
+if TYPE_CHECKING:
+    from itzi.data_containers import SimulationConfig, GrassParams
+    from itzi.providers.grass_interface import GrassInterface
+    from itzi.simulation import Simulation
 
 
 def main():
@@ -57,23 +65,19 @@ def main():
 
 
 class SimulationRunner:
-    """Provide the necessary tools to run one simulation from a config file."""
+    """Provide the necessary tools to run one simulation."""
 
-    def __init__(self):
-        self.conf = None
-        self.sim = None
+    def __init__(self, sim_config: SimulationConfig, grass_params: GrassParams):
         self.grass_required_version = "8.4.0"
+        self.g_interface: GrassInterface
+        self.sim: Simulation
+        self._initialize(sim_config, grass_params)
 
-    def initialize(self, conf_data: ConfigReader):
-        """Parse the configuration file, set GRASS,
-        and initialize the simulation.
-        """
-        self.conf = conf_data
-        sim_config = self.conf.get_sim_params()
-        grass_params = self.conf.get_grass_params()
+    def _initialize(self, sim_config: SimulationConfig, grass_params: GrassParams):
+        """Set GRASS and initialize the simulation."""
 
         # display parameters (if verbose)
-        self.conf.display_sim_param()
+        sim_config.display_sim_param()
 
         # Check GRASS version
         import grass.script as gscript
@@ -91,14 +95,14 @@ class SimulationRunner:
         # return error if output files exist
         from itzi.providers import grass_interface
 
-        grass_interface.check_output_files(self.conf.output_map_names.values())
+        grass_interface.check_output_files(sim_config.output_map_names.values())
         msgr.debug("Output files OK")
 
         data_type = np.float32
         # Create the grass_interface object
         self.g_interface = grass_interface.GrassInterface(
-            start_time=self.conf.sim_times.start,
-            end_time=self.conf.sim_times.end,
+            start_time=sim_config.start_time,
+            end_time=sim_config.end_time,
             dtype=data_type,
             region_id=grass_params.region,
             raster_mask_id=grass_params.mask,
@@ -118,7 +122,6 @@ class SimulationRunner:
                 "default_end_time": sim_config.end_time,
             }
         )
-
         raster_output_provider = GrassRasterOutputProvider(
             {
                 "grass_interface": self.g_interface,
@@ -144,7 +147,6 @@ class SimulationRunner:
         )
         # Initialize the simulation
         self.sim.initialize()
-        return self
 
     def run(self):
         """Run a full simulation"""
@@ -166,8 +168,9 @@ class SimulationRunner:
         """Tear down the simulation and return to previous state."""
         self.sim.finalize()
         # Cleanup the grass interface object
-        self.g_interface.finalize()
-        self.g_interface.cleanup()
+        if hasattr(self, "g_interface"):
+            self.g_interface.finalize()
+            self.g_interface.cleanup()
         return self
 
     def step(self):
@@ -183,8 +186,9 @@ class SimulationRunner:
 
     def __del__(self):
         # Cleanup the grass interface object
-        self.g_interface.finalize()
-        self.g_interface.cleanup()
+        if hasattr(self, "g_interface"):
+            self.g_interface.finalize()
+            self.g_interface.cleanup()
 
 
 def sim_runner_worker(conf_file):
@@ -195,11 +199,12 @@ def sim_runner_worker(conf_file):
         # Run the simulation
         msgr.message(f"Starting simulation of {os.path.basename(conf_file)}...")
         conf_data = ConfigReader(conf_file)
+        sim_params = conf_data.get_sim_params()
         grass_params = conf_data.get_grass_params()
         with GrassSessionManager(grass_params):
             with profile_context():
-                sim_runner = SimulationRunner()
-                sim_runner.initialize(conf_data).run().finalize()
+                sim_runner = SimulationRunner(sim_params, grass_params)
+                sim_runner.run().finalize()
     except itzi_error.ItziError:
         # if an Itzï error, only print the last line of the traceback
         traceback_lines = traceback.format_exc().splitlines()

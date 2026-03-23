@@ -126,8 +126,7 @@ class TestItziTutorial:
             "test_tutorial_profile.txt"
         )
         with profile_context(profile_path):
-            sim_runner = SimulationRunner()
-            sim_runner.initialize(conf_data)
+            sim_runner = SimulationRunner(conf_data.get_sim_params(), conf_data.get_grass_params())
             sim_runner.run().finalize()
         # Check the results
         h_max_univar = gscript.parse_command(
@@ -181,8 +180,7 @@ class TestItziTutorial:
 
         # Run the simulation
         conf_data = ConfigReader(config_file)
-        sim_runner = SimulationRunner()
-        sim_runner.initialize(conf_data)
+        sim_runner = SimulationRunner(conf_data.get_sim_params(), conf_data.get_grass_params())
         sim_runner.run().finalize()
 
         # Test consistency of stats file

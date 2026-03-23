@@ -241,33 +241,6 @@ class ConfigReader:
                 "inputs <water_depth> and <water_surface_elevation> are mutually exclusive."
             )
 
-    def display_sim_param(self):
-        """Display simulation parameters if verbose"""
-        inter_txt = "#" * 50
-        txt_template = "{:<24s} {}"
-        msgr.verbose("{}".format(inter_txt))
-        msgr.verbose("Input maps:")
-        for k, v in self.input_map_names.items():
-            msgr.verbose(txt_template.format(k, v))
-        msgr.verbose("{}".format(inter_txt))
-        msgr.verbose("Output maps:")
-        for k, v in self.output_map_names.items():
-            msgr.verbose(txt_template.format(k, v))
-        msgr.verbose("{}".format(inter_txt))
-        msgr.verbose("Simulation parameters:")
-        for k, v in self.sim_param.items():
-            msgr.verbose(txt_template.format(k, v))
-        # simulation times
-        msgr.verbose("{}".format(inter_txt))
-        msgr.verbose("Simulation times:")
-        txt_start_time = self.sim_times.start.isoformat(" ").split(".")[0]
-        txt_end_time = self.sim_times.end.isoformat(" ").split(".")[0]
-        msgr.verbose(txt_template.format("start", txt_start_time))
-        msgr.verbose(txt_template.format("end", txt_end_time))
-        msgr.verbose(txt_template.format("duration", self.sim_times.duration))
-        msgr.verbose(txt_template.format("record_step", self.sim_times.record_step))
-        msgr.verbose("{}".format(inter_txt))
-
     def get_sim_params(self) -> SimulationConfig:
         """Return a SimulationConfig object containing all simulation parameters"""
         surface_params = SurfaceFlowParameters(

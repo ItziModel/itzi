@@ -24,7 +24,7 @@ class TestBmiMutating:
     # Model control functions #
     def test_initialize(self, bmi_object):
         assert hasattr(bmi_object, "itzi")
-        assert hasattr(bmi_object.itzi, "initialize")
+        assert hasattr(bmi_object.itzi, "sim")
 
     def test_update(self, bmi_object):
         old_time = bmi_object.get_current_time()

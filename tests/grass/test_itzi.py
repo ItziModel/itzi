@@ -56,8 +56,9 @@ def test_region_mask(test_data_path):
     # Set simulation (should set region and mask)
     config_file = os.path.join(test_data_path, "5by5", "5by5_mask.ini")
     conf_data = ConfigReader(config_file)
-    sim_runner = SimulationRunner()
-    sim_runner.initialize(conf_data)
+    sim_params = conf_data.get_sim_params()
+    grass_params = conf_data.get_grass_params()
+    sim_runner = SimulationRunner(sim_params, grass_params)
     # Run simulation
     sim_runner.run().finalize()
     # Check temporary mask and region

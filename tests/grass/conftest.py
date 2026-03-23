@@ -159,9 +159,8 @@ def grass_5by5(grass_xy_session, test_data_path):
 def grass_5by5_sim(grass_5by5, test_data_path):
     """ """
     config_file = os.path.join(test_data_path, "5by5", "5by5.ini")
-    sim_runner = SimulationRunner()
-    assert isinstance(sim_runner, SimulationRunner)
     conf_data = ConfigReader(config_file)
-    sim_runner.initialize(conf_data)
+    sim_runner = SimulationRunner(conf_data.get_sim_params(), conf_data.get_grass_params())
+    assert isinstance(sim_runner, SimulationRunner)
     sim_runner.run().finalize()
     return sim_runner
