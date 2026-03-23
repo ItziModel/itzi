@@ -22,6 +22,7 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict
 
 from itzi.const import DefaultValues, TemporalType, InfiltrationModelType
+import itzi.messenger as msgr
 from itzi.providers.domain_data import DomainData
 
 if TYPE_CHECKING:
@@ -224,6 +225,37 @@ class SimulationConfig(BaseModel):
         raw_dict["end_time"] = self.end_time.isoformat()
         raw_dict["record_step"] = self.record_step.total_seconds()
         return raw_dict
+
+    def display_sim_param(self) -> None:
+        """Display simulation parameters if verbose."""
+        inter_txt = "#" * 50
+        txt_template = "{:<24s} {}"
+        msgr.verbose(f"{inter_txt}")
+        msgr.verbose("Input maps:")
+        for key, value in self.input_map_names.items():
+            msgr.verbose(txt_template.format(key, value))
+        msgr.verbose(f"{inter_txt}")
+        msgr.verbose("Output maps:")
+        for key, value in self.output_map_names.items():
+            msgr.verbose(txt_template.format(key, value))
+        msgr.verbose(f"{inter_txt}")
+        msgr.verbose("Simulation parameters:")
+        sim_params = {
+            **self.surface_flow_parameters.model_dump(),
+            "dtinf": self.dtinf,
+            "inf_model": self.infiltration_model,
+        }
+        for key, value in sim_params.items():
+            msgr.verbose(txt_template.format(key, value))
+        msgr.verbose(f"{inter_txt}")
+        msgr.verbose("Simulation times:")
+        txt_start_time = self.start_time.isoformat(" ").split(".")[0]
+        txt_end_time = self.end_time.isoformat(" ").split(".")[0]
+        msgr.verbose(txt_template.format("start", txt_start_time))
+        msgr.verbose(txt_template.format("end", txt_end_time))
+        msgr.verbose(txt_template.format("duration", self.end_time - self.start_time))
+        msgr.verbose(txt_template.format("record_step", self.record_step))
+        msgr.verbose(f"{inter_txt}")
 
 
 class HotstartSimulationState(BaseModel):

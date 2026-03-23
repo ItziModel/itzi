@@ -22,8 +22,7 @@ def run_simulation(config_file, test_data_temp_path):
     profile_path = os.path.join(test_data_temp_path, "tutorial_profile.txt")
     with profile_context(profile_path):
         conf_data = ConfigReader(config_file)
-        sim_runner = SimulationRunner()
-        sim_runner.initialize(conf_data)
+        sim_runner = SimulationRunner(conf_data.get_sim_params(), conf_data.get_grass_params())
         sim_runner.run().finalize()
 
 
