@@ -8,6 +8,7 @@ import pytest
 from math import atan2, pi
 
 import itzi.flow as flow
+from itzi.surfaceflow import _update_flow_dir_numpy
 
 
 def test_velocity_direction_calculation():
@@ -52,6 +53,54 @@ def test_vectorizable_velocity_calculation():
         v_optimized = q / max(hf, eps) * (hf > 0)
         assert v_original == pytest.approx(v_optimized)
         assert v_optimized == pytest.approx(expected_v)
+
+
+def test_numpy_flow_dir_matches_cython_with_strided_output():
+    arr_max_dz = np.array(
+        [
+            [3.0, 2.0, 0.0],
+            [2.0, 2.0, 1.0],
+            [0.0, 4.0, 4.0],
+        ],
+        dtype=np.float64,
+    )
+    arr_dz0 = np.array(
+        [
+            [3.0, 0.0, 0.0],
+            [1.0, 2.0, 0.0],
+            [0.0, 1.0, 4.0],
+        ],
+        dtype=np.float64,
+    )
+    arr_dz1 = np.array(
+        [
+            [1.0, 2.0, 0.0],
+            [2.0, 0.0, 1.0],
+            [0.0, 4.0, 3.0],
+        ],
+        dtype=np.float64,
+    )
+
+    strided_storage_cython = np.full((5, 5), 99.0, dtype=np.float64)
+    strided_storage_numpy = np.full((5, 5), 99.0, dtype=np.float64)
+    arr_dir_cython = strided_storage_cython[1:-1, 1:-1]
+    arr_dir_numpy = strided_storage_numpy[1:-1, 1:-1]
+
+    flow.flow_dir(arr_max_dz, arr_dz0, arr_dz1, arr_dir_cython)
+    _update_flow_dir_numpy(arr_max_dz, arr_dz0, arr_dz1, arr_dir_numpy)
+
+    np.testing.assert_array_equal(arr_dir_numpy, arr_dir_cython)
+    np.testing.assert_array_equal(
+        arr_dir_numpy,
+        np.array(
+            [
+                [0.0, 1.0, -1.0],
+                [1.0, 0.0, 1.0],
+                [-1.0, 1.0, 0.0],
+            ],
+            dtype=np.float64,
+        ),
+    )
 
 
 class TestWaterDepthFunction:

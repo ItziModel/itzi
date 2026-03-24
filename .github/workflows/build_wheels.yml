@@ -54,6 +54,11 @@ jobs:
             artifact_suffix: macos-14-serial-control
             cibw_environment_macos_extra: "ITZI_USE_OPENMP=0"
             cibw_test_command_prefix: ""
+          - os: macos-14
+            job_name: macos-14-flow-dir-numpy
+            artifact_suffix: macos-14-flow-dir-numpy
+            cibw_environment_macos_extra: "ITZI_FLOW_DIR_IMPL=numpy"
+            cibw_test_command_prefix: ""
 
     steps:
       - uses: actions/checkout@v4
