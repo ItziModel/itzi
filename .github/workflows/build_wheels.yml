@@ -17,31 +17,43 @@ jobs:
             job_name: ubuntu-latest
             artifact_suffix: ubuntu-latest
             cibw_environment_macos_extra: ""
+            cibw_test_command_prefix: ""
           - os: ubuntu-24.04-arm
             job_name: ubuntu-24.04-arm
             artifact_suffix: ubuntu-24.04-arm
             cibw_environment_macos_extra: ""
+            cibw_test_command_prefix: ""
           - os: windows-latest
             job_name: windows-latest
             artifact_suffix: windows-latest
             cibw_environment_macos_extra: ""
+            cibw_test_command_prefix: ""
           - os: windows-11-arm
             job_name: windows-11-arm
             artifact_suffix: windows-11-arm
             cibw_environment_macos_extra: ""
-          # Temporary macOS investigation matrix to isolate optimizer issues.
+            cibw_test_command_prefix: ""
+          # Temporary macOS investigation matrix to isolate OpenMP runtime issues.
           - os: macos-14
             job_name: macos-14-baseline
             artifact_suffix: macos-14-baseline
             cibw_environment_macos_extra: ""
+            cibw_test_command_prefix: ""
           - os: macos-14
-            job_name: macos-14-o2
-            artifact_suffix: macos-14-o2
-            cibw_environment_macos_extra: "ITZI_OPT_LEVEL=O2"
+            job_name: macos-14-omp1
+            artifact_suffix: macos-14-omp1
+            cibw_environment_macos_extra: ""
+            cibw_test_command_prefix: "OMP_NUM_THREADS=1 "
           - os: macos-14
-            job_name: macos-14-no-vectorize
-            artifact_suffix: macos-14-no-vectorize
-            cibw_environment_macos_extra: "ITZI_DISABLE_VECTORIZE=1"
+            job_name: macos-14-no-helper
+            artifact_suffix: macos-14-no-helper
+            cibw_environment_macos_extra: ""
+            cibw_test_command_prefix: "LIBOMP_USE_HIDDEN_HELPER_TASK=0 LIBOMP_NUM_HIDDEN_HELPER_THREADS=0 "
+          - os: macos-14
+            job_name: macos-14-serial-control
+            artifact_suffix: macos-14-serial-control
+            cibw_environment_macos_extra: "ITZI_USE_OPENMP=0"
+            cibw_test_command_prefix: ""
 
     steps:
       - uses: actions/checkout@v4
@@ -65,7 +77,7 @@ jobs:
           CIBW_BEFORE_TEST: "pip install pytest pytest-benchmark pandas scipy"
           CIBW_TEST_SOURCES: tests
           CIBW_TEST_COMMAND: >  # Fast tests which do not require GRASS
-            pytest -m "not slow and not cloud" tests/core/
+            ${{ matrix.cibw_test_command_prefix }}pytest -m "not slow and not cloud" tests/core/
 
       - uses: actions/upload-artifact@v4
         with:
