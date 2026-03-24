@@ -13,8 +13,11 @@ GNU General Public License for more details.
 """
 
 import copy
+import os
 from datetime import datetime, timedelta
 from typing import Dict, TYPE_CHECKING
+
+import numpy as np
 
 from itzi import rastermetrics
 from itzi.data_containers import SimulationData, MassBalanceData
@@ -23,6 +26,44 @@ from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 if TYPE_CHECKING:
     from itzi.providers.base import RasterOutputProvider, VectorOutputProvider
     from itzi.massbalance import MassBalanceLogger
+
+
+REPORT_ARRAY_IMPL_ENV_VAR = "ITZI_REPORT_ARRAY_IMPL"
+REPORT_ARRAY_IMPL_CYTHON = "cython"
+REPORT_ARRAY_IMPL_NUMPY = "numpy"
+
+
+def _get_report_array_implementation() -> str:
+    """Return the selected implementation for derived report arrays."""
+    implementation = (
+        os.environ.get(REPORT_ARRAY_IMPL_ENV_VAR, REPORT_ARRAY_IMPL_CYTHON).strip().lower()
+    )
+    if implementation not in {REPORT_ARRAY_IMPL_CYTHON, REPORT_ARRAY_IMPL_NUMPY}:
+        raise ValueError(
+            f"{REPORT_ARRAY_IMPL_ENV_VAR} must be one of "
+            f"{REPORT_ARRAY_IMPL_CYTHON!r} or {REPORT_ARRAY_IMPL_NUMPY!r}, "
+            f"not {implementation!r}"
+        )
+    return implementation
+
+
+def _calculate_wse_numpy(h_array: np.ndarray, dem_array: np.ndarray) -> np.ndarray:
+    """Calculate water surface elevation using NumPy."""
+    return h_array + dem_array
+
+
+def _calculate_flux_numpy(flow_array: np.ndarray, cell_size: float) -> np.ndarray:
+    """Calculate flux using NumPy."""
+    return flow_array * cell_size
+
+
+def _calculate_average_rate_from_total_numpy(
+    total_volume_array: np.ndarray,
+    interval_seconds: float,
+    conversion_factor: float,
+) -> np.ndarray:
+    """Calculate an average rate from accumulated totals using NumPy."""
+    return (total_volume_array / interval_seconds) * conversion_factor
 
 
 class Report:
@@ -52,6 +93,7 @@ class Report:
         self.output_arrays = {}
         self.dt = dt
         self.last_step = copy.copy(start_time)
+        self.array_impl = _get_report_array_implementation()
 
     def step(self, simulation_data: SimulationData):
         """write results at given time-step"""
@@ -106,13 +148,11 @@ class Report:
 
             # --- Calculated arrays ---
             if arr_key == "water_surface_elevation":
-                self.output_arrays[arr_key] = rastermetrics.calculate_wse(
-                    raw["water_depth"], raw["dem"]
-                )
+                self.output_arrays[arr_key] = self._calculate_wse(raw["water_depth"], raw["dem"])
             elif arr_key == "qx":
-                self.output_arrays[arr_key] = rastermetrics.calculate_flux(raw["qe_new"], cell_dy)
+                self.output_arrays[arr_key] = self._calculate_flux(raw["qe_new"], cell_dy)
             elif arr_key == "qy":
-                self.output_arrays[arr_key] = rastermetrics.calculate_flux(raw["qs_new"], cell_dx)
+                self.output_arrays[arr_key] = self._calculate_flux(raw["qs_new"], cell_dx)
             elif arr_key == "volume_error":  # Volume error
                 self.output_arrays[arr_key] = accum_arrays["error_depth_accum"] * cell_area
 
@@ -131,10 +171,34 @@ class Report:
                     conversion_factor = 1000 * 3600  # m/s to mm/h
                 else:
                     conversion_factor = 1.0
-                self.output_arrays[output_name] = rastermetrics.calculate_average_rate_from_total(
+                self.output_arrays[output_name] = self._calculate_average_rate_from_total(
                     accum_arrays[accum_key], interval_s, conversion_factor
                 )
         return self
+
+    def _calculate_wse(self, h_array: np.ndarray, dem_array: np.ndarray) -> np.ndarray:
+        if self.array_impl == REPORT_ARRAY_IMPL_NUMPY:
+            return _calculate_wse_numpy(h_array, dem_array)
+        return rastermetrics.calculate_wse(h_array, dem_array)
+
+    def _calculate_flux(self, flow_array: np.ndarray, cell_size: float) -> np.ndarray:
+        if self.array_impl == REPORT_ARRAY_IMPL_NUMPY:
+            return _calculate_flux_numpy(flow_array, cell_size)
+        return rastermetrics.calculate_flux(flow_array, cell_size)
+
+    def _calculate_average_rate_from_total(
+        self,
+        total_volume_array: np.ndarray,
+        interval_seconds: float,
+        conversion_factor: float,
+    ) -> np.ndarray:
+        if self.array_impl == REPORT_ARRAY_IMPL_NUMPY:
+            return _calculate_average_rate_from_total_numpy(
+                total_volume_array, interval_seconds, conversion_factor
+            )
+        return rastermetrics.calculate_average_rate_from_total(
+            total_volume_array, interval_seconds, conversion_factor
+        )
 
     def write_mass_balance(self, data: SimulationData, converted_sim_time: datetime | timedelta):
         """Calculate mass balance and log it."""

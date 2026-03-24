@@ -59,6 +59,17 @@ jobs:
             artifact_suffix: macos-14-flow-dir-numpy
             cibw_environment_macos_extra: "ITZI_FLOW_DIR_IMPL=numpy"
             cibw_test_command_prefix: ""
+          - os: macos-14
+            job_name: macos-14-flow-report-numpy
+            artifact_suffix: macos-14-flow-report-numpy
+            cibw_environment_macos_extra: "ITZI_FLOW_DIR_IMPL=numpy ITZI_REPORT_ARRAY_IMPL=numpy"
+            cibw_test_command_prefix: ""
+          - os: macos-14
+            job_name: macos-14-openmp-smoke
+            artifact_suffix: macos-14-openmp-smoke
+            cibw_environment_macos_extra: ""
+            cibw_test_command_prefix: ""
+            cibw_test_command: "pytest tests/test_openmp_smoke.py"
 
     steps:
       - uses: actions/checkout@v4
@@ -82,7 +93,7 @@ jobs:
           CIBW_BEFORE_TEST: "pip install pytest pytest-benchmark pandas scipy"
           CIBW_TEST_SOURCES: tests
           CIBW_TEST_COMMAND: >  # Fast tests which do not require GRASS
-            ${{ matrix.cibw_test_command_prefix }}pytest -m "not slow and not cloud" tests/core/
+            ${{ matrix.cibw_test_command_prefix }}${{ matrix.cibw_test_command || 'pytest -m "not slow and not cloud" tests/core/' }}
 
       - uses: actions/upload-artifact@v4
         with:
