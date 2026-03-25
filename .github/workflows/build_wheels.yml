@@ -7,37 +7,13 @@ on:
 
 jobs:
   build_wheels:
-    name: Build wheels on ${{ matrix.job_name }}
+    name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            job_name: ubuntu-latest
-            artifact_suffix: ubuntu-latest
-            cibw_environment_macos_extra: ""
-            cibw_test_command_prefix: ""
-          - os: ubuntu-24.04-arm
-            job_name: ubuntu-24.04-arm
-            artifact_suffix: ubuntu-24.04-arm
-            cibw_environment_macos_extra: ""
-            cibw_test_command_prefix: ""
-          - os: windows-latest
-            job_name: windows-latest
-            artifact_suffix: windows-latest
-            cibw_environment_macos_extra: ""
-            cibw_test_command_prefix: ""
-          - os: windows-11-arm
-            job_name: windows-11-arm
-            artifact_suffix: windows-11-arm
-            cibw_environment_macos_extra: ""
-            cibw_test_command_prefix: ""
-          - os: macos-14
-            job_name: macos-14
-            artifact_suffix: macos-14
-            cibw_environment_macos_extra: ""
-            cibw_test_command_prefix: ""
+        # macos-13 is intel, macos-14 is apple silicon, windows-11-arm
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-14]
 
     steps:
       - uses: actions/checkout@v4
@@ -57,15 +33,14 @@ jobs:
             MACOSX_DEPLOYMENT_TARGET=14.0
             ITZI_BDIST_WHEEL=1
             NO_STABLE_ABI=1
-            ${{ matrix.cibw_environment_macos_extra }}
           CIBW_BEFORE_TEST: "pip install pytest pytest-benchmark pandas scipy"
           CIBW_TEST_SOURCES: tests
           CIBW_TEST_COMMAND: >  # Fast tests which do not require GRASS
-            ${{ matrix.cibw_test_command_prefix }}pytest -m "not slow and not cloud" tests/core/
+            pytest -m "not slow and not cloud" tests/core/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: cibw-wheels-${{ matrix.artifact_suffix }}
+          name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
           path: ./wheelhouse/*.whl
 
   build_sdist:
