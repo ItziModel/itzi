@@ -70,6 +70,7 @@ def build_simulation(
     sim_config: SimulationConfig,
     domain_5by5,
     hotstart_bytes: bytes | None = None,
+    raster_output_provider=None,
 ) -> Simulation:
     """Build a simulation with optional hotstart.
 
@@ -78,7 +79,9 @@ def build_simulation(
         domain_5by5: Domain fixture
         hotstart_bytes: Optional hotstart archive bytes
     """
-    raster_output = MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
+    raster_output = raster_output_provider or MemoryRasterOutputProvider(
+        {"out_map_names": sim_config.output_map_names}
+    )
 
     builder = (
         SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
@@ -114,6 +117,41 @@ def build_simulation(
         )
 
     return simulation
+
+
+def run_to_split_and_create_hotstart(
+    sim_config: SimulationConfig,
+    domain_5by5,
+    split_time: datetime,
+    raster_output_provider=None,
+) -> tuple[Simulation, bytes]:
+    simulation = build_simulation(
+        sim_config,
+        domain_5by5,
+        raster_output_provider=raster_output_provider,
+    )
+    simulation.initialize()
+    while simulation.sim_time < split_time:
+        simulation.update()
+    return simulation, simulation.create_hotstart().getvalue()
+
+
+def assert_final_state_matches(simulation: Simulation, reference: Simulation) -> None:
+    for key in ["water_depth", "qe", "qs"]:
+        arr_resumed = simulation.raster_domain.get_array(key)
+        arr_reference = reference.raster_domain.get_array(key)
+        np.testing.assert_allclose(arr_resumed, arr_reference, err_msg=f"Final {key} mismatch")
+
+
+def get_unique_record_times(
+    output_provider: MemoryRasterOutputProvider,
+    output_key: str = "water_depth",
+) -> list[datetime | timedelta]:
+    unique_times: list[datetime | timedelta] = []
+    for sim_time, _ in output_provider.output_maps_dict[output_key]:
+        if not unique_times or sim_time != unique_times[-1]:
+            unique_times.append(sim_time)
+    return unique_times
 
 
 @pytest.fixture(scope="module")
@@ -166,15 +204,11 @@ def test_roundtrip_state_restoration_and_match(
         end_time=end_time,
         helpers=helpers,
     )
-    sim_a = build_simulation(sim_a_config, domain_5by5)
-    sim_a.initialize()
-
-    # Run until split time
-    while sim_a.sim_time < split_time:
-        sim_a.update()
-
-    # Create hotstart at split point
-    hotstart_bytes = sim_a.create_hotstart()
+    sim_a, hotstart_bytes = run_to_split_and_create_hotstart(
+        sim_a_config,
+        domain_5by5,
+        split_time,
+    )
 
     # Save state for comparison
     saved_sim_time = sim_a.sim_time
@@ -195,7 +229,7 @@ def test_roundtrip_state_restoration_and_match(
         end_time=end_time,
         helpers=helpers,
     )
-    sim_b = build_simulation(sim_b_config, domain_5by5, hotstart_bytes=hotstart_bytes.getvalue())
+    sim_b = build_simulation(sim_b_config, domain_5by5, hotstart_bytes=hotstart_bytes)
 
     # Verify raster state was restored
     for key in saved_raster_state:
@@ -249,16 +283,157 @@ def test_roundtrip_state_restoration_and_match(
 
     # Step 4: Verify final results match uninterrupted reference
     # Use qe/qs (internal flow arrays) instead of qx/qy (output arrays computed on-the-fly)
-    for key in ["water_depth", "qe", "qs"]:
-        arr_resumed = sim_b.raster_domain.get_array(key)
-        arr_uninterrupted = uninterrupted_simulation.raster_domain.get_array(key)
-        np.testing.assert_allclose(
-            arr_resumed,
-            arr_uninterrupted,
-            err_msg=f"Final {key} mismatch for split_time={split_seconds}s",
-        )
+    assert_final_state_matches(sim_b, uninterrupted_simulation)
 
     # Verify simulation reached end time
     assert sim_b.sim_time == end_time, (
         f"Resumed simulation did not reach end time: {sim_b.sim_time} != {end_time}"
     )
+
+
+def test_resume_allows_output_provider_change(
+    domain_5by5,
+    helpers,
+    base_time,
+    uninterrupted_simulation: Simulation,
+) -> None:
+    split_time = base_time + timedelta(seconds=30)
+    end_time = base_time + timedelta(seconds=TOTAL_DURATION_SECONDS)
+
+    sim_config = create_sim_config(
+        start_time=base_time,
+        end_time=end_time,
+        helpers=helpers,
+    )
+    initial_output = MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
+    _, hotstart_bytes = run_to_split_and_create_hotstart(
+        sim_config,
+        domain_5by5,
+        split_time,
+        raster_output_provider=initial_output,
+    )
+
+    resumed_output = MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
+    sim_b = build_simulation(
+        sim_config,
+        domain_5by5,
+        hotstart_bytes=hotstart_bytes,
+        raster_output_provider=resumed_output,
+    )
+
+    run_simulation_to_end(sim_b, skip_initialize=True)
+
+    assert initial_output is not resumed_output
+    assert resumed_output.output_maps_dict["water_depth"]
+    assert len(resumed_output.output_maps_dict["water_depth"]) >= 1
+    assert_final_state_matches(sim_b, uninterrupted_simulation)
+    assert sim_b.sim_time == end_time
+
+
+def test_resume_allows_output_map_name_change(
+    domain_5by5,
+    helpers,
+    base_time,
+    uninterrupted_simulation: Simulation,
+) -> None:
+    split_time = base_time + timedelta(seconds=30)
+    end_time = base_time + timedelta(seconds=TOTAL_DURATION_SECONDS)
+
+    sim_a_config = create_sim_config(
+        start_time=base_time,
+        end_time=end_time,
+        helpers=helpers,
+    )
+    _, hotstart_bytes = run_to_split_and_create_hotstart(sim_a_config, domain_5by5, split_time)
+
+    resumed_output_map_names = helpers.make_output_map_names(
+        "out_resume",
+        ["water_depth", "qx", "qy", "volume_error"],
+    )
+    sim_b_config = sim_a_config.model_copy(update={"output_map_names": resumed_output_map_names})
+    resumed_output = MemoryRasterOutputProvider({"out_map_names": resumed_output_map_names})
+    sim_b = build_simulation(
+        sim_b_config,
+        domain_5by5,
+        hotstart_bytes=hotstart_bytes,
+        raster_output_provider=resumed_output,
+    )
+
+    run_simulation_to_end(sim_b, skip_initialize=True)
+
+    assert sim_b.report.out_map_names == resumed_output_map_names
+    assert resumed_output.out_map_names == resumed_output_map_names
+    assert resumed_output.output_maps_dict["water_depth"]
+    assert sim_a_config.output_map_names["water_depth"] != resumed_output_map_names["water_depth"]
+    assert_final_state_matches(sim_b, uninterrupted_simulation)
+
+
+def test_resume_allows_end_time_extension(domain_5by5, helpers, base_time) -> None:
+    split_time = base_time + timedelta(seconds=30)
+    original_end_time = base_time + timedelta(seconds=TOTAL_DURATION_SECONDS)
+    extended_end_time = base_time + timedelta(seconds=90)
+
+    sim_a_config = create_sim_config(
+        start_time=base_time,
+        end_time=original_end_time,
+        helpers=helpers,
+    )
+    _, hotstart_bytes = run_to_split_and_create_hotstart(sim_a_config, domain_5by5, split_time)
+
+    sim_b_config = create_sim_config(
+        start_time=base_time,
+        end_time=extended_end_time,
+        helpers=helpers,
+    )
+    sim_b = build_simulation(sim_b_config, domain_5by5, hotstart_bytes=hotstart_bytes)
+
+    reference = build_simulation(sim_b_config, domain_5by5)
+    run_simulation_to_end(reference)
+    run_simulation_to_end(sim_b, skip_initialize=True)
+
+    assert sim_b.sim_time == extended_end_time
+    assert_final_state_matches(sim_b, reference)
+
+
+def test_resume_applies_new_record_step_cadence(domain_5by5, helpers, base_time) -> None:
+    split_time = base_time + timedelta(seconds=34.2)
+    end_time = base_time + timedelta(seconds=70)
+    original_config = create_sim_config(
+        start_time=base_time,
+        end_time=end_time,
+        helpers=helpers,
+    )
+    sim_a, hotstart_bytes = run_to_split_and_create_hotstart(
+        original_config,
+        domain_5by5,
+        split_time,
+    )
+
+    resumed_record_step = timedelta(seconds=10)
+    resumed_config = original_config.model_copy(update={"record_step": resumed_record_step})
+    resumed_output = MemoryRasterOutputProvider({"out_map_names": resumed_config.output_map_names})
+    sim_b = build_simulation(
+        resumed_config,
+        domain_5by5,
+        hotstart_bytes=hotstart_bytes,
+        raster_output_provider=resumed_output,
+    )
+
+    run_simulation_to_end(sim_b, skip_initialize=True)
+
+    resumed_record_times = get_unique_record_times(resumed_output)
+    resumed_offset = sim_a.sim_time - base_time
+    expected_record_times = [
+        resumed_offset + resumed_record_step,
+        resumed_offset + (2 * resumed_record_step),
+        resumed_offset + (3 * resumed_record_step),
+    ]
+    expected_record_times = [
+        time for time in expected_record_times if time < (end_time - base_time)
+    ]
+
+    assert resumed_record_times[: len(expected_record_times)] == expected_record_times
+
+    reference = build_simulation(original_config, domain_5by5)
+    run_simulation_to_end(reference)
+    assert_final_state_matches(sim_b, reference)
