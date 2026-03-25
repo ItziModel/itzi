@@ -70,6 +70,18 @@ jobs:
             cibw_environment_macos_extra: ""
             cibw_test_command_prefix: ""
             cibw_test_command: "pytest tests/test_openmp_smoke.py"
+          - os: macos-14
+            job_name: macos-14-openmp-smoke-hydrology
+            artifact_suffix: macos-14-openmp-smoke-hydrology
+            cibw_environment_macos_extra: ""
+            cibw_test_command_prefix: ""
+            cibw_test_command: "pytest tests/test_openmp_smoke.py::test_flow_apply_hydrology_large_contiguous_arrays"
+          - os: macos-14
+            job_name: macos-14-openmp-smoke-wse
+            artifact_suffix: macos-14-openmp-smoke-wse
+            cibw_environment_macos_extra: ""
+            cibw_test_command_prefix: ""
+            cibw_test_command: "pytest tests/test_openmp_smoke.py::test_rastermetrics_calculate_wse_large_contiguous_arrays"
 
     steps:
       - uses: actions/checkout@v4

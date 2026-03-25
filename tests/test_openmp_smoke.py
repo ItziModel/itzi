@@ -35,6 +35,20 @@ def test_flow_apply_hydrology_large_contiguous_arrays():
     np.testing.assert_allclose(arr_eff_precip, expected)
 
 
+def test_flow_branchless_velocity_large_contiguous_arrays():
+    arr_qe = _full_array(0.5)
+    arr_qs = _full_array(0.25)
+    arr_hfe = _full_array(0.1)
+    arr_hfs = _full_array(0.2)
+
+    flow.branchless_velocity(
+        arr_qe=arr_qe,
+        arr_qs=arr_qs,
+        arr_hfe=arr_hfe,
+        arr_hfs=arr_hfs,
+    )
+
+
 def test_rastermetrics_calculate_wse_large_contiguous_arrays():
     h_array = _full_array(0.3)
     dem_array = np.arange(np.prod(OPENMP_SMOKE_SHAPE), dtype=np.float32).reshape(
@@ -57,3 +71,18 @@ def test_rastermetrics_calculate_flux_large_contiguous_arrays():
     result = rastermetrics.calculate_flux(flow_array, cell_size)
 
     np.testing.assert_allclose(result, flow_array * cell_size)
+
+
+def test_rastermetrics_accumulate_rate_to_total_large_contiguous_arrays():
+    accum_array = _full_array(1.0)
+    rate_array = _full_array(0.25)
+    time_delta_seconds = 12.0
+
+    rastermetrics.accumulate_rate_to_total(
+        accum_array=accum_array,
+        rate_array=rate_array,
+        time_delta_seconds=time_delta_seconds,
+        padded=False,
+    )
+
+    np.testing.assert_allclose(accum_array, _full_array(1.0 + 0.25 * time_delta_seconds))
