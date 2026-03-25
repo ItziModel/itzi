@@ -9,6 +9,23 @@ from setuptools.command.build_ext import build_ext
 from Cython.Build import cythonize
 
 
+def parse_env_bool(name: str) -> bool | None:
+    """Return a boolean override from an environment variable."""
+    value = os.getenv(name)
+    if value is None:
+        return None
+
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+
+    raise ValueError(
+        f"Environment variable {name!r} must be one of 1/0, true/false, yes/no, on/off"
+    )
+
+
 class BuildConfig:
     """Centralized build configuration management for itzi package.
 
@@ -22,16 +39,25 @@ class BuildConfig:
         self.is_wheel_build = os.getenv("ITZI_BDIST_WHEEL") is not None
         self.platform = self.detect_platform()
         self.architecture = self.detect_architecture()
+        self.openmp_override = parse_env_bool("ITZI_USE_OPENMP")
+        self.use_openmp = self.detect_openmp_usage()
         self.compiler_type = None  # Set during build
+        self.base_compile_args_plain = ["-O3", "-w"]
         self.base_compile_args_unix = ["-O3", "-w", "-fopenmp"]
-        self.base_compile_args_macos = [
-            "-O3",
-            "-w",
-            "-Xpreprocessor",
-            "-fopenmp",
-        ]
+        self.base_compile_args_macos = ["-O3", "-w", "-Xpreprocessor", "-fopenmp"]
         self.base_compile_args_msvc = ["/openmp", "/Ox"]
-        self.base_link_args_unix = ["-lgomp", "-fopenmp"]
+        self.base_compile_args_msvc_plain = ["/Ox"]
+        self.base_link_args_unix = ["-lgomp"]
+
+    def detect_openmp_usage(self) -> bool:
+        """Return whether OpenMP should be enabled for this build."""
+        if self.openmp_override is not None:
+            return self.openmp_override
+
+        if self.is_wheel_build and self.platform == "macos" and self.architecture == "arm64":
+            return False
+
+        return True
 
     def detect_platform(self):
         """Detect current platform (Linux, Windows, macOS)"""
@@ -73,20 +99,39 @@ class BuildConfig:
 
         if self.compiler_type == "msvc":
             # Conservative MSVC flags for source builds
-            compile_args = self.base_compile_args_msvc
+            if self.use_openmp:
+                compile_args = self.base_compile_args_msvc.copy()
+            else:
+                compile_args = self.base_compile_args_msvc_plain.copy()
             link_args = []
         elif self.compiler_type == "mingw32":
-            compile_args = self.base_compile_args_unix + ["-lgomp", "-lpthread", "-march=native"]
-            link_args = ["-lgomp", "-lpthread"]
+            if self.use_openmp:
+                compile_args = self.base_compile_args_unix + [
+                    "-lgomp",
+                    "-lpthread",
+                    "-march=native",
+                ]
+                link_args = ["-lgomp", "-lpthread"]
+            else:
+                compile_args = self.base_compile_args_plain + ["-lpthread", "-march=native"]
+                link_args = ["-lpthread"]
         elif self.compiler_type == "unix":
             if self.platform == "macos":
                 # macOS specific handling
-                compile_args = self.base_compile_args_macos + ["-march=native"]
-                link_args = ["-lomp"]
+                if self.use_openmp:
+                    compile_args = self.base_compile_args_macos + ["-march=native"]
+                    link_args = ["-lomp"]
+                else:
+                    compile_args = self.base_compile_args_plain + ["-march=native"]
+                    link_args = []
             else:
                 # Linux and other Unix systems
-                compile_args = self.base_compile_args_unix + ["-march=native"]
-                link_args = self.base_link_args_unix
+                if self.use_openmp:
+                    compile_args = self.base_compile_args_unix + ["-march=native"]
+                    link_args = self.base_link_args_unix
+                else:
+                    compile_args = self.base_compile_args_plain + ["-march=native"]
+                    link_args = []
 
         return compile_args, link_args
 
@@ -96,54 +141,75 @@ class BuildConfig:
         link_args = []
 
         if self.compiler_type == "msvc":
-            if self.architecture == "x86_64":
-                compile_args = self.base_compile_args_msvc + ["/arch:AVX2"]
-            elif self.architecture == "arm64":
-                compile_args = self.base_compile_args_msvc + ["/arch:armv8.2"]
+            if self.use_openmp:
+                compile_args = self.base_compile_args_msvc.copy()
             else:
-                compile_args = self.base_compile_args_msvc
+                compile_args = self.base_compile_args_msvc_plain.copy()
+            if self.architecture == "x86_64":
+                compile_args.append("/arch:AVX2")
+            elif self.architecture == "arm64":
+                compile_args.append("/arch:armv8.2")
             link_args = []
 
         elif self.compiler_type == "mingw32":
             if self.architecture == "x86_64":
-                compile_args = self.base_compile_args_unix + [
-                    "-lgomp",
-                    "-lpthread",
-                    "-march=x86-64-v3",
-                ]
+                if self.use_openmp:
+                    compile_args = self.base_compile_args_unix + [
+                        "-lgomp",
+                        "-lpthread",
+                        "-march=x86-64-v3",
+                    ]
+                else:
+                    compile_args = self.base_compile_args_plain + ["-lpthread", "-march=x86-64-v3"]
             elif self.architecture == "arm64":
-                compile_args = self.base_compile_args_unix + ["-march=armv8-a+simd"]
+                if self.use_openmp:
+                    compile_args = self.base_compile_args_unix + ["-march=armv8-a+simd"]
+                else:
+                    compile_args = self.base_compile_args_plain + ["-march=armv8-a+simd"]
             else:
-                compile_args = self.base_compile_args_unix
-            link_args = ["-lgomp", "-lpthread"]
+                if self.use_openmp:
+                    compile_args = self.base_compile_args_unix + ["-lgomp", "-lpthread"]
+                else:
+                    compile_args = self.base_compile_args_plain + ["-lpthread"]
+            if self.use_openmp:
+                link_args = ["-lgomp", "-lpthread"]
+            else:
+                link_args = ["-lpthread"]
 
         elif self.compiler_type == "unix":
             if self.platform == "macos":
                 if self.architecture == "arm64":
-                    compile_args = self.base_compile_args_macos + ["-march=armv8-a+simd"]
+                    if self.use_openmp:
+                        compile_args = self.base_compile_args_macos + ["-march=armv8-a+simd"]
+                    else:
+                        compile_args = self.base_compile_args_plain + ["-march=armv8-a+simd"]
                 else:
-                    compile_args = self.base_compile_args_macos
-                link_args = ["-lomp"]
+                    if self.use_openmp:
+                        compile_args = self.base_compile_args_macos
+                    else:
+                        compile_args = self.base_compile_args_plain.copy()
+                link_args = ["-lomp"] if self.use_openmp else []
             else:
                 # Linux and other Unix systems
                 if self.architecture == "x86_64":
-                    compile_args = self.base_compile_args_unix + ["-march=x86-64-v3"]
+                    if self.use_openmp:
+                        compile_args = self.base_compile_args_unix + ["-march=x86-64-v3"]
+                    else:
+                        compile_args = self.base_compile_args_plain + ["-march=x86-64-v3"]
                 elif self.architecture == "arm64":
-                    compile_args = self.base_compile_args_unix + ["-march=armv8-a+simd"]
+                    if self.use_openmp:
+                        compile_args = self.base_compile_args_unix + ["-march=armv8-a+simd"]
+                    else:
+                        compile_args = self.base_compile_args_plain + ["-march=armv8-a+simd"]
                 else:
-                    compile_args = self.base_compile_args_unix
-                link_args = self.base_link_args_unix
+                    if self.use_openmp:
+                        compile_args = self.base_compile_args_unix.copy()
+                    else:
+                        compile_args = self.base_compile_args_plain.copy()
+                link_args = self.base_link_args_unix if self.use_openmp else []
 
         return compile_args, link_args
 
-
-# Legacy compiler options for backward compatibility
-copt = {
-    "msvc": ["/openmp", "/Ox"],
-    "mingw32": ["-O3", "-w", "-fopenmp", "-lgomp", "-lpthread"],
-    "unix": ["-O3", "-w", "-fopenmp"],
-}
-lopt = {"mingw32": ["-lgomp", "-lpthread"], "unix": ["-lgomp", "-fopenmp"]}
 
 macos_includes = [
     "/opt/homebrew/include",
@@ -167,6 +233,7 @@ class build_ext_compiler_check(build_ext):
         print(f"Build mode: {'wheel' if build_config.is_wheel_build else 'source'}")
         print(f"Platform: {build_config.platform}")
         print(f"Architecture: {build_config.architecture}")
+        print(f"OpenMP enabled: {build_config.use_openmp}")
 
         # Get optimization flags from BuildConfig
         try:
@@ -181,7 +248,11 @@ class build_ext_compiler_check(build_ext):
                 ext.extra_link_args = link_args
 
                 # Add macOS-specific include and library paths if needed
-                if compiler == "unix" and platform.system() == "Darwin":
+                if (
+                    compiler == "unix"
+                    and platform.system() == "Darwin"
+                    and build_config.use_openmp
+                ):
                     for path in macos_includes:
                         if os.path.exists(path):
                             ext.include_dirs.append(path)
@@ -197,22 +268,45 @@ class build_ext_compiler_check(build_ext):
             )
             # Fallback to legacy system
             for ext in self.extensions:
-                if compiler in ["msvc", "mingw32"]:
-                    ext.extra_compile_args = copt[compiler]
-                    ext.extra_link_args = lopt.get(compiler)
-                if compiler in ["unix"]:
-                    if platform.system() == "Darwin":
-                        ext.extra_compile_args.extend(["-Xpreprocessor", "-fopenmp"])
-                        ext.extra_link_args.append("-lomp")
-                        for path in macos_includes:
-                            if os.path.exists(path):
-                                ext.include_dirs.append(path)
-                        for path in macos_libs:
-                            if os.path.exists(path):
-                                ext.library_dirs.append(path)
+                if compiler == "msvc":
+                    if build_config.use_openmp:
+                        ext.extra_compile_args = build_config.base_compile_args_msvc.copy()
                     else:
-                        ext.extra_compile_args = copt[compiler]
-                        ext.extra_link_args = lopt[compiler]
+                        ext.extra_compile_args = build_config.base_compile_args_msvc_plain.copy()
+                    ext.extra_link_args = []
+                elif compiler == "mingw32":
+                    if build_config.use_openmp:
+                        ext.extra_compile_args = build_config.base_compile_args_unix + [
+                            "-lgomp",
+                            "-lpthread",
+                        ]
+                        ext.extra_link_args = ["-lgomp", "-lpthread"]
+                    else:
+                        ext.extra_compile_args = build_config.base_compile_args_plain + [
+                            "-lpthread"
+                        ]
+                        ext.extra_link_args = ["-lpthread"]
+                elif compiler == "unix":
+                    if platform.system() == "Darwin":
+                        if build_config.use_openmp:
+                            ext.extra_compile_args = build_config.base_compile_args_macos.copy()
+                            ext.extra_link_args = ["-lomp"]
+                            for path in macos_includes:
+                                if os.path.exists(path):
+                                    ext.include_dirs.append(path)
+                            for path in macos_libs:
+                                if os.path.exists(path):
+                                    ext.library_dirs.append(path)
+                        else:
+                            ext.extra_compile_args = build_config.base_compile_args_plain.copy()
+                            ext.extra_link_args = []
+                    else:
+                        if build_config.use_openmp:
+                            ext.extra_compile_args = build_config.base_compile_args_unix.copy()
+                            ext.extra_link_args = build_config.base_link_args_unix
+                        else:
+                            ext.extra_compile_args = build_config.base_compile_args_plain.copy()
+                            ext.extra_link_args = []
 
         build_ext.build_extensions(self)
 
