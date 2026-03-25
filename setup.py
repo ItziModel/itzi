@@ -70,6 +70,9 @@ class BuildConfig:
         if self.openmp_override is not None:
             return self.openmp_override
 
+        if self.is_wheel_build and self.platform == "macos" and self.architecture == "arm64":
+            return False
+
         return True
 
     def get_extra_unix_compile_args(self) -> list[str]:

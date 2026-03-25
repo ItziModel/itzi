@@ -13,7 +13,6 @@ GNU General Public License for more details.
 """
 
 import math
-import os
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
@@ -24,37 +23,6 @@ from itzi.itzi_error import NullError, DtError
 
 if TYPE_CHECKING:
     from itzi.data_containers import SurfaceFlowParameters
-
-
-FLOW_DIR_IMPL_ENV_VAR = "ITZI_FLOW_DIR_IMPL"
-FLOW_DIR_IMPL_CYTHON = "cython"
-FLOW_DIR_IMPL_NUMPY = "numpy"
-
-
-def _get_flow_dir_implementation() -> str:
-    """Return the selected flow direction implementation."""
-    implementation = os.environ.get(FLOW_DIR_IMPL_ENV_VAR, FLOW_DIR_IMPL_CYTHON).strip().lower()
-    if implementation not in {FLOW_DIR_IMPL_CYTHON, FLOW_DIR_IMPL_NUMPY}:
-        raise ValueError(
-            f"{FLOW_DIR_IMPL_ENV_VAR} must be one of "
-            f"{FLOW_DIR_IMPL_CYTHON!r} or {FLOW_DIR_IMPL_NUMPY!r}, not {implementation!r}"
-        )
-    return implementation
-
-
-def _update_flow_dir_numpy(
-    arr_max_dz: np.ndarray,
-    arr_dz0: np.ndarray,
-    arr_dz1: np.ndarray,
-    arr_dir: np.ndarray,
-) -> None:
-    """Update a routing direction array using NumPy instead of the Cython kernel."""
-    arr_dir.fill(-1)
-    has_positive_slope = arr_max_dz > 0
-    toward_dz0 = has_positive_slope & (arr_max_dz == arr_dz0)
-    toward_dz1 = has_positive_slope & ~toward_dz0 & (arr_max_dz == arr_dz1)
-    arr_dir[toward_dz0] = 0
-    arr_dir[toward_dz1] = 1
 
 
 class SurfaceFlowSimulation:
@@ -82,7 +50,6 @@ class SurfaceFlowSimulation:
         self.dx = domain.dx
         self.dy = domain.dy
         self.cell_surf = self.dx * self.dy
-        self.flow_dir_impl = _get_flow_dir_implementation()
 
         self._dt = None
         # 1e-6 second
@@ -109,18 +76,10 @@ class SurfaceFlowSimulation:
         dW = z0 - zW
         # maximum altitude difference
         arr_max_dz = np.maximum(np.maximum(dN, dS), np.maximum(dE, dW))
-        arr_dirs = self.dom.get_array("dirs")
-        arr_dire = self.dom.get_array("dire")
-
-        if self.flow_dir_impl == FLOW_DIR_IMPL_NUMPY:
-            _update_flow_dir_numpy(arr_max_dz, dN, dS, arr_dirs)
-            _update_flow_dir_numpy(arr_max_dz, dW, dE, arr_dire)
-            return self
-
         # y direction
-        flow.flow_dir(arr_max_dz, dN, dS, arr_dirs)
+        flow.flow_dir(arr_max_dz, dN, dS, self.dom.get_array("dirs"))
         # x direction
-        flow.flow_dir(arr_max_dz, dW, dE, arr_dire)
+        flow.flow_dir(arr_max_dz, dW, dE, self.dom.get_array("dire"))
 
         return self
 

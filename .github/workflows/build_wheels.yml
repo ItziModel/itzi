@@ -33,55 +33,11 @@ jobs:
             artifact_suffix: windows-11-arm
             cibw_environment_macos_extra: ""
             cibw_test_command_prefix: ""
-          # Temporary macOS investigation matrix to isolate OpenMP runtime issues.
           - os: macos-14
-            job_name: macos-14-baseline
-            artifact_suffix: macos-14-baseline
+            job_name: macos-14
+            artifact_suffix: macos-14
             cibw_environment_macos_extra: ""
             cibw_test_command_prefix: ""
-          - os: macos-14
-            job_name: macos-14-omp1
-            artifact_suffix: macos-14-omp1
-            cibw_environment_macos_extra: ""
-            cibw_test_command_prefix: "OMP_NUM_THREADS=1 "
-          - os: macos-14
-            job_name: macos-14-no-helper
-            artifact_suffix: macos-14-no-helper
-            cibw_environment_macos_extra: ""
-            cibw_test_command_prefix: "LIBOMP_USE_HIDDEN_HELPER_TASK=0 LIBOMP_NUM_HIDDEN_HELPER_THREADS=0 "
-          - os: macos-14
-            job_name: macos-14-serial-control
-            artifact_suffix: macos-14-serial-control
-            cibw_environment_macos_extra: "ITZI_USE_OPENMP=0"
-            cibw_test_command_prefix: ""
-          - os: macos-14
-            job_name: macos-14-flow-dir-numpy
-            artifact_suffix: macos-14-flow-dir-numpy
-            cibw_environment_macos_extra: "ITZI_FLOW_DIR_IMPL=numpy"
-            cibw_test_command_prefix: ""
-          - os: macos-14
-            job_name: macos-14-flow-report-numpy
-            artifact_suffix: macos-14-flow-report-numpy
-            cibw_environment_macos_extra: "ITZI_FLOW_DIR_IMPL=numpy ITZI_REPORT_ARRAY_IMPL=numpy"
-            cibw_test_command_prefix: ""
-          - os: macos-14
-            job_name: macos-14-openmp-smoke
-            artifact_suffix: macos-14-openmp-smoke
-            cibw_environment_macos_extra: ""
-            cibw_test_command_prefix: ""
-            cibw_test_command: "pytest tests/test_openmp_smoke.py"
-          - os: macos-14
-            job_name: macos-14-openmp-smoke-hydrology
-            artifact_suffix: macos-14-openmp-smoke-hydrology
-            cibw_environment_macos_extra: ""
-            cibw_test_command_prefix: ""
-            cibw_test_command: "pytest tests/test_openmp_smoke.py::test_flow_apply_hydrology_large_contiguous_arrays"
-          - os: macos-14
-            job_name: macos-14-openmp-smoke-wse
-            artifact_suffix: macos-14-openmp-smoke-wse
-            cibw_environment_macos_extra: ""
-            cibw_test_command_prefix: ""
-            cibw_test_command: "pytest tests/test_openmp_smoke.py::test_rastermetrics_calculate_wse_large_contiguous_arrays"
 
     steps:
       - uses: actions/checkout@v4
@@ -105,7 +61,7 @@ jobs:
           CIBW_BEFORE_TEST: "pip install pytest pytest-benchmark pandas scipy"
           CIBW_TEST_SOURCES: tests
           CIBW_TEST_COMMAND: >  # Fast tests which do not require GRASS
-            ${{ matrix.cibw_test_command_prefix }}${{ matrix.cibw_test_command || 'pytest -m "not slow and not cloud" tests/core/' }}
+            ${{ matrix.cibw_test_command_prefix }}pytest -m "not slow and not cloud" tests/core/
 
       - uses: actions/upload-artifact@v4
         with:
