@@ -119,21 +119,39 @@ def build_simulation(
     return simulation
 
 
-def run_to_split_and_create_hotstart(
-    sim_config: SimulationConfig,
-    domain_5by5,
-    split_time: datetime,
-    raster_output_provider=None,
-) -> tuple[Simulation, bytes]:
-    simulation = build_simulation(
-        sim_config,
-        domain_5by5,
-        raster_output_provider=raster_output_provider,
-    )
+def capture_simulation_snapshot(simulation: Simulation) -> dict:
+    return {
+        "sim_time": simulation.sim_time,
+        "dt": simulation.dt,
+        "time_steps_counters": dict(simulation.time_steps_counters),
+        "old_domain_volume": simulation.old_domain_volume,
+        "next_ts": {key: value for key, value in simulation.next_ts.items()},
+        "accum_update_time": {key: value for key, value in simulation.accum_update_time.items()},
+        "raster_state": {
+            key: simulation.raster_domain.get_array(key).copy()
+            for key in simulation.raster_domain.k_all
+        },
+    }
+
+
+def run_with_hotstart_checkpoints(
+    simulation: Simulation,
+    checkpoints: list[tuple[str, datetime]],
+) -> dict[str, dict]:
+    pending_checkpoints = sorted(checkpoints, key=lambda item: item[1])
+    captured: dict[str, dict] = {}
+
     simulation.initialize()
-    while simulation.sim_time < split_time:
+    while simulation.sim_time < simulation.end_time:
         simulation.update()
-    return simulation, simulation.create_hotstart().getvalue()
+        while pending_checkpoints and simulation.sim_time >= pending_checkpoints[0][1]:
+            name, _ = pending_checkpoints.pop(0)
+            captured[name] = {
+                "snapshot": capture_simulation_snapshot(simulation),
+                "hotstart_bytes": simulation.create_hotstart().getvalue(),
+            }
+    simulation.finalize()
+    return captured
 
 
 def assert_final_state_matches(simulation: Simulation, reference: Simulation) -> None:
@@ -141,6 +159,17 @@ def assert_final_state_matches(simulation: Simulation, reference: Simulation) ->
         arr_resumed = simulation.raster_domain.get_array(key)
         arr_reference = reference.raster_domain.get_array(key)
         np.testing.assert_allclose(arr_resumed, arr_reference, err_msg=f"Final {key} mismatch")
+
+
+def assert_state_differs(simulation: Simulation, reference: Simulation) -> None:
+    mismatch_found = False
+    for key in ["water_depth", "qe", "qs"]:
+        arr_resumed = simulation.raster_domain.get_array(key)
+        arr_reference = reference.raster_domain.get_array(key)
+        if not np.allclose(arr_resumed, arr_reference):
+            mismatch_found = True
+            break
+    assert mismatch_found, "Expected resumed state to differ from the archived-cadence reference"
 
 
 def get_unique_record_times(
@@ -161,11 +190,13 @@ def base_time() -> datetime:
 
 
 @pytest.fixture(scope="module")
-def uninterrupted_simulation(domain_5by5, helpers, base_time) -> Simulation:
-    """Run the full simulation once for reference.
+def uninterrupted_simulation(baseline_hotstart_run) -> Simulation:
+    """Reuse the shared 60-second baseline run as the final-state reference."""
+    return baseline_hotstart_run["simulation"]
 
-    This simulation runs from t=0 to t=60s without interruption.
-    """
+
+@pytest.fixture(scope="module")
+def baseline_hotstart_run(domain_5by5, helpers, base_time) -> dict:
     end_time = base_time + timedelta(seconds=TOTAL_DURATION_SECONDS)
     sim_config = create_sim_config(
         start_time=base_time,
@@ -173,8 +204,51 @@ def uninterrupted_simulation(domain_5by5, helpers, base_time) -> Simulation:
         helpers=helpers,
     )
     simulation = build_simulation(sim_config, domain_5by5)
+    checkpoints = run_with_hotstart_checkpoints(
+        simulation,
+        [
+            ("split_10", base_time + timedelta(seconds=10)),
+            ("split_30", base_time + timedelta(seconds=30)),
+            ("split_50", base_time + timedelta(seconds=50)),
+        ],
+    )
+    return {
+        "sim_config": sim_config,
+        "simulation": simulation,
+        "checkpoints": checkpoints,
+    }
+
+
+@pytest.fixture(scope="module")
+def extended_reference_simulation(domain_5by5, helpers, base_time) -> dict:
+    sim_config = create_sim_config(
+        start_time=base_time,
+        end_time=base_time + timedelta(seconds=90),
+        helpers=helpers,
+    )
+    simulation = build_simulation(sim_config, domain_5by5)
     run_simulation_to_end(simulation)
-    return simulation
+    return {"sim_config": sim_config, "simulation": simulation}
+
+
+@pytest.fixture(scope="module")
+def record_step_hotstart_run(domain_5by5, helpers, base_time) -> dict:
+    end_time = base_time + timedelta(seconds=70)
+    sim_config = create_sim_config(
+        start_time=base_time,
+        end_time=end_time,
+        helpers=helpers,
+    )
+    simulation = build_simulation(sim_config, domain_5by5)
+    checkpoints = run_with_hotstart_checkpoints(
+        simulation,
+        [("split_34_2", base_time + timedelta(seconds=34.2))],
+    )
+    return {
+        "sim_config": sim_config,
+        "simulation": simulation,
+        "checkpoints": checkpoints,
+    }
 
 
 # @pytest.mark.skip(reason="Hotstart final state comparison fails due to final results diverging "
@@ -184,6 +258,7 @@ def test_roundtrip_state_restoration_and_match(
     domain_5by5,
     helpers,
     base_time,
+    baseline_hotstart_run,
     uninterrupted_simulation: Simulation,
     split_seconds: int,
 ) -> None:
@@ -195,33 +270,11 @@ def test_roundtrip_state_restoration_and_match(
     3. Runs resumed simulation to end
     4. Verifies final results match the uninterrupted reference
     """
-    split_time = base_time + timedelta(seconds=split_seconds)
     end_time = base_time + timedelta(seconds=TOTAL_DURATION_SECONDS)
 
-    # Step 1: Run simulation A to split point and create hotstart
-    sim_a_config = create_sim_config(
-        start_time=base_time,
-        end_time=end_time,
-        helpers=helpers,
-    )
-    sim_a, hotstart_bytes = run_to_split_and_create_hotstart(
-        sim_a_config,
-        domain_5by5,
-        split_time,
-    )
-
-    # Save state for comparison
-    saved_sim_time = sim_a.sim_time
-    saved_dt = sim_a.dt
-    saved_counters = dict(sim_a.time_steps_counters)
-    saved_old_domain_volume = sim_a.old_domain_volume
-    saved_next_ts = {k: v for k, v in sim_a.next_ts.items()}
-    saved_accum_update_time = {k: v for k, v in sim_a.accum_update_time.items()}
-
-    # Save raster state for comparison
-    saved_raster_state = {}
-    for key in sim_a.raster_domain.k_all:
-        saved_raster_state[key] = sim_a.raster_domain.get_array(key).copy()
+    checkpoint = baseline_hotstart_run["checkpoints"][f"split_{split_seconds}"]
+    saved_snapshot = checkpoint["snapshot"]
+    hotstart_bytes = checkpoint["hotstart_bytes"]
 
     # Step 2: Create simulation B with hotstart and verify state restoration
     sim_b_config = create_sim_config(
@@ -232,9 +285,8 @@ def test_roundtrip_state_restoration_and_match(
     sim_b = build_simulation(sim_b_config, domain_5by5, hotstart_bytes=hotstart_bytes)
 
     # Verify raster state was restored
-    for key in saved_raster_state:
+    for key, arr_saved in saved_snapshot["raster_state"].items():
         arr_restored = sim_b.raster_domain.get_array(key)
-        arr_saved = saved_raster_state[key]
         np.testing.assert_allclose(
             arr_restored,
             arr_saved,
@@ -244,30 +296,33 @@ def test_roundtrip_state_restoration_and_match(
         )
 
     # Verify scheduler state was restored
-    assert sim_b.sim_time == saved_sim_time, (
-        f"sim_time not restored: {sim_b.sim_time} != {saved_sim_time}"
+    assert sim_b.sim_time == saved_snapshot["sim_time"], (
+        f"sim_time not restored: {sim_b.sim_time} != {saved_snapshot['sim_time']}"
     )
-    assert sim_b.dt == saved_dt, f"dt not restored: {sim_b.dt} != {saved_dt}"
-    assert sim_b.time_steps_counters == saved_counters, (
-        f"time_steps_counters not restored: {sim_b.time_steps_counters} != {saved_counters}"
+    assert sim_b.dt == saved_snapshot["dt"], (
+        f"dt not restored: {sim_b.dt} != {saved_snapshot['dt']}"
     )
-    assert np.isclose(sim_b.old_domain_volume, saved_old_domain_volume), (
-        f"old_domain_volume not restored: {sim_b.old_domain_volume} != {saved_old_domain_volume}"
+    assert sim_b.time_steps_counters == saved_snapshot["time_steps_counters"], (
+        "time_steps_counters not restored: "
+        f"{sim_b.time_steps_counters} != {saved_snapshot['time_steps_counters']}"
+    )
+    assert np.isclose(sim_b.old_domain_volume, saved_snapshot["old_domain_volume"]), (
+        "old_domain_volume not restored: "
+        f"{sim_b.old_domain_volume} != {saved_snapshot['old_domain_volume']}"
     )
 
     # Verify next_ts schedule was restored
-    for key in saved_next_ts:
+    for key, value in saved_snapshot["next_ts"].items():
         assert key in sim_b.next_ts, f"next_ts key '{key}' missing in restored simulation"
-        assert sim_b.next_ts[key] == saved_next_ts[key], (
-            f"next_ts[{key}] not restored: {sim_b.next_ts[key]} != {saved_next_ts[key]}"
+        assert sim_b.next_ts[key] == value, (
+            f"next_ts[{key}] not restored: {sim_b.next_ts[key]} != {value}"
         )
 
     # Verify accum_update_time was restored
-    for key in saved_accum_update_time:
+    for key, value in saved_snapshot["accum_update_time"].items():
         assert key in sim_b.accum_update_time, f"accum_update_time key '{key}' missing"
-        assert sim_b.accum_update_time[key] == saved_accum_update_time[key], (
-            f"accum_update_time[{key}] not restored: "
-            f"{sim_b.accum_update_time[key]} != {saved_accum_update_time[key]}"
+        assert sim_b.accum_update_time[key] == value, (
+            f"accum_update_time[{key}] not restored: {sim_b.accum_update_time[key]} != {value}"
         )
 
     # Verify nextstep is consistent with next_ts (scheduler invariant)
@@ -293,25 +348,11 @@ def test_roundtrip_state_restoration_and_match(
 
 def test_resume_allows_output_provider_change(
     domain_5by5,
-    helpers,
-    base_time,
+    baseline_hotstart_run,
     uninterrupted_simulation: Simulation,
 ) -> None:
-    split_time = base_time + timedelta(seconds=30)
-    end_time = base_time + timedelta(seconds=TOTAL_DURATION_SECONDS)
-
-    sim_config = create_sim_config(
-        start_time=base_time,
-        end_time=end_time,
-        helpers=helpers,
-    )
-    initial_output = MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
-    _, hotstart_bytes = run_to_split_and_create_hotstart(
-        sim_config,
-        domain_5by5,
-        split_time,
-        raster_output_provider=initial_output,
-    )
+    sim_config = baseline_hotstart_run["sim_config"]
+    hotstart_bytes = baseline_hotstart_run["checkpoints"]["split_30"]["hotstart_bytes"]
 
     resumed_output = MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
     sim_b = build_simulation(
@@ -323,28 +364,20 @@ def test_resume_allows_output_provider_change(
 
     run_simulation_to_end(sim_b, skip_initialize=True)
 
-    assert initial_output is not resumed_output
     assert resumed_output.output_maps_dict["water_depth"]
     assert len(resumed_output.output_maps_dict["water_depth"]) >= 1
     assert_final_state_matches(sim_b, uninterrupted_simulation)
-    assert sim_b.sim_time == end_time
+    assert sim_b.sim_time == sim_config.end_time
 
 
 def test_resume_allows_output_map_name_change(
     domain_5by5,
     helpers,
-    base_time,
+    baseline_hotstart_run,
     uninterrupted_simulation: Simulation,
 ) -> None:
-    split_time = base_time + timedelta(seconds=30)
-    end_time = base_time + timedelta(seconds=TOTAL_DURATION_SECONDS)
-
-    sim_a_config = create_sim_config(
-        start_time=base_time,
-        end_time=end_time,
-        helpers=helpers,
-    )
-    _, hotstart_bytes = run_to_split_and_create_hotstart(sim_a_config, domain_5by5, split_time)
+    sim_a_config = baseline_hotstart_run["sim_config"]
+    hotstart_bytes = baseline_hotstart_run["checkpoints"]["split_30"]["hotstart_bytes"]
 
     resumed_output_map_names = helpers.make_output_map_names(
         "out_resume",
@@ -368,46 +401,33 @@ def test_resume_allows_output_map_name_change(
     assert_final_state_matches(sim_b, uninterrupted_simulation)
 
 
-def test_resume_allows_end_time_extension(domain_5by5, helpers, base_time) -> None:
-    split_time = base_time + timedelta(seconds=30)
-    original_end_time = base_time + timedelta(seconds=TOTAL_DURATION_SECONDS)
+def test_resume_allows_end_time_extension(
+    domain_5by5,
+    base_time,
+    baseline_hotstart_run,
+    extended_reference_simulation,
+) -> None:
     extended_end_time = base_time + timedelta(seconds=90)
 
-    sim_a_config = create_sim_config(
-        start_time=base_time,
-        end_time=original_end_time,
-        helpers=helpers,
-    )
-    _, hotstart_bytes = run_to_split_and_create_hotstart(sim_a_config, domain_5by5, split_time)
-
-    sim_b_config = create_sim_config(
-        start_time=base_time,
-        end_time=extended_end_time,
-        helpers=helpers,
-    )
+    hotstart_bytes = baseline_hotstart_run["checkpoints"]["split_30"]["hotstart_bytes"]
+    sim_b_config = extended_reference_simulation["sim_config"]
     sim_b = build_simulation(sim_b_config, domain_5by5, hotstart_bytes=hotstart_bytes)
 
-    reference = build_simulation(sim_b_config, domain_5by5)
-    run_simulation_to_end(reference)
     run_simulation_to_end(sim_b, skip_initialize=True)
 
     assert sim_b.sim_time == extended_end_time
-    assert_final_state_matches(sim_b, reference)
+    assert_final_state_matches(sim_b, extended_reference_simulation["simulation"])
 
 
-def test_resume_applies_new_record_step_cadence(domain_5by5, helpers, base_time) -> None:
-    split_time = base_time + timedelta(seconds=34.2)
+def test_resume_applies_new_record_step_cadence(
+    domain_5by5,
+    base_time,
+    record_step_hotstart_run,
+) -> None:
     end_time = base_time + timedelta(seconds=70)
-    original_config = create_sim_config(
-        start_time=base_time,
-        end_time=end_time,
-        helpers=helpers,
-    )
-    sim_a, hotstart_bytes = run_to_split_and_create_hotstart(
-        original_config,
-        domain_5by5,
-        split_time,
-    )
+    original_config = record_step_hotstart_run["sim_config"]
+    checkpoint = record_step_hotstart_run["checkpoints"]["split_34_2"]
+    hotstart_bytes = checkpoint["hotstart_bytes"]
 
     resumed_record_step = timedelta(seconds=10)
     resumed_config = original_config.model_copy(update={"record_step": resumed_record_step})
@@ -422,7 +442,7 @@ def test_resume_applies_new_record_step_cadence(domain_5by5, helpers, base_time)
     run_simulation_to_end(sim_b, skip_initialize=True)
 
     resumed_record_times = get_unique_record_times(resumed_output)
-    resumed_offset = sim_a.sim_time - base_time
+    resumed_offset = checkpoint["snapshot"]["sim_time"] - base_time
     expected_record_times = [
         resumed_offset + resumed_record_step,
         resumed_offset + (2 * resumed_record_step),
@@ -434,6 +454,20 @@ def test_resume_applies_new_record_step_cadence(domain_5by5, helpers, base_time)
 
     assert resumed_record_times[: len(expected_record_times)] == expected_record_times
 
-    reference = build_simulation(original_config, domain_5by5)
-    run_simulation_to_end(reference)
-    assert_final_state_matches(sim_b, reference)
+    assert_state_differs(sim_b, record_step_hotstart_run["simulation"])
+
+
+def test_resume_applies_new_dtinf_to_hydrology_schedule(
+    domain_5by5,
+    base_time,
+    baseline_hotstart_run,
+) -> None:
+    hotstart_bytes = baseline_hotstart_run["checkpoints"]["split_30"]["hotstart_bytes"]
+    original_config = baseline_hotstart_run["sim_config"]
+    resumed_dtinf = 5.0
+    resumed_config = original_config.model_copy(update={"dtinf": resumed_dtinf})
+
+    sim_b = build_simulation(resumed_config, domain_5by5, hotstart_bytes=hotstart_bytes)
+
+    assert sim_b.hydrology_model.dt == timedelta(seconds=resumed_dtinf)
+    assert sim_b.next_ts["hydrology"] == sim_b.sim_time + timedelta(seconds=resumed_dtinf)

@@ -569,3 +569,27 @@ class Simulation:
         self.nextstep = min(self.next_ts.values())
 
         return self
+
+    def reconcile_hotstart_resume(self, hotstart_config: SimulationConfig) -> Self:
+        """Apply resume-time config changes allowed after hotstart restoration."""
+        schedule_changed = False
+
+        if self.end_time != hotstart_config.end_time:
+            self.next_ts["end"] = self.end_time
+            if not self.drainage_model:
+                self.next_ts["drainage"] = self.end_time
+            schedule_changed = True
+
+        if self.report.dt != hotstart_config.record_step:
+            self.next_ts["record"] = min(self.end_time, self.sim_time + self.report.dt)
+            self.report.last_step = copy.copy(self.sim_time)
+            schedule_changed = True
+
+        if self.hydrology_model.dt != timedelta(seconds=hotstart_config.dtinf):
+            self.next_ts["hydrology"] = min(self.end_time, self.sim_time + self.hydrology_model.dt)
+            schedule_changed = True
+
+        if schedule_changed:
+            self.nextstep = min(self.next_ts.values())
+
+        return self
