@@ -15,7 +15,7 @@ GNU General Public License for more details.
 from __future__ import annotations
 
 import tempfile
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 import io
 from pathlib import Path
@@ -43,11 +43,23 @@ from itzi.itzi_error import HotstartError
 if TYPE_CHECKING:
     from itzi.providers.domain_data import DomainData
     from itzi.providers.base import RasterInputProvider, RasterOutputProvider, VectorOutputProvider
-    from itzi.data_containers import SimulationConfig
+    from itzi.data_containers import (
+        SimulationConfig,
+        HotstartSimulationState,
+        SurfaceFlowParameters,
+    )
 
 
 class SimulationBuilder:
     """Builder for creating Simulation objects with different provider configurations."""
+
+    _ALLOWED_RESUME_SURFACE_FLOW_CHANGES = {
+        "cfl",
+        "theta",
+        "dtmax",
+        "slope_threshold",
+        "max_slope",
+    }
 
     def __init__(
         self,
@@ -127,6 +139,7 @@ class SimulationBuilder:
 
         hotstart_domain = self.hotstart_loader.get_domain_data()
         hotstart_config = self.hotstart_loader.get_simulation_config()
+        hotstart_state = self.hotstart_loader.get_simulation_state()
 
         # Validate domain metadata
         self._validate_domain_congruence(hotstart_domain)
@@ -136,6 +149,63 @@ class SimulationBuilder:
 
         # Validate drainage expectations
         self._validate_drainage_congruence(hotstart_config)
+
+        # Validate resume-time configuration compatibility
+        self._validate_resume_config_congruence(hotstart_config, hotstart_state)
+
+    def _validate_resume_config_congruence(
+        self,
+        hotstart_config: SimulationConfig,
+        hotstart_state: HotstartSimulationState,
+    ) -> None:
+        """Validate which runtime settings may change across a hotstart resume."""
+        hotstart_sim_time = datetime.fromisoformat(hotstart_state.sim_time)
+
+        # Keep this defensive check here even though SimulationConfig also validates
+        # user input: model_copy(update=...) can bypass Pydantic validation in tests
+        # and internal resume flows.
+        if self.sim_config.record_step <= timedelta(0):
+            raise HotstartError(
+                f"Resume record_step must be positive, not {self.sim_config.record_step}"
+            )
+
+        if (
+            self.sim_config.end_time != hotstart_config.end_time
+            and self.sim_config.end_time <= hotstart_sim_time
+        ):
+            raise HotstartError(
+                "Resume end_time must be strictly after the hotstart simulation time: "
+                f"end_time={self.sim_config.end_time}, hotstart_sim_time={hotstart_sim_time}"
+            )
+
+        if self.sim_config.infiltration_model != hotstart_config.infiltration_model:
+            raise HotstartError(
+                "Hotstart infiltration model mismatch: "
+                f"current={self.sim_config.infiltration_model}, "
+                f"hotstart={hotstart_config.infiltration_model}"
+            )
+
+        self._validate_surface_flow_parameter_congruence(hotstart_config.surface_flow_parameters)
+
+    def _validate_surface_flow_parameter_congruence(
+        self,
+        hotstart_surface_flow_parameters: SurfaceFlowParameters,
+    ) -> None:
+        """Validate the subset of surface-flow parameters that must not change."""
+        current_surface_flow_parameters = self.sim_config.surface_flow_parameters
+
+        for field_name in type(current_surface_flow_parameters).model_fields:
+            if field_name in self._ALLOWED_RESUME_SURFACE_FLOW_CHANGES:
+                continue
+
+            current_value = getattr(current_surface_flow_parameters, field_name)
+            hotstart_value = getattr(hotstart_surface_flow_parameters, field_name)
+
+            if not np.isclose(current_value, hotstart_value):
+                raise HotstartError(
+                    "Surface flow parameter mismatch for "
+                    f"{field_name}: current={current_value}, hotstart={hotstart_value}"
+                )
 
     def _validate_domain_congruence(self, hotstart_domain: DomainData) -> None:
         """Validate that domain metadata matches between hotstart and builder."""
@@ -315,6 +385,7 @@ class SimulationBuilder:
             # Restore simulation runtime/scheduler state
             simulation_state = self.hotstart_loader.get_simulation_state()
             simulation.restore_state(simulation_state)
+            simulation.reconcile_hotstart_resume(self.hotstart_loader.get_simulation_config())
 
             # Restore drainage coupling state from the saved n_drain raster.
             # DrainageNode.coupling_flow is always 0 after object creation, and

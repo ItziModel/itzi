@@ -20,6 +20,7 @@ from pathlib import Path
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict
+from pydantic import PositiveFloat, NonNegativeFloat, NonNegativeInt, Field
 
 from itzi.const import DefaultValues, TemporalType, InfiltrationModelType
 import itzi.messenger as msgr
@@ -150,8 +151,8 @@ class SimulationData(BaseModel):
     continuity_data: ContinuityData | None  # Made optional for use in tests
     raw_arrays: Dict[str, np.ndarray]
     accumulation_arrays: Dict[str, np.ndarray]
-    cell_dx: float  # cell size in east-west direction
-    cell_dy: float  # cell size in north-south direction
+    cell_dx: PositiveFloat  # cell size in east-west direction
+    cell_dy: PositiveFloat  # cell size in north-south direction
     drainage_network_data: DrainageNetworkData | None
 
 
@@ -162,7 +163,7 @@ class MassBalanceData(BaseModel):
 
     simulation_time: datetime | timedelta
     average_timestep: float
-    timesteps: int
+    timesteps: NonNegativeInt
     boundary_volume: float
     rainfall_volume: float
     infiltration_volume: float
@@ -180,15 +181,15 @@ class SurfaceFlowParameters(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    hmin: float = DefaultValues.HFMIN
-    cfl: float = DefaultValues.CFL
-    theta: float = DefaultValues.THETA
-    g: float = DefaultValues.G
-    vrouting: float = DefaultValues.VROUTING
-    dtmax: float = DefaultValues.DTMAX
-    slope_threshold: float = DefaultValues.SLOPE_THRESHOLD
-    max_slope: float = DefaultValues.MAX_SLOPE
-    max_error: float = DefaultValues.MAX_ERROR
+    hmin: NonNegativeFloat = DefaultValues.HFMIN
+    cfl: PositiveFloat = Field(DefaultValues.CFL, ge=0.01, le=1)
+    theta: NonNegativeFloat = Field(DefaultValues.THETA, ge=0, le=1)
+    g: NonNegativeFloat = DefaultValues.G
+    vrouting: NonNegativeFloat = DefaultValues.VROUTING
+    dtmax: PositiveFloat = DefaultValues.DTMAX
+    slope_threshold: NonNegativeFloat = DefaultValues.SLOPE_THRESHOLD
+    max_slope: NonNegativeFloat = DefaultValues.MAX_SLOPE
+    max_error: PositiveFloat = DefaultValues.MAX_ERROR
 
 
 class SimulationConfig(BaseModel):
@@ -209,14 +210,14 @@ class SimulationConfig(BaseModel):
     # Mass balance file
     stats_file: str | Path | None = None
     # Hydrology parameters
-    dtinf: float = DefaultValues.DTINF
+    dtinf: PositiveFloat = DefaultValues.DTINF
     infiltration_model: InfiltrationModelType = InfiltrationModelType.NULL
     # Drainage parameters
     swmm_inp: str | None = None
     drainage_output: str | None = None
-    orifice_coeff: float = DefaultValues.ORIFICE_COEFF
-    free_weir_coeff: float = DefaultValues.FREE_WEIR_COEFF
-    submerged_weir_coeff: float = DefaultValues.SUBMERGED_WEIR_COEFF
+    orifice_coeff: NonNegativeFloat = Field(DefaultValues.ORIFICE_COEFF, ge=0, le=1)
+    free_weir_coeff: NonNegativeFloat = Field(DefaultValues.FREE_WEIR_COEFF, ge=0, le=1)
+    submerged_weir_coeff: NonNegativeFloat = Field(DefaultValues.SUBMERGED_WEIR_COEFF, ge=0, le=1)
 
     def as_str_dict(self) -> Dict:
         """Convert the configuration to a dictionary with string representations."""

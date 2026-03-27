@@ -128,6 +128,39 @@ class TestRasterDomainLoadState:
 class TestSimulationBuilderHotstart:
     """Tests for SimulationBuilder hotstart integration."""
 
+    @staticmethod
+    def _create_hotstart_bytes(domain_5by5, sim_config: SimulationConfig) -> io.BytesIO:
+        raster_output = MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
+        simulation = (
+            SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
+            .with_domain_data(domain_5by5.domain_data)
+            .with_raster_output_provider(raster_output)
+            .with_vector_output_provider(MemoryVectorOutputProvider({}))
+            .build()
+        )
+        simulation.set_array("dem", domain_5by5.arr_dem_flat.copy())
+        simulation.set_array("friction", domain_5by5.arr_n.copy())
+        simulation.set_array("water_depth", domain_5by5.arr_start_h.copy())
+        simulation.initialize()
+        return simulation.create_hotstart()
+
+    @staticmethod
+    def _build_with_hotstart(
+        domain_5by5,
+        sim_config: SimulationConfig,
+        hotstart_bytes: io.BytesIO,
+        domain_data: DomainData | None = None,
+    ):
+        raster_output = MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
+        builder = (
+            SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
+            .with_domain_data(domain_data or domain_5by5.domain_data)
+            .with_raster_output_provider(raster_output)
+            .with_vector_output_provider(MemoryVectorOutputProvider({}))
+            .with_hotstart(hotstart_bytes)
+        )
+        return builder.build()
+
     @pytest.fixture
     def sim_config(self, helpers) -> SimulationConfig:
         """Create a basic SimulationConfig for testing."""
@@ -156,31 +189,7 @@ class TestSimulationBuilderHotstart:
         sim_config: SimulationConfig,
     ) -> io.BytesIO:
         """Create a valid hotstart archive for testing."""
-        raster_domain = RasterDomain(
-            dtype=np.float32,
-            arr_mask=domain_5by5.arr_mask,
-            cell_shape=domain_5by5.domain_data.cell_shape,
-        )
-        raster_domain.update_array("water_depth", domain_5by5.arr_start_h.copy())
-        raster_domain.update_array("dem", domain_5by5.arr_dem_flat.copy())
-        raster_domain.update_array("friction", domain_5by5.arr_n.copy())
-
-        raster_state = raster_domain.save_state()
-        simulation_state = HotstartSimulationState(
-            sim_time="2000-01-01T00:00:30",
-            dt=0.5,
-            next_ts={},
-            time_steps_counters={"since_start": 100, "since_last_report": 10},
-            accum_update_time={},
-            old_domain_volume=100.0,
-        )
-
-        return HotstartWriter.create(
-            domain_data=domain_5by5.domain_data,
-            simulation_config=sim_config,
-            simulation_state=simulation_state,
-            raster_state_bytes=raster_state.getvalue(),
-        )
+        return self._create_hotstart_bytes(domain_5by5, sim_config)
 
     def test_with_hotstart_from_bytes(
         self,
@@ -260,17 +269,192 @@ class TestSimulationBuilderHotstart:
         kwargs[field] = value
         mismatched_domain = DomainData(**kwargs)
 
-        raster_output = MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
-
         with pytest.raises(HotstartError, match=expected_error):
-            (
-                SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
-                .with_domain_data(mismatched_domain)
-                .with_raster_output_provider(raster_output)
-                .with_vector_output_provider(MemoryVectorOutputProvider({}))
-                .with_hotstart(valid_hotstart_bytes)
-                .build()
+            self._build_with_hotstart(
+                domain_5by5,
+                sim_config,
+                valid_hotstart_bytes,
+                domain_data=mismatched_domain,
             )
+
+    def test_build_rejects_crs_mismatch(
+        self,
+        domain_5by5,
+        sim_config: SimulationConfig,
+        valid_hotstart_bytes: io.BytesIO,
+    ) -> None:
+        """build() should reject domain CRS mismatches."""
+        dd = domain_5by5.domain_data
+        mismatched_domain = DomainData(
+            north=dd.north,
+            south=dd.south,
+            east=dd.east,
+            west=dd.west,
+            rows=dd.rows,
+            cols=dd.cols,
+            crs_wkt="EPSG:4326",
+        )
+
+        with pytest.raises(HotstartError, match="Domain CRS mismatch"):
+            self._build_with_hotstart(
+                domain_5by5,
+                sim_config,
+                valid_hotstart_bytes,
+                domain_data=mismatched_domain,
+            )
+
+    @pytest.mark.parametrize(
+        ("archived_model", "resumed_model"),
+        [
+            (InfiltrationModelType.GREEN_AMPT, InfiltrationModelType.NULL),
+            (InfiltrationModelType.NULL, InfiltrationModelType.GREEN_AMPT),
+        ],
+    )
+    def test_build_rejects_infiltration_model_mismatch(
+        self,
+        domain_5by5,
+        sim_config: SimulationConfig,
+        archived_model: InfiltrationModelType,
+        resumed_model: InfiltrationModelType,
+    ) -> None:
+        """build() should reject hotstarts with incompatible infiltration models."""
+        archived_config = sim_config.model_copy(update={"infiltration_model": archived_model})
+        resumed_config = sim_config.model_copy(update={"infiltration_model": resumed_model})
+        hotstart_bytes = self._create_hotstart_bytes(domain_5by5, archived_config)
+
+        with pytest.raises(HotstartError, match="infiltration"):
+            self._build_with_hotstart(domain_5by5, resumed_config, hotstart_bytes)
+
+    def test_build_allows_record_step_change(
+        self,
+        domain_5by5,
+        sim_config: SimulationConfig,
+        valid_hotstart_bytes: io.BytesIO,
+    ) -> None:
+        """build() should allow changing the output cadence on resume."""
+        resumed_record_step = timedelta(seconds=10)
+        resumed_config = sim_config.model_copy(update={"record_step": resumed_record_step})
+
+        simulation = self._build_with_hotstart(domain_5by5, resumed_config, valid_hotstart_bytes)
+
+        assert simulation.report.dt == resumed_record_step
+
+    def test_build_rejects_end_time_not_after_hotstart_time(
+        self,
+        domain_5by5,
+        sim_config: SimulationConfig,
+        valid_hotstart_bytes: io.BytesIO,
+    ) -> None:
+        """build() should reject resumed end times that are not after the checkpoint time."""
+        resumed_config = sim_config.model_copy(update={"end_time": sim_config.start_time})
+
+        with pytest.raises(HotstartError, match="end_time"):
+            self._build_with_hotstart(domain_5by5, resumed_config, valid_hotstart_bytes)
+
+    def test_build_allows_end_time_change_after_hotstart_time(
+        self,
+        domain_5by5,
+        sim_config: SimulationConfig,
+        valid_hotstart_bytes: io.BytesIO,
+    ) -> None:
+        """build() should allow resumed end times after the checkpoint time."""
+        resumed_end_time = sim_config.start_time + timedelta(seconds=45)
+        resumed_config = sim_config.model_copy(update={"end_time": resumed_end_time})
+
+        simulation = self._build_with_hotstart(domain_5by5, resumed_config, valid_hotstart_bytes)
+
+        assert simulation.end_time == resumed_end_time
+
+    @pytest.mark.parametrize("record_step", [timedelta(0), timedelta(seconds=-1)])
+    def test_build_rejects_non_positive_record_step(
+        self,
+        domain_5by5,
+        sim_config: SimulationConfig,
+        valid_hotstart_bytes: io.BytesIO,
+        record_step: timedelta,
+    ) -> None:
+        """build() should reject resumed record steps that are not positive.
+
+        model_copy(update=...) bypasses Pydantic validation, so the builder keeps
+        a defensive runtime check for this invariant.
+        """
+        resumed_config = sim_config.model_copy(update={"record_step": record_step})
+
+        with pytest.raises(HotstartError, match="record_step"):
+            self._build_with_hotstart(domain_5by5, resumed_config, valid_hotstart_bytes)
+
+    def test_build_allows_dtinf_change(
+        self,
+        domain_5by5,
+        sim_config: SimulationConfig,
+        valid_hotstart_bytes: io.BytesIO,
+    ) -> None:
+        """build() should allow changing dtinf on resume."""
+        resumed_dtinf = 5.0
+        resumed_config = sim_config.model_copy(update={"dtinf": resumed_dtinf})
+
+        simulation = self._build_with_hotstart(domain_5by5, resumed_config, valid_hotstart_bytes)
+
+        assert simulation.hydrology_model.dt == timedelta(seconds=resumed_dtinf)
+
+    @pytest.mark.parametrize(
+        ("parameter", "value"),
+        [
+            ("cfl", 0.15),
+            ("theta", 0.9),
+            ("dtmax", 0.2),
+            ("slope_threshold", 1e-5),
+            ("max_slope", 5.0),
+        ],
+    )
+    def test_build_allows_surface_flow_resume_parameter_change(
+        self,
+        domain_5by5,
+        sim_config: SimulationConfig,
+        valid_hotstart_bytes: io.BytesIO,
+        parameter: str,
+        value: float,
+    ) -> None:
+        """build() should allow selected surface-flow tuning changes on resume."""
+        resumed_surface_flow_parameters = sim_config.surface_flow_parameters.model_copy(
+            update={parameter: value}
+        )
+        resumed_config = sim_config.model_copy(
+            update={"surface_flow_parameters": resumed_surface_flow_parameters}
+        )
+
+        simulation = self._build_with_hotstart(domain_5by5, resumed_config, valid_hotstart_bytes)
+
+        assert getattr(simulation.surface_flow, parameter) == value
+
+    @pytest.mark.parametrize(
+        ("parameter", "value"),
+        [
+            ("hmin", 0.0002),
+            ("g", 9.9),
+            ("vrouting", 2.0),
+            ("max_error", 0.5),
+        ],
+    )
+    def test_build_rejects_surface_flow_parameter_mismatch(
+        self,
+        domain_5by5,
+        sim_config: SimulationConfig,
+        valid_hotstart_bytes: io.BytesIO,
+        parameter: str,
+        value: float,
+    ) -> None:
+        """build() should reject solver-affecting surface-flow parameter changes."""
+        resumed_config = sim_config.model_copy(
+            update={
+                "surface_flow_parameters": sim_config.surface_flow_parameters.model_copy(
+                    update={parameter: value}
+                )
+            }
+        )
+
+        with pytest.raises(HotstartError, match=f"{parameter}|surface"):
+            self._build_with_hotstart(domain_5by5, resumed_config, valid_hotstart_bytes)
 
     def test_build_rejects_drainage_mismatch_hotstart_has_drainage(
         self,
