@@ -571,7 +571,9 @@ class Simulation:
         return self
 
     def reconcile_hotstart_resume(self, hotstart_config: SimulationConfig) -> Self:
-        """Apply resume-time config changes allowed after hotstart restoration."""
+        """Apply resume-time config changes allowed after hotstart restoration.
+        This method is called after `restore_state()`,
+        and reconciles the new user-provided config with the original config from the hotstart file."""
         schedule_changed = False
 
         if self.end_time != hotstart_config.end_time:
