@@ -264,11 +264,11 @@ class HotstartSimulationState(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    sim_time: str  # ISO format datetime
+    sim_time: datetime
     dt: float  # seconds
-    next_ts: Dict[str, str]  # ISO format datetimes
+    next_ts: Dict[str, datetime]
     time_steps_counters: Dict[str, int]
-    accum_update_time: Dict[str, str]  # ISO format datetimes
+    accum_update_time: Dict[str, datetime]
     old_domain_volume: float
     # Hashes are computed by HotstartWriter and injected before serialization;
     # callers building the state before archive creation leave them as empty defaults.

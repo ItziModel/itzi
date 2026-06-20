@@ -469,11 +469,11 @@ class Simulation:
         # Build simulation state using Pydantic model.
         swmm_elapsed_time = self.drainage_model.elapsed_time if self.drainage_model else None
         simulation_state = HotstartSimulationState(
-            sim_time=self.sim_time.isoformat(),
+            sim_time=self.sim_time,
             dt=self.dt.total_seconds(),
-            next_ts={k: v.isoformat() for k, v in self.next_ts.items()},
+            next_ts=self.next_ts,
             time_steps_counters=self.time_steps_counters,
-            accum_update_time={k: v.isoformat() for k, v in self.accum_update_time.items()},
+            accum_update_time=self.accum_update_time,
             old_domain_volume=self.old_domain_volume,
             swmm_elapsed_time=swmm_elapsed_time,
         )
@@ -544,22 +544,19 @@ class Simulation:
               RasterDomain.load_state() for that purpose.
         """
         # Restore simulation time
-        self.sim_time = datetime.fromisoformat(simulation_state.sim_time)
+        self.sim_time = simulation_state.sim_time
 
         # Restore time step
         self.dt = timedelta(seconds=simulation_state.dt)
 
         # Restore next timestamp schedule
-        # Parse ISO format strings back to datetime objects
-        self.next_ts = {k: datetime.fromisoformat(v) for k, v in simulation_state.next_ts.items()}
+        self.next_ts = dict(simulation_state.next_ts)
 
         # Restore time step counters
         self.time_steps_counters = dict(simulation_state.time_steps_counters)
 
         # Restore accumulation update timestamps
-        self.accum_update_time = {
-            k: datetime.fromisoformat(v) for k, v in simulation_state.accum_update_time.items()
-        }
+        self.accum_update_time = dict(simulation_state.accum_update_time)
 
         # Restore old domain volume for continuity tracking
         self.old_domain_volume = simulation_state.old_domain_volume

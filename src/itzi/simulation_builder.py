@@ -15,7 +15,7 @@ GNU General Public License for more details.
 from __future__ import annotations
 
 import tempfile
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import TYPE_CHECKING
 import io
 from pathlib import Path
@@ -159,7 +159,7 @@ class SimulationBuilder:
         hotstart_state: HotstartSimulationState,
     ) -> None:
         """Validate which runtime settings may change across a hotstart resume."""
-        hotstart_sim_time = datetime.fromisoformat(hotstart_state.sim_time)
+        hotstart_sim_time = hotstart_state.sim_time
 
         # Keep this defensive check here even though SimulationConfig also validates
         # user input: model_copy(update=...) can bypass Pydantic validation in tests
