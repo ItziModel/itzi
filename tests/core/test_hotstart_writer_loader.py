@@ -69,7 +69,7 @@ def minimal_simulation_config() -> SimulationConfig:
 def minimal_simulation_state() -> HotstartSimulationState:
     """Create minimal HotstartSimulationState for testing."""
     return HotstartSimulationState(
-        sim_time="2000-01-01T00:00:30",
+        sim_time=datetime(2000, 1, 1, 0, 0, 30),
         dt=0.5,
         next_ts={},
         time_steps_counters={},

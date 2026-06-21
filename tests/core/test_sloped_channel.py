@@ -218,7 +218,6 @@ def test_sloped_channel(
             simulation.set_array("rain", arr_rain_off)
         simulation.update()
     simulation.finalize()
-    return simulation.time_steps_counters["since_start"]
 
 
 def main():
