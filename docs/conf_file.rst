@@ -48,8 +48,8 @@ A hotstart file saves the current state of the simulation at a give point in tim
    * - Keyword
      - Description
      - Format
-   * - save_every_wallclock
-     - Wallclock duration between records.
+   * - wallclock_step
+     - Wall clock duration between records.
      - HH:MM:SS
    * - save_file
      - File name for the hotstart file. Each new file overwrites the anterior. Only the last created file is kept.
