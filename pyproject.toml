@@ -1,6 +1,6 @@
 [project]
 name = "itzi"
-version = "25.10"
+version = "26.6"
 description = "A distributed dynamic flood model."
 authors = [
     {name = "Laurent Courty", email = "lrntct@gmail.com"},
@@ -55,8 +55,8 @@ dev = [
     "pytest-benchmark[histogram]==5.*",
     "scipy>=1.15.2",
     "pre-commit>=4.2.0",
-    "ruff>=0.12",
-    "ty>=0.0.1a16",
+    "ruff>=0.15",
+    "ty>=0.0.51",
     "pyinstrument==5.*",
     "rioxarray>=0.19.0",
 ]
