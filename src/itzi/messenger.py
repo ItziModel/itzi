@@ -15,6 +15,7 @@ GNU General Public License for more details.
 import sys
 import logging
 import os
+from typing import NoReturn
 from datetime import timedelta, datetime
 
 from itzi.itzi_error import ItziFatal
@@ -74,7 +75,7 @@ class ItziLogger:
             ):
                 handler.setLevel(level)
 
-    def fatal(self, msg):
+    def fatal(self, msg) -> NoReturn:
         """Log fatal error and raise or exit"""
         self.logger.error(f"ERROR: {msg}")
         if raise_on_error:
@@ -82,16 +83,16 @@ class ItziLogger:
         else:
             sys.exit(f"ERROR: {msg}")
 
-    def warning(self, msg):
+    def warning(self, msg) -> None:
         self.logger.warning(f"WARNING: {msg}")
 
-    def message(self, msg):
+    def message(self, msg) -> None:
         self.logger.info(msg)
 
-    def verbose(self, msg):
+    def verbose(self, msg) -> None:
         self.logger.log(self.VERBOSE_LEVEL, msg)
 
-    def debug(self, msg):
+    def debug(self, msg) -> None:
         self.logger.debug(msg)
 
 
