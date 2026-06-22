@@ -270,11 +270,12 @@ class SimulationTimes(BaseModel):
         if start is None:
             start = datetime.min
         if end is None:
-            end = start + duration
+            assert duration is not None
+            end: datetime = start + duration
         if start >= end:
             msgr.fatal("Simulation duration must be positive")
         if duration is None:
-            duration = end - start
+            duration: timedelta = end - start
 
         return cls(
             start=start,
