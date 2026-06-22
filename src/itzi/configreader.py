@@ -1,5 +1,5 @@
 """
-Copyright (C) 2015-2025 Laurent Courty
+Copyright (C) 2015-2026 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -17,10 +17,106 @@ from __future__ import absolute_import
 from configparser import ConfigParser
 from datetime import datetime, timedelta
 
+from pydantic import BaseModel
+
 import itzi.messenger as msgr
 from itzi.const import DefaultValues, TemporalType, InfiltrationModelType
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi.data_containers import SurfaceFlowParameters, SimulationConfig, GrassParams
+
+
+DEPRECATED_INPUT_ALIASES: list[tuple[str, str]] = [
+    # (old, new)
+    ("drainage_capacity", "losses"),
+    ("effective_pororosity", "effective_porosity"),
+    ("start_h", "water_depth"),
+]
+
+DEPRECATED_OUTPUT_ALIASES: list[tuple[str, str]] = [
+    # (old,new)
+    ("drainage_cap", "mean_losses"),
+    ("h", "water_depth"),
+    ("wse", "water_surface_elevation"),
+    ("boundaries", "mean_boundary_flow"),
+    ("verror", "volume_error"),
+    ("inflow", "mean_inflow"),
+    ("infiltration", "mean_infiltration"),
+    ("rainfall", "mean_rainfall"),
+    ("losses", "mean_losses"),
+    ("drainage_stats", "mean_drainage_flow"),
+]
+
+
+class RawTimeConfig(BaseModel):
+    """Stores raw time options from the config file."""
+
+    start_time: datetime | None
+    end_time: datetime | None
+    duration: timedelta | None
+    record_step: timedelta
+
+
+class RawInputConfig(BaseModel):
+    """Stores raw input options from the config file."""
+
+    dem: str
+    friction: str
+    water_depth: str
+    water_surface_elevation: str
+
+    rain: str
+    inflow: str
+    bctype: str
+    bcval: str
+
+    infiltration: str
+    effective_porosity: str
+    capillary_pressure: str
+    hydraulic_conductivity: str
+    soil_water_content: str
+
+    losses: str
+
+
+class RawOutputConfig(BaseModel):
+    """Stores raw output options from the config file."""
+
+    prefix: str
+    values: list[str]
+
+
+class RawOptionsConfig(BaseModel):
+    """Stores raw options data from the config file."""
+
+    hmin: float = DefaultValues.HFMIN
+    slmax: float = DefaultValues.MAX_SLOPE
+    cfl: float = DefaultValues.CFL
+    theta: float = DefaultValues.THETA
+    vrouting: float = DefaultValues.VROUTING
+    dtmax: float = DefaultValues.DTMAX
+    dtinf: float = DefaultValues.DTINF
+    max_error: float = DefaultValues.MAX_ERROR
+
+
+class RawDrainageConfig(BaseModel):
+    """Stores raw drainage options from the config file."""
+
+    swmm_inp: str
+    output: str
+    orifice_coeff: float = DefaultValues.ORIFICE_COEFF
+    free_weir_coeff: float = DefaultValues.FREE_WEIR_COEFF
+    submerged_weir_coeff: float = DefaultValues.SUBMERGED_WEIR_COEFF
+
+
+class RawGrassConfig(BaseModel):
+    """Stores raw grass options from the config file."""
+
+    grass_bin: str
+    grassdata: str
+    location: str
+    mapset: str
+    region: str
+    mask: str
 
 
 class ConfigReader:
@@ -117,12 +213,7 @@ class ConfigReader:
             if params.has_option("grass", k):
                 self._grass_params[k] = params.get("grass", k)
         # check for deprecated input names
-        input_deprecated_list = [  # (old, new)
-            ("drainage_capacity", "losses"),
-            ("effective_pororosity", "effective_porosity"),
-            ("start_h", "water_depth"),
-        ]
-        for old_input_name, new_input_name in input_deprecated_list:
+        for old_input_name, new_input_name in DEPRECATED_INPUT_ALIASES:
             if params.has_option("input", old_input_name):
                 msgr.warning(
                     f"Input '{old_input_name}' is deprecated. Use '{new_input_name}' instead."
@@ -153,19 +244,7 @@ class ConfigReader:
             out_values = params.get("output", "values").split(",")
             self.out_values = [e.strip() for e in out_values]
             # check for deprecated values
-            output_deprecated_list = [  # (old,new)
-                ("drainage_cap", "mean_losses"),
-                ("h", "water_depth"),
-                ("wse", "water_surface_elevation"),
-                ("boundaries", "mean_boundary_flow"),
-                ("verror", "volume_error"),
-                ("inflow", "mean_inflow"),
-                ("infiltration", "mean_infiltration"),
-                ("rainfall", "mean_rainfall"),
-                ("losses", "mean_losses"),
-                ("drainage_stats", "mean_drainage_flow"),
-            ]
-            for old_output_name, new_output_name in output_deprecated_list:
+            for old_output_name, new_output_name in DEPRECATED_OUTPUT_ALIASES:
                 if old_output_name in self.out_values and new_output_name not in self.out_values:
                     msgr.warning(
                         f"Output '{old_output_name}' is deprecated. "
