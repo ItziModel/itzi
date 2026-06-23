@@ -33,7 +33,7 @@ import traceback
 from datetime import datetime, timedelta
 from importlib.metadata import version
 from multiprocessing import Process
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import numpy as np
 
@@ -41,7 +41,7 @@ from itzi.configreader import ConfigReader
 import itzi.itzi_error as itzi_error
 import itzi.messenger as msgr
 from itzi.const import VerbosityLevel
-from itzi import parser
+from itzi.parser import build_parser
 from itzi.profiler import profile_context
 from itzi.simulation_builder import SimulationBuilder
 from itzi.grass_session import GrassSessionManager
@@ -52,16 +52,17 @@ if TYPE_CHECKING:
     from itzi.simulation import Simulation
 
 
-def main():
-    # default functions for subparsers
-    parser.run_parser.set_defaults(func=itzi_run)
-    parser.version_parser.set_defaults(func=itzi_version)
-    # get parsed arguments
-    args = parser.arg_parser.parse_args()
-    try:
-        args.func(args)
-    except AttributeError:
-        parser.arg_parser.print_usage()
+def main(argv=None):
+    """argv: alternative CLI arguments, used for testing (default to sys.argv)"""
+    args = build_parser().parse_args(argv)
+
+    command_mapper: dict[str, Callable] = {
+        "run": itzi_run,
+        "version": itzi_version,
+    }
+
+    # args.command is the name of the subcommand
+    command_mapper[args.command](args)
 
 
 class SimulationRunner:
