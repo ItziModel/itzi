@@ -1,8 +1,8 @@
 """Integration tests for hotstart round-trip and scheduler state restoration.
 
-This file implements phases 4 and 7 from the hotstart testing plan:
-- Phase 4: Round-Trip Resume Tests
-- Phase 7: Scheduler/Runtime State Tests
+This file implements the following:
+- Round-Trip Resume Tests
+- Scheduler/Runtime State Tests
 """
 
 from __future__ import annotations
