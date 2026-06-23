@@ -68,14 +68,15 @@ def main(argv=None):
 class SimulationRunner:
     """Provide the necessary tools to run one simulation."""
 
-    def __init__(self, sim_config: SimulationConfig, grass_params: GrassParams):
+    def __init__(
+        self,
+        sim_config: SimulationConfig,
+        grass_params: GrassParams,
+        hotstart_path: str | None = None,
+    ):
         self.grass_required_version = "8.4.0"
         self.g_interface: GrassInterface
         self.sim: Simulation
-        self._initialize(sim_config, grass_params)
-
-    def _initialize(self, sim_config: SimulationConfig, grass_params: GrassParams):
-        """Set GRASS and initialize the simulation."""
 
         # display parameters (if verbose)
         sim_config.display_sim_param()
@@ -139,13 +140,15 @@ class SimulationRunner:
             }
         )
 
-        self.sim = (
+        sim_builder = (
             SimulationBuilder(sim_config, self.g_interface.get_npmask(), data_type)
             .with_input_provider(raster_input_provider)
             .with_raster_output_provider(raster_output_provider)
             .with_vector_output_provider(vector_output_provider)
-            .build()
         )
+        if hotstart_path:
+            sim_builder.with_hotstart(hotstart_path)
+        self.sim: Simulation = sim_builder.build()
         # Initialize the simulation
         self.sim.initialize()
 
@@ -192,7 +195,7 @@ class SimulationRunner:
             self.g_interface.cleanup()
 
 
-def sim_runner_worker(conf_file):
+def sim_runner_worker(conf_file: str, hotstart_file: str | None):
     """Run one simulation"""
     msgr.raise_on_error = True
     msgr._itzi_logger.set_verbosity(msgr.verbosity())
@@ -204,7 +207,11 @@ def sim_runner_worker(conf_file):
         grass_params = conf_data.get_grass_params()
         with GrassSessionManager(grass_params):
             with profile_context():
-                sim_runner = SimulationRunner(sim_params, grass_params)
+                sim_runner = SimulationRunner(
+                    sim_params,
+                    grass_params,
+                    hotstart_file,
+                )
                 sim_runner.run().finalize()
     except itzi_error.ItziError:
         # if an Itzï error, only print the last line of the traceback
@@ -214,15 +221,71 @@ def sim_runner_worker(conf_file):
         msgr.warning("Error during execution: {}".format(traceback.format_exc()))
 
 
-def itzi_run_one(conf_file):
+def itzi_run_one(conf_file: str, hotstart_file: str | None):
     """Run a simulation in a subprocess"""
-    worker_args = (conf_file,)
+    worker_args = (conf_file, hotstart_file)
     p = Process(target=sim_runner_worker, args=worker_args)
     p.start()
     p.join()
     if p.exitcode != 0:
         msgr.warning(("Execution of {} ended with an error").format(conf_file))
     p.close()
+
+
+def reconcile_hotstart_commands(
+    config_file_list: list[str],
+    resume_from_list: list[tuple[str | None, str]],
+) -> list[tuple[str, str | None]]:
+    """Output a list of tuples in the form (config_file, hotstart_file)."""
+
+    # No hotstart requested: run every config from scratch.
+    if not resume_from_list:
+        return [(config_file, None) for config_file in config_file_list]
+
+    # A single hotstart only makes sense when there is a single config.
+    if len(resume_from_list) == 1:
+        if len(config_file_list) != 1:
+            msgr.fatal("A single --resume-from value can only be used with a single config file")
+        return [(config_file_list[0], resume_from_list[0][1])]
+
+    # In batch mode every hotstart must be explicitly mapped.
+    if any(config_key is None for config_key, _ in resume_from_list):
+        msgr.fatal("When using multiple --resume-from values, each one must be CONFIG=PATH")
+
+    # Accept a normalized config path first, then a unique basename like "a.ini".
+    exact_lookup = {
+        os.path.abspath(os.path.normpath(config_file)): config_file
+        for config_file in config_file_list
+    }
+    basename_lookup: dict[str, str | None] = {}
+    resolved_hotstarts = {config_file: None for config_file in config_file_list}
+
+    # Build basename lookup; Store None when a basename is shared.
+    for config_file in config_file_list:
+        basename = os.path.basename(config_file)
+        if basename not in basename_lookup:
+            basename_lookup[basename] = config_file
+        elif basename_lookup[basename] != config_file:
+            basename_lookup[basename] = None
+
+    # Resolve each CONFIG=PATH pair onto its target config file.
+    for config_key, hotstart_file in resume_from_list:
+        assert config_key is not None
+        normalized_key = os.path.abspath(os.path.normpath(config_key))
+        target_config = exact_lookup.get(normalized_key)
+        if target_config is None:
+            basename = os.path.basename(config_key)
+            if basename not in basename_lookup:
+                msgr.fatal(f"--resume-from config {config_key!r} does not match any config file")
+            target_config = basename_lookup[basename]
+            if target_config is None:
+                msgr.fatal(f"--resume-from config {config_key!r} is ambiguous")
+
+        if resolved_hotstarts[target_config] is not None:
+            msgr.fatal(f"Multiple hotstart files were given for {target_config!r}")
+        resolved_hotstarts[target_config] = hotstart_file
+
+    return [(config_file, resolved_hotstarts[config_file]) for config_file in config_file_list]
 
 
 def itzi_run(cli_args):
@@ -259,10 +322,14 @@ def itzi_run(cli_args):
     total_sim_start = time.time()
     # dictionary to store computation times
     times_list = []
-    for conf_file in cli_args.config_file:
+    run_commands = reconcile_hotstart_commands(
+        cli_args.config_file,
+        getattr(cli_args, "resume_from", []),
+    )
+    for conf_file, hotstart_file in run_commands:
         sim_start = time.time()
         # Run the simulation
-        itzi_run_one(conf_file)
+        itzi_run_one(conf_file, hotstart_file)
         # store computational time
         comp_time = timedelta(seconds=int(time.time() - sim_start))
         list_elem = (os.path.basename(conf_file), comp_time)
