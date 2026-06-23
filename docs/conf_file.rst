@@ -33,6 +33,29 @@ Valid combinations:
 -  *start_time* and *duration*
 -  *duration* only
 
+[hotstart]
+----------
+
+.. versionadded:: 26.6
+    The hotstart feature is added.
+
+A hotstart file saves the current state of the simulation at a give point in time, allowing to restart a simulation from a given point.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 60 15
+
+   * - Keyword
+     - Description
+     - Format
+   * - wallclock_step
+     - Wall clock duration between records.
+     - HH:MM:SS
+   * - save_file
+     - File name for the hotstart file. Each new file overwrites the anterior. Only the last created file is kept.
+     - Text string
+
+
 [input]
 -------
 

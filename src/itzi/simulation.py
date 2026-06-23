@@ -100,6 +100,12 @@ class Simulation:
                 for n in self.drainage_nodes_list
                 if n.node_object.is_coupled()
             }
+
+        if self.sim_config.hotstart_config:
+            self.hotstart_step: timedelta = self.sim_config.hotstart_config.wallclock_step
+            self.hotstart_filename: str = self.sim_config.hotstart_config.save_file_name
+            self.last_hotstart: datetime = datetime.now()
+
         # Grid spacing (for BMI)
         self.spacing = (self.raster_domain.dy, self.raster_domain.dx)
         # time step counter
@@ -273,6 +279,17 @@ class Simulation:
 
         # Update input arrays()
         self.update_input_arrays()
+
+        # Save hotstart
+        if self.sim_config.hotstart_config:
+            wall_time_now: datetime = datetime.now()
+            elapsed: timedelta = wall_time_now - self.last_hotstart
+            if elapsed >= self.hotstart_step:
+                hotstart_bytes: io.BytesIO = self.create_hotstart()
+                with open(self.hotstart_filename, "wb") as f:
+                    f.write(hotstart_bytes.getbuffer())
+                self.last_hotstart = wall_time_now
+
         return self
 
     def update_until(self, then: timedelta):

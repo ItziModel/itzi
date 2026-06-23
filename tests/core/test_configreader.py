@@ -7,7 +7,8 @@ import logging
 import pytest
 
 from itzi.configreader import ConfigReader
-from itzi.const import InfiltrationModelType, TemporalType
+from itzi.const import DefaultValues, InfiltrationModelType, TemporalType
+from itzi.data_containers import SurfaceFlowParameters
 from itzi.itzi_error import ItziFatal
 
 
@@ -26,6 +27,7 @@ def make_config_dict(
     time: dict[str, str] | None = None,
     input_maps: dict[str, str] | None = None,
     output: dict[str, str] | None = None,
+    hotstart: dict[str, str] | None = None,
     options: dict[str, str] | None = None,
     drainage: dict[str, str] | None = None,
     statistics: dict[str, str] | None = None,
@@ -39,6 +41,8 @@ def make_config_dict(
         "output": output or {"prefix": "out", "values": "water_depth"},
     }
 
+    if hotstart:
+        config_dict["hotstart"] = hotstart
     if options:
         config_dict["options"] = options
     if drainage:
@@ -48,6 +52,32 @@ def make_config_dict(
     if grass:
         config_dict["grass"] = grass
     return config_dict
+
+
+def test_reader_uses_defaults_when_optional_sections_are_missing(tmp_path):
+    config_file = write_config_file(tmp_path, make_config_dict())
+
+    reader = ConfigReader(config_file)
+    sim_config = reader.get_sim_params()
+    grass_params = reader.get_grass_params()
+
+    assert sim_config.hotstart_config is None
+    assert sim_config.surface_flow_parameters == SurfaceFlowParameters()
+    assert sim_config.stats_file is None
+    assert sim_config.dtinf == DefaultValues.DTINF
+    assert sim_config.swmm_inp is None
+    assert sim_config.drainage_output is None
+    assert sim_config.orifice_coeff == DefaultValues.ORIFICE_COEFF
+    assert sim_config.free_weir_coeff == DefaultValues.FREE_WEIR_COEFF
+    assert sim_config.submerged_weir_coeff == DefaultValues.SUBMERGED_WEIR_COEFF
+    assert grass_params.model_dump() == {
+        "grassdata": None,
+        "location": None,
+        "mapset": None,
+        "region": None,
+        "mask": None,
+        "grass_bin": None,
+    }
 
 
 def test_reader_normalizes_deprecated_aliases(tmp_path, caplog):

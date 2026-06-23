@@ -23,7 +23,12 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 import itzi.messenger as msgr
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi.const import InfiltrationModelType, TemporalType
-from itzi.data_containers import GrassParams, SimulationConfig, SurfaceFlowParameters
+from itzi.data_containers import (
+    GrassParams,
+    SimulationConfig,
+    SurfaceFlowParameters,
+    HotstartRunConfig,
+)
 
 DEPRECATED_INPUT_ALIASES: list[tuple[str, str]] = [
     # (old, new)
@@ -54,6 +59,7 @@ TIME_COMBINATION_ERROR = (
 )
 
 TIME_OPTION_KEYS = ("start_time", "end_time", "duration", "record_step")
+HOTSTART_OPTION_KEYS = ("wallclock_step", "save_file")
 GREEN_AMPT_KEYS = (
     "effective_porosity",
     "capillary_pressure",
@@ -140,6 +146,24 @@ def _read_time_values(params: ConfigParser) -> dict[str, str | None]:
     time_values: dict[str, str | None] = dict.fromkeys(TIME_OPTION_KEYS)
     time_values.update(_read_string_options(params, "time", TIME_OPTION_KEYS))
     return time_values
+
+
+def _read_hotstart_values(params: ConfigParser) -> HotstartRunConfig | None:
+    """Read optional hotstart settings from the config file."""
+    if not params.has_section("hotstart"):
+        return None
+
+    hotstart_values = {
+        "wallclock_step": _read_optional_value(params, "hotstart", "wallclock_step", params.get),
+        "save_file_name": _read_optional_value(params, "hotstart", "save_file", params.get),
+    }
+    if all(value is None for value in hotstart_values.values()):
+        return None
+
+    try:
+        return HotstartRunConfig(**hotstart_values)
+    except ValidationError as error:
+        _fatal_validation_error(error)
 
 
 def _read_input_map_names(params: ConfigParser) -> dict[str, str | None]:
@@ -234,17 +258,6 @@ def _build_simulation_config(**kwargs: Any) -> SimulationConfig:
         return SimulationConfig(**kwargs)
     except ValidationError as error:
         _fatal_validation_error(error)
-
-
-def _legacy_drainage_params(sim_config: SimulationConfig) -> dict[str, str | float | None]:
-    """Expose drainage settings in the legacy dictionary shape."""
-    return {
-        "swmm_inp": sim_config.swmm_inp,
-        "output": sim_config.drainage_output,
-        "orifice_coeff": sim_config.orifice_coeff,
-        "free_weir_coeff": sim_config.free_weir_coeff,
-        "submerged_weir_coeff": sim_config.submerged_weir_coeff,
-    }
 
 
 class SimulationTimes(BaseModel):
@@ -350,6 +363,7 @@ class ConfigReader:
         self.grass_mandatory = list(GRASS_MANDATORY_KEYS)
 
         params = _read_parser(filename)
+        self.hotstart_config = _read_hotstart_values(params)
         self.raw_input_times = _read_time_values(params)
         self.input_map_names = _read_input_map_names(params)
         self.out_prefix, self.out_values, self.output_map_names = _read_output_config(params)
@@ -374,6 +388,9 @@ class ConfigReader:
             "infiltration_model": infiltration_model,
         }
 
+        if self.hotstart_config is not None:
+            simulation_kwargs["hotstart_config"] = self.hotstart_config
+
         stats_file = _read_optional_value(params, "statistics", "stats_file", params.get)
         if stats_file is not None:
             simulation_kwargs["stats_file"] = stats_file
@@ -382,14 +399,6 @@ class ConfigReader:
         simulation_kwargs.update(_read_simulation_drainage_values(params))
 
         self.sim_config = _build_simulation_config(**simulation_kwargs)
-        self.stats_file = self.sim_config.stats_file
-        self.drainage_params = _legacy_drainage_params(self.sim_config)
-        self._grass_params = self.grass_params.model_dump()
-        self.sim_param = {
-            **self.sim_config.surface_flow_parameters.model_dump(),
-            "dtinf": self.sim_config.dtinf,
-            "inf_model": self.sim_config.infiltration_model,
-        }
 
     def _check_grass_params(self, grass_params: GrassParams) -> None:
         """Ensure mandatory GRASS settings are provided together."""
