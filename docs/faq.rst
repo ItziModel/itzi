@@ -26,16 +26,34 @@ which could be achieved by changing two options:
 The second one is by reducing the *theta* option.
 Please note however that a value below 0.7 could be counter-productive.
 
+Why does a resumed run differ from an uninterrupted run?
+--------------------------------------------------------
+
+.. versionadded:: 26.6
+
+Hotstart resume is a continuation mechanism, not a guarantee of bitwise
+identity with an uninterrupted run.
+
+For surface-only cases, resumed runs should normally be very close to the
+original run. With drainage enabled, the current SWMM hotstart behavior is not
+always restart-exact.
+A resumed run can therefore show small differences relative to an uninterrupted run
+even when the hotstart file and configuration are valid.
+
+See :doc:`conf_file` for the configuration constraints enforced when resuming.
+
 Performances and computer resources usage
 -----------------------------------------
 
-*Itzï* is parallelized using OpenMP.
+*Itzï* is parallelized using OpenMP and makes use of compiler-level vector optimizations.
 By default, it will try to use all available hardware threads on the machine.
 The number of threads used can be changed by setting the environment variable OMP\_NUM\_THREADS.
 
 Given the type of numerical scheme, using a computer with more cores and
 faster RAM will likely decrease the computation time.
-No parallel efficiency test has been performed so far, though.
+Additionally, it is recommended to disable multithreading (SMT) if your CPU support it.
+SMT is counterproductive for the type of computing *Itzï* does.
+
 For an example of expected performance, a 24h simulation of urban floods with direct
 rainfall on a 5m DEM of 3.5 millions cells takes around 3 hours with an Intel Core i7-4790 (4 cores, 8 threads).
 
