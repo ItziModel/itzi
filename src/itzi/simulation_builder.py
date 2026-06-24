@@ -59,6 +59,8 @@ class SimulationBuilder:
         "dtmax",
         "slope_threshold",
         "max_slope",
+        "vrouting",
+        "max_error",
     }
 
     def __init__(

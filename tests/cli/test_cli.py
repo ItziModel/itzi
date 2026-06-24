@@ -80,6 +80,16 @@ def test_reconcile_hotstart_commands_rejects_single_resume_for_multiple_configs(
         reconcile_hotstart_commands(["/tmp/a.ini", "/tmp/b.ini"], [(None, "restart.zip")])
 
 
+def test_reconcile_hotstart_commands_accepts_single_named_resume_for_multiple_configs():
+    assert reconcile_hotstart_commands(
+        ["/tmp/a.ini", "/tmp/b.ini"],
+        [("a.ini", "restart_a.zip")],
+    ) == [
+        ("/tmp/a.ini", "restart_a.zip"),
+        ("/tmp/b.ini", None),
+    ]
+
+
 def test_reconcile_hotstart_commands_rejects_unnamed_values_in_batch_mode():
     with pytest.raises(ItziFatal):
         reconcile_hotstart_commands(

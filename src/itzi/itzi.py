@@ -242,11 +242,15 @@ def reconcile_hotstart_commands(
     if not resume_from_list:
         return [(config_file, None) for config_file in config_file_list]
 
-    # A single hotstart only makes sense when there is a single config.
+    # An unnamed single hotstart only makes sense when there is a single config.
     if len(resume_from_list) == 1:
-        if len(config_file_list) != 1:
-            msgr.fatal("A single --resume-from value can only be used with a single config file")
-        return [(config_file_list[0], resume_from_list[0][1])]
+        config_key, hotstart_file = resume_from_list[0]
+        if config_key is None:
+            if len(config_file_list) != 1:
+                msgr.fatal(
+                    "A single unnamed --resume-from value can only be used with a single config file"
+                )
+            return [(config_file_list[0], hotstart_file)]
 
     # In batch mode every hotstart must be explicitly mapped.
     if any(config_key is None for config_key, _ in resume_from_list):

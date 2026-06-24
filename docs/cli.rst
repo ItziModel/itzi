@@ -51,8 +51,6 @@ Rules
 - With a single configuration file, ``--resume-from HOTSTART_PATH`` is valid.
 - With multiple configuration files, each ``--resume-from`` value must use the
   ``CONFIG_PATH=HOTSTART_PATH`` form.
-- Current limitation: when several configuration files are given, a single
-  ``--resume-from`` value is rejected even if it uses ``CONFIG_PATH=HOTSTART_PATH``.
 - The ``CONFIG_PATH`` part may be either the config path or a basename such as
   ``a.ini``. When basenames are not unique, use the config path.
 - At most one hotstart file may be mapped to a given configuration file.

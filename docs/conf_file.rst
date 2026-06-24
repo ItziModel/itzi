@@ -116,7 +116,7 @@ The table below reflects the current implementation.
      - Allowed
      - The resumed hydrology schedule uses the new value.
    * - ``[options] cfl``, ``theta``, ``dtmax``, ``slope_threshold``,
-       ``max_slope``
+       ``max_slope``, ``vrouting``, ``max_error``
      - Allowed
      - These are the only surface-flow options explicitly allowed to change on
        resume.
@@ -127,7 +127,7 @@ The table below reflects the current implementation.
    * - ``[output] prefix``, ``[output] values``, ``[statistics] stats_file``
      - Allowed
      - Output targets come from the resumed configuration file.
-   * - ``[options] hmin``, ``g``, ``vrouting``, ``max_error``
+   * - ``[options] hmin``, ``g``
      - Must match
      - Changing any of these raises a hotstart compatibility error.
    * - Infiltration model selection from ``[input]``
