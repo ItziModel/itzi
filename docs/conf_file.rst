@@ -37,7 +37,7 @@ Valid combinations:
 ----------
 
 .. versionadded:: 26.6
-    The hotstart feature is added.
+
 
 A hotstart file saves the current state of the simulation at a give point in time, allowing to restart a simulation from a given point.
 
