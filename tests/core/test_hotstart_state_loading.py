@@ -398,13 +398,14 @@ class TestSimulationBuilderHotstart:
         assert simulation.hydrology_model.dt == timedelta(seconds=resumed_dtinf)
 
     @pytest.mark.parametrize(
-        ("parameter", "value"),
+        ("parameter", "value", "target_attr"),
         [
-            ("cfl", 0.15),
-            ("theta", 0.9),
-            ("dtmax", 0.2),
-            ("slope_threshold", 1e-5),
-            ("max_slope", 5.0),
+            ("cfl", 0.15, "cfl"),
+            ("theta", 0.9, "theta"),
+            ("dtmax", 0.2, "dtmax"),
+            ("slope_threshold", 1e-5, "slope_threshold"),
+            ("max_slope", 5.0, "max_slope"),
+            ("vrouting", 2.0, "v_routing"),
         ],
     )
     def test_build_allows_surface_flow_resume_parameter_change(
@@ -414,6 +415,7 @@ class TestSimulationBuilderHotstart:
         valid_hotstart_bytes: io.BytesIO,
         parameter: str,
         value: float,
+        target_attr: str,
     ) -> None:
         """build() should allow selected surface-flow tuning changes on resume."""
         resumed_surface_flow_parameters = sim_config.surface_flow_parameters.model_copy(
@@ -425,15 +427,31 @@ class TestSimulationBuilderHotstart:
 
         simulation = self._build_with_hotstart(domain_5by5, resumed_config, valid_hotstart_bytes)
 
-        assert getattr(simulation.surface_flow, parameter) == value
+        assert getattr(simulation.surface_flow, target_attr) == value
+
+    def test_build_allows_max_error_change(
+        self,
+        domain_5by5,
+        sim_config: SimulationConfig,
+        valid_hotstart_bytes: io.BytesIO,
+    ) -> None:
+        """build() should allow changing the mass-balance threshold on resume."""
+        resumed_surface_flow_parameters = sim_config.surface_flow_parameters.model_copy(
+            update={"max_error": 0.5}
+        )
+        resumed_config = sim_config.model_copy(
+            update={"surface_flow_parameters": resumed_surface_flow_parameters}
+        )
+
+        simulation = self._build_with_hotstart(domain_5by5, resumed_config, valid_hotstart_bytes)
+
+        assert simulation.mass_balance_error_threshold == 0.5
 
     @pytest.mark.parametrize(
         ("parameter", "value"),
         [
             ("hmin", 0.0002),
             ("g", 9.9),
-            ("vrouting", 2.0),
-            ("max_error", 0.5),
         ],
     )
     def test_build_rejects_surface_flow_parameter_mismatch(

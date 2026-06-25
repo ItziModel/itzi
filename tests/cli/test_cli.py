@@ -6,7 +6,8 @@ import os
 import pytest
 
 from itzi.const import VerbosityLevel
-from itzi.itzi import main, itzi_run
+from itzi.itzi import main, itzi_run, reconcile_hotstart_commands
+from itzi.itzi_error import ItziFatal
 from itzi.parser import build_parser
 
 
@@ -16,6 +17,21 @@ def test_run_parser_accepts_multiple_config_files():
     assert args.o is True
     assert args.v == 2
     assert args.q is None
+
+
+def test_run_parser_accepts_resume_from_args():
+    args = build_parser().parse_args(
+        [
+            "run",
+            "a.ini",
+            "b.ini",
+            "--resume-from",
+            "a.ini=restart_a.zip",
+            "--resume-from",
+            "b.ini=restart_b.zip",
+        ]
+    )
+    assert args.resume_from == [("a.ini", "restart_a.zip"), ("b.ini", "restart_b.zip")]
 
 
 def test_run_parser_rejects_v_and_q_together():
@@ -29,11 +45,74 @@ def test_prints_version(monkeypatch, capsys):
     assert capsys.readouterr().out.strip() == "22.2"
 
 
+def test_reconcile_hotstart_commands_accepts_single_resume_for_single_config():
+    assert reconcile_hotstart_commands(["/tmp/a.ini"], [(None, "restart_a.zip")]) == [
+        ("/tmp/a.ini", "restart_a.zip"),
+    ]
+
+
+def test_reconcile_hotstart_commands_matches_multiple_named_values():
+    config_file_list = ["/tmp/a.ini", "/tmp/b.ini", "/tmp/c.ini"]
+    resume_from_list = [("c.ini", "restart_c.zip"), ("a.ini", "restart_a.zip")]
+
+    assert reconcile_hotstart_commands(config_file_list, resume_from_list) == [
+        ("/tmp/a.ini", "restart_a.zip"),
+        ("/tmp/b.ini", None),
+        ("/tmp/c.ini", "restart_c.zip"),
+    ]
+
+
+def test_reconcile_hotstart_commands_accepts_duplicate_basenames_with_paths():
+    config_file_list = ["./sim1/config.ini", "sim2/config.ini"]
+    resume_from_list = [
+        ("./sim1/config.ini", "sim1/hotstart.zip"),
+        ("sim2/config.ini", "sim2/hotstart.zip"),
+    ]
+
+    assert reconcile_hotstart_commands(config_file_list, resume_from_list) == [
+        ("./sim1/config.ini", "sim1/hotstart.zip"),
+        ("sim2/config.ini", "sim2/hotstart.zip"),
+    ]
+
+
+def test_reconcile_hotstart_commands_rejects_single_resume_for_multiple_configs():
+    with pytest.raises(ItziFatal):
+        reconcile_hotstart_commands(["/tmp/a.ini", "/tmp/b.ini"], [(None, "restart.zip")])
+
+
+def test_reconcile_hotstart_commands_accepts_single_named_resume_for_multiple_configs():
+    assert reconcile_hotstart_commands(
+        ["/tmp/a.ini", "/tmp/b.ini"],
+        [("a.ini", "restart_a.zip")],
+    ) == [
+        ("/tmp/a.ini", "restart_a.zip"),
+        ("/tmp/b.ini", None),
+    ]
+
+
+def test_reconcile_hotstart_commands_rejects_unnamed_values_in_batch_mode():
+    with pytest.raises(ItziFatal):
+        reconcile_hotstart_commands(
+            ["/tmp/a.ini", "/tmp/b.ini"],
+            [("a.ini", "restart_a.zip"), (None, "restart_b.zip")],
+        )
+
+
+def test_reconcile_hotstart_commands_rejects_unknown_config_key():
+    with pytest.raises(ItziFatal):
+        reconcile_hotstart_commands(
+            ["/tmp/a.ini", "/tmp/b.ini"],
+            [("missing.ini", "restart.zip"), ("b.ini", "restart_b.zip")],
+        )
+
+
 def test_itzi_run_sets_env_and_dispatches(monkeypatch):
     calls = []
     messages = []
 
-    monkeypatch.setattr("itzi.itzi.itzi_run_one", calls.append)
+    monkeypatch.setattr(
+        "itzi.itzi.itzi_run_one", lambda conf, hotstart: calls.append((conf, hotstart))
+    )
     monkeypatch.setattr("itzi.itzi.msgr.message", messages.append)
 
     args = argparse.Namespace(
@@ -41,11 +120,12 @@ def test_itzi_run_sets_env_and_dispatches(monkeypatch):
         o=True,
         v=1,
         q=None,
+        resume_from=[("a.ini", "restart_a.zip"), ("b.ini", "restart_b.zip")],
     )
 
     itzi_run(args)
 
-    assert calls == ["a.ini", "b.ini"]
+    assert calls == [("a.ini", "restart_a.zip"), ("b.ini", "restart_b.zip")]
     assert os.environ["GRASS_OVERWRITE"] == "1"
     assert os.environ["ITZI_VERBOSE"] == str(VerbosityLevel.VERBOSE)
     assert os.environ["GRASS_VERBOSE"] == "2"

@@ -37,9 +37,10 @@ Valid combinations:
 ----------
 
 .. versionadded:: 26.6
-    The hotstart feature is added.
 
-A hotstart file saves the current state of the simulation at a give point in time, allowing to restart a simulation from a given point.
+
+A hotstart file saves the current state of the simulation at a given point in
+time, allowing the run to be resumed later with ``itzi run --resume-from``.
 
 .. list-table::
    :header-rows: 1
@@ -49,11 +50,111 @@ A hotstart file saves the current state of the simulation at a give point in tim
      - Description
      - Format
    * - wallclock_step
-     - Wall clock duration between records.
+     - Wall-clock duration between checkpoint writes.
      - HH:MM:SS
    * - save_file
-     - File name for the hotstart file. Each new file overwrites the anterior. Only the last created file is kept.
+     - Path to the hotstart file written by the simulation.
      - Text string
+
+Current behavior and limitations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- The ``[hotstart]`` section is optional. If it is absent, no checkpoint is
+  written.
+- When the ``[hotstart]`` section is present, both ``wallclock_step`` and
+  ``save_file`` must be provided.
+- ``wallclock_step`` is measured in wall-clock time, not simulation time.
+- ``save_file`` is overwritten every time a new checkpoint is written. Only the
+  most recent checkpoint is kept automatically.
+- There is no extra automatic checkpoint at the very end of the simulation.
+- If the run finishes before ``wallclock_step`` has elapsed in real time, no
+  hotstart file is written.
+
+Resume requirements
+^^^^^^^^^^^^^^^^^^^
+
+To resume from a hotstart file, pass the configuration file together with the
+``--resume-from`` CLI option described in :doc:`cli`.
+
+Before resuming, Itzi validates the hotstart against the current configuration.
+Resume is rejected when any of the following checks fail:
+
+- the hotstart archive is missing or invalid;
+- the resumed domain bounds, grid size, or coordinate reference system do not
+  match the archived domain;
+- the current GRASS mask does not match the archived mask;
+- the archived run contains drainage state but the resumed configuration has no
+  drainage model, or the reverse;
+- the infiltration model changes between the archived run and the resumed run;
+- a surface-flow parameter changes outside the set explicitly allowed on
+  resume;
+- ``end_time`` is changed to a value that is not strictly after the archived
+  checkpoint time;
+
+
+Config changes allowed on resume
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The table below reflects the current implementation.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 15 55
+
+   * - Config option(s)
+     - Status
+     - Notes
+   * - ``[time] end_time``
+     - Allowed
+     - May stay unchanged or be extended. If changed, it must be strictly after
+       the checkpoint time stored in the hotstart.
+   * - ``[time] record_step``
+     - Allowed
+     - Changes the output cadence from the resume point onward. It must stay
+       positive.
+   * - ``[options] dtinf``
+     - Allowed
+     - The resumed hydrology schedule uses the new value.
+   * - ``[options] cfl``, ``theta``, ``dtmax``, ``slope_threshold``,
+       ``max_slope``, ``vrouting``, ``max_error``
+     - Allowed
+     - These are the only surface-flow options explicitly allowed to change on
+       resume.
+   * - ``[hotstart] wallclock_step``, ``[hotstart] save_file``
+     - Allowed
+     - These control only new checkpoints creation after the resume. The input
+       hotstart file itself is selected with ``--resume-from``.
+   * - ``[output] prefix``, ``[output] values``, ``[statistics] stats_file``
+     - Allowed
+     - Output targets come from the resumed configuration file.
+   * - ``[options] hmin``, ``g``
+     - Must match
+     - Changing any of these raises a hotstart compatibility error.
+   * - Infiltration model selection from ``[input]``
+     - Must match
+     - The model type must stay the same: no infiltration, constant
+       infiltration, and Green-Ampt are not interchangeable on resume.
+   * - Drainage enabled or disabled
+     - Must match
+     - A run with drainage can only resume from a hotstart that also contains
+       drainage state, and vice versa.
+   * - ``[time] start_time``
+     - Keep unchanged
+     - The archived simulation clock and scheduler are restored from the
+       hotstart. They are not remapped to a new start time.
+   * - Input map names, ``[drainage] swmm_inp``, and other forcing paths
+     - Not cross-checked
+     - Itzi validates the resumed domain and mask, but it does not verify that
+       these files are the same as in the archived run. Changing them changes
+       the forcing applied after the resume.
+   * - ``[drainage] output``, ``orifice_coeff``, ``free_weir_coeff``,
+       ``submerged_weir_coeff``
+     - Not cross-checked
+     - These values are taken from the resumed configuration, but Itzi does not
+       compare them with the archived configuration before resuming.
+
+If you want a pure restart, keep every option unchanged except for the options
+listed as ``Allowed`` above.
 
 
 [input]

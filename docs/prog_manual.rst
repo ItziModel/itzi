@@ -24,7 +24,7 @@ Once the itzi repository is cloned and uv installed, you can run itzi with:
 
     uv run itzi
 
-This will create a virtual environment, install all the dependencies listed in the *pyproject.toml* file, and build the Cython extensions.
+This will create a virtual environment, install all the dependencies listed in the *pyproject.toml* file, including dev dependencies, and build the Cython extensions.
 Now, every change you make to the Python code will be directly reflected when running the tests or *uv run itzi* .
 
 
@@ -71,12 +71,14 @@ To estimate the test coverage:
 The GRASS-specific tests could be sped up a bit by running them separately:
 
 .. code:: sh
+
     uv run pytest tests/grass/test_itzi.py && uv run pytest tests/grass/test_bmi.py && uv run pytest tests/grass/test_tutorial.py
 
 
 The tests not relying on GRASS can be run directly:
 
 .. code:: sh
+
     uv run pytest tests/core
 
 
@@ -99,8 +101,9 @@ Documentation
 The documentation is written in reStructuredText and is built with Sphinx.
 It is located in the *docs* directory.
 It is automatically built and published on `readthedocs <https://itzi.readthedocs.io>`__.
-To build the documentation locally, you first need to install *sphinx*, along with *sphinx-argparse* and *sphinx_rtd_theme*.
-You can then build the documentation locally:
+The packages *sphinx*, *sphinx-argparse*, and *sphinx_rtd_theme* are needed to build the docs locally.
+They are normally installed automatically with the rest of the dev dependencies.
+You can then build the documentation:
 
 .. code:: sh
 
