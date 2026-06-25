@@ -163,6 +163,14 @@ class SimulationBuilder:
         """Validate which runtime settings may change across a hotstart resume."""
         hotstart_sim_time = hotstart_state.sim_time
 
+        if self.sim_config.start_time != hotstart_config.start_time:
+            raise HotstartError(
+                "Hotstart start_time mismatch: "
+                f"current={self.sim_config.start_time}, "
+                f"hotstart={hotstart_config.start_time}. "
+                "Resume must keep the archived start_time unchanged."
+            )
+
         # Keep this defensive check here even though SimulationConfig also validates
         # user input: model_copy(update=...) can bypass Pydantic validation in tests
         # and internal resume flows.

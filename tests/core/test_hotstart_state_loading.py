@@ -339,6 +339,20 @@ class TestSimulationBuilderHotstart:
 
         assert simulation.report.dt == resumed_record_step
 
+    def test_build_rejects_start_time_mismatch(
+        self,
+        domain_5by5,
+        sim_config: SimulationConfig,
+        valid_hotstart_bytes: io.BytesIO,
+    ) -> None:
+        """build() should reject resumed start times that differ from the hotstart."""
+        resumed_config = sim_config.model_copy(
+            update={"start_time": sim_config.start_time + timedelta(seconds=5)}
+        )
+
+        with pytest.raises(HotstartError, match="start_time"):
+            self._build_with_hotstart(domain_5by5, resumed_config, valid_hotstart_bytes)
+
     def test_build_rejects_end_time_not_after_hotstart_time(
         self,
         domain_5by5,
