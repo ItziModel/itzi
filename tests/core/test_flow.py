@@ -54,6 +54,75 @@ def test_vectorizable_velocity_calculation():
         assert v_optimized == pytest.approx(expected_v)
 
 
+def test_solve_h_uses_dx_and_dy_separately_in_flow_divergence():
+    """The water-depth update must use the x and y cell sizes independently."""
+    shape = (5, 5)
+    dtype = np.float64
+
+    arr_ext = np.zeros(shape, dtype=dtype)
+    arr_qe = np.zeros(shape, dtype=dtype)
+    arr_qs = np.zeros(shape, dtype=dtype)
+    arr_bct = np.zeros(shape, dtype=dtype)
+    arr_bcv = np.zeros(shape, dtype=dtype)
+    arr_h = np.zeros(shape, dtype=dtype)
+    arr_hmax = np.zeros(shape, dtype=dtype)
+    arr_hfix = np.zeros(shape, dtype=dtype)
+    arr_herr = np.zeros(shape, dtype=dtype)
+    arr_hfe = np.zeros(shape, dtype=dtype)
+    arr_hfs = np.zeros(shape, dtype=dtype)
+    arr_v = np.zeros(shape, dtype=dtype)
+    arr_vdir = np.zeros(shape, dtype=dtype)
+    arr_vmax = np.zeros(shape, dtype=dtype)
+    arr_fr = np.zeros(shape, dtype=dtype)
+
+    center = (2, 2)
+    arr_h[center] = 1.0
+    arr_hmax[center] = 1.0
+
+    qw = 7.0
+    qe = 1.0
+    qn = 6.0
+    qs = 2.0
+    dx = 4.0
+    dy = 2.0
+    dt = 0.5
+    g = 9.81
+
+    arr_qe[2, 1] = qw
+    arr_qe[2, 2] = qe
+    arr_qs[1, 2] = qn
+    arr_qs[2, 2] = qs
+
+    flow.solve_h(
+        arr_ext=arr_ext,
+        arr_qe=arr_qe,
+        arr_qs=arr_qs,
+        arr_bct=arr_bct,
+        arr_bcv=arr_bcv,
+        arr_h=arr_h,
+        arr_hmax=arr_hmax,
+        arr_hfix=arr_hfix,
+        arr_herr=arr_herr,
+        arr_hfe=arr_hfe,
+        arr_hfs=arr_hfs,
+        arr_v=arr_v,
+        arr_vdir=arr_vdir,
+        arr_vmax=arr_vmax,
+        arr_fr=arr_fr,
+        dx=dx,
+        dy=dy,
+        dt=dt,
+        g=g,
+    )
+
+    expected_h = 1.0 + dt * (((qw - qe) / dx) + ((qn - qs) / dy))
+    swapped_dims_h = 1.0 + dt * (((qw - qe) / dy) + ((qn - qs) / dx))
+
+    assert arr_h[center] == pytest.approx(expected_h)
+    assert arr_hmax[center] == pytest.approx(expected_h)
+    assert not np.isclose(arr_h[center], swapped_dims_h)
+
+
 class TestWaterDepthFunction:
     """Integration tests for flow functions with optimized calculations"""
 
