@@ -8,6 +8,10 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pytest
 
+pytest.importorskip("xarray")
+
+import xarray as xr
+
 from itzi.const import InfiltrationModelType, TemporalType
 from itzi.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
@@ -18,7 +22,8 @@ if TYPE_CHECKING:
     from itzi.simulation import Simulation
 
 
-xr = pytest.importorskip("xarray")
+# Mark all tests in this module as cloud tests
+pytestmark = pytest.mark.cloud
 
 TIME_SLICE_SECONDS = (0, 10, 20, 30)
 RAIN_MM_PER_HOUR = {
