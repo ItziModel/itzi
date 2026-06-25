@@ -88,6 +88,7 @@ Resume is rejected when any of the following checks fail:
 - the infiltration model changes between the archived run and the resumed run;
 - a surface-flow parameter changes outside the set explicitly allowed on
   resume;
+- ``start_time`` differs from the value stored in the hotstart;
 - ``end_time`` is changed to a value that is not strictly after the archived
   checkpoint time;
 
@@ -139,9 +140,10 @@ The table below reflects the current implementation.
      - A run with drainage can only resume from a hotstart that also contains
        drainage state, and vice versa.
    * - ``[time] start_time``
-     - Keep unchanged
-     - The archived simulation clock and scheduler are restored from the
-       hotstart. They are not remapped to a new start time.
+      - Must match
+      - Changing it raises a hotstart compatibility error. The archived
+        simulation clock and scheduler are restored from the hotstart and are
+        not remapped to a new start time.
    * - Input map names, ``[drainage] swmm_inp``, and other forcing paths
      - Not cross-checked
      - Itzi validates the resumed domain and mask, but it does not verify that
