@@ -444,9 +444,25 @@ class GrassInterface:
             with self.raster_lock:
                 with raster.RasterRow(rast_name, mode="r") as rast:
                     array = np.array(rast, dtype=self.dtype)
+                    array = self._replace_cell_null_sentinel(rast.mtype, array)
         else:
             with raster.RasterRow(rast_name, mode="r") as rast:
                 array = np.array(rast, dtype=self.dtype)
+                array = self._replace_cell_null_sentinel(rast.mtype, array)
+        return array
+
+    @staticmethod
+    def _replace_cell_null_sentinel(raster_type: str, array: np.ndarray) -> np.ndarray:
+        """Normalize GRASS CELL nulls to NaN.
+
+        FCELL/DCELL nulls are already exposed as NaN by pygrass. CELL nulls are
+        returned as the int32 null sentinel cast to the target dtype.
+        """
+        if raster_type != "CELL" or not np.issubdtype(array.dtype, np.floating):
+            return array
+
+        null_sentinel = array.dtype.type(np.iinfo(np.int32).min)
+        array[array == null_sentinel] = np.nan
         return array
 
     def write_raster_map(self, arr, rast_name, mkey, hmin):

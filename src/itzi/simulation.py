@@ -390,13 +390,19 @@ class Simulation:
     def _validate_input_array_data(self, arr_key: str, arr: np.ndarray) -> None:
         """Fail or warn when a provider-backed input has no valid cells."""
         active_cells = arr[~self.raster_domain.mask]
-        if active_cells.size == 0 or np.any(~np.isnan(active_cells)):
+        active_cell_count = active_cells.size
+        finite_cell_count = int(np.count_nonzero(np.isfinite(active_cells)))
+
+        if finite_cell_count > 0:
             return
 
-        msg = (
-            f"{self.sim_time}: input map <{arr_key}> contains only NULL/NaN cells "
-            "inside the active domain"
-        )
+        if active_cell_count == 0:
+            msg = f"{self.sim_time}: active domain contains no cells for input map <{arr_key}>"
+        else:
+            msg = (
+                f"{self.sim_time}: input map <{arr_key}> contains only NULL/NaN cells "
+                "inside the active domain"
+            )
         if arr_key == "dem":
             msgr.fatal(msg)
         else:
