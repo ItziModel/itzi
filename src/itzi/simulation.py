@@ -352,7 +352,9 @@ class Simulation:
             return self
         # DEM is needed for WSE and rain routing direction
         if not self.timed_arrays["dem"].is_valid(self.sim_time):
-            self.set_array("dem", self.timed_arrays["dem"].get(self.sim_time))
+            new_dem = self.timed_arrays["dem"].get(self.sim_time)
+            self._validate_input_array_data("dem", new_dem)
+            self.set_array("dem", new_dem)
         # loop through the arrays
         for arr_key, ta in self.timed_arrays.items():
             # DEM done before
@@ -381,8 +383,30 @@ class Simulation:
                     new_arr = ta.get(self.sim_time)
                 # update array
                 msgr.debug("{}: update input array <{}>".format(self.sim_time, arr_key))
+                self._validate_input_array_data(arr_key, new_arr)
                 self.set_array(arr_key, new_arr)
         return self
+
+    def _validate_input_array_data(self, arr_key: str, arr: np.ndarray) -> None:
+        """Fail or warn when a provider-backed input has no valid cells."""
+        active_cells = arr[~self.raster_domain.mask]
+        active_cell_count = active_cells.size
+        finite_cell_count = int(np.count_nonzero(np.isfinite(active_cells)))
+
+        if finite_cell_count > 0:
+            return
+
+        if active_cell_count == 0:
+            msg = f"{self.sim_time}: active domain contains no cells for input map <{arr_key}>"
+        else:
+            msg = (
+                f"{self.sim_time}: input map <{arr_key}> contains only NULL/NaN cells "
+                "inside the active domain"
+            )
+        if arr_key == "dem":
+            msgr.fatal(msg)
+        else:
+            msgr.warning(msg)
 
     def set_array(self, arr_id: str, arr: np.ndarray):
         """Set an array of the simulation domain."""

@@ -1,5 +1,6 @@
 """ """
 
+from configparser import ConfigParser
 import os
 
 import grass.script as gscript
@@ -7,6 +8,7 @@ import pytest
 
 from itzi import SimulationRunner
 from itzi.configreader import ConfigReader
+from itzi.itzi_error import ItziFatal
 
 
 @pytest.mark.forked
@@ -66,3 +68,45 @@ def test_region_mask(test_data_path):
     # Check tear down
     assert int(gscript.parse_command("g.region", flags="pg")["cells"]) == init_ncells
     assert int(gscript.parse_command("r.univar", map="z", flags="g")["null_cells"]) == init_nulls
+
+
+@pytest.mark.forked
+@pytest.mark.usefixtures("grass_5by5")
+def test_fails_when_region_has_no_dem_data(test_data_temp_path):
+    gscript.run_command(
+        "g.region", res=10, s=100, n=150, w=100, e=150, save="outside_dem", flags="o"
+    )
+
+    config_dict = {
+        "input": {
+            "dem": "z@5by5",
+            "friction": "n@5by5",
+            "water_depth": "start_h@5by5",
+        },
+        "time": {
+            "duration": "00:01:00",
+            "record_step": "00:00:30",
+        },
+        "output": {
+            "prefix": "out_5by5_no_dem_overlap",
+            "values": "water_depth",
+        },
+        "options": {
+            "hmin": "0.0001",
+            "dtmax": "0.3",
+            "cfl": "0.2",
+        },
+        "grass": {
+            "region": "outside_dem",
+        },
+    }
+    parser = ConfigParser()
+    parser.read_dict(config_dict)
+    config_file = os.path.join(test_data_temp_path, "outside_dem.ini")
+    with open(config_file, "w") as file_handle:
+        parser.write(file_handle)
+
+    conf_data = ConfigReader(config_file)
+
+    with pytest.raises(ItziFatal, match=r"input map <dem> contains only NULL/NaN cells"):
+        SimulationRunner(conf_data.get_sim_params(), conf_data.get_grass_params())

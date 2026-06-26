@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -14,6 +15,7 @@ import xarray as xr
 
 from itzi.const import InfiltrationModelType, TemporalType
 from itzi.data_containers import SimulationConfig, SurfaceFlowParameters
+from itzi.itzi_error import ItziFatal
 from itzi.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
 from itzi.providers.xarray_input import XarrayRasterInputProvider
 from itzi.simulation_builder import SimulationBuilder
@@ -252,3 +254,56 @@ def test_resume_with_absolute_time_xarray_inputs(domain_5by5) -> None:
         domain_5by5,
         use_relative_time=False,
     )
+
+
+def test_build_fails_when_dem_input_has_only_nan_cells(domain_5by5) -> None:
+    start_time = datetime(2000, 1, 1, 0, 0, 0)
+    end_time = start_time + timedelta(seconds=25)
+    dataset, _ = _make_xarray_input_dataset(
+        domain_5by5,
+        start_time,
+        use_relative_time=False,
+    )
+    dataset["dem"] = xr.DataArray(
+        np.full(domain_5by5.domain_data.shape, np.nan, dtype=np.float32),
+        dims=("y", "x"),
+        coords={"y": dataset["y"], "x": dataset["x"]},
+    )
+    sim_config = _make_simulation_config(
+        start_time,
+        end_time,
+        temporal_type=TemporalType.ABSOLUTE,
+    )
+
+    with pytest.raises(ItziFatal, match=r"input map <dem> contains only NULL/NaN cells"):
+        _build_provider_simulation(sim_config, domain_5by5, dataset)
+
+
+def test_build_warns_when_non_dem_input_has_only_nan_cells(domain_5by5, caplog) -> None:
+    start_time = datetime(2000, 1, 1, 0, 0, 0)
+    end_time = start_time + timedelta(seconds=25)
+    dataset, _ = _make_xarray_input_dataset(
+        domain_5by5,
+        start_time,
+        use_relative_time=False,
+    )
+    dataset["rain"] = xr.DataArray(
+        np.full(domain_5by5.domain_data.shape, np.nan, dtype=np.float32),
+        dims=("y", "x"),
+        coords={"y": dataset["y"], "x": dataset["x"]},
+    )
+    sim_config = _make_simulation_config(
+        start_time,
+        end_time,
+        temporal_type=TemporalType.ABSOLUTE,
+    )
+
+    with caplog.at_level(logging.WARNING, logger="itzi"):
+        simulation = _build_provider_simulation(sim_config, domain_5by5, dataset)
+
+    warning_messages = [record.message for record in caplog.records]
+    assert any(
+        "input map <rain> contains only NULL/NaN cells inside the active domain" in message
+        for message in warning_messages
+    )
+    assert np.allclose(simulation.raster_domain.get_array("rain"), 0.0)
