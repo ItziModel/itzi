@@ -298,8 +298,13 @@ def test_build_warns_when_non_dem_input_has_only_nan_cells(domain_5by5, caplog) 
         temporal_type=TemporalType.ABSOLUTE,
     )
 
+    itzi_logger = logging.getLogger("itzi")
     with caplog.at_level(logging.WARNING, logger="itzi"):
-        simulation = _build_provider_simulation(sim_config, domain_5by5, dataset)
+        itzi_logger.addHandler(caplog.handler)
+        try:
+            simulation = _build_provider_simulation(sim_config, domain_5by5, dataset)
+        finally:
+            itzi_logger.removeHandler(caplog.handler)
 
     warning_messages = [record.message for record in caplog.records]
     assert any(
