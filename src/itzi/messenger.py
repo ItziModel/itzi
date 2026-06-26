@@ -45,11 +45,19 @@ class ItziLogger:
 
     def _setup_handlers(self):
         """Configure console and optional file handlers"""
+        self.logger.setLevel(logging.DEBUG)
+        self.logger.propagate = False
+
+        if any(
+            getattr(handler, "_itzi_console_handler", False) for handler in self.logger.handlers
+        ):
+            return
+
         # Console handler (stderr)
         console_handler = logging.StreamHandler(sys.stderr)
+        console_handler._itzi_console_handler = True
         console_handler.setFormatter(logging.Formatter("%(message)s"))
         self.logger.addHandler(console_handler)
-        self.logger.setLevel(logging.DEBUG)
 
     def add_file_handler(self, filepath, level=logging.DEBUG):
         """Add file logging capability"""

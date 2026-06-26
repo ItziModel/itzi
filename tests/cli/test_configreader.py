@@ -94,8 +94,13 @@ def test_reader_normalizes_deprecated_aliases(tmp_path, caplog):
         ),
     )
 
+    itzi_logger = logging.getLogger("itzi")
     with caplog.at_level(logging.WARNING, logger="itzi"):
-        sim_config = ConfigReader(config_file).get_sim_params()
+        itzi_logger.addHandler(caplog.handler)
+        try:
+            sim_config = ConfigReader(config_file).get_sim_params()
+        finally:
+            itzi_logger.removeHandler(caplog.handler)
 
     assert sim_config.input_map_names["water_depth"] == "legacy_depth"
     assert sim_config.input_map_names["losses"] == "legacy_losses"
