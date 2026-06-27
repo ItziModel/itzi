@@ -14,7 +14,8 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 
-from typing import Mapping, NotRequired, Sequence, TypedDict, TYPE_CHECKING
+from datetime import datetime
+from typing import Mapping, NotRequired, Sequence, TypedDict
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict
@@ -22,9 +23,6 @@ from pydantic import BaseModel, ConfigDict
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 from itzi.providers.base import RasterInputProvider
 from itzi.providers.domain_data import DomainData
-
-if TYPE_CHECKING:
-    from datetime import datetime
 
 
 class TimedRasterSlice(BaseModel):
