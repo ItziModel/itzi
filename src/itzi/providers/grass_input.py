@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 
-from typing import Tuple, Mapping, TypedDict, TYPE_CHECKING
+from typing import Mapping, TypedDict, TYPE_CHECKING
 
 import numpy as np
 
@@ -99,7 +99,7 @@ class GrassRasterInputProvider(RasterInputProvider):
 
     def get_array(
         self, map_key: str, current_time: datetime
-    ) -> Tuple[np.ndarray | None, datetime, datetime]:
+    ) -> tuple[np.ndarray | None, datetime, datetime]:
         """Take a given map key and current time
         return a numpy array associated with its start and end time
         if no map is found, return None instead of an array
