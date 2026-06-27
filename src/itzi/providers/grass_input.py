@@ -1,5 +1,5 @@
 """
-Copyright (C) 2025 Laurent Courty
+Copyright (C) 2025-2026 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -12,7 +12,9 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-from typing import Tuple, Mapping, TypedDict, TYPE_CHECKING
+from __future__ import annotations
+
+from typing import Mapping, TypedDict, TYPE_CHECKING
 
 import numpy as np
 
@@ -27,11 +29,11 @@ if TYPE_CHECKING:
 
 
 class GrassRasterInputConfig(TypedDict):
-    grass_interface: "GrassInterface"
+    grass_interface: GrassInterface
     # A dict of key: input names
     input_map_names: Mapping[str, str]
-    default_start_time: "datetime"
-    default_end_time: "datetime"
+    default_start_time: datetime
+    default_end_time: datetime
 
 
 class GrassRasterInputProvider(RasterInputProvider):
@@ -40,7 +42,6 @@ class GrassRasterInputProvider(RasterInputProvider):
         self.start_time = config["default_start_time"]
         self.end_time = config["default_end_time"]
         self.map_lists = self.get_map_lists(config["input_map_names"])
-        self.origin = self.get_origin()
 
     def get_domain_data(self) -> DomainData:
         """Return a DomainData object"""
@@ -56,9 +57,9 @@ class GrassRasterInputProvider(RasterInputProvider):
 
     def get_map_lists(
         self, map_names: Mapping[str, str]
-    ) -> Mapping[str, list["GrassInterface.MapData"]]:
-        """Read maps names from GIS
-        take as input map_names, a dictionary of maps/STDS names
+    ) -> Mapping[str, list[GrassInterface.MapData]]:
+        """Read maps names from GIS.
+        input map_names is a dictionary of maps/STDS names
         for each entry in map_names:
             if the name is empty or None, store None
             if a strds, load all maps in the instance's time extend,
@@ -68,7 +69,7 @@ class GrassRasterInputProvider(RasterInputProvider):
         each map is stored as a MapData namedtuple
         store result in instance's dictionary
         """
-        map_lists = {
+        map_lists: dict[str, None] = {
             arr_def.key: None
             for arr_def in ARRAY_DEFINITIONS
             if ArrayCategory.INPUT in arr_def.category
@@ -97,8 +98,8 @@ class GrassRasterInputProvider(RasterInputProvider):
         return map_lists
 
     def get_array(
-        self, map_key: str, current_time: "datetime"
-    ) -> Tuple[np.ndarray, "datetime", "datetime"]:
+        self, map_key: str, current_time: datetime
+    ) -> tuple[np.ndarray | None, datetime, datetime]:
         """Take a given map key and current time
         return a numpy array associated with its start and end time
         if no map is found, return None instead of an array

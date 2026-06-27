@@ -8,6 +8,7 @@ import pytest
 
 from itzi.simulation_builder import SimulationBuilder
 from itzi.data_containers import SimulationConfig, SurfaceFlowParameters
+from itzi.providers.memory_input import MemoryRasterInputProvider, TimedRasterSlice
 from itzi.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
 from itzi.const import InfiltrationModelType, TemporalType
 
@@ -116,3 +117,82 @@ class TestWSE:
         assert np.isclose(wse_min, 132.0, atol=0.00001), (
             f"Min WSE should be ~132m, got {wse_min:.6f}"
         )
+
+
+def test_timed_memory_input_updates_water_depth_from_wse(domain_5by5) -> None:
+    start_time = datetime(2000, 1, 1, 0, 0, 0)
+    boundary_time = start_time + timedelta(seconds=10)
+    end_time = start_time + timedelta(seconds=20)
+    first_wse = np.full(domain_5by5.domain_data.shape, 132.2, dtype=np.float32)
+    second_wse = np.full(domain_5by5.domain_data.shape, 132.35, dtype=np.float32)
+
+    sim_config = SimulationConfig(
+        start_time=start_time,
+        end_time=end_time,
+        record_step=timedelta(seconds=10),
+        temporal_type=TemporalType.RELATIVE,
+        input_map_names={
+            "dem": "dem",
+            "friction": "friction",
+            "water_surface_elevation": "water_surface_elevation",
+        },
+        output_map_names={"water_depth": "out_5by5_wse_timed_memory_water_depth"},
+        surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=0.3, cfl=0.2),
+        infiltration_model=InfiltrationModelType.NULL,
+    )
+    input_provider = MemoryRasterInputProvider(
+        {
+            "domain_data": domain_5by5.domain_data,
+            "simulation_start_time": start_time,
+            "simulation_end_time": end_time,
+            "static_arrays": {
+                "dem": domain_5by5.arr_dem_high.copy(),
+                "friction": domain_5by5.arr_n.copy(),
+            },
+            "timed_arrays": {
+                "water_surface_elevation": [
+                    TimedRasterSlice(
+                        start_time=start_time,
+                        end_time=boundary_time - timedelta(microseconds=1),
+                        array=first_wse,
+                    ),
+                    TimedRasterSlice(
+                        start_time=boundary_time,
+                        end_time=end_time,
+                        array=second_wse,
+                    ),
+                ]
+            },
+        }
+    )
+    simulation = (
+        SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
+        .with_input_provider(input_provider)
+        .with_raster_output_provider(
+            MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
+        )
+        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .build()
+    )
+
+    simulation.initialize()
+
+    np.testing.assert_allclose(
+        simulation.raster_domain.get_array("water_depth"),
+        np.full(domain_5by5.domain_data.shape, 0.2, dtype=np.float32),
+        atol=1e-5,
+    )
+    assert simulation.timed_arrays is not None
+    wse_timed_array = simulation.timed_arrays["water_surface_elevation"]
+    assert wse_timed_array.arr_start == start_time
+    assert wse_timed_array.arr_end == boundary_time - timedelta(microseconds=1)
+
+    simulation.update_until(timedelta(seconds=10))
+
+    np.testing.assert_allclose(
+        simulation.raster_domain.get_array("water_depth"),
+        np.full(domain_5by5.domain_data.shape, 0.35, dtype=np.float32),
+        atol=1e-5,
+    )
+    assert wse_timed_array.arr_start == boundary_time
+    assert wse_timed_array.arr_end == end_time

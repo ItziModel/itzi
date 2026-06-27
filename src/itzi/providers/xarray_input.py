@@ -133,7 +133,6 @@ class XarrayRasterInputProvider(RasterInputProvider):
         self._validate_equality_of_spatial_dims()
 
         self.temporal_types: dict[str, TemporalType] = self.detect_temporal_type()
-        self.origin: tuple[float, float] = self.get_origin()
 
     def _validate_map_names_are_variables(self):
         """Make sure that the provided maps names exist as variables in the provided dataset."""

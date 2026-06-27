@@ -37,7 +37,7 @@ class TimedArray:
         mkey: str,
         raster_provider: "RasterInputProvider",
         default_array_func: Callable[[], np.ndarray],
-    ):
+    ) -> None:
         assert isinstance(mkey, str), "not a string!"
         assert hasattr(default_array_func, "__call__"), "not a function!"
         self.mkey = mkey  # An array identifier
@@ -49,7 +49,7 @@ class TimedArray:
         self.arr_start = datetime(1, 1, 2)
         self.arr_end = datetime(1, 1, 1)
         # Necessary for BMI implementation
-        self.origin = raster_provider.origin
+        self.origin = raster_provider.get_origin()
         # Placeholder for the numpy array
         self.arr = None
 
@@ -96,14 +96,14 @@ class RasterDomain:
     Include management of the masking and unmasking of arrays.
     """
 
-    def __init__(self, dtype, arr_mask, cell_shape):
+    def __init__(self, dtype, arr_mask: np.ndarray, cell_shape: tuple[float, float]) -> None:
         # data type
         self.dtype = dtype
         # geographical data
         self.shape = arr_mask.shape
         self.dx, self.dy = cell_shape
         self.cell_area = self.dx * self.dy
-        self.mask = arr_mask
+        self.mask: np.ndarray = arr_mask
 
         # slice for a simple padding (allow stencil calculation on boundary)
         self.simple_pad = (slice(1, -1), slice(1, -1))
@@ -131,7 +131,7 @@ class RasterDomain:
         self.arrp = dict.fromkeys(self.k_all)
         self._create_arrays()
 
-    def pad_array(self, arr):
+    def pad_array(self, arr) -> tuple[np.ndarray, np.ndarray]:
         """Return the original input array
         as a slice of a larger padded array with one cell
         """
@@ -139,7 +139,7 @@ class RasterDomain:
         arr = arr_p[self.simple_pad]
         return arr, arr_p
 
-    def _create_arrays(self):
+    def _create_arrays(self) -> Self:
         """Instantiate masked arrays and padded arrays
         the unpadded arrays are a slice of the padded ones
         """
@@ -148,26 +148,26 @@ class RasterDomain:
             self.arr[k], self.arrp[k] = self.pad_array(arr)
         return self
 
-    def update_mask(self, arr):
+    def update_mask(self, arr: np.ndarray) -> Self:
         """Create a mask array by marking NULL values from arr as True."""
         pass
         # self.mask[:] = np.isnan(arr)
         return self
 
-    def mask_array(self, arr, default_value):
+    def mask_array(self, arr: np.ndarray, default_value: float) -> Self:
         """Replace NULL values in the input array by the default_value"""
         mask = np.logical_or(np.isnan(arr), self.mask)
         arr[mask] = default_value
         assert not np.any(np.isnan(arr))
         return self
 
-    def unmask_array(self, arr):
+    def unmask_array(self, arr: np.ndarray) -> np.ndarray:
         """Replace values in the input array by NULL values from mask"""
         unmasked_array = np.copy(arr)
         unmasked_array[self.mask] = np.nan
         return unmasked_array
 
-    def update_ext_array(self):
+    def update_ext_array(self) -> Self:
         """If one of the external input array has been updated,
         combine them into a unique array 'ext' in m/s.
         This applies for inputs that are needed to be taken into account
@@ -181,16 +181,16 @@ class RasterDomain:
         )
         return self
 
-    def swap_arrays(self, k1, k2):
+    def swap_arrays(self, k1: str, k2: str) -> Self:
         """swap values of two arrays"""
         self.arr[k1], self.arr[k2] = self.arr[k2], self.arr[k1]
         self.arrp[k1], self.arrp[k2] = self.arrp[k2], self.arrp[k1]
         return self
 
-    def update_array(self, arr_key, arr):
+    def update_array(self, arr_key: str, arr: np.ndarray) -> Self:
         """Update the values of an array with those of a given array."""
         if arr.shape != self.shape:
-            return ValueError(f"Updated values for array '{arr_key}' do not match domain size.")
+            raise ValueError(f"Updated values for array '{arr_key}' do not match domain size.")
         if arr_key == "water_surface_elevation":
             # Calculate actual depth and update the internal depth array
             arr = rastermetrics.calculate_h_from_wse(arr_wse=arr, arr_dem=self.get_array("dem"))
@@ -199,19 +199,19 @@ class RasterDomain:
         self.arr[arr_key][:], self.arrp[arr_key][:] = self.pad_array(arr)
         return self
 
-    def get_array(self, k):
+    def get_array(self, k: str) -> np.ndarray:
         """return the unpadded, masked array of key 'k'"""
         return self.arr[k]
 
-    def get_padded(self, k):
+    def get_padded(self, k: str) -> np.ndarray:
         """return the padded, masked array of key 'k'"""
         return self.arrp[k]
 
-    def get_unmasked(self, k):
+    def get_unmasked(self, k: str) -> np.ndarray:
         """return unpadded array with NaN"""
         return self.unmask_array(self.arr[k])
 
-    def reset_accumulations(self):
+    def reset_accumulations(self) -> Self:
         """Set accumulation arrays to zeros"""
         for k in self.k_accum:
             self.arr[k][:] = 0.0
@@ -220,7 +220,7 @@ class RasterDomain:
     def save_state(self) -> io.BytesIO:
         """Pack all the padded arrays of the domain in a npz file."""
         npz_file = io.BytesIO()
-        arrays = {"mask": self.mask}
+        arrays: dict[str, np.ndarray] = {"mask": self.mask}
         # Save padded arrays to preserve solver-computed boundary values
         arrays.update(self.arrp)
         np.savez(npz_file, allow_pickle=False, **arrays)

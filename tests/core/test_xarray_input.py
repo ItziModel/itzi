@@ -338,10 +338,10 @@ def test_xarray_input_provider_get_array_nonexistent_key(
     assert end_time == default_times["end_time"]
 
 
-def test_xarray_input_provider_origin_property(
+def test_xarray_input_provider_origin(
     xarray_input_data: Dict, default_times: Dict, coordinates: Dict
 ):
-    """Test the origin property - should return NW corner coordinates as (N, W) tuple"""
+    """Test the get_origin() function - should return NW corner coordinates as (N, W) tuple"""
     config: XarrayRasterInputConfig = {
         "dataset": xarray_input_data["dataset"],
         "input_map_names": xarray_input_data["input_map_names"],
@@ -351,8 +351,8 @@ def test_xarray_input_provider_origin_property(
 
     provider = XarrayRasterInputProvider(config)
 
-    # The origin property should return a tuple of (N, W) coordinates for the NW corner
-    result = provider.origin
+    # The get_origin() function should return a tuple of (N, W) coordinates for the NW corner
+    result = provider.get_origin()
 
     # Should return a tuple of (North, West) coordinates
     assert isinstance(result, tuple)

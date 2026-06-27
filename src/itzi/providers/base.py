@@ -15,7 +15,7 @@ GNU General Public License for more details.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Mapping, TYPE_CHECKING, Union, Tuple
+from typing import Mapping, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from datetime import datetime, timedelta
@@ -31,10 +31,10 @@ class RasterInputProvider(ABC):
     def __init__(self, config: Mapping) -> None:
         pass
 
-    def get_origin(self) -> Tuple[float, float]:
+    def get_origin(self) -> tuple[float, float]:
         """Return the coordinates of the NW corner
         as a tuple (N, W)"""
-        domain_data = self.get_domain_data()
+        domain_data: DomainData = self.get_domain_data()
         return (domain_data.north, domain_data.west)
 
     @abstractmethod
@@ -45,7 +45,7 @@ class RasterInputProvider(ABC):
     @abstractmethod
     def get_array(
         self, map_key: str, current_time: datetime
-    ) -> Tuple[np.ndarray, datetime, datetime]:
+    ) -> tuple[np.ndarray, datetime, datetime]:
         """Take a given map key and current time
         return a numpy array associated with its start and end time
         if no map is found, return None instead of an array
@@ -63,7 +63,7 @@ class RasterOutputProvider(ABC):
 
     @abstractmethod
     def write_arrays(
-        self, array_dict: Mapping[str, np.ndarray], sim_time: Union[datetime, timedelta]
+        self, array_dict: Mapping[str, np.ndarray], sim_time: datetime | timedelta
     ) -> None:
         """Write all arrays for the current time step."""
         pass
@@ -84,7 +84,7 @@ class VectorOutputProvider(ABC):
 
     @abstractmethod
     def write_vector(
-        self, drainage_data: DrainageNetworkData | None, sim_time: Union[datetime, timedelta]
+        self, drainage_data: DrainageNetworkData | None, sim_time: datetime | timedelta
     ) -> None:
         """Write simulation data for current time step."""
         pass

@@ -75,10 +75,17 @@ def metadata_to_domaindata(metadata: ASCIIMetadata) -> DomainData:
     rows = metadata.nrows
     cols = metadata.ncols
     west = metadata.xllcorner
-    east = west + cols * metadata.cellsize
     south = metadata.yllcorner
-    north = south + rows * metadata.cellsize
-    return DomainData(north, south, east, west, rows, cols)
+
+    return DomainData(
+        north=south + rows * metadata.cellsize,
+        south=south,
+        east=west + cols * metadata.cellsize,
+        west=west,
+        rows=rows,
+        cols=cols,
+        crs_wkt="",
+    )
 
 
 @pytest.fixture(scope="module")

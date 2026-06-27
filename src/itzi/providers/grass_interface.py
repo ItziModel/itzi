@@ -1,5 +1,5 @@
 """
-Copyright (C) 2015-2025 Laurent Courty
+Copyright (C) 2015-2026 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -119,15 +119,15 @@ class GrassInterface:
     Everything related to GRASS maps or stds stays in that class.
     """
 
-    strds_cols = ["id", "start_time", "end_time"]
+    strds_cols: list[str] = ["id", "start_time", "end_time"]
     MapData = namedtuple("MapData", strds_cols)
     LinkDescr = namedtuple("LinkDescr", ["layer", "table"])
     LayerDescr = namedtuple("LayerDescr", ["table_suffix", "cols", "layer_number"])
 
     # a unit convertion table relative to seconds
-    t_unit_conv = {"seconds": 1, "minutes": 60, "hours": 3600, "days": 86400}
+    t_unit_conv: dict[str, int] = {"seconds": 1, "minutes": 60, "hours": 3600, "days": 86400}
     # datatype conversion between GRASS and numpy
-    dtype_conv = {
+    dtype_conv: dict[str, tuple] = {
         "FCELL": ("float16", "float32"),
         "DCELL": ("float_", "float64"),
         "CELL": (
@@ -154,7 +154,7 @@ class GrassInterface:
         region_id: str | None,
         raster_mask_id: str | None,
         non_blocking_write=True,
-    ):
+    ) -> None:
         assert isinstance(start_time, datetime), "start_time not a datetime object!"
         assert isinstance(end_time, datetime), "end_time not a datetime object!"
         assert start_time <= end_time, "start_time > end_time!"
@@ -216,13 +216,13 @@ class GrassInterface:
         self.finalize()
         self.cleanup()
 
-    def finalize(self):
+    def finalize(self) -> None:
         """Make sure that all maps are written."""
         if self.non_blocking_write:
             msgr.debug("Writing last maps...")
             self.raster_writer_queue.join()
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Remove temporary region and mask."""
         if self.raster_mask_id:
             msgr.debug("Remove temp MASK...")
@@ -235,7 +235,7 @@ class GrassInterface:
             self.raster_writer_queue.put(None)
             self.raster_writer_thread.join()
 
-    def grass_dtype(self, dtype):
+    def grass_dtype(self, dtype: str) -> str:
         if dtype in self.dtype_conv["DCELL"]:
             mtype = "DCELL"
         elif dtype in self.dtype_conv["CELL"]:
@@ -243,20 +243,20 @@ class GrassInterface:
         elif dtype in self.dtype_conv["FCELL"]:
             mtype = "FCELL"
         else:
-            assert False, "datatype incompatible with GRASS!"
+            raise ValueError("datatype incompatible with GRASS!")
         return mtype
 
-    def to_s(self, unit, time):
+    def to_s(self, unit: str, time: int) -> int:
         """Change an input time into seconds"""
         assert isinstance(unit, str), "{} Not a string".format(unit)
         return self.t_unit_conv[unit] * time
 
-    def from_s(self, unit, time):
+    def from_s(self, unit: str, time: float) -> int:
         """Change an input time from seconds to another unit"""
         assert isinstance(unit, str), "{} Not a string".format(unit)
         return int(time) / self.t_unit_conv[unit]
 
-    def to_datetime(self, unit, time):
+    def to_datetime(self, unit: str, time: int) -> datetime:
         """Take a number and a unit as entry
         return a datetime object relative to start_time
         usefull for assigning start_time and end_time
@@ -264,11 +264,11 @@ class GrassInterface:
         """
         return self.start_time + timedelta(seconds=self.to_s(unit, time))
 
-    def has_mask(self):
+    def has_mask(self) -> bool:
         """Return True if the mapset has a mask, False otherwise."""
         return bool(gscript.read_command("g.list", type="raster", pattern="MASK"))
 
-    def get_npmask(self):
+    def get_npmask(self) -> np.ndarray:
         """Return a boolean numpy ndarray where True is outside the domain."""
         if self.has_mask():
             grass_mask = self.read_raster_map("MASK")
@@ -276,11 +276,11 @@ class GrassInterface:
         else:
             return np.full(shape=(self.yr, self.xr), fill_value=False, dtype=np.bool_)
 
-    def set_temp_mask(self):
+    def set_temp_mask(self) -> Self:
         """If a mask is already set, keep it for later.
         Set a new mask.
         """
-        has_old_mask = self.has_mask()
+        has_old_mask: bool = self.has_mask()
         if has_old_mask:
             # Save the current MASK under a temp name
             self.old_mask_name = "itzi_old_MASK_{}".format(os.getpid())
@@ -294,7 +294,7 @@ class GrassInterface:
         assert self.has_mask()
         return self
 
-    def del_temp_mask(self):
+    def del_temp_mask(self) -> Self:
         """Reset the old mask, remove if there was not."""
         if self.old_mask_name is not None:
             gscript.run_command(
@@ -307,12 +307,12 @@ class GrassInterface:
             gscript.run_command("r.mask", quiet=True, flags="r")
         return self
 
-    def coor2pixel(self, coor):
+    def coor2pixel(self, coor: tuple[float, float]) -> tuple[int, int]:
         """convert coordinates easting and northing to pixel row and column"""
         row, col = gutils.coor2pixel(coor, self.region)
         return int(row), int(col)
 
-    def is_in_region(self, x, y):
+    def is_in_region(self, x: float, y: float) -> bool:
         """For a given coordinate pair(x, y),
         return True is inside raster region, False otherwise.
         """
@@ -321,7 +321,7 @@ class GrassInterface:
         return bool(bool_x and bool_y)
 
     @staticmethod
-    def format_id(name):
+    def format_id(name: str) -> str:
         """Take a map or stds name as input
         and return a fully qualified name, i.e. including mapset
         """
@@ -331,7 +331,7 @@ class GrassInterface:
             return "@".join((name, gutils.getenv("MAPSET")))
 
     @staticmethod
-    def name_is_stds(name):
+    def name_is_stds(name: str) -> bool:
         """return True if the name given as input is a registered strds
         False if not
         """
@@ -340,22 +340,22 @@ class GrassInterface:
         return bool(tgis.SpaceTimeRasterDataset(name).is_in_db())
 
     @staticmethod
-    def get_crs_wkt():
+    def get_crs_wkt() -> str:
         return gscript.read_command("g.proj", flags="fw")
 
     @staticmethod
-    def name_is_map(map_id):
+    def name_is_map(map_id: str) -> bool:
         """return True if the given name is a map in the grass database
         False if not
         """
         return bool(gscript.find_file(name=map_id, element="cell").get("file"))
 
     @staticmethod
-    def set_null(map_id, threshold) -> None:
+    def set_null(map_id: str, threshold: float) -> None:
         """Set null values under a given threshold"""
         gscript.run_command("r.null", flags="f", map=map_id, setnull=f"0.0-{threshold}")
 
-    def get_sim_extend_in_stds_unit(self, strds):
+    def get_sim_extend_in_stds_unit(self, strds) -> tuple[int, int]:
         """Take a strds object as input
         Return the simulation start_time and end_time, expressed in
         the unit of the input strds
@@ -373,7 +373,7 @@ class GrassInterface:
             assert False, "unknown temporal type"
         return start_time_in_stds_unit, end_time_in_stds_unit
 
-    def stds_temporal_sanity(self, stds_id):
+    def stds_temporal_sanity(self, stds_id: str) -> bool:
         """Make the following check on the given stds:
         - Topology is valid
         - No gap
@@ -401,7 +401,7 @@ class GrassInterface:
             msgr.warning("{}: ends before simulation".format(stds_id))
         return out
 
-    def raster_list_from_strds(self, strds_name):
+    def raster_list_from_strds(self, strds_name: str) -> list[MapData]:
         """Return a list of maps from a given strds
         for all the simulation duration
         Each map data is stored as a MapData namedtuple
@@ -438,7 +438,7 @@ class GrassInterface:
             ]
         return [self.MapData(*i) for i in maplist]
 
-    def read_raster_map(self, rast_name):
+    def read_raster_map(self, rast_name: str) -> np.ndarray:
         """Read a GRASS raster and return a numpy array"""
         if self.non_blocking_write:
             with self.raster_lock:
@@ -465,7 +465,7 @@ class GrassInterface:
         array[array == null_sentinel] = np.nan
         return array
 
-    def write_raster_map(self, arr, rast_name, mkey, hmin):
+    def write_raster_map(self, arr: np.ndarray, rast_name: str, mkey: str, hmin: float) -> Self:
         """Take a numpy array and write it to GRASS DB"""
         assert isinstance(arr, np.ndarray), "arr not a np array!"
         assert isinstance(rast_name, str), "not a string!"
@@ -476,7 +476,9 @@ class GrassInterface:
             self.write_raster_map_blocking(arr, rast_name, mkey, hmin)
         return self
 
-    def write_raster_map_nonblocking(self, arr, rast_name, mkey, hmin):
+    def write_raster_map_nonblocking(
+        self, arr: np.ndarray, rast_name: str, mkey: str, hmin: float
+    ) -> Self:
         mtype = self.grass_dtype(arr.dtype)
         assert isinstance(mtype, str), "not a string!"
         q_obj = (
@@ -490,7 +492,9 @@ class GrassInterface:
         self.raster_writer_queue.put(q_obj)
         return self
 
-    def write_raster_map_blocking(self, arr, rast_name, mkey, hmin):
+    def write_raster_map_blocking(
+        self, arr: np.ndarray, rast_name: str, mkey: str, hmin: float
+    ) -> Self:
         mtype = self.grass_dtype(arr.dtype)
         assert isinstance(mtype, str), "not a string!"
         with raster.RasterRow(
@@ -585,7 +589,14 @@ class GrassInterface:
             dbtable.conn.commit()
         return self
 
-    def register_maps_in_stds(self, stds_title, stds_name, map_list, stds_type, t_type):
+    def register_maps_in_stds(
+        self,
+        stds_title: str,
+        stds_name: str,
+        map_list: list[tuple[str, datetime | timedelta]],
+        stds_type: str,
+        t_type: str,
+    ):
         """Create a STDS, create one mapdataset for each map and
         register them in the temporal database
         """
