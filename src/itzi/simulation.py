@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 from datetime import datetime, timedelta
-from typing import Self, TYPE_CHECKING, Dict, Optional
+from typing import Self, TYPE_CHECKING
 import copy
 import io
 
@@ -47,11 +47,11 @@ class Simulation:
         sim_config: SimulationConfig,
         domain_data: DomainData,
         raster_domain: RasterDomain,
-        timed_arrays: Dict[str, TimedArray] | None,
+        timed_arrays: dict[str, TimedArray] | None,
         hydrology_model: Hydrology,
         surface_flow: SurfaceFlowSimulation,
-        drainage_model: Optional[DrainageSimulation],
-        drainage_nodes_list: Optional[list[DrainageNodeCouplingData]],
+        drainage_model: DrainageSimulation | None,
+        drainage_nodes_list: list[DrainageNodeCouplingData] | None,
         report: Report,
     ):
         self.sim_config = sim_config
@@ -84,9 +84,9 @@ class Simulation:
         }
         # First time-step is forced
         self.dt = timedelta(seconds=0.001)
-        self.nextstep = self.sim_time + self.dt
+        self.nextstep: datetime = self.sim_time + self.dt
         # dict of next time-step (datetime object)
-        self.next_ts = {"end": self.end_time}
+        self.next_ts: dict[str, datetime] = {"end": self.end_time}
         for k in ["hydrology", "surface_flow", "drainage"]:
             self.next_ts[k] = self.start_time
         # Schedule the first record step to avoid duplication with initialize()
@@ -95,7 +95,7 @@ class Simulation:
         if not self.drainage_model:
             self.next_ts["drainage"] = self.end_time
         else:
-            self.node_id_to_loc = {
+            self.node_id_to_loc: dict[str, tuple[int, int]] = {
                 n.node_id: (n.row, n.col)
                 for n in self.drainage_nodes_list
                 if n.node_object.is_coupled()
@@ -109,7 +109,7 @@ class Simulation:
         # Grid spacing (for BMI)
         self.spacing = (self.raster_domain.dy, self.raster_domain.dx)
         # time step counter
-        self.time_steps_counters: Dict[str, int] = {
+        self.time_steps_counters: dict[str, int] = {
             "since_start": 0,
             "since_last_report": 0,
         }
