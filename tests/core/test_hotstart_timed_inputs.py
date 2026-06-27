@@ -87,7 +87,7 @@ def _make_rain_timed_slices(
         )
         expected_rain_arrays[seconds] = np.full(
             shape,
-            rain_mm_per_hour / (1000 * 3600),
+            rain_value / (1000 * 3600),
             dtype=np.float32,
         )
 
@@ -122,11 +122,16 @@ def _make_simulation_config(
     end_time: datetime,
     *,
     temporal_type: TemporalType,
+    record_step: timedelta = timedelta(seconds=10),
+    surface_flow_parameters: SurfaceFlowParameters | None = None,
 ) -> SimulationConfig:
+    if surface_flow_parameters is None:
+        surface_flow_parameters = SurfaceFlowParameters(hmin=0.0001, dtmax=0.3, cfl=0.2)
+
     return SimulationConfig(
         start_time=start_time,
         end_time=end_time,
-        record_step=timedelta(seconds=10),
+        record_step=record_step,
         temporal_type=temporal_type,
         input_map_names={
             "dem": "dem",
@@ -135,7 +140,7 @@ def _make_simulation_config(
             "rain": "rain",
         },
         output_map_names={"water_depth": "out_hotstart_timed_inputs_water_depth"},
-        surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=0.3, cfl=0.2),
+        surface_flow_parameters=surface_flow_parameters,
         infiltration_model=InfiltrationModelType.NULL,
     )
 
@@ -274,6 +279,160 @@ def test_resume_with_absolute_time_memory_inputs(domain_5by5) -> None:
         domain_5by5,
         temporal_type=TemporalType.ABSOLUTE,
     )
+
+
+@pytest.mark.parametrize(
+    ("target_seconds", "expected_source_seconds", "expected_window_seconds"),
+    [
+        (9, 0, (0, 10)),
+        (10, 10, (10, 20)),
+        (12, 10, (10, 20)),
+    ],
+)
+def test_timed_xarray_rain_switches_cleanly_around_boundary(
+    domain_5by5,
+    target_seconds: int,
+    expected_source_seconds: int,
+    expected_window_seconds: tuple[int, int],
+) -> None:
+    start_time = datetime(2000, 1, 1, 0, 0, 0)
+    end_time = start_time + timedelta(seconds=20)
+    dataset, expected_rain_arrays = _make_xarray_input_dataset(
+        domain_5by5,
+        start_time,
+        use_relative_time=True,
+        time_slice_seconds=(0, 10, 20),
+        rain_mm_per_hour={0: 0.0, 10: 360.0, 20: 360.0},
+        water_depth=np.zeros(domain_5by5.domain_data.shape, dtype=np.float32),
+    )
+    sim_config = _make_simulation_config(
+        start_time,
+        end_time,
+        temporal_type=TemporalType.RELATIVE,
+        record_step=timedelta(seconds=20),
+        surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=20.0, cfl=0.2),
+    )
+    simulation = _build_provider_simulation(sim_config, domain_5by5, dataset)
+
+    simulation.initialize()
+    simulation.update_until(timedelta(seconds=target_seconds))
+
+    assert simulation.timed_arrays is not None
+    rain_timed_array = simulation.timed_arrays["rain"]
+    np.testing.assert_allclose(
+        simulation.raster_domain.get_array("rain"),
+        expected_rain_arrays[expected_source_seconds],
+    )
+    assert rain_timed_array.arr_start == start_time + timedelta(seconds=expected_window_seconds[0])
+    assert rain_timed_array.arr_end == start_time + timedelta(seconds=expected_window_seconds[1])
+
+
+def test_timed_xarray_rain_is_applied_before_a_step_crosses_its_boundary(domain_5by5) -> None:
+    start_time = datetime(2000, 1, 1, 0, 0, 0)
+    end_time = start_time + timedelta(seconds=20)
+    dataset, _ = _make_xarray_input_dataset(
+        domain_5by5,
+        start_time,
+        use_relative_time=True,
+        time_slice_seconds=(0, 10, 20),
+        rain_mm_per_hour={0: 0.0, 10: 360.0, 20: 360.0},
+        water_depth=np.zeros(domain_5by5.domain_data.shape, dtype=np.float32),
+    )
+    sim_config = _make_simulation_config(
+        start_time,
+        end_time,
+        temporal_type=TemporalType.RELATIVE,
+        record_step=timedelta(seconds=15),
+        surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=20.0, cfl=0.2),
+    )
+    simulation = _build_provider_simulation(sim_config, domain_5by5, dataset)
+
+    simulation.initialize()
+    simulation.update()
+
+    assert simulation.sim_time == start_time + timedelta(seconds=15)
+    domain_volume = float(
+        np.sum(simulation.raster_domain.get_array("water_depth"))
+        * simulation.raster_domain.cell_area
+    )
+    assert domain_volume > 0.5
+
+
+@pytest.mark.parametrize(
+    ("target_seconds", "expected_source_seconds", "expected_window_seconds"),
+    [
+        (9, 0, (0, 10)),
+        (10, 10, (10, 20)),
+        (12, 10, (10, 20)),
+    ],
+)
+def test_timed_xarray_rain_switches_cleanly_around_boundary(
+    domain_5by5,
+    target_seconds: int,
+    expected_source_seconds: int,
+    expected_window_seconds: tuple[int, int],
+) -> None:
+    start_time = datetime(2000, 1, 1, 0, 0, 0)
+    end_time = start_time + timedelta(seconds=20)
+    dataset, expected_rain_arrays = _make_xarray_input_dataset(
+        domain_5by5,
+        start_time,
+        use_relative_time=True,
+        time_slice_seconds=(0, 10, 20),
+        rain_mm_per_hour={0: 0.0, 10: 360.0, 20: 360.0},
+        water_depth=np.zeros(domain_5by5.domain_data.shape, dtype=np.float32),
+    )
+    sim_config = _make_simulation_config(
+        start_time,
+        end_time,
+        temporal_type=TemporalType.RELATIVE,
+        record_step=timedelta(seconds=20),
+        surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=20.0, cfl=0.2),
+    )
+    simulation = _build_provider_simulation(sim_config, domain_5by5, dataset)
+
+    simulation.initialize()
+    simulation.update_until(timedelta(seconds=target_seconds))
+
+    assert simulation.timed_arrays is not None
+    rain_timed_array = simulation.timed_arrays["rain"]
+    np.testing.assert_allclose(
+        simulation.raster_domain.get_array("rain"),
+        expected_rain_arrays[expected_source_seconds],
+    )
+    assert rain_timed_array.arr_start == start_time + timedelta(seconds=expected_window_seconds[0])
+    assert rain_timed_array.arr_end == start_time + timedelta(seconds=expected_window_seconds[1])
+
+
+def test_timed_xarray_rain_is_applied_before_a_step_crosses_its_boundary(domain_5by5) -> None:
+    start_time = datetime(2000, 1, 1, 0, 0, 0)
+    end_time = start_time + timedelta(seconds=20)
+    dataset, _ = _make_xarray_input_dataset(
+        domain_5by5,
+        start_time,
+        use_relative_time=True,
+        time_slice_seconds=(0, 10, 20),
+        rain_mm_per_hour={0: 0.0, 10: 360.0, 20: 360.0},
+        water_depth=np.zeros(domain_5by5.domain_data.shape, dtype=np.float32),
+    )
+    sim_config = _make_simulation_config(
+        start_time,
+        end_time,
+        temporal_type=TemporalType.RELATIVE,
+        record_step=timedelta(seconds=15),
+        surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=20.0, cfl=0.2),
+    )
+    simulation = _build_provider_simulation(sim_config, domain_5by5, dataset)
+
+    simulation.initialize()
+    simulation.update()
+
+    assert simulation.sim_time == start_time + timedelta(seconds=15)
+    domain_volume = float(
+        np.sum(simulation.raster_domain.get_array("water_depth"))
+        * simulation.raster_domain.cell_area
+    )
+    assert domain_volume > 0.5
 
 
 def test_build_fails_when_dem_input_has_only_nan_cells(domain_5by5) -> None:

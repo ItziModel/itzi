@@ -9,6 +9,7 @@ import pytest
 from itzi.simulation_builder import SimulationBuilder
 from itzi.data_containers import SimulationConfig, SurfaceFlowParameters
 from itzi.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
+from itzi.providers.xarray_input import XarrayRasterInputProvider
 from itzi.const import InfiltrationModelType, TemporalType
 
 
@@ -145,6 +146,153 @@ class TestStatsFile:
             + df["volume_error"]
         )
         assert np.allclose(df["vol_change_ref"], df["volume_change"], atol=1, rtol=0.01)
+
+
+def _make_timed_forcing_dataset(
+    domain_5by5,
+    start_time: datetime,
+    *,
+    forcing_key: str,
+    forcing_values_by_second: dict[int, float],
+):
+    xr = pytest.importorskip("xarray")
+
+    coordinates = domain_5by5.domain_data.get_coordinates()
+    time_slice_seconds = tuple(sorted(forcing_values_by_second))
+    time_coords = np.array(
+        [np.timedelta64(seconds, "s") for seconds in time_slice_seconds],
+        dtype="timedelta64[s]",
+    )
+    forcing_stack = np.stack(
+        [
+            np.full(
+                domain_5by5.domain_data.shape,
+                forcing_values_by_second[seconds],
+                dtype=np.float32,
+            )
+            for seconds in time_slice_seconds
+        ],
+        axis=0,
+    )
+
+    return xr.Dataset(
+        {
+            "dem": (["y", "x"], domain_5by5.arr_dem_flat.copy()),
+            "friction": (["y", "x"], domain_5by5.arr_n.copy()),
+            "water_depth": (
+                ["y", "x"],
+                np.zeros(domain_5by5.domain_data.shape, dtype=np.float32),
+            ),
+            forcing_key: (["time", "y", "x"], forcing_stack),
+        },
+        coords={
+            "time": time_coords,
+            "x": coordinates["x"],
+            "y": coordinates["y"],
+        },
+        attrs={"crs_wkt": domain_5by5.domain_data.crs_wkt},
+    )
+
+
+def _run_timed_stats_simulation(
+    domain_5by5,
+    helpers,
+    tmp_path,
+    *,
+    forcing_key: str,
+    forcing_values_by_second: dict[int, float],
+) -> pd.DataFrame:
+    start_time = datetime(2000, 1, 1, 0, 0, 0)
+    end_time = start_time + timedelta(seconds=20)
+    stats_file = tmp_path / f"timed_stats_{forcing_key}.csv"
+    dataset = _make_timed_forcing_dataset(
+        domain_5by5,
+        start_time,
+        forcing_key=forcing_key,
+        forcing_values_by_second=forcing_values_by_second,
+    )
+    sim_config = SimulationConfig(
+        start_time=start_time,
+        end_time=end_time,
+        record_step=timedelta(seconds=10),
+        temporal_type=TemporalType.RELATIVE,
+        input_map_names={
+            "dem": "dem",
+            "friction": "friction",
+            "water_depth": "water_depth",
+            forcing_key: forcing_key,
+        },
+        output_map_names=helpers.make_output_map_names(
+            f"out_timed_stats_{forcing_key}",
+            ["water_depth"],
+        ),
+        surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=20.0, cfl=0.2),
+        infiltration_model=InfiltrationModelType.NULL,
+        stats_file=str(stats_file),
+    )
+    input_provider = XarrayRasterInputProvider(
+        {
+            "dataset": dataset,
+            "input_map_names": sim_config.input_map_names,
+            "simulation_start_time": sim_config.start_time,
+            "simulation_end_time": sim_config.end_time,
+        }
+    )
+    simulation = (
+        SimulationBuilder(sim_config, domain_5by5.arr_mask, np.float32)
+        .with_input_provider(input_provider)
+        .with_raster_output_provider(
+            MemoryRasterOutputProvider({"out_map_names": sim_config.output_map_names})
+        )
+        .with_vector_output_provider(MemoryVectorOutputProvider({}))
+        .build()
+    )
+
+    simulation.initialize()
+    while simulation.sim_time < simulation.end_time:
+        simulation.update()
+    simulation.finalize()
+    return pd.read_csv(stats_file)
+
+
+@pytest.mark.cloud
+@pytest.mark.parametrize(
+    ("forcing_key", "forcing_values_by_second", "volume_column", "expected_volume"),
+    [
+        ("inflow", {0: 0.0, 3: 0.1, 20: 0.1}, "inflow_volume", 1750.0),
+        ("rain", {0: 0.0, 3: 360.0, 20: 360.0}, "rainfall_volume", 1.75),
+    ],
+)
+def test_timed_input_stats_first_report_row_stays_interval_coherent(
+    domain_5by5,
+    helpers,
+    tmp_path,
+    forcing_key: str,
+    forcing_values_by_second: dict[int, float],
+    volume_column: str,
+    expected_volume: float,
+) -> None:
+    df = _run_timed_stats_simulation(
+        domain_5by5,
+        helpers,
+        tmp_path,
+        forcing_key=forcing_key,
+        forcing_values_by_second=forcing_values_by_second,
+    )
+
+    first_report_row = df.iloc[1]
+    volume_change_ref = (
+        first_report_row["boundary_volume"]
+        + first_report_row["rainfall_volume"]
+        + first_report_row["infiltration_volume"]
+        + first_report_row["inflow_volume"]
+        + first_report_row["losses_volume"]
+        + first_report_row["drainage_network_volume"]
+        + first_report_row["volume_error"]
+    )
+
+    assert np.isclose(first_report_row[volume_column], expected_volume, atol=1e-6, rtol=1e-6)
+    assert np.isclose(first_report_row["volume_change"], volume_change_ref, atol=1e-6, rtol=1e-6)
 
 
 class TestStatsMaps:
