@@ -37,7 +37,7 @@ class MemoryRasterOutputProvider(RasterOutputProvider):
         """Initialize output provider with simulation configuration."""
         # user-selected map names.
         self.out_map_names = config["out_map_names"]
-        self.output_maps_dict = {k: [] for k in self.out_map_names.keys()}
+        self.output_maps_dict: dict[str, list] = {k: [] for k in self.out_map_names.keys()}
 
     def write_arrays(
         self, array_dict: Mapping[str, np.ndarray], sim_time: datetime | timedelta

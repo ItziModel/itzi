@@ -34,7 +34,7 @@ class RasterInputProvider(ABC):
     def get_origin(self) -> Tuple[float, float]:
         """Return the coordinates of the NW corner
         as a tuple (N, W)"""
-        domain_data = self.get_domain_data()
+        domain_data: DomainData = self.get_domain_data()
         return (domain_data.north, domain_data.west)
 
     @abstractmethod
