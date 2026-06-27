@@ -8,8 +8,8 @@ import pytest
 
 from itzi.simulation_builder import SimulationBuilder
 from itzi.data_containers import SimulationConfig, SurfaceFlowParameters
+from itzi.providers.memory_input import MemoryRasterInputProvider, TimedRasterSlice
 from itzi.providers.memory_output import MemoryRasterOutputProvider, MemoryVectorOutputProvider
-from itzi.providers.xarray_input import XarrayRasterInputProvider
 from itzi.const import InfiltrationModelType, TemporalType
 
 
@@ -148,50 +148,39 @@ class TestStatsFile:
         assert np.allclose(df["vol_change_ref"], df["volume_change"], atol=1, rtol=0.01)
 
 
-def _make_timed_forcing_dataset(
+def _make_timed_forcing_slices(
     domain_5by5,
     start_time: datetime,
     *,
     forcing_key: str,
     forcing_values_by_second: dict[int, float],
-):
-    xr = pytest.importorskip("xarray")
-
-    coordinates = domain_5by5.domain_data.get_coordinates()
+) -> list[TimedRasterSlice]:
     time_slice_seconds = tuple(sorted(forcing_values_by_second))
-    time_coords = np.array(
-        [np.timedelta64(seconds, "s") for seconds in time_slice_seconds],
-        dtype="timedelta64[s]",
-    )
-    forcing_stack = np.stack(
-        [
-            np.full(
-                domain_5by5.domain_data.shape,
-                forcing_values_by_second[seconds],
-                dtype=np.float32,
-            )
-            for seconds in time_slice_seconds
-        ],
-        axis=0,
-    )
+    forcing_slices: list[TimedRasterSlice] = []
 
-    return xr.Dataset(
-        {
-            "dem": (["y", "x"], domain_5by5.arr_dem_flat.copy()),
-            "friction": (["y", "x"], domain_5by5.arr_n.copy()),
-            "water_depth": (
-                ["y", "x"],
-                np.zeros(domain_5by5.domain_data.shape, dtype=np.float32),
-            ),
-            forcing_key: (["time", "y", "x"], forcing_stack),
-        },
-        coords={
-            "time": time_coords,
-            "x": coordinates["x"],
-            "y": coordinates["y"],
-        },
-        attrs={"crs_wkt": domain_5by5.domain_data.crs_wkt},
-    )
+    for index, seconds in enumerate(time_slice_seconds[:-1]):
+        slice_start = start_time + timedelta(seconds=seconds)
+        final_boundary = start_time + timedelta(seconds=time_slice_seconds[-1])
+        if index == len(time_slice_seconds) - 2:
+            slice_end = final_boundary
+        else:
+            slice_end = start_time + timedelta(seconds=time_slice_seconds[index + 1])
+            slice_end -= timedelta(microseconds=1)
+        forcing_slices.append(
+            TimedRasterSlice(
+                start_time=slice_start,
+                end_time=slice_end,
+                array=np.full(
+                    domain_5by5.domain_data.shape,
+                    forcing_values_by_second[seconds],
+                    dtype=np.float32,
+                ),
+            )
+        )
+
+    if not forcing_slices:
+        raise ValueError(f"timed forcing '{forcing_key}' must define at least two boundaries")
+    return forcing_slices
 
 
 def _run_timed_stats_simulation(
@@ -205,7 +194,7 @@ def _run_timed_stats_simulation(
     start_time = datetime(2000, 1, 1, 0, 0, 0)
     end_time = start_time + timedelta(seconds=20)
     stats_file = tmp_path / f"timed_stats_{forcing_key}.csv"
-    dataset = _make_timed_forcing_dataset(
+    forcing_slices = _make_timed_forcing_slices(
         domain_5by5,
         start_time,
         forcing_key=forcing_key,
@@ -230,12 +219,17 @@ def _run_timed_stats_simulation(
         infiltration_model=InfiltrationModelType.NULL,
         stats_file=str(stats_file),
     )
-    input_provider = XarrayRasterInputProvider(
+    input_provider = MemoryRasterInputProvider(
         {
-            "dataset": dataset,
-            "input_map_names": sim_config.input_map_names,
+            "domain_data": domain_5by5.domain_data,
             "simulation_start_time": sim_config.start_time,
             "simulation_end_time": sim_config.end_time,
+            "static_arrays": {
+                "dem": domain_5by5.arr_dem_flat.copy(),
+                "friction": domain_5by5.arr_n.copy(),
+                "water_depth": np.zeros(domain_5by5.domain_data.shape, dtype=np.float32),
+            },
+            "timed_arrays": {forcing_key: forcing_slices},
         }
     )
     simulation = (
@@ -255,7 +249,6 @@ def _run_timed_stats_simulation(
     return pd.read_csv(stats_file)
 
 
-@pytest.mark.cloud
 @pytest.mark.parametrize(
     ("forcing_key", "forcing_values_by_second", "volume_column", "expected_volume"),
     [

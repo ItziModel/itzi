@@ -48,73 +48,83 @@ def _assert_final_state_matches(resumed: "Simulation", reference: "Simulation") 
         )
 
 
-def _make_rain_timed_slices(
+def _make_expected_rain_array(shape: tuple[int, int], rain_mm_per_hour: float) -> np.ndarray:
+    return np.full(shape, rain_mm_per_hour / (1000 * 3600), dtype=np.float32)
+
+
+def _make_hotstart_timed_rain_slices(
     shape: tuple[int, int],
     start_time: datetime,
 ) -> tuple[list[TimedRasterSlice], dict[int, np.ndarray]]:
-    expected_rain_arrays: dict[int, np.ndarray] = {}
-    timed_slices: list[TimedRasterSlice] = []
-
-    # TimedArray validity uses inclusive bounds on both ends, so the synthetic
-    # slices must stay strictly disjoint. Keep the second slice bounds at
-    # [10s, 20s] because the hotstart assertions inspect them explicitly.
-    interval_starts = [
-        start_time + timedelta(seconds=0),
-        start_time + timedelta(seconds=10),
-        start_time + timedelta(seconds=20, microseconds=1),
-        start_time + timedelta(seconds=30, microseconds=1),
+    timed_slices = [
+        TimedRasterSlice(
+            start_time=start_time,
+            end_time=start_time + timedelta(seconds=10) - timedelta(microseconds=1),
+            array=np.full(shape, RAIN_MM_PER_HOUR[0], dtype=np.float32),
+        ),
+        TimedRasterSlice(
+            start_time=start_time + timedelta(seconds=10),
+            end_time=start_time + timedelta(seconds=20),
+            array=np.full(shape, RAIN_MM_PER_HOUR[10], dtype=np.float32),
+        ),
+        TimedRasterSlice(
+            start_time=start_time + timedelta(seconds=20, microseconds=1),
+            end_time=start_time + timedelta(seconds=30),
+            array=np.full(shape, RAIN_MM_PER_HOUR[20], dtype=np.float32),
+        ),
+        TimedRasterSlice(
+            start_time=start_time + timedelta(seconds=30, microseconds=1),
+            end_time=start_time + timedelta(seconds=40),
+            array=np.full(shape, RAIN_MM_PER_HOUR[30], dtype=np.float32),
+        ),
     ]
-    interval_ends = [
-        start_time + timedelta(seconds=TIME_SLICE_SECONDS[1]) - timedelta(microseconds=1),
-        start_time + timedelta(seconds=TIME_SLICE_SECONDS[2]),
-        start_time + timedelta(seconds=TIME_SLICE_SECONDS[3]),
-        start_time + timedelta(seconds=TIME_SLICE_SECONDS[3] + 10),
-    ]
-
-    for seconds, slice_start, slice_end in zip(
-        TIME_SLICE_SECONDS,
-        interval_starts,
-        interval_ends,
-        strict=True,
-    ):
-        rain_mm_per_hour = RAIN_MM_PER_HOUR[seconds]
-        timed_slices.append(
-            TimedRasterSlice(
-                start_time=slice_start,
-                end_time=slice_end,
-                array=np.full(shape, rain_mm_per_hour, dtype=np.float32),
-            )
-        )
-        expected_rain_arrays[seconds] = np.full(
-            shape,
-            rain_value / (1000 * 3600),
-            dtype=np.float32,
-        )
-
+    expected_rain_arrays = {
+        seconds: _make_expected_rain_array(shape, rain_mm_per_hour)
+        for seconds, rain_mm_per_hour in RAIN_MM_PER_HOUR.items()
+    }
     return timed_slices, expected_rain_arrays
 
 
-def _make_provider_inputs(
-    domain_5by5,
+def _make_boundary_timed_rain_slices(
+    shape: tuple[int, int],
     start_time: datetime,
+) -> tuple[list[TimedRasterSlice], dict[int, np.ndarray]]:
+    timed_slices = [
+        TimedRasterSlice(
+            start_time=start_time,
+            end_time=start_time + timedelta(seconds=10) - timedelta(microseconds=1),
+            array=np.zeros(shape, dtype=np.float32),
+        ),
+        TimedRasterSlice(
+            start_time=start_time + timedelta(seconds=10),
+            end_time=start_time + timedelta(seconds=20),
+            array=np.full(shape, 360.0, dtype=np.float32),
+        ),
+    ]
+    expected_rain_arrays = {
+        0: _make_expected_rain_array(shape, 0.0),
+        10: _make_expected_rain_array(shape, 360.0),
+    }
+    return timed_slices, expected_rain_arrays
+
+
+def _make_static_arrays(
+    domain_5by5,
     *,
     dem: np.ndarray | None = None,
+    water_depth: np.ndarray | None = None,
     rain: np.ndarray | None = None,
-) -> tuple[dict[str, np.ndarray], dict[str, list[TimedRasterSlice]], dict[int, np.ndarray]]:
+) -> dict[str, np.ndarray]:
     static_arrays = {
         "dem": domain_5by5.arr_dem_flat.copy() if dem is None else dem.copy(),
         "friction": domain_5by5.arr_n.copy(),
-        "water_depth": domain_5by5.arr_start_h.copy(),
+        "water_depth": (
+            domain_5by5.arr_start_h.copy() if water_depth is None else water_depth.copy()
+        ),
     }
-
     if rain is not None:
         static_arrays["rain"] = rain.copy()
-        return static_arrays, {}, {}
-
-    timed_rain, expected_rain_arrays = _make_rain_timed_slices(
-        domain_5by5.domain_data.shape, start_time
-    )
-    return static_arrays, {"rain": timed_rain}, expected_rain_arrays
+    return static_arrays
 
 
 def _make_simulation_config(
@@ -150,7 +160,7 @@ def _build_provider_simulation(
     domain_5by5,
     *,
     static_arrays: dict[str, np.ndarray],
-    timed_arrays: dict[str, list[TimedRasterSlice]],
+    timed_arrays: dict[str, list[TimedRasterSlice]] | None = None,
     hotstart_bytes: bytes | None = None,
 ) -> "Simulation":
     input_provider = MemoryRasterInputProvider(
@@ -159,7 +169,7 @@ def _build_provider_simulation(
             "simulation_start_time": sim_config.start_time,
             "simulation_end_time": sim_config.end_time,
             "static_arrays": static_arrays,
-            "timed_arrays": timed_arrays,
+            "timed_arrays": timed_arrays or {},
         }
     )
 
@@ -216,11 +226,11 @@ def _assert_resume_with_timed_memory_inputs(
     start_time = datetime(2000, 1, 1, 0, 0, 0)
     end_time = start_time + timedelta(seconds=25)
     split_target_time = start_time + timedelta(seconds=12)
-
-    static_arrays, timed_arrays, expected_rain_arrays = _make_provider_inputs(
-        domain_5by5,
+    timed_rain_slices, expected_rain_arrays = _make_hotstart_timed_rain_slices(
+        domain_5by5.domain_data.shape,
         start_time,
     )
+    static_arrays = _make_static_arrays(domain_5by5)
     sim_config = _make_simulation_config(
         start_time,
         end_time,
@@ -230,7 +240,7 @@ def _assert_resume_with_timed_memory_inputs(
         sim_config,
         domain_5by5,
         static_arrays=static_arrays,
-        timed_arrays=timed_arrays,
+        timed_arrays={"rain": timed_rain_slices},
         split_target_time=split_target_time,
     )
 
@@ -243,7 +253,7 @@ def _assert_resume_with_timed_memory_inputs(
         sim_config,
         domain_5by5,
         static_arrays=static_arrays,
-        timed_arrays=timed_arrays,
+        timed_arrays={"rain": timed_rain_slices},
         hotstart_bytes=hotstart_bytes,
     )
 
@@ -282,28 +292,24 @@ def test_resume_with_absolute_time_memory_inputs(domain_5by5) -> None:
 
 
 @pytest.mark.parametrize(
-    ("target_seconds", "expected_source_seconds", "expected_window_seconds"),
+    ("target_seconds", "expected_source_seconds", "expected_window"),
     [
         (9, 0, (0, 10)),
         (10, 10, (10, 20)),
         (12, 10, (10, 20)),
     ],
 )
-def test_timed_xarray_rain_switches_cleanly_around_boundary(
+def test_timed_memory_rain_switches_cleanly_around_boundary(
     domain_5by5,
     target_seconds: int,
     expected_source_seconds: int,
-    expected_window_seconds: tuple[int, int],
+    expected_window: tuple[int, int],
 ) -> None:
     start_time = datetime(2000, 1, 1, 0, 0, 0)
     end_time = start_time + timedelta(seconds=20)
-    dataset, expected_rain_arrays = _make_xarray_input_dataset(
-        domain_5by5,
+    timed_rain_slices, expected_rain_arrays = _make_boundary_timed_rain_slices(
+        domain_5by5.domain_data.shape,
         start_time,
-        use_relative_time=True,
-        time_slice_seconds=(0, 10, 20),
-        rain_mm_per_hour={0: 0.0, 10: 360.0, 20: 360.0},
-        water_depth=np.zeros(domain_5by5.domain_data.shape, dtype=np.float32),
     )
     sim_config = _make_simulation_config(
         start_time,
@@ -312,7 +318,15 @@ def test_timed_xarray_rain_switches_cleanly_around_boundary(
         record_step=timedelta(seconds=20),
         surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=20.0, cfl=0.2),
     )
-    simulation = _build_provider_simulation(sim_config, domain_5by5, dataset)
+    simulation = _build_provider_simulation(
+        sim_config,
+        domain_5by5,
+        static_arrays=_make_static_arrays(
+            domain_5by5,
+            water_depth=np.zeros(domain_5by5.domain_data.shape, dtype=np.float32),
+        ),
+        timed_arrays={"rain": timed_rain_slices},
+    )
 
     simulation.initialize()
     simulation.update_until(timedelta(seconds=target_seconds))
@@ -323,20 +337,20 @@ def test_timed_xarray_rain_switches_cleanly_around_boundary(
         simulation.raster_domain.get_array("rain"),
         expected_rain_arrays[expected_source_seconds],
     )
-    assert rain_timed_array.arr_start == start_time + timedelta(seconds=expected_window_seconds[0])
-    assert rain_timed_array.arr_end == start_time + timedelta(seconds=expected_window_seconds[1])
+    expected_start = start_time + timedelta(seconds=expected_window[0])
+    expected_end = start_time + timedelta(seconds=expected_window[1])
+    if expected_source_seconds == 0:
+        expected_end -= timedelta(microseconds=1)
+    assert rain_timed_array.arr_start == expected_start
+    assert rain_timed_array.arr_end == expected_end
 
 
-def test_timed_xarray_rain_is_applied_before_a_step_crosses_its_boundary(domain_5by5) -> None:
+def test_timed_memory_rain_is_applied_before_a_step_crosses_its_boundary(domain_5by5) -> None:
     start_time = datetime(2000, 1, 1, 0, 0, 0)
     end_time = start_time + timedelta(seconds=20)
-    dataset, _ = _make_xarray_input_dataset(
-        domain_5by5,
+    timed_rain_slices, _ = _make_boundary_timed_rain_slices(
+        domain_5by5.domain_data.shape,
         start_time,
-        use_relative_time=True,
-        time_slice_seconds=(0, 10, 20),
-        rain_mm_per_hour={0: 0.0, 10: 360.0, 20: 360.0},
-        water_depth=np.zeros(domain_5by5.domain_data.shape, dtype=np.float32),
     )
     sim_config = _make_simulation_config(
         start_time,
@@ -345,84 +359,15 @@ def test_timed_xarray_rain_is_applied_before_a_step_crosses_its_boundary(domain_
         record_step=timedelta(seconds=15),
         surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=20.0, cfl=0.2),
     )
-    simulation = _build_provider_simulation(sim_config, domain_5by5, dataset)
-
-    simulation.initialize()
-    simulation.update()
-
-    assert simulation.sim_time == start_time + timedelta(seconds=15)
-    domain_volume = float(
-        np.sum(simulation.raster_domain.get_array("water_depth"))
-        * simulation.raster_domain.cell_area
-    )
-    assert domain_volume > 0.5
-
-
-@pytest.mark.parametrize(
-    ("target_seconds", "expected_source_seconds", "expected_window_seconds"),
-    [
-        (9, 0, (0, 10)),
-        (10, 10, (10, 20)),
-        (12, 10, (10, 20)),
-    ],
-)
-def test_timed_xarray_rain_switches_cleanly_around_boundary(
-    domain_5by5,
-    target_seconds: int,
-    expected_source_seconds: int,
-    expected_window_seconds: tuple[int, int],
-) -> None:
-    start_time = datetime(2000, 1, 1, 0, 0, 0)
-    end_time = start_time + timedelta(seconds=20)
-    dataset, expected_rain_arrays = _make_xarray_input_dataset(
+    simulation = _build_provider_simulation(
+        sim_config,
         domain_5by5,
-        start_time,
-        use_relative_time=True,
-        time_slice_seconds=(0, 10, 20),
-        rain_mm_per_hour={0: 0.0, 10: 360.0, 20: 360.0},
-        water_depth=np.zeros(domain_5by5.domain_data.shape, dtype=np.float32),
+        static_arrays=_make_static_arrays(
+            domain_5by5,
+            water_depth=np.zeros(domain_5by5.domain_data.shape, dtype=np.float32),
+        ),
+        timed_arrays={"rain": timed_rain_slices},
     )
-    sim_config = _make_simulation_config(
-        start_time,
-        end_time,
-        temporal_type=TemporalType.RELATIVE,
-        record_step=timedelta(seconds=20),
-        surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=20.0, cfl=0.2),
-    )
-    simulation = _build_provider_simulation(sim_config, domain_5by5, dataset)
-
-    simulation.initialize()
-    simulation.update_until(timedelta(seconds=target_seconds))
-
-    assert simulation.timed_arrays is not None
-    rain_timed_array = simulation.timed_arrays["rain"]
-    np.testing.assert_allclose(
-        simulation.raster_domain.get_array("rain"),
-        expected_rain_arrays[expected_source_seconds],
-    )
-    assert rain_timed_array.arr_start == start_time + timedelta(seconds=expected_window_seconds[0])
-    assert rain_timed_array.arr_end == start_time + timedelta(seconds=expected_window_seconds[1])
-
-
-def test_timed_xarray_rain_is_applied_before_a_step_crosses_its_boundary(domain_5by5) -> None:
-    start_time = datetime(2000, 1, 1, 0, 0, 0)
-    end_time = start_time + timedelta(seconds=20)
-    dataset, _ = _make_xarray_input_dataset(
-        domain_5by5,
-        start_time,
-        use_relative_time=True,
-        time_slice_seconds=(0, 10, 20),
-        rain_mm_per_hour={0: 0.0, 10: 360.0, 20: 360.0},
-        water_depth=np.zeros(domain_5by5.domain_data.shape, dtype=np.float32),
-    )
-    sim_config = _make_simulation_config(
-        start_time,
-        end_time,
-        temporal_type=TemporalType.RELATIVE,
-        record_step=timedelta(seconds=15),
-        surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=20.0, cfl=0.2),
-    )
-    simulation = _build_provider_simulation(sim_config, domain_5by5, dataset)
 
     simulation.initialize()
     simulation.update()
@@ -438,11 +383,6 @@ def test_timed_xarray_rain_is_applied_before_a_step_crosses_its_boundary(domain_
 def test_build_fails_when_dem_input_has_only_nan_cells(domain_5by5) -> None:
     start_time = datetime(2000, 1, 1, 0, 0, 0)
     end_time = start_time + timedelta(seconds=25)
-    static_arrays, timed_arrays, _ = _make_provider_inputs(
-        domain_5by5,
-        start_time,
-        dem=np.full(domain_5by5.domain_data.shape, np.nan, dtype=np.float32),
-    )
     sim_config = _make_simulation_config(
         start_time,
         end_time,
@@ -453,19 +393,16 @@ def test_build_fails_when_dem_input_has_only_nan_cells(domain_5by5) -> None:
         _build_provider_simulation(
             sim_config,
             domain_5by5,
-            static_arrays=static_arrays,
-            timed_arrays=timed_arrays,
+            static_arrays=_make_static_arrays(
+                domain_5by5,
+                dem=np.full(domain_5by5.domain_data.shape, np.nan, dtype=np.float32),
+            ),
         )
 
 
 def test_build_warns_when_non_dem_input_has_only_nan_cells(domain_5by5, caplog) -> None:
     start_time = datetime(2000, 1, 1, 0, 0, 0)
     end_time = start_time + timedelta(seconds=25)
-    static_arrays, timed_arrays, _ = _make_provider_inputs(
-        domain_5by5,
-        start_time,
-        rain=np.full(domain_5by5.domain_data.shape, np.nan, dtype=np.float32),
-    )
     sim_config = _make_simulation_config(
         start_time,
         end_time,
@@ -479,8 +416,10 @@ def test_build_warns_when_non_dem_input_has_only_nan_cells(domain_5by5, caplog) 
             simulation = _build_provider_simulation(
                 sim_config,
                 domain_5by5,
-                static_arrays=static_arrays,
-                timed_arrays=timed_arrays,
+                static_arrays=_make_static_arrays(
+                    domain_5by5,
+                    rain=np.full(domain_5by5.domain_data.shape, np.nan, dtype=np.float32),
+                ),
             )
         finally:
             itzi_logger.removeHandler(caplog.handler)
