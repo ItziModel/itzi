@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 import numpy as np
 
-from pydantic import BaseModel, ConfigDict, computed_field, model_validator
+from pydantic import BaseModel, ConfigDict, computed_field, model_validator, PositiveInt
 
 
 class DomainData(BaseModel):
@@ -26,8 +26,8 @@ class DomainData(BaseModel):
     south: float
     east: float
     west: float
-    rows: int
-    cols: int
+    rows: PositiveInt
+    cols: PositiveInt
     crs_wkt: str
 
     @model_validator(mode="after")
