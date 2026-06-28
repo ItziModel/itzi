@@ -87,6 +87,7 @@ class Simulation:
         self.nextstep: datetime = self.sim_time + self.dt
         # dict of next time-step (datetime object)
         self.next_ts: dict[str, datetime] = {"end": self.end_time}
+        self.next_ts["input"] = self.end_time
         for k in ["hydrology", "surface_flow", "drainage"]:
             self.next_ts[k] = self.start_time
         # Schedule the first record step to avoid duplication with initialize()
@@ -349,6 +350,10 @@ class Simulation:
         convert units, and update the rasterdomain
         """
         if self.timed_arrays is None:
+            self.next_ts["input"] = self.end_time
+            return self
+        if self.sim_time >= self.end_time:
+            self.next_ts["input"] = self.end_time
             return self
         # DEM is needed for WSE and rain routing direction
         if not self.timed_arrays["dem"].is_valid(self.sim_time):
@@ -385,7 +390,23 @@ class Simulation:
                 msgr.debug("{}: update input array <{}>".format(self.sim_time, arr_key))
                 self._validate_input_array_data(arr_key, new_arr)
                 self.set_array(arr_key, new_arr)
+        self._update_next_input_ts()
         return self
+
+    def _update_next_input_ts(self) -> None:
+        if self.timed_arrays is None or self.sim_time >= self.end_time:
+            self.next_ts["input"] = self.end_time
+            return
+        next_input = self.end_time
+        for arr_key, ta in self.timed_arrays.items():
+            if (arr_key == "water_depth" and self.input_wse) or (
+                arr_key == "water_surface_elevation" and not self.input_wse
+            ):
+                continue
+            if not ta.is_valid(self.sim_time):
+                continue
+            next_input = min(next_input, ta.arr_end)
+        self.next_ts["input"] = next_input
 
     def _validate_input_array_data(self, arr_key: str, arr: np.ndarray) -> None:
         """Fail or warn when a provider-backed input has no valid cells."""
@@ -423,14 +444,20 @@ class Simulation:
 
     def find_dt(self):
         """find next time step"""
-        self.nextstep = min(self.next_ts.values())
-        # Surface flow model should always run
-        self.next_ts["surface_flow"] = self.nextstep
         # Force a record step at the end of the simulation
         # The final step is taken in finalize() because the loop stops at the penultimate step
         self.next_ts["record"] = min(self.next_ts["end"], self.next_ts["record"])
-        # If a Record is due, force hydrology
-        self.next_ts["hydrology"] = min(self.next_ts["hydrology"], self.next_ts["record"])
+        self.next_ts["input"] = min(self.next_ts["end"], self.next_ts["input"])
+        # If a record or input boundary is due, force hydrology so hydrology-driven
+        # forcings are refreshed at the same externally meaningful boundary.
+        self.next_ts["hydrology"] = min(
+            self.next_ts["hydrology"],
+            self.next_ts["record"],
+            self.next_ts["input"],
+        )
+        self.nextstep = min(self.next_ts.values())
+        # Surface flow model should always run
+        self.next_ts["surface_flow"] = self.nextstep
         self.dt = self.nextstep - self.sim_time
         return self
 
@@ -592,6 +619,7 @@ class Simulation:
 
         # Restore next timestamp schedule
         self.next_ts = dict(simulation_state.next_ts)
+        self.next_ts.setdefault("input", self.end_time)
 
         # Restore time step counters
         self.time_steps_counters = dict(simulation_state.time_steps_counters)
@@ -616,6 +644,7 @@ class Simulation:
 
         if self.end_time != hotstart_config.end_time:
             self.next_ts["end"] = self.end_time
+            self.next_ts["input"] = min(self.next_ts.get("input", self.end_time), self.end_time)
             if not self.drainage_model:
                 self.next_ts["drainage"] = self.end_time
             schedule_changed = True

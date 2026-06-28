@@ -68,7 +68,7 @@ class TimedArray:
         return True
         If not return False
         """
-        return bool(self.arr_start <= sim_time <= self.arr_end)
+        return bool(self.arr_start <= sim_time < self.arr_end)
 
     def update_values(self, sim_time: datetime) -> Self:
         """Update array, start_time and end_time from provider
@@ -82,7 +82,7 @@ class TimedArray:
         # check retrieved values
         assert isinstance(arr_start, datetime), "not a datetime object!"
         assert isinstance(arr_end, datetime), "not a datetime object!"
-        assert arr_start <= sim_time <= arr_end, "wrong time retrieved!"
+        assert arr_start <= sim_time < arr_end, "wrong time retrieved!"
         # update object values
         self.arr_start = arr_start
         self.arr_end = arr_end

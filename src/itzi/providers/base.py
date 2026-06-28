@@ -47,7 +47,7 @@ class RasterInputProvider(ABC):
         self, map_key: str, current_time: datetime
     ) -> tuple[np.ndarray, datetime, datetime]:
         """Take a given map key and current time
-        return a numpy array associated with its start and end time
+        return a numpy array associated with its half-open validity window `[start, end)`
         if no map is found, return None instead of an array
         and a default start_time and end_time."""
         pass

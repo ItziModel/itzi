@@ -109,10 +109,15 @@ class GrassRasterInputProvider(RasterInputProvider):
         if self.map_lists[map_key] is None:
             return None, self.start_time, self.end_time
         else:
+            gap_start: datetime = self.start_time
             for map_name in self.map_lists[map_key]:
-                if map_name.start_time <= current_time <= map_name.end_time:
+                map_start: datetime = max(self.start_time, map_name.start_time)
+                map_end: datetime = min(self.end_time, map_name.end_time)
+                if current_time < map_start:
+                    return None, gap_start, min(self.end_time, map_start)
+                if map_start <= current_time < map_end:
                     arr = self.grass_interface.read_raster_map(map_name.id)
-                    return arr, map_name.start_time, map_name.end_time
+                    return arr, map_start, map_end
+                gap_start: datetime = max(gap_start, map_end)
             else:
-                # This should not happen unless the maps is removed from the GRASS DB after listing the maps.
-                assert None, "No map found for {k} at time {t}".format(k=map_key, t=current_time)
+                return None, min(gap_start, self.end_time), self.end_time
