@@ -113,7 +113,7 @@ def test_get_array_timed_returns_matching_slice_and_copy(
                         array=first_rain,
                     ),
                     TimedRasterSlice(
-                        start_time=start_time + timedelta(hours=2),
+                        start_time=start_time + timedelta(hours=1),
                         end_time=start_time + timedelta(hours=3),
                         array=second_rain,
                     ),
@@ -126,7 +126,7 @@ def test_get_array_timed_returns_matching_slice_and_copy(
         "rain", start_time + timedelta(minutes=30)
     )
     second_array, second_start, second_end = provider.get_array(
-        "rain", start_time + timedelta(hours=2, minutes=30)
+        "rain", start_time + timedelta(hours=1)
     )
 
     assert first_array is not None
@@ -135,13 +135,11 @@ def test_get_array_timed_returns_matching_slice_and_copy(
     np.testing.assert_allclose(second_array, second_rain)
     assert first_start == start_time
     assert first_end == start_time + timedelta(hours=1)
-    assert second_start == start_time + timedelta(hours=2)
+    assert second_start == start_time + timedelta(hours=1)
     assert second_end == start_time + timedelta(hours=3)
 
     second_array[0, 0] = 123.0
-    second_array_again, _, _ = provider.get_array(
-        "rain", start_time + timedelta(hours=2, minutes=30)
-    )
+    second_array_again, _, _ = provider.get_array("rain", start_time + timedelta(hours=1))
     assert second_array_again is not None
     assert second_array_again[0, 0] == pytest.approx(20.0)
 
@@ -198,7 +196,7 @@ def test_get_array_returns_none_when_time_is_not_covered(
     array, slice_start, slice_end = provider.get_array("rain", start_time + timedelta(hours=4))
 
     assert array is None
-    assert slice_start == simulation_times["start_time"]
+    assert slice_start == start_time + timedelta(hours=1)
     assert slice_end == simulation_times["end_time"]
 
 
@@ -365,7 +363,7 @@ def test_rejects_overlapping_timed_slices(
 def test_rejects_timed_slice_with_reversed_bounds(
     domain_data: DomainData, simulation_times: dict[str, datetime]
 ) -> None:
-    with pytest.raises(ValueError, match="start_time after end_time"):
+    with pytest.raises(ValueError, match="must have start_time before end_time"):
         MemoryRasterInputProvider(
             make_config(
                 domain_data,
@@ -375,6 +373,29 @@ def test_rejects_timed_slice_with_reversed_bounds(
                         TimedRasterSlice(
                             start_time=simulation_times["end_time"],
                             end_time=simulation_times["start_time"],
+                            array=np.full(domain_data.shape, 1.0, dtype=np.float32),
+                        )
+                    ]
+                },
+            )
+        )
+
+
+def test_rejects_zero_length_timed_slice(
+    domain_data: DomainData, simulation_times: dict[str, datetime]
+) -> None:
+    start_time = simulation_times["start_time"]
+
+    with pytest.raises(ValueError, match="must have start_time before end_time"):
+        MemoryRasterInputProvider(
+            make_config(
+                domain_data,
+                simulation_times,
+                timed_arrays={
+                    "rain": [
+                        TimedRasterSlice(
+                            start_time=start_time,
+                            end_time=start_time,
                             array=np.full(domain_data.shape, 1.0, dtype=np.float32),
                         )
                     ]

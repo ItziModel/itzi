@@ -153,7 +153,7 @@ def test_timed_memory_input_updates_water_depth_from_wse(domain_5by5) -> None:
                 "water_surface_elevation": [
                     TimedRasterSlice(
                         start_time=start_time,
-                        end_time=boundary_time - timedelta(microseconds=1),
+                        end_time=boundary_time,
                         array=first_wse,
                     ),
                     TimedRasterSlice(
@@ -185,7 +185,7 @@ def test_timed_memory_input_updates_water_depth_from_wse(domain_5by5) -> None:
     assert simulation.timed_arrays is not None
     wse_timed_array = simulation.timed_arrays["water_surface_elevation"]
     assert wse_timed_array.arr_start == start_time
-    assert wse_timed_array.arr_end == boundary_time - timedelta(microseconds=1)
+    assert wse_timed_array.arr_end == boundary_time
 
     simulation.update_until(timedelta(seconds=10))
 

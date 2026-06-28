@@ -59,7 +59,7 @@ def _make_hotstart_timed_rain_slices(
     timed_slices = [
         TimedRasterSlice(
             start_time=start_time,
-            end_time=start_time + timedelta(seconds=10) - timedelta(microseconds=1),
+            end_time=start_time + timedelta(seconds=10),
             array=np.full(shape, RAIN_MM_PER_HOUR[0], dtype=np.float32),
         ),
         TimedRasterSlice(
@@ -68,12 +68,12 @@ def _make_hotstart_timed_rain_slices(
             array=np.full(shape, RAIN_MM_PER_HOUR[10], dtype=np.float32),
         ),
         TimedRasterSlice(
-            start_time=start_time + timedelta(seconds=20, microseconds=1),
+            start_time=start_time + timedelta(seconds=20),
             end_time=start_time + timedelta(seconds=30),
             array=np.full(shape, RAIN_MM_PER_HOUR[20], dtype=np.float32),
         ),
         TimedRasterSlice(
-            start_time=start_time + timedelta(seconds=30, microseconds=1),
+            start_time=start_time + timedelta(seconds=30),
             end_time=start_time + timedelta(seconds=40),
             array=np.full(shape, RAIN_MM_PER_HOUR[30], dtype=np.float32),
         ),
@@ -92,7 +92,7 @@ def _make_boundary_timed_rain_slices(
     timed_slices = [
         TimedRasterSlice(
             start_time=start_time,
-            end_time=start_time + timedelta(seconds=10) - timedelta(microseconds=1),
+            end_time=start_time + timedelta(seconds=10),
             array=np.zeros(shape, dtype=np.float32),
         ),
         TimedRasterSlice(
@@ -339,8 +339,6 @@ def test_timed_memory_rain_switches_cleanly_around_boundary(
     )
     expected_start = start_time + timedelta(seconds=expected_window[0])
     expected_end = start_time + timedelta(seconds=expected_window[1])
-    if expected_source_seconds == 0:
-        expected_end -= timedelta(microseconds=1)
     assert rain_timed_array.arr_start == expected_start
     assert rain_timed_array.arr_end == expected_end
 
@@ -372,12 +370,16 @@ def test_timed_memory_rain_is_applied_before_a_step_crosses_its_boundary(domain_
     simulation.initialize()
     simulation.update()
 
-    assert simulation.sim_time == start_time + timedelta(seconds=15)
+    assert simulation.sim_time == start_time + timedelta(seconds=10)
     domain_volume = float(
         np.sum(simulation.raster_domain.get_array("water_depth"))
         * simulation.raster_domain.cell_area
     )
-    assert domain_volume > 0.5
+    assert domain_volume == pytest.approx(0.0, abs=1e-6)
+    np.testing.assert_allclose(
+        simulation.raster_domain.get_array("rain"),
+        np.full(domain_5by5.domain_data.shape, 360.0 / (1000 * 3600), dtype=np.float32),
+    )
 
 
 def test_build_fails_when_dem_input_has_only_nan_cells(domain_5by5) -> None:

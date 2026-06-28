@@ -300,9 +300,59 @@ def test_xarray_input_provider_get_array_time_dependent_variable(
         # Verify times
         assert isinstance(start_time, datetime)
         assert isinstance(end_time, datetime)
-        assert start_time <= current_time <= end_time
+        assert start_time <= current_time < end_time
         assert start_time == expected_start_time
         assert end_time == expected_end_time
+
+
+def test_xarray_input_provider_uses_half_open_windows_at_exact_boundary(
+    xarray_input_data: Dict, default_times: Dict
+):
+    config: XarrayRasterInputConfig = {
+        "dataset": xarray_input_data["dataset"],
+        "input_map_names": xarray_input_data["input_map_names"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
+    }
+
+    provider = XarrayRasterInputProvider(config)
+
+    current_time = datetime(2023, 1, 1, 2, 0, 0)
+    array, start_time, end_time = provider.get_array("rainfall", current_time)
+
+    expected_time_index = 2
+    base_data = xarray_input_data["input_maps_dict"]["rainfall"]
+    expected_array = base_data * (1 + 0.1 * expected_time_index)
+
+    assert np.allclose(array, expected_array)
+    assert start_time == datetime(2023, 1, 1, 2, 0, 0)
+    assert end_time == datetime(2023, 1, 1, 3, 0, 0)
+    assert start_time <= current_time < end_time
+
+
+def test_xarray_input_provider_extends_last_slice_to_simulation_end(
+    xarray_input_data: Dict, default_times: Dict
+):
+    config: XarrayRasterInputConfig = {
+        "dataset": xarray_input_data["dataset"],
+        "input_map_names": xarray_input_data["input_map_names"],
+        "simulation_start_time": default_times["start_time"],
+        "simulation_end_time": default_times["end_time"],
+    }
+
+    provider = XarrayRasterInputProvider(config)
+
+    current_time = datetime(2023, 1, 1, 4, 30, 0)
+    array, start_time, end_time = provider.get_array("rainfall", current_time)
+
+    expected_time_index = 4
+    base_data = xarray_input_data["input_maps_dict"]["rainfall"]
+    expected_array = base_data * (1 + 0.1 * expected_time_index)
+
+    assert np.allclose(array, expected_array)
+    assert start_time == datetime(2023, 1, 1, 4, 0, 0)
+    assert end_time == default_times["end_time"]
+    assert start_time <= current_time < end_time
 
 
 def test_xarray_input_provider_get_array_nonexistent_key(
@@ -495,7 +545,7 @@ def test_xarray_input_provider_get_array_time_dependent_variable_relative_time(
         # Verify times
         assert isinstance(start_time, datetime)
         assert isinstance(end_time, datetime)
-        assert start_time <= current_time <= end_time
+        assert start_time <= current_time < end_time
         assert start_time == expected_start_time
         assert end_time == expected_end_time
 
@@ -947,7 +997,7 @@ def test_xarray_input_provider_mixed_dimensions(mixed_dimensions_data: Dict, def
     # Verify times
     assert isinstance(start_time, datetime)
     assert isinstance(end_time, datetime)
-    assert start_time <= current_time <= end_time
+    assert start_time <= current_time < end_time
     assert start_time == expected_start_time
     assert end_time == expected_end_time
 
@@ -978,7 +1028,7 @@ def test_xarray_input_provider_mixed_dimensions(mixed_dimensions_data: Dict, def
     # Verify times
     assert isinstance(start_time, datetime)
     assert isinstance(end_time, datetime)
-    assert start_time <= current_time <= end_time
+    assert start_time <= current_time < end_time
     assert start_time == expected_start_time
     assert end_time == expected_end_time
 

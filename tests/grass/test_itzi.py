@@ -258,12 +258,16 @@ def test_timed_grass_rain_is_applied_before_a_step_crosses_its_boundary(test_dat
         simulation = sim_runner.sim
         simulation.update()
 
-        assert simulation.sim_time == simulation.start_time + timedelta(seconds=15)
+        assert simulation.sim_time == simulation.start_time + timedelta(seconds=10)
         domain_volume = float(
             np.sum(simulation.raster_domain.get_array("water_depth"))
             * simulation.raster_domain.cell_area
         )
-        assert domain_volume > 0.5
+        assert domain_volume == pytest.approx(0.0, abs=1e-6)
+        np.testing.assert_allclose(
+            simulation.raster_domain.get_array("rain"),
+            360.0 / (1000 * 3600),
+        )
     finally:
         sim_runner.g_interface.finalize()
         sim_runner.g_interface.cleanup()

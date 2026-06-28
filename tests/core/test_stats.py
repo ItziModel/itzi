@@ -165,7 +165,6 @@ def _make_timed_forcing_slices(
             slice_end = final_boundary
         else:
             slice_end = start_time + timedelta(seconds=time_slice_seconds[index + 1])
-            slice_end -= timedelta(microseconds=1)
         forcing_slices.append(
             TimedRasterSlice(
                 start_time=slice_start,
