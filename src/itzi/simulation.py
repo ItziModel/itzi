@@ -394,6 +394,11 @@ class Simulation:
         return self
 
     def _update_next_input_ts(self) -> None:
+        """Determine the next scheduler step for input arrays.
+        Each TimedArray cache stores the end of the currently active half-open
+        interval [arr_start, arr_end). The smallest arr_end is therefore the next
+        externally meaningful input boundary the scheduler must not step across.
+        """
         if self.timed_arrays is None or self.sim_time >= self.end_time:
             self.next_ts["input"] = self.end_time
             return

@@ -64,7 +64,7 @@ class TimedArray:
 
     def is_valid(self, sim_time: datetime) -> bool:
         """input being a time in datetime
-        If the current stored array is within the range of the map,
+        If the current stored array is within the half-open range [start, end),
         return True
         If not return False
         """

@@ -320,7 +320,11 @@ class XarrayRasterInputProvider(RasterInputProvider):
 
     @staticmethod
     def get_active_window(coord_array, target_value):
-        """Return the active slice index and half-open validity window for a time value."""
+        """Return the active slice index and half-open validity window for a time value.
+
+        Exact-boundary lookups belong to the new slice, not the previous one, hence the
+        use of `side="right"`.
+        """
         active_idx = int(np.searchsorted(coord_array, target_value, side="right") - 1)
         if active_idx < 0:
             return None

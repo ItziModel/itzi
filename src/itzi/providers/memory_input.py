@@ -104,10 +104,12 @@ class MemoryRasterInputProvider(RasterInputProvider):
         previous_slice: TimedRasterSlice | None = None
 
         for timed_slice in slices:
-            if timed_slice.start_time > timed_slice.end_time:
+            # Memory-backed timed slices use half-open intervals [start, end), so
+            # zero-length slices are invalid and touching slices are allowed.
+            if timed_slice.start_time >= timed_slice.end_time:
                 raise ValueError(
                     f"timed slice for '{map_key}' must have start_time before end_time: "
-                    f"{timed_slice.start_time} > {timed_slice.end_time}"
+                    f"{timed_slice.start_time} >= {timed_slice.end_time}"
                 )
 
             if previous_slice is not None and timed_slice.start_time < previous_slice.start_time:
@@ -133,7 +135,13 @@ class MemoryRasterInputProvider(RasterInputProvider):
     def get_array(
         self, map_key: str, current_time: datetime
     ) -> tuple[np.ndarray | None, datetime, datetime]:
-        """Return the array and its validity interval for a given key and time."""
+        """Return the array and its half-open validity interval for a given key and time.
+
+        The memory backend deliberately allows sparse timed inputs.
+        When `current_time` falls in a hole between slices, return `None` and the
+        uncovered half-open interval `[gap_start, next_slice_start)` so the TimedArray
+        cache knows until when the default array remains valid.
+        """
         static_array: np.ndarray | None = self.static_arrays.get(map_key)
         if static_array is not None:
             return static_array.copy(), self.start_time, self.end_time
@@ -147,6 +155,7 @@ class MemoryRasterInputProvider(RasterInputProvider):
             slice_start = max(self.start_time, timed_slice.start_time)
             slice_end = min(self.end_time, timed_slice.end_time)
 
+            # Gap found
             if current_time < slice_start:
                 return None, gap_start, min(self.end_time, slice_start)
 
@@ -155,4 +164,5 @@ class MemoryRasterInputProvider(RasterInputProvider):
 
             gap_start = max(gap_start, slice_end)
 
+        # No map found
         return None, min(gap_start, self.end_time), self.end_time
