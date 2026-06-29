@@ -108,7 +108,7 @@ You can then build the documentation:
 .. code:: sh
 
     cd docs
-    sphinx-build . _build
+    uv run sphinx-build . _build
 
 
 Continuous integration
