@@ -64,11 +64,11 @@ class TimedArray:
 
     def is_valid(self, sim_time: datetime) -> bool:
         """input being a time in datetime
-        If the current stored array is within the range of the map,
+        If the current stored array is within the half-open range [start, end),
         return True
         If not return False
         """
-        return bool(self.arr_start <= sim_time <= self.arr_end)
+        return bool(self.arr_start <= sim_time < self.arr_end)
 
     def update_values(self, sim_time: datetime) -> Self:
         """Update array, start_time and end_time from provider
@@ -82,7 +82,7 @@ class TimedArray:
         # check retrieved values
         assert isinstance(arr_start, datetime), "not a datetime object!"
         assert isinstance(arr_end, datetime), "not a datetime object!"
-        assert arr_start <= sim_time <= arr_end, "wrong time retrieved!"
+        assert arr_start <= sim_time < arr_end, "wrong time retrieved!"
         # update object values
         self.arr_start = arr_start
         self.arr_end = arr_end

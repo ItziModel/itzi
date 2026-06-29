@@ -57,7 +57,7 @@ def test_log_absolute_time(logger_fixture):
     with open(logger_fixture["file_name"], "r") as f:
         lines = f.readlines()
         assert str(test_time) in lines[1]  # datetime formatting
-        assert "123.457" in lines[1]  # float formatting
-        assert "12.346" in lines[1]  # float formatting
+        assert "123.456789" in lines[1]  # float formatting
+        assert "12.345670" in lines[1]  # float formatting
         assert "34" in lines[1]  # int formatting
         assert "12.35%" in lines[1]  # percentage formatting

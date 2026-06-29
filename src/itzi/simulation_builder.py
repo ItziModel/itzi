@@ -317,8 +317,8 @@ class SimulationBuilder:
         3. Create Simulation object (constructor calls update_input_arrays())
         4. Restore hotstart raster state into the domain
         5. Restore hotstart simulation runtime/scheduler state
-        6. No explicit post-restore adjustments needed - the restore methods
-           maintain the required invariants.
+        6. Realign provider-backed input arrays to the restored clock
+        7. Restore drainage coupling state from the saved raster state
 
         This order ensures:
         - Provider-driven construction remains intact
@@ -326,6 +326,7 @@ class SimulationBuilder:
         - Raster state is restored after Simulation.__init__ to avoid being
           clobbered by update_input_arrays()
         - Scheduler invariants are maintained via restore_state()
+        - Timed input caches are brought back in sync with the restored clock
         """
         # Validate required components
         if self.domain_data is None:
@@ -396,6 +397,12 @@ class SimulationBuilder:
             simulation_state = self.hotstart_loader.get_simulation_state()
             simulation.restore_state(simulation_state)
             simulation.reconcile_hotstart_resume(self.hotstart_loader.get_simulation_config())
+
+            # The constructor aligned provider-backed inputs to start_time before
+            # the hotstart state moved sim_time to the restored checkpoint.
+            # Realign the timed-input caches once here so update() can assume the
+            # current time label is already reflected in the input arrays.
+            simulation.update_input_arrays(simulation.sim_time)
 
             # Restore drainage coupling state from the saved n_drain raster.
             # DrainageNode.coupling_flow is always 0 after object creation, and

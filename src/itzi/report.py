@@ -12,11 +12,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
+from __future__ import annotations
+
 import copy
 from datetime import datetime, timedelta
 from typing import Dict, TYPE_CHECKING
 
 from itzi import rastermetrics
+from itzi.const import TemporalType
 from itzi.data_containers import SimulationData, MassBalanceData
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
@@ -31,10 +34,10 @@ class Report:
     def __init__(
         self,
         start_time: datetime,
-        temporal_type: str,
-        raster_output_provider: "RasterOutputProvider",
-        vector_output_provider: "VectorOutputProvider",
-        mass_balance_logger: "MassBalanceLogger",
+        temporal_type: TemporalType,
+        raster_output_provider: RasterOutputProvider,
+        vector_output_provider: VectorOutputProvider,
+        mass_balance_logger: MassBalanceLogger,
         out_map_names: Dict,
         dt,
     ):
@@ -56,7 +59,7 @@ class Report:
     def step(self, simulation_data: SimulationData):
         """write results at given time-step"""
         sim_time = simulation_data.sim_time
-        if "relative" == self.temporal_type:
+        if self.temporal_type == TemporalType.RELATIVE:
             converted_sim_time = sim_time - self.start_time
         else:
             converted_sim_time = sim_time
@@ -73,13 +76,7 @@ class Report:
         return self
 
     def end(self, final_data: SimulationData):
-        """
-        register maps in gis
-        write max level maps
-        """
-        # do the last step
-        self.step(final_data)
-        # Write last maps
+        """Finalize output providers after the last report has been written."""
         self.raster_provider.finalize(final_data)
         self.vector_provider.finalize(final_data.drainage_network_data)
         return self

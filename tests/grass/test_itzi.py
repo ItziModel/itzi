@@ -1,14 +1,98 @@
 """ """
 
 from configparser import ConfigParser
+from datetime import timedelta
 import os
+from uuid import uuid4
 
 import grass.script as gscript
+import numpy as np
 import pytest
 
 from itzi import SimulationRunner
 from itzi.configreader import ConfigReader
 from itzi.itzi_error import ItziFatal
+
+
+def _create_timed_rain_inputs(name_prefix: str) -> dict[str, str]:
+    current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
+    suffix = uuid4().hex[:8]
+    zero_depth_map = f"{name_prefix}_start_h_zero_{suffix}"
+    rain_map_names = [
+        f"{name_prefix}_rain_0_{suffix}",
+        f"{name_prefix}_rain_10_{suffix}",
+        f"{name_prefix}_rain_20_{suffix}",
+    ]
+    strds_name = f"{name_prefix}_rain_{suffix}"
+
+    gscript.mapcalc(f"{zero_depth_map}=0")
+    gscript.mapcalc(f"{rain_map_names[0]}=0")
+    gscript.mapcalc(f"{rain_map_names[1]}=360")
+    gscript.mapcalc(f"{rain_map_names[2]}=360")
+    gscript.run_command(
+        "t.create",
+        output=strds_name,
+        type="strds",
+        temporaltype="relative",
+        semantictype="mean",
+        title=strds_name,
+        description=strds_name,
+    )
+    gscript.run_command(
+        "t.register",
+        flags="i",
+        input=strds_name,
+        type="raster",
+        maps=",".join(rain_map_names),
+        start="0",
+        increment="10",
+        unit="seconds",
+    )
+
+    return {
+        "rain": f"{strds_name}@{current_mapset}",
+        "water_depth": f"{zero_depth_map}@{current_mapset}",
+    }
+
+
+def _build_timed_rain_runner(
+    test_data_temp_path: str,
+    *,
+    input_names: dict[str, str],
+    duration: str,
+    record_step: str,
+    prefix: str,
+) -> SimulationRunner:
+    current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
+    config_dict = {
+        "input": {
+            "dem": f"z@{current_mapset}",
+            "friction": f"n@{current_mapset}",
+            "water_depth": input_names["water_depth"],
+            "rain": input_names["rain"],
+        },
+        "time": {
+            "duration": duration,
+            "record_step": record_step,
+        },
+        "output": {
+            "prefix": prefix,
+            "values": "water_depth",
+        },
+        "options": {
+            "hmin": "0.0001",
+            "dtmax": "20",
+            "cfl": "0.2",
+        },
+    }
+    parser = ConfigParser()
+    parser.read_dict(config_dict)
+    config_file = os.path.join(test_data_temp_path, f"{prefix}.ini")
+    with open(config_file, "w") as file_handle:
+        parser.write(file_handle)
+
+    conf_data = ConfigReader(config_file)
+    return SimulationRunner(conf_data.get_sim_params(), conf_data.get_grass_params())
 
 
 @pytest.mark.forked
@@ -110,3 +194,80 @@ def test_fails_when_region_has_no_dem_data(test_data_temp_path):
 
     with pytest.raises(ItziFatal, match=r"input map <dem> contains only NULL/NaN cells"):
         SimulationRunner(conf_data.get_sim_params(), conf_data.get_grass_params())
+
+
+@pytest.mark.forked
+@pytest.mark.usefixtures("grass_5by5")
+@pytest.mark.parametrize(
+    ("target_seconds", "expected_rain_mm_per_hour", "expected_window_seconds"),
+    [
+        (9, 0.0, (0, 10)),
+        (10, 360.0, (10, 20)),
+        (12, 360.0, (10, 20)),
+    ],
+)
+def test_timed_grass_rain_switches_cleanly_around_boundary(
+    test_data_temp_path,
+    target_seconds: int,
+    expected_rain_mm_per_hour: float,
+    expected_window_seconds: tuple[int, int],
+):
+    input_names = _create_timed_rain_inputs("timed_boundary")
+    sim_runner = _build_timed_rain_runner(
+        test_data_temp_path,
+        input_names=input_names,
+        duration="00:00:20",
+        record_step="00:00:20",
+        prefix=f"out_timed_boundary_{target_seconds}_{uuid4().hex[:8]}",
+    )
+
+    try:
+        simulation = sim_runner.sim
+        simulation.update_until(timedelta(seconds=target_seconds))
+
+        assert simulation.timed_arrays is not None
+        rain_timed_array = simulation.timed_arrays["rain"]
+        np.testing.assert_allclose(
+            simulation.raster_domain.get_array("rain"),
+            expected_rain_mm_per_hour / (1000 * 3600),
+        )
+        assert rain_timed_array.arr_start == simulation.start_time + timedelta(
+            seconds=expected_window_seconds[0]
+        )
+        assert rain_timed_array.arr_end == simulation.start_time + timedelta(
+            seconds=expected_window_seconds[1]
+        )
+    finally:
+        sim_runner.g_interface.finalize()
+        sim_runner.g_interface.cleanup()
+
+
+@pytest.mark.forked
+@pytest.mark.usefixtures("grass_5by5")
+def test_timed_grass_rain_is_applied_before_a_step_crosses_its_boundary(test_data_temp_path):
+    input_names = _create_timed_rain_inputs("timed_crossing")
+    sim_runner = _build_timed_rain_runner(
+        test_data_temp_path,
+        input_names=input_names,
+        duration="00:00:20",
+        record_step="00:00:15",
+        prefix=f"out_timed_crossing_{uuid4().hex[:8]}",
+    )
+
+    try:
+        simulation = sim_runner.sim
+        simulation.update()
+
+        assert simulation.sim_time == simulation.start_time + timedelta(seconds=10)
+        domain_volume = float(
+            np.sum(simulation.raster_domain.get_array("water_depth"))
+            * simulation.raster_domain.cell_area
+        )
+        assert domain_volume == pytest.approx(0.0, abs=1e-6)
+        np.testing.assert_allclose(
+            simulation.raster_domain.get_array("rain"),
+            360.0 / (1000 * 3600),
+        )
+    finally:
+        sim_runner.g_interface.finalize()
+        sim_runner.g_interface.cleanup()

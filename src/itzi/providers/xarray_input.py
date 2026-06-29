@@ -319,25 +319,27 @@ class XarrayRasterInputProvider(RasterInputProvider):
             return bool(np.all(np.diff(arr) <= 0))
 
     @staticmethod
-    def get_bracket_values(coord_array, target_value):
+    def get_active_window(coord_array, target_value):
+        """Return the active slice index and half-open validity window for a time value.
+
+        Exact-boundary lookups belong to the new slice, not the previous one, hence the
+        use of `side="right"`.
         """
-        Get the lower and upper bound values that bracket a target value.
+        active_idx = int(np.searchsorted(coord_array, target_value, side="right") - 1)
+        if active_idx < 0:
+            return None
 
-        Returns:
-            tuple: (lower_value, upper_value)
-        """
-        insert_idx = np.searchsorted(coord_array, target_value)
+        start_value = coord_array[active_idx]
+        if active_idx + 1 < len(coord_array):
+            end_value = coord_array[active_idx + 1]
+        else:
+            end_value = None
+        return active_idx, start_value, end_value
 
-        lower_idx = max(0, insert_idx - 1)
-        upper_idx = min(len(coord_array) - 1, insert_idx)
-
-        # Handle edge cases
-        if insert_idx == 0:
-            upper_idx = 0
-        elif insert_idx >= len(coord_array):
-            lower_idx = len(coord_array) - 1
-
-        return (coord_array[lower_idx], coord_array[upper_idx])
+    def _to_datetime(self, time_value, time_dim: str) -> datetime:
+        if self.temporal_types[time_dim] == TemporalType.RELATIVE:
+            return self.sim_start_time + pd.to_timedelta(time_value).to_pytimedelta()
+        return pd.to_datetime(time_value).to_pydatetime()
 
     def get_array(
         self, map_key: str, current_time: datetime
@@ -356,21 +358,27 @@ class XarrayRasterInputProvider(RasterInputProvider):
         time_dim: str = self.dataset_dims[var_name]["time"]
 
         if time_dim in da.dims:
+            if not self.sim_start_time <= current_time < self.sim_end_time:
+                return None, self.sim_start_time, self.sim_end_time
+
             da_time: xr.DataArray = da[time_dim]
             if self.temporal_types[time_dim] == TemporalType.RELATIVE:
                 # convert datetime to timedelta for the search
                 np_time = np.timedelta64(current_time - self.sim_start_time)
-                da_selected: xr.DataArray = da.sel({time_dim: np_time}, method="ffill")
-                start_np, end_np = self.get_bracket_values(da_time.values, np_time)
-                # convert back to datetime
-                start_time = self.sim_start_time + pd.to_timedelta(start_np).to_pytimedelta()
-                end_time = self.sim_start_time + pd.to_timedelta(end_np).to_pytimedelta()
             else:  # absolute time
                 np_time = np.datetime64(current_time)
-                da_selected: xr.DataArray = da.sel({time_dim: np_time}, method="ffill")
-                start_np, end_np = self.get_bracket_values(da_time.values, np_time)
-                start_time = pd.to_datetime(start_np).to_pydatetime()
-                end_time = pd.to_datetime(end_np).to_pydatetime()
+
+            active_window = self.get_active_window(da_time.values, np_time)
+            if active_window is None:
+                first_time = min(self.sim_end_time, self._to_datetime(da_time.values[0], time_dim))
+                return None, self.sim_start_time, first_time
+
+            active_idx, start_np, end_np = active_window
+            da_selected: xr.DataArray = da.isel({time_dim: active_idx})
+            start_time = max(self.sim_start_time, self._to_datetime(start_np, time_dim))
+            end_time = self.sim_end_time
+            if end_np is not None:
+                end_time = min(self.sim_end_time, self._to_datetime(end_np, time_dim))
         else:
             # If no time dimension, send back the whole array
             start_time: datetime = self.sim_start_time

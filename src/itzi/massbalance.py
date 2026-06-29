@@ -53,7 +53,9 @@ class MassBalanceLogger:
             elif "percent_error" == key:
                 line_to_write[key] = f"{value:.2%}"
             elif isinstance(value, numbers.Real) and not isinstance(value, int):
-                line_to_write[key] = f"{value:.3f}"
+                # Keep enough precision in the CSV for downstream coherence checks,
+                # especially when large boundary and inflow volumes nearly cancel.
+                line_to_write[key] = f"{value:.6f}"
             else:
                 line_to_write[key] = value
 

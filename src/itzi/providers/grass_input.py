@@ -100,19 +100,25 @@ class GrassRasterInputProvider(RasterInputProvider):
     def get_array(
         self, map_key: str, current_time: datetime
     ) -> tuple[np.ndarray | None, datetime, datetime]:
-        """Take a given map key and current time
-        return a numpy array associated with its start and end time
-        if no map is found, return None instead of an array
-        and a default start_time and end_time."""
+        """Return the array and its half-open validity window for a given time.
+        The input series is expected to cover the simulation timeline continuously.
+        Reaching the final `else` therefore means the map set was
+        modified after validation or the provider logic became inconsistent.
+        """
         if map_key not in self.map_lists.keys():
             raise ValueError(f"Unknown map key: {map_key}")
         if self.map_lists[map_key] is None:
             return None, self.start_time, self.end_time
         else:
             for map_name in self.map_lists[map_key]:
-                if map_name.start_time <= current_time <= map_name.end_time:
+                map_start: datetime = max(self.start_time, map_name.start_time)
+                map_end: datetime = min(self.end_time, map_name.end_time)
+                if map_start <= current_time < map_end:
                     arr = self.grass_interface.read_raster_map(map_name.id)
-                    return arr, map_name.start_time, map_name.end_time
+                    return arr, map_start, map_end
             else:
-                # This should not happen unless the maps is removed from the GRASS DB after listing the maps.
-                assert None, "No map found for {k} at time {t}".format(k=map_key, t=current_time)
+                # No gap is expected here: GRASS temporal sanity is checked before the
+                # simulation starts, so an in-range lookup should always hit one map.
+                raise ValueError(
+                    "No map found for {k} at time {t}".format(k=map_key, t=current_time)
+                )
