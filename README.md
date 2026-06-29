@@ -22,6 +22,7 @@ Built with GRASS GIS integration at its core, Itzï eliminates the complexity of
 - **2D surface flow modeling** with a damped partial inertia numerical scheme
 - **Drainage inflow and overflow** with integrated SWMM coupling
 - **Space-time variability of inputs**: Easily model rainfall fields from weather radar or satellite data 📡
+- **Hotstart checkpoints and resume**: Restart long simulations from saved checkpoints
 
 **🔧 User-Friendly**
 - **Simple configuration**: Text-based parameter file
@@ -70,20 +71,22 @@ uv tool upgrade itzi
 3. **Run the simulation**: `itzi run your_config.ini`
 4. **Visualize and analyze results** using GRASS tools, or export for external analysis
 
-Check out our [comprehensive tutorial](https://itzi.rtfd.io/en/latest/tutorial.html) for a step-by-step walkthrough using real-world data.
+Check out our [comprehensive tutorial](https://itzi.readthedocs.io/en/latest/tutorial.html) for a step-by-step walkthrough using real-world data.
 
 ## 🌟 Key Features
 
 - **Dynamic 2D Surface Flow**: Simulate complex surface water movement on regular grids
 - **Drainage network integration**: Model culverts, storm drains, and urban drainage infrastructure with SWMM
 - **Map time series as input and output**: Generate detailed spatiotemporal analysis of flood events
+- **Hotstart support**: Save checkpoints and resume interrupted or long-running simulations
 - **Mass balance monitoring**: Automatic detection of instabilities, no more garbage output
 - **Hydrology**: Space-time rainfall and Green-Ampt infiltration
 - **Cross-platform**: Runs on Linux, Windows, and macOS
 
 ## 📚 Documentation & Support
 
-- **📖 Documentation**: [itzi.readthedocs.io](https://itzi.rtfd.io/)
+- **📖 Documentation**: [itzi.readthedocs.io](https://itzi.readthedocs.io/)
+- **📝 Release Notes**: [RELEASE.rst](RELEASE.rst)
 - **🌐 Website**: [itzi.org](https://www.itzi.org/)
 - **💻 Source Code**: [GitHub Repository](https://github.com/ItziModel/itzi)
 - **🐛 Issues**: [Report bugs or request features](https://github.com/ItziModel/itzi/issues)
@@ -110,4 +113,4 @@ Itzï is released under the GPL license. See [LICENSE](LICENSE) for details.
 
 ---
 
-*Ready to model floods with ease? [Get started with our tutorial](https://itzi.rtfd.io/en/latest/tutorial.html) and join the growing community of Itzï users worldwide!*
+*Ready to model floods with ease? [Get started with our tutorial](https://itzi.readthedocs.io/en/latest/tutorial.html) and join the growing community of Itzï users worldwide!*
