@@ -3,6 +3,7 @@
 from configparser import ConfigParser
 from datetime import datetime, timedelta
 import logging
+from pathlib import Path
 
 import pytest
 
@@ -238,4 +239,40 @@ def test_reader_requires_all_green_ampt_maps(tmp_path):
     )
 
     with pytest.raises(ItziFatal, match="mutualy inclusive"):
+        ConfigReader(config_file)
+
+
+def test_reader_falls_back_to_config_dir_for_relative_swmm_inp(tmp_path, monkeypatch):
+    cwd = tmp_path / "cwd"
+    config_dir = tmp_path / "config_dir"
+    cwd.mkdir()
+    config_dir.mkdir()
+    monkeypatch.chdir(cwd)
+
+    config_swmm_inp = config_dir / "swmm_config.inp"
+    config_swmm_inp.write_text("[TITLE]\n", encoding="utf-8")
+
+    config_file = write_config_file(
+        config_dir,
+        make_config_dict(drainage={"swmm_inp": "swmm_config.inp"}),
+    )
+
+    sim_config = ConfigReader(config_file).get_sim_params()
+
+    assert sim_config.swmm_inp == Path(config_swmm_inp)
+
+
+def test_reader_fails_fast_when_swmm_inp_is_missing(tmp_path, monkeypatch):
+    cwd = tmp_path / "cwd"
+    config_dir = tmp_path / "config_dir"
+    cwd.mkdir()
+    config_dir.mkdir()
+    monkeypatch.chdir(cwd)
+
+    config_file = write_config_file(
+        config_dir,
+        make_config_dict(drainage={"swmm_inp": "missing_swmm.inp"}),
+    )
+
+    with pytest.raises(ItziFatal, match="SWMM input file <missing_swmm.inp> not found"):
         ConfigReader(config_file)

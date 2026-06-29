@@ -140,10 +140,10 @@ The table below reflects the current implementation.
      - A run with drainage can only resume from a hotstart that also contains
        drainage state, and vice versa.
    * - ``[time] start_time``
-      - Must match
-      - Changing it raises a hotstart compatibility error. The archived
-        simulation clock and scheduler are restored from the hotstart and are
-        not remapped to a new start time.
+     - Must match
+     - Changing it raises a hotstart compatibility error. The archived
+       simulation clock and scheduler are restored from the hotstart and are
+       not remapped to a new start time.
    * - Input map names, ``[drainage] swmm_inp``, and other forcing paths
      - Not cross-checked
      - Itzi validates the resumed domain and mask, but it does not verify that
@@ -154,6 +154,7 @@ The table below reflects the current implementation.
      - Not cross-checked
      - These values are taken from the resumed configuration, but Itzi does not
        compare them with the archived configuration before resuming.
+
 
 If you want a pure restart, keep every option unchanged except for the options
 listed as ``Allowed`` above.
@@ -439,10 +440,14 @@ When water depth is under *hmin*, the flow is routed at the fixed velocity defin
 [drainage]
 ----------
 
-This section is needed only if carrying out a simulation that couples drainage and surface flow.
+This section is needed only if carrying out a simulation that couples SWMM drainage with surface flow.
 
-.. warning:: This functionality is still new and in need of testing.
-    Use with care.
+.. warning:: This functionality is still experimental.
+
+
+.. versionchanged:: 26.6
+    *Itzï* searches for swmm_inp in the directory of itzi configuration file.
+
 
 +---------------------+------------------------------------------------------------+---------------+
 | Keyword             | Description                                                | Default value |
@@ -452,12 +457,19 @@ This section is needed only if carrying out a simulation that couples drainage a
 | output              | Name of the output Space Time Vector Dataset where         |               |
 |                     | are written the results of the drainage network simulation |               |
 +---------------------+------------------------------------------------------------+---------------+
-| orifice_coeff       | Orifice coefficient for calculating the flow exchange      | 0.167         |
+| orifice_coeff       | Orifice coefficient for flow exchange calculation          | 0.167         |
 +---------------------+------------------------------------------------------------+---------------+
-| free_weir_coeff     | Free weir coefficient for calculating the flow exchange    | 0.54          |
+| free_weir_coeff     | Free weir coefficient for flow exchange calculation        | 0.54          |
 +---------------------+------------------------------------------------------------+---------------+
 | submerged_weir_coeff| Submerged weir coefficient for flow exchange calculation   | 0.056         |
 +---------------------+------------------------------------------------------------+---------------+
+
+*Itzï* searches for 'swmm_inp' in the following order:
+
+1. If an absolute path is given, fail if not found.
+2. If a relative path is given, *Itzï* searches first in the current working directory.
+3. If this fails, it searches in the directory relative to the *Itzï* configuration file.
+4. If still not found, raises an error.
 
 
 Drainage output
@@ -468,8 +480,6 @@ The nodes are stored in layer 1, the links in layer 2.
 
 The values stored for the nodes are described below. All are instantaneous.
 
-.. versionchanged:: 25.8
-    Tables columns names are more explicit.
 
 +------------------+-----------------------------------------------------------------------+
 | Column           | Description                                                           |
@@ -541,6 +551,10 @@ The values for the links are as follows:
 
 .. note:: Only links and nodes with coordinates will be written as geographic features to the grass vector map.
   However, results from all nodes and links are written to the database, even without an associated geographic feature.
+
+.. versionchanged:: 25.8
+    Tables columns names are more explicit.
+
 
 [grass]
 -------
