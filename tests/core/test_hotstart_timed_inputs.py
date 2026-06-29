@@ -261,10 +261,6 @@ def _assert_resume_with_timed_memory_inputs(
     np.testing.assert_allclose(resumed.raster_domain.get_array("rain"), checkpoint["rain"])
     np.testing.assert_allclose(resumed.raster_domain.get_array("rain"), expected_rain_arrays[10])
 
-    # TimedArray cache is rebuilt from the fresh provider during construction.
-    # After resume, the first update must realign that cache to the restored clock.
-    resumed.update()
-
     assert resumed.timed_arrays is not None
     rain_timed_array = resumed.timed_arrays["rain"]
     assert second_slice_start <= resumed.sim_time < second_slice_end
@@ -272,6 +268,10 @@ def _assert_resume_with_timed_memory_inputs(
     assert rain_timed_array.arr_end == second_slice_end
     np.testing.assert_allclose(resumed.raster_domain.get_array("rain"), expected_rain_arrays[10])
     assert not np.allclose(resumed.raster_domain.get_array("rain"), expected_rain_arrays[0])
+
+    resumed.update()
+    assert second_slice_start <= resumed.sim_time < second_slice_end
+    np.testing.assert_allclose(resumed.raster_domain.get_array("rain"), expected_rain_arrays[10])
 
     _run_to_end(resumed, skip_initialize=True)
     _assert_final_state_matches(resumed, reference)

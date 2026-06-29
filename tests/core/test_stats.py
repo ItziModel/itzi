@@ -29,6 +29,7 @@ def sim_5by5_stats(domain_5by5, helpers, tmp_path_factory):
         start_time=datetime(2000, 1, 1, 0, 0, 0),
         end_time=datetime(2000, 1, 1, 0, 0, 5),  # 5 seconds
         record_step=timedelta(seconds=1),
+        dtinf=1.0,
         temporal_type=TemporalType.RELATIVE,
         input_map_names=helpers.make_input_map_names(
             dem="z",
@@ -118,16 +119,20 @@ class TestStatsFile:
         expected_rain_vol = 10.0 / (1000 * 3600) * area
         # Infiltration: 2 mm/h = 2/(1000*3600) m/s (negative because it removes water)
         expected_inf_vol = -2.0 / (1000 * 3600) * area
+        expected_inf_vol_first = -2.0 / (1000 * 3600) * domain_data.cell_area
         # Losses: 1.5 mm/h = 1.5/(1000*3600) m/s (negative)
         expected_losses_vol = -1.5 / (1000 * 3600) * area
+        expected_losses_vol_first = -1.5 / (1000 * 3600) * domain_data.cell_area
         # Inflow: 0.1 m/s
         expected_inflow_vol = 0.1 * area
 
         # Ignore first row (initial state, before time-stepping)
         assert np.all(np.isclose(df["rainfall_volume"][1:], expected_rain_vol, atol=0.001))
-        assert np.all(np.isclose(df["infiltration_volume"][1:], expected_inf_vol, atol=0.001))
+        assert np.isclose(df["infiltration_volume"].iloc[1], expected_inf_vol_first, atol=0.001)
+        assert np.all(np.isclose(df["infiltration_volume"][2:], expected_inf_vol, atol=0.001))
         assert np.all(np.isclose(df["inflow_volume"][1:], expected_inflow_vol, atol=0.001))
-        assert np.all(np.isclose(df["losses_volume"][1:], expected_losses_vol, atol=0.001))
+        assert np.isclose(df["losses_volume"].iloc[1], expected_losses_vol_first, atol=0.001)
+        assert np.all(np.isclose(df["losses_volume"][2:], expected_losses_vol, atol=0.001))
 
     def test_volume_change_coherence(self, sim_5by5_stats):
         """Volume change should be coherent with other volume components."""
@@ -189,6 +194,8 @@ def _run_timed_stats_simulation(
     *,
     forcing_key: str,
     forcing_values_by_second: dict[int, float],
+    infiltration_model: InfiltrationModelType = InfiltrationModelType.NULL,
+    initial_water_depth: np.ndarray | None = None,
 ) -> pd.DataFrame:
     start_time = datetime(2000, 1, 1, 0, 0, 0)
     end_time = start_time + timedelta(seconds=20)
@@ -215,7 +222,7 @@ def _run_timed_stats_simulation(
             ["water_depth"],
         ),
         surface_flow_parameters=SurfaceFlowParameters(hmin=0.0001, dtmax=20.0, cfl=0.2),
-        infiltration_model=InfiltrationModelType.NULL,
+        infiltration_model=infiltration_model,
         stats_file=str(stats_file),
     )
     input_provider = MemoryRasterInputProvider(
@@ -226,7 +233,11 @@ def _run_timed_stats_simulation(
             "static_arrays": {
                 "dem": domain_5by5.arr_dem_flat.copy(),
                 "friction": domain_5by5.arr_n.copy(),
-                "water_depth": np.zeros(domain_5by5.domain_data.shape, dtype=np.float32),
+                "water_depth": (
+                    np.zeros(domain_5by5.domain_data.shape, dtype=np.float32)
+                    if initial_water_depth is None
+                    else initial_water_depth.copy()
+                ),
             },
             "timed_arrays": {forcing_key: forcing_slices},
         }
@@ -249,10 +260,47 @@ def _run_timed_stats_simulation(
 
 
 @pytest.mark.parametrize(
-    ("forcing_key", "forcing_values_by_second", "volume_column", "expected_volume"),
+    (
+        "forcing_key",
+        "forcing_values_by_second",
+        "volume_column",
+        "expected_volume",
+        "infiltration_model",
+        "initial_water_depth",
+    ),
     [
-        ("inflow", {0: 0.0, 3: 0.1, 20: 0.1}, "inflow_volume", 1750.0),
-        ("rain", {0: 0.0, 3: 360.0, 20: 360.0}, "rainfall_volume", 1.75),
+        (
+            "inflow",
+            {0: 0.0, 3: 0.1, 20: 0.1},
+            "inflow_volume",
+            1750.0,
+            InfiltrationModelType.NULL,
+            None,
+        ),
+        (
+            "rain",
+            {0: 0.0, 3: 360.0, 20: 360.0},
+            "rainfall_volume",
+            1.75,
+            InfiltrationModelType.NULL,
+            None,
+        ),
+        (
+            "infiltration",
+            {0: 0.0, 3: 360.0, 20: 360.0},
+            "infiltration_volume",
+            -1.75,
+            InfiltrationModelType.CONSTANT,
+            np.full((5, 5), 1.0, dtype=np.float32),
+        ),
+        (
+            "losses",
+            {0: 0.0, 3: 360.0, 20: 360.0},
+            "losses_volume",
+            -1.75,
+            InfiltrationModelType.CONSTANT,
+            np.full((5, 5), 1.0, dtype=np.float32),
+        ),
     ],
 )
 def test_timed_input_stats_first_report_row_stays_interval_coherent(
@@ -263,6 +311,8 @@ def test_timed_input_stats_first_report_row_stays_interval_coherent(
     forcing_values_by_second: dict[int, float],
     volume_column: str,
     expected_volume: float,
+    infiltration_model: InfiltrationModelType,
+    initial_water_depth: np.ndarray | None,
 ) -> None:
     df = _run_timed_stats_simulation(
         domain_5by5,
@@ -270,6 +320,8 @@ def test_timed_input_stats_first_report_row_stays_interval_coherent(
         tmp_path,
         forcing_key=forcing_key,
         forcing_values_by_second=forcing_values_by_second,
+        infiltration_model=infiltration_model,
+        initial_water_depth=initial_water_depth,
     )
 
     first_report_row = df.iloc[1]
@@ -288,7 +340,14 @@ def test_timed_input_stats_first_report_row_stays_interval_coherent(
 
 
 class TestStatsMaps:
-    """Test that output maps for mean rates have correct uniform values."""
+    """Test that mean-rate maps reflect the interval that was just simulated."""
+
+    @staticmethod
+    def _assert_center_only(arr: np.ndarray, expected_center_value: float) -> None:
+        mask = np.ones(arr.shape, dtype=bool)
+        mask[2, 2] = False
+        assert np.isclose(arr[2, 2], expected_center_value)
+        assert np.allclose(arr[mask], 0.0)
 
     def test_mean_rainfall_values(self, sim_5by5_stats):
         """Mean rainfall maps should have uniform value of 10 mm/h."""
@@ -319,7 +378,7 @@ class TestStatsMaps:
                 assert np.isclose(arr.max(), 0.1)
 
     def test_mean_infiltration_values(self, sim_5by5_stats):
-        """Mean infiltration maps should have uniform value of 2 mm/h."""
+        """Mean infiltration maps should use the hydrology rates valid for each interval."""
         simulation, _, _ = sim_5by5_stats
         output_dict = simulation.report.raster_provider.output_maps_dict
 
@@ -327,13 +386,17 @@ class TestStatsMaps:
             if i == 0:
                 # Initial map is zero
                 assert np.allclose(arr, 0)
+            elif i == 1:
+                # The first simulated interval used the t=0 hydrology rates, when only
+                # the center cell had water available for infiltration.
+                self._assert_center_only(arr, 2.0)
             else:
                 # Mean infiltration should be 2 mm/h
                 assert np.isclose(arr.min(), 2.0)
                 assert np.isclose(arr.max(), 2.0)
 
     def test_mean_losses_values(self, sim_5by5_stats):
-        """Mean losses maps should have uniform value of 1.5 mm/h."""
+        """Mean losses maps should use the hydrology rates valid for each interval."""
         simulation, _, _ = sim_5by5_stats
         output_dict = simulation.report.raster_provider.output_maps_dict
 
@@ -341,6 +404,10 @@ class TestStatsMaps:
             if i == 0:
                 # Initial map is zero
                 assert np.allclose(arr, 0)
+            elif i == 1:
+                # The first simulated interval used the t=0 hydrology rates, when only
+                # the center cell had water available for losses.
+                self._assert_center_only(arr, 1.5)
             else:
                 # Mean losses should be 1.5 mm/h
                 assert np.isclose(arr.min(), 1.5)
