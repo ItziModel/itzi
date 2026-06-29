@@ -10,6 +10,7 @@ import pytest
 from itzi import SimulationRunner
 from itzi.configreader import ConfigReader
 from itzi.const import TemporalType
+from itzi.itzi_error import ItziFatal
 
 
 def _build_runner(
@@ -66,7 +67,7 @@ def _build_runner(
         (TemporalType.ABSOLUTE, TemporalType.RELATIVE),
     ],
 )
-def test_finalize_fails_when_overwriting_strds_with_different_temporal_type(
+def test_runner_creation_fails_when_overwriting_strds_with_different_temporal_type(
     monkeypatch: pytest.MonkeyPatch,
     test_data_temp_path: str,
     existing_temporal_type: TemporalType,
@@ -78,13 +79,5 @@ def test_finalize_fails_when_overwriting_strds_with_different_temporal_type(
     initial_runner = _build_runner(test_data_temp_path, prefix, existing_temporal_type)
     initial_runner.run().finalize()
 
-    sim_runner = _build_runner(test_data_temp_path, prefix, simulation_temporal_type)
-
-    try:
-        sim_runner.run()
-
-        with pytest.raises(Exception):
-            sim_runner.finalize()
-    finally:
-        sim_runner.g_interface.finalize()
-        sim_runner.g_interface.cleanup()
+    with pytest.raises(ItziFatal, match=r"temporal type"):
+        _build_runner(test_data_temp_path, prefix, simulation_temporal_type)
