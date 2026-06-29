@@ -438,6 +438,30 @@ class GrassInterface:
             ]
         return [self.MapData(*i) for i in maplist]
 
+    def validate_output_stds_temporal_type(
+        self,
+        stds_name: str | None,
+        stds_type: str,
+        expected_temporal_type: TemporalType,
+    ) -> None:
+        """Fail early when overwriting an STDS with incompatible temporal type."""
+        if not stds_name or not self.overwrite:
+            return
+
+        stds_id = self.format_id(stds_name)
+        stds = tgis.dataset_factory(stds_type, stds_id)
+        if stds is None or not stds.is_in_db():
+            return
+
+        existing_stds = tgis.open_stds.open_old_stds(stds_id, stds_type)
+        existing_temporal_type = TemporalType(existing_stds.get_temporal_type())
+        if existing_temporal_type != expected_temporal_type:
+            msgr.fatal(
+                f"Output {stds_type.upper()} <{stds_name}> already exists with "
+                f"{existing_temporal_type} temporal type and cannot be overwritten "
+                f"by a {expected_temporal_type} simulation"
+            )
+
     def read_raster_map(self, rast_name: str) -> np.ndarray:
         """Read a GRASS raster and return a numpy array"""
         if self.non_blocking_write:

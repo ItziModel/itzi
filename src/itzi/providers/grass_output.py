@@ -18,6 +18,7 @@ from typing import Dict, TypedDict, Union, TYPE_CHECKING
 
 import numpy as np
 
+from itzi.const import TemporalType
 from itzi.providers.base import RasterOutputProvider, VectorOutputProvider
 
 if TYPE_CHECKING:
@@ -30,13 +31,13 @@ class GrassRasterOutputConfig(TypedDict):
     grass_interface: "GrassInterface"
     out_map_names: Dict[str, str]
     hmin: float
-    temporal_type: str
+    temporal_type: TemporalType
 
 
 class GrassVectorOutputConfig(TypedDict):
     grass_interface: "GrassInterface"
     drainage_map_name: str
-    temporal_type: str
+    temporal_type: TemporalType
 
 
 class GrassRasterOutputProvider(RasterOutputProvider):
@@ -49,6 +50,12 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         self.out_map_names = config["out_map_names"]
         self.hmin = config["hmin"]
         self.temporal_type = config["temporal_type"]
+        for stds_name in self.out_map_names.values():
+            self.grass_interface.validate_output_stds_temporal_type(
+                stds_name=stds_name,
+                stds_type="strds",
+                expected_temporal_type=self.temporal_type,
+            )
         self.record_counter = {k: 0 for k in self.out_map_names.keys()}
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
 
@@ -106,6 +113,11 @@ class GrassVectorOutputProvider(VectorOutputProvider):
         self.grass_interface = config["grass_interface"]
         self.drainage_map_name = config["drainage_map_name"]
         self.temporal_type = config["temporal_type"]
+        self.grass_interface.validate_output_stds_temporal_type(
+            stds_name=self.drainage_map_name,
+            stds_type="stvds",
+            expected_temporal_type=self.temporal_type,
+        )
 
         self.record_counter = 0
         self.vector_drainage_maplist = []
