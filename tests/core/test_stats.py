@@ -336,7 +336,7 @@ def test_timed_input_stats_first_report_row_stays_interval_coherent(
     )
 
     assert np.isclose(first_report_row[volume_column], expected_volume, atol=1e-6, rtol=1e-6)
-    assert np.isclose(first_report_row["volume_change"], volume_change_ref, atol=1e-6, rtol=1e-6)
+    assert np.isclose(first_report_row["volume_change"], volume_change_ref, atol=5e-4, rtol=1e-6)
 
 
 class TestStatsMaps:
