@@ -480,10 +480,12 @@ class SimulationBuilder:
 
         msgr.debug("Setting up drainage model...")
 
-        swmm_sim = pyswmm.Simulation(self.sim_config.swmm_inp)
+        swmm_input_path = str(self.sim_config.swmm_inp)
+
+        swmm_sim = pyswmm.Simulation(swmm_input_path)
 
         # Parse the .inp file for node/link coordinates and start datetime
-        swmm_inp = SwmmInputParser(self.sim_config.swmm_inp)
+        swmm_inp = SwmmInputParser(swmm_input_path)
 
         # Compute hotstart_start_datetime if resuming from a hotstart
         hotstart_start_datetime = None

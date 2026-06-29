@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from configparser import ConfigParser
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Callable, NoReturn
 
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -247,6 +248,30 @@ def _read_simulation_drainage_values(params: ConfigParser) -> dict[str, str | fl
     return drainage_values
 
 
+def _resolve_swmm_input_path(swmm_inp: str, config_file: str) -> Path:
+    """Resolve a SWMM input path, searching cwd first and then the config directory."""
+    configured_path = Path(swmm_inp)
+    if configured_path.is_absolute():
+        if configured_path.is_file():
+            return configured_path
+        msgr.fatal(f"SWMM input file <{configured_path}> not found")
+
+    cwd_candidate = Path.cwd() / configured_path
+    if cwd_candidate.is_file():
+        return cwd_candidate
+
+    config_candidate = Path(config_file).resolve().parent / configured_path
+    if config_candidate.is_file():
+        return config_candidate
+
+    msgr.fatal(
+        "SWMM input file "
+        f"<{swmm_inp}> not found in current directory <{Path.cwd()}> "
+        f"or config directory <{config_candidate.parent}>"
+    )
+    raise AssertionError("unreachable")
+
+
 def _read_grass_params(params: ConfigParser) -> GrassParams:
     """Build GRASS session parameters from the config file."""
     return GrassParams(**_read_string_options(params, "grass", GRASS_OPTION_KEYS))
@@ -397,6 +422,10 @@ class ConfigReader:
 
         simulation_kwargs.update(_read_simulation_option_values(params))
         simulation_kwargs.update(_read_simulation_drainage_values(params))
+        if "swmm_inp" in simulation_kwargs:
+            simulation_kwargs["swmm_inp"] = _resolve_swmm_input_path(
+                simulation_kwargs["swmm_inp"], self.config_file
+            )
 
         self.sim_config = _build_simulation_config(**simulation_kwargs)
 

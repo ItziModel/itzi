@@ -222,7 +222,7 @@ class SimulationConfig(BaseModel):
     dtinf: PositiveFloat = DefaultValues.DTINF
     infiltration_model: InfiltrationModelType = InfiltrationModelType.NULL
     # Drainage parameters
-    swmm_inp: str | None = None
+    swmm_inp: Path | None = None
     drainage_output: str | None = None
     orifice_coeff: NonNegativeFloat = Field(DefaultValues.ORIFICE_COEFF, ge=0, le=1)
     free_weir_coeff: NonNegativeFloat = Field(DefaultValues.FREE_WEIR_COEFF, ge=0, le=1)
