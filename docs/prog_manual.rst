@@ -130,5 +130,6 @@ Release process
 - Create the package using the Build CI workflow
 - Test the package locally
 - Push to pypi
+- Update and upload the docker image
 - Write a blog post announcing the version
 - Post a link to the announcement on the user mailing list and social networks
