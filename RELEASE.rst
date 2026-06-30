@@ -7,6 +7,62 @@ These are the major changes made in each release.
 For more details please see the commit log of the git repository.
 
 
+Itzï 26.6
+---------
+
+*Release date: 2026-06-30*
+
+Itzï 26.6 marks the tenth anniversary of Itzï's first publication on PyPI,
+on 30 June 2016.
+This anniversary edition introduces hotstart checkpointing and resume support,
+improves the robustness of timed inputs and flow routing, and expands
+programmatic workflows with new xarray, NumPy, Icechunk and CSV-based
+providers.
+It also strengthens validation and testing, while simplifying the internal
+configuration and simulation setup code.
+
+**Improvements**
+
+- Add hotstart checkpoints and resume support,
+  with a new ``--resume-from`` CLI option.
+- Continuity error is now checked regularly during the simulation,
+  even when output intervals are long.
+- Flow routing is now more robust in steep-slope and shallow-flow cases.
+- Add new programmatic input and output providers based on xarray,
+  NumPy, Icechunk and CSV.
+
+**Changes in the configuration file**
+
+- Add an optional ``[hotstart]`` section with ``wallclock_step`` and
+  ``save_file`` to configure checkpoint writing.
+
+**Corrected bugs**
+
+- Force a time-step break when an input map changes,
+  preventing incorrect mass balance accounting.
+- Statistics output now works correctly with raster masks.
+- Prevent division by zero in the Froude computation.
+- Detect empty input rasters when loaded.
+- Check the temporal type of existing STRDS at initialization,
+  failing early on mismatches.
+- Relative ``swmm_inp`` paths are now resolved relative to the
+  configuration file directory, if not found in the current working directory.
+
+**Internals**
+
+- Refactor ``ConfigReader`` to build validated configuration models.
+- Introduce ``SimulationBuilder`` and decouple ``SimulationRunner`` from
+  configuration parsing.
+- Replace several internal dataclasses with Pydantic ``BaseModel`` and
+  improve type hints and validation.
+- Move messaging to Python's logging framework.
+- Improve GRASS session cleanup on exit.
+- Add an optional ``cloud`` dependency extra for xarray and icechunk support.
+- Update supported Python versions to 3.12 and 3.13.
+- Expand the automated test suite, especially for hotstart, timed inputs,
+  statistics, cloud-style providers, and non-square cells.
+
+
 Itzï 25.8
 ---------
 
