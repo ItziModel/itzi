@@ -170,8 +170,6 @@ def solve_q(
                     flow_depth_domain=hf_ee,
                     flow_depth_boundary=hf_e,
                 )
-                # At the East boundary, positive flow going East enters the domain
-                arr_bcaccum[r, c+1] += qe_new * dt / dx
 
             # East flow boundary - current cell inside the domain
             elif c == col_east_boundary:
@@ -187,8 +185,6 @@ def solve_q(
                     flow_depth_domain=hf_w,
                     flow_depth_boundary=hf_e,
                 )
-                # At the West boundary, positive flow going East leaves the domain
-                arr_bcaccum[r, c] -= qe_new * dt / dx
 
             # Inside the domain
             elif r > 0 and c > 0:
@@ -256,8 +252,6 @@ def solve_q(
                     flow_depth_domain=hf_ss,
                     flow_depth_boundary=hf_s,
                 )
-                # At the North boundary, positive flow going South enters the domain
-                arr_bcaccum[r+1, c] += qs_new * dt / dy
 
             # South flow boundary - current cell inside the domain
             elif r == row_south_boundary:
@@ -273,8 +267,6 @@ def solve_q(
                     flow_depth_domain=hf_n,
                     flow_depth_boundary=hf_s,
                 )
-                # At the South boundary, positive flow going South leaves the domain
-                arr_bcaccum[r, c] -= qs_new * dt / dy
 
             # Inside of the domain
             elif c > 0 and r > 0:
@@ -315,6 +307,34 @@ def solve_q(
                 qs_new = 0
             # udpate array
             arr_qs_new[r, c] = qs_new
+
+
+@cython.wraparound(False)  # Disable negative index check
+@cython.cdivision(True)  # Don't check division by zero
+@cython.boundscheck(False)  # turn off bounds-checking for entire function
+def accumulate_boundary_fluxes(
+    DTYPE_t[:, ::1] arr_qe_new,
+    DTYPE_t[:, ::1] arr_qs_new,
+    DTYPE_t[:, ::1] arr_bcaccum,
+    DTYPE_t dt,
+    DTYPE_t dx,
+    DTYPE_t dy,
+):
+    cdef int r, c
+    cdef int row_south_boundary = arr_bcaccum.shape[0] - 2
+    cdef int col_east_boundary = arr_bcaccum.shape[1] - 2
+
+    for r in range(1, row_south_boundary + 1):
+        # West boundary: positive eastward flow enters the domain.
+        arr_bcaccum[r, 1] += arr_qe_new[r, 0] * dt / dx
+        # East boundary: positive eastward flow leaves the domain.
+        arr_bcaccum[r, col_east_boundary] -= arr_qe_new[r, col_east_boundary] * dt / dx
+
+    for c in range(1, col_east_boundary + 1):
+        # North boundary: positive southward flow enters the domain.
+        arr_bcaccum[1, c] += arr_qs_new[0, c] * dt / dy
+        # South boundary: positive southward flow leaves the domain.
+        arr_bcaccum[row_south_boundary, c] -= arr_qs_new[row_south_boundary, c] * dt / dy
 
 
 cdef DTYPE_t hflow(DTYPE_t z0, DTYPE_t z1, DTYPE_t wse0, DTYPE_t wse1) noexcept nogil:

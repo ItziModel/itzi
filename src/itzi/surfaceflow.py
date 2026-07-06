@@ -158,6 +158,9 @@ class SurfaceFlowSimulation:
 
     def solve_q(self):
         """Solve flow inside the domain using C/Cython function"""
+        arr_qe_new = self.dom.get_padded("qe_new")
+        arr_qs_new = self.dom.get_padded("qs_new")
+        arr_boundaries_accum = self.dom.get_padded("boundaries_accum")
         flow.solve_q(
             arr_dire=self.dom.get_padded("dire"),
             arr_dirs=self.dom.get_padded("dirs"),
@@ -170,9 +173,9 @@ class SurfaceFlowSimulation:
             arr_hfs=self.dom.get_padded("hfs"),
             arr_bctype=self.dom.get_padded("bctype"),
             arr_bcvalue=self.dom.get_padded("bcval"),
-            arr_qe_new=self.dom.get_padded("qe_new"),
-            arr_qs_new=self.dom.get_padded("qs_new"),
-            arr_bcaccum=self.dom.get_padded("boundaries_accum"),
+            arr_qe_new=arr_qe_new,
+            arr_qs_new=arr_qs_new,
+            arr_bcaccum=arr_boundaries_accum,
             dt=self._dt,
             dx=self.dx,
             dy=self.dy,
@@ -182,6 +185,14 @@ class SurfaceFlowSimulation:
             v_rout=self.v_routing,
             slope_threshold=self.slope_threshold,
             max_slope=self.max_slope,
+        )
+        flow.accumulate_boundary_fluxes(
+            arr_qe_new=arr_qe_new,
+            arr_qs_new=arr_qs_new,
+            arr_bcaccum=arr_boundaries_accum,
+            dt=self._dt,
+            dx=self.dx,
+            dy=self.dy,
         )
         return self
 
