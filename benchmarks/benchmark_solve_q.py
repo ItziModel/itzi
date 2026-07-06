@@ -11,6 +11,17 @@ NUM_CELLS_TO_SHAPE: dict[int, tuple[int, int]] = {
     10_000_000: (2_000, 5_000),
 }
 
+SOLVE_Q_TILE_SIZES: list[tuple[int, int]] = [
+    (8, 256),
+    (16, 256),
+    (32, 256),
+    (64, 64),
+    (64, 128),
+    (128, 64),
+    (128, 128),
+    (256, 64),
+]
+
 
 def pad_array(arr: np.ndarray) -> np.ndarray:
     return np.pad(arr, 1, mode="edge")
@@ -70,7 +81,21 @@ def setup_solve_q_args(num_cells: int) -> tuple:
 
 
 @pytest.mark.parametrize("num_cells", [1_000_000, 10_000_000], ids=["1M", "10M"])
-def test_benchmark_solve_q(benchmark, num_cells: int) -> None:
+@pytest.mark.parametrize(
+    ("tile_rows", "tile_cols"),
+    SOLVE_Q_TILE_SIZES,
+    ids=[f"tile_{tile_rows}x{tile_cols}" for tile_rows, tile_cols in SOLVE_Q_TILE_SIZES],
+)
+def test_benchmark_solve_q(benchmark, num_cells: int, tile_rows: int, tile_cols: int) -> None:
     solve_q_args = setup_solve_q_args(num_cells)
-    benchmark(flow.solve_q, *solve_q_args)
+    previous_tile_rows, previous_tile_cols = flow.get_solve_q_tile_size()
+
+    flow.set_solve_q_tile_size(tile_rows, tile_cols)
+    try:
+        benchmark(flow.solve_q, *solve_q_args)
+    finally:
+        flow.set_solve_q_tile_size(previous_tile_rows, previous_tile_cols)
+
     benchmark.extra_info["lattice_updates"] = num_cells
+    benchmark.extra_info["tile_rows"] = tile_rows
+    benchmark.extra_info["tile_cols"] = tile_cols
