@@ -1,5 +1,5 @@
 """
-Copyright (C) 2015-2025 Laurent Courty
+Copyright (C) 2015-2026 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -16,8 +16,7 @@ from cython.parallel cimport prange
 from libc.math cimport pow as c_pow
 from libc.math cimport sqrt as c_sqrt
 from libc.math cimport atan2 as c_atan
-from libc.math cimport hypot, fmax, fmin, copysign, fabs
-from libc.math cimport copysign, fabs
+from libc.math cimport fmax, fmin, copysign
 
 ctypedef cython.floating DTYPE_t
 cdef float PI = 3.1415926535898
@@ -124,13 +123,13 @@ cdef inline void solve_qe_at(
         )
     elif r > 0 and c > 0:
         ne = 0.5 * (n0 + arr_n[r, c+1])
-        qe_st = .25 * (qs + arr_qs[r-1, c] + arr_qs[r-1, c+1] + arr_qs[r, c+1])
-        qe_vect = c_sqrt(qe*qe + qe_st*qe_st)
-
         slope_e = (wse0 - wse_e) / dx
+
         if hf_e <= 0:
             qe_new = 0
         elif hf_e > hf_min and abs(slope_e) < slope_threshold:
+            qe_st = .25 * (qs + arr_qs[r-1, c] + arr_qs[r-1, c+1] + arr_qs[r, c+1])
+            qe_vect = c_sqrt(qe*qe + qe_st*qe_st)  # Faster than hypot
             qe_new = flow_almeida2013(
                 hf=hf_e,
                 n=ne,
@@ -227,13 +226,13 @@ cdef inline void solve_qs_at(
         )
     elif c > 0 and r > 0:
         ns = 0.5 * (n0 + arr_n[r+1, c])
-        qs_st = .25 * (qe + arr_qe[r+1, c] + arr_qe[r+1, c-1] + arr_qe[r, c-1])
-        qs_vect = c_sqrt(qs*qs + qs_st*qs_st)
-
         slope_s = (wse0 - wse_s) / dy
+
         if hf_s <= 0:
             qs_new = 0
         elif hf_s > hf_min and abs(slope_s) < slope_threshold:
+            qs_st = .25 * (qe + arr_qe[r+1, c] + arr_qe[r+1, c-1] + arr_qe[r, c-1])
+            qs_vect = c_sqrt(qs*qs + qs_st*qs_st)
             qs_new = flow_almeida2013(
                 hf=hf_s,
                 n=ns,
@@ -888,134 +887,3 @@ cdef DTYPE_t cap_infiltration_rate(DTYPE_t dt, DTYPE_t h, DTYPE_t infrate) noexc
     """Cap the infiltration rate to not generate negative depths
     """
     return min(h / dt, infrate)
-
-
-@cython.wraparound(False)  # Disable negative index check
-@cython.cdivision(True)  # Don't check division by zero
-@cython.boundscheck(False)  # turn off bounds-checking for entire function
-@cython.initializedcheck(False)  # Skip initialization checks for performance
-@cython.nonecheck(False)  # Skip None checks for performance
-def branchless_velocity(
-    DTYPE_t[:, ::1] arr_qe,
-    DTYPE_t[:, ::1] arr_qs,
-    DTYPE_t[:, ::1] arr_hfe,
-    DTYPE_t[:, ::1] arr_hfs,
-):
-    """function for benchmarking purpose
-    """
-    cdef int rmax, cmax, r, c
-    cdef DTYPE_t qe, qw, qn, qs
-    cdef DTYPE_t hfe, hfs, hfw, hfn, ve, vw, vn, vs
-    cdef DTYPE_t eps = 1e-12  # Small epsilon to avoid division by zero
-
-    rmax = arr_qe.shape[0] - 1
-    cmax = arr_qe.shape[1] - 1
-    for r in prange(1, rmax, nogil=True):
-        for c in range(1, cmax):
-            qe = arr_qe[r, c]
-            qw = arr_qe[r, c-1]
-            qn = arr_qs[r-1, c]
-            qs = arr_qs[r, c]
-
-            hfe = arr_hfe[r, c]
-            hfw = arr_hfe[r, c-1]
-            hfn = arr_hfs[r-1, c]
-            hfs = arr_hfs[r, c]
-            # Branchless velocity calculations for vectorization
-            # Use fmax to avoid division by zero,
-            # then multiply by zero or one by using boolean operation
-            ve = qe / fmax(hfe, eps) * (hfe > 0.)
-            vw = qw / fmax(hfw, eps) * (hfw > 0.)
-            vs = qs / fmax(hfs, eps) * (hfs > 0.)
-            vn = qn / fmax(hfn, eps) * (hfn > 0.)
-
-
-@cython.wraparound(False)  # Disable negative index check
-@cython.cdivision(True)  # Don't check division by zero
-@cython.boundscheck(False)  # turn off bounds-checking for entire function
-@cython.initializedcheck(False)  # Skip initialization checks for performance
-@cython.nonecheck(False)  # Skip None checks for performance
-def branching_velocity(
-    DTYPE_t[:, ::1] arr_qe,
-    DTYPE_t[:, ::1] arr_qs,
-    DTYPE_t[:, ::1] arr_hfe,
-    DTYPE_t[:, ::1] arr_hfs,
-):
-    """function for benchmarking purpose
-    """
-    cdef int rmax, cmax, r, c
-    cdef DTYPE_t qe, qw, qn, qs
-    cdef DTYPE_t hfe, hfs, hfw, hfn, ve, vw, vn, vs
-
-    rmax = arr_qe.shape[0] - 1
-    cmax = arr_qe.shape[1] - 1
-    for r in prange(1, rmax, nogil=True):
-        for c in range(1, cmax):
-            qe = arr_qe[r, c]
-            qw = arr_qe[r, c-1]
-            qn = arr_qs[r-1, c]
-            qs = arr_qs[r, c]
-
-            hfe = arr_hfe[r, c]
-            hfw = arr_hfe[r, c-1]
-            hfn = arr_hfs[r-1, c]
-            hfs = arr_hfs[r, c]
-            # branching velocity calculations
-            if hfe <= 0.:
-                ve = 0.
-            else:
-                ve = qe / hfe
-            if hfw <= 0.:
-                vw = 0.
-            else:
-                vw = qw / hfw
-            if hfs <= 0.:
-                vs = 0.
-            else:
-                vs = qs / hfs
-            if hfn <= 0.:
-                vn = 0.
-            else:
-                vn = qn / hfn
-
-
-@cython.wraparound(False)  # Disable negative index check
-@cython.cdivision(True)  # Don't check division by zero
-@cython.boundscheck(False)  # turn off bounds-checking for entire function
-@cython.initializedcheck(False)  # Skip initialization checks for performance
-@cython.nonecheck(False)  # Skip None checks for performance
-def arr_hypot(DTYPE_t[:, ::1] arr_qe, DTYPE_t[:, ::1] arr_qs):
-    """function for benchmarking purpose
-    """
-    cdef int rmax, cmax, r, c
-    cdef DTYPE_t qe, qs, q
-
-    rmax = arr_qe.shape[0] - 1
-    cmax = arr_qe.shape[1] - 1
-    for r in prange(1, rmax, nogil=True):
-        for c in range(1, cmax):
-            qe = arr_qe[r, c]
-            qs = arr_qs[r, c]
-
-            q = hypot(qe, qs)
-
-
-@cython.wraparound(False)  # Disable negative index check
-@cython.cdivision(True)  # Don't check division by zero
-@cython.boundscheck(False)  # turn off bounds-checking for entire function
-@cython.initializedcheck(False)  # Skip initialization checks for performance
-@cython.nonecheck(False)  # Skip None checks for performance
-def arr_sqrt(DTYPE_t[:, ::1] arr_qe, DTYPE_t[:, ::1] arr_qs):
-    """function for benchmarking purpose
-    """
-    cdef int rmax, cmax, r, c
-    cdef DTYPE_t qe, qs, q
-
-    rmax = arr_qe.shape[0] - 1
-    cmax = arr_qe.shape[1] - 1
-    for r in prange(1, rmax, nogil=True):
-        for c in range(1, cmax):
-            qe = arr_qe[r, c]
-            qs = arr_qs[r, c]
-
-            q = c_sqrt(qe*qe + qs*qs)

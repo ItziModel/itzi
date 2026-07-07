@@ -314,6 +314,7 @@ class build_ext_compiler_check(build_ext):
 extensions = [
     Extension("itzi.flow", sources=["src/itzi/flow.pyx"]),
     Extension("itzi.rastermetrics", sources=["src/itzi/rastermetrics.pyx"]),
+    Extension("itzi.snippets", sources=["src/itzi/snippets.pyx"]),
 ]
 setup(
     ext_modules=cythonize(extensions, nthreads=4),
