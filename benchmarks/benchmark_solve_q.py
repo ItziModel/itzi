@@ -27,8 +27,13 @@ def pad_array(arr: np.ndarray) -> np.ndarray:
     return np.pad(arr, 1, mode="edge")
 
 
+def zero_padded_array(shape: tuple[int, int]) -> np.ndarray:
+    return np.zeros((shape[0] + 2, shape[1] + 2), dtype=np.float32)
+
+
 def setup_solve_q_args(num_cells: int) -> tuple:
     rows, cols = NUM_CELLS_TO_SHAPE[num_cells]
+    shape = (rows, cols)
     params = SurfaceFlowParameters()
     dx = 5.0
     dy = 5.0
@@ -42,29 +47,32 @@ def setup_solve_q_args(num_cells: int) -> tuple:
     arr_n = pad_array(np.full((rows, cols), 0.03, dtype=np.float32))
     arr_h = pad_array(np.full((rows, cols), starting_depth, dtype=np.float32))
 
-    # These inputs are read-only in solve_q, so reusing one zero buffer avoids
-    # unnecessary memory growth for the 10M-cell benchmark.
-    zero_input = pad_array(np.zeros((rows, cols), dtype=np.float32))
-    arr_hfe = pad_array(np.zeros((rows, cols), dtype=np.float32))
-    arr_hfs = pad_array(np.zeros((rows, cols), dtype=np.float32))
-    arr_qe_new = pad_array(np.zeros((rows, cols), dtype=np.float32))
-    arr_qs_new = pad_array(np.zeros((rows, cols), dtype=np.float32))
-    arr_bcaccum = pad_array(np.zeros((rows, cols), dtype=np.float32))
+    arr_dire = zero_padded_array(shape)
+    arr_dirs = zero_padded_array(shape)
+    arr_qe = zero_padded_array(shape)
+    arr_qs = zero_padded_array(shape)
+    arr_hfe = zero_padded_array(shape)
+    arr_hfs = zero_padded_array(shape)
+    arr_bctype = zero_padded_array(shape)
+    arr_bcvalue = zero_padded_array(shape)
+    arr_qe_new = zero_padded_array(shape)
+    arr_qs_new = zero_padded_array(shape)
+    arr_bcaccum = zero_padded_array(shape)
 
     dt = min(params.dtmax, params.cfl * (min(dx, dy) / math.sqrt(params.g * starting_depth)))
 
     return (
-        zero_input,
-        zero_input,
+        arr_dire,
+        arr_dirs,
         arr_z,
         arr_n,
         arr_h,
-        zero_input,
-        zero_input,
+        arr_qe,
+        arr_qs,
         arr_hfe,
         arr_hfs,
-        zero_input,
-        zero_input,
+        arr_bctype,
+        arr_bcvalue,
         arr_qe_new,
         arr_qs_new,
         arr_bcaccum,

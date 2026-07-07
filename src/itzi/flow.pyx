@@ -21,9 +21,23 @@ from libc.math cimport copysign, fabs
 
 ctypedef cython.floating DTYPE_t
 cdef float PI = 3.1415926535898
-DEF SOLVE_H_TILE_SIZE = 64
-cdef int solve_q_tile_rows = 128
+cdef int solve_h_tile_rows = 64
+cdef int solve_h_tile_cols = 128
+cdef int solve_q_tile_rows = 64
 cdef int solve_q_tile_cols = 128
+
+
+def get_solve_h_tile_size():
+    return solve_h_tile_rows, solve_h_tile_cols
+
+
+def set_solve_h_tile_size(int tile_rows, int tile_cols):
+    if tile_rows <= 0 or tile_cols <= 0:
+        raise ValueError("solve_h tile sizes must be positive")
+
+    global solve_h_tile_rows, solve_h_tile_cols
+    solve_h_tile_rows = tile_rows
+    solve_h_tile_cols = tile_cols
 
 
 def get_solve_q_tile_size():
@@ -768,21 +782,21 @@ def solve_h(
 
     inner_rows = rmax - 1
     inner_cols = cmax - 1
-    num_tiles_r = (inner_rows + SOLVE_H_TILE_SIZE - 1) // SOLVE_H_TILE_SIZE
-    num_tiles_c = (inner_cols + SOLVE_H_TILE_SIZE - 1) // SOLVE_H_TILE_SIZE
+    num_tiles_r = (inner_rows + solve_h_tile_rows - 1) // solve_h_tile_rows
+    num_tiles_c = (inner_cols + solve_h_tile_cols - 1) // solve_h_tile_cols
     tile_count = num_tiles_r * num_tiles_c
 
     for tile_idx in prange(tile_count, nogil=True, schedule='static'):
         tile_r = tile_idx // num_tiles_c
         tile_c = tile_idx % num_tiles_c
 
-        r_start = 1 + tile_r * SOLVE_H_TILE_SIZE
-        r_end = r_start + SOLVE_H_TILE_SIZE
+        r_start = 1 + tile_r * solve_h_tile_rows
+        r_end = r_start + solve_h_tile_rows
         if r_end > rmax:
             r_end = rmax
 
-        c_start = 1 + tile_c * SOLVE_H_TILE_SIZE
-        c_end = c_start + SOLVE_H_TILE_SIZE
+        c_start = 1 + tile_c * solve_h_tile_cols
+        c_end = c_start + solve_h_tile_cols
         if c_end > cmax:
             c_end = cmax
 
