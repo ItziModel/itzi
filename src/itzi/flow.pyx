@@ -27,10 +27,12 @@ cdef int solve_q_tile_cols = 128
 
 
 def get_solve_h_tile_size():
+    """Return the tile size used by `solve_h`."""
     return solve_h_tile_rows, solve_h_tile_cols
 
 
 def set_solve_h_tile_size(int tile_rows, int tile_cols):
+    """Set the tile size used by `solve_h`."""
     if tile_rows <= 0 or tile_cols <= 0:
         raise ValueError("solve_h tile sizes must be positive")
 
@@ -40,10 +42,12 @@ def set_solve_h_tile_size(int tile_rows, int tile_cols):
 
 
 def get_solve_q_tile_size():
+    """Return the tile size used by `solve_q`."""
     return solve_q_tile_rows, solve_q_tile_cols
 
 
 def set_solve_q_tile_size(int tile_rows, int tile_cols):
+    """Set the tile size used by `solve_q`."""
     if tile_rows <= 0 or tile_cols <= 0:
         raise ValueError("solve_q tile sizes must be positive")
 
@@ -80,6 +84,7 @@ cdef inline void solve_qe_interior_at(
     int r,
     int c,
 ) noexcept nogil:
+    """Solve eastward flow for one interior face."""
     cdef DTYPE_t wse_e
     cdef DTYPE_t z_e
     cdef DTYPE_t ne
@@ -140,6 +145,7 @@ cdef inline void solve_qe_west_boundary_at(
     DTYPE_t[:, ::1] arr_qe_new,
     int r,
 ) noexcept nogil:
+    """Solve eastward boundary flow on the west edge."""
     cdef DTYPE_t z0, h0, wse0
     cdef DTYPE_t z_e, h_e, wse_e
     cdef DTYPE_t z_ee, h_ee, wse_ee
@@ -182,6 +188,7 @@ cdef inline void solve_qe_east_boundary_at(
     int col_east_boundary,
     int r,
 ) noexcept nogil:
+    """Solve eastward boundary flow on the east edge."""
     cdef DTYPE_t z0, h0, wse0
     cdef DTYPE_t z_e, h_e, wse_e
     cdef DTYPE_t z_w, h_w, wse_w
@@ -221,6 +228,7 @@ cdef inline void solve_qe_top_zero_at(
     DTYPE_t[:, ::1] arr_qe_new,
     int c,
 ) noexcept nogil:
+    """Zero eastward flow along the top edge."""
     cdef DTYPE_t z0, h0, wse0
     cdef DTYPE_t z_e, h_e, wse_e
 
@@ -262,6 +270,7 @@ cdef inline void solve_qs_interior_at(
     int r,
     int c,
 ) noexcept nogil:
+    """Solve southward flow for one interior face."""
     cdef DTYPE_t wse_s
     cdef DTYPE_t z_s
     cdef DTYPE_t ns
@@ -322,6 +331,7 @@ cdef inline void solve_qs_north_boundary_at(
     DTYPE_t[:, ::1] arr_qs_new,
     int c,
 ) noexcept nogil:
+    """Solve southward boundary flow on the north edge."""
     cdef DTYPE_t z0, h0, wse0
     cdef DTYPE_t z_s, h_s, wse_s
     cdef DTYPE_t z_ss, h_ss, wse_ss
@@ -364,6 +374,7 @@ cdef inline void solve_qs_south_boundary_at(
     int row_south_boundary,
     int c,
 ) noexcept nogil:
+    """Solve southward boundary flow on the south edge."""
     cdef DTYPE_t z0, h0, wse0
     cdef DTYPE_t z_s, h_s, wse_s
     cdef DTYPE_t z_n, h_n, wse_n
@@ -403,6 +414,7 @@ cdef inline void solve_qs_left_zero_at(
     DTYPE_t[:, ::1] arr_qs_new,
     int r,
 ) noexcept nogil:
+    """Zero southward flow along the left edge."""
     cdef DTYPE_t z0, h0, wse0
     cdef DTYPE_t z_s, h_s, wse_s
 
@@ -444,6 +456,7 @@ cdef inline void solve_q_interior_core_tile(
     int c_start,
     int c_end,
 ) noexcept nogil:
+    """Solve interior eastward and southward flows for one tile."""
     cdef int r, c
     cdef DTYPE_t z0, h0, wse0, n0, qe, qs
 
@@ -804,6 +817,7 @@ def accumulate_boundary_fluxes(
     DTYPE_t dx,
     DTYPE_t dy,
 ):
+    """Accumulate boundary fluxes into the boundary storage array."""
     cdef int r, c
     cdef int row_south_boundary = arr_bcaccum.shape[0] - 2
     cdef int col_east_boundary = arr_bcaccum.shape[1] - 2
@@ -954,6 +968,7 @@ cdef inline void solve_h_tile(
     int c_start,
     int c_end,
 ) noexcept nogil:
+    """Update depth, velocity, and Froude values for one tile."""
     cdef int r, c
     cdef DTYPE_t qext, qe, qw, qn, qs, h, q_sum, h_new, hmax, bct, bcv
     cdef DTYPE_t hfe, hfs, hfw, hfn, ve, vw, vn, vs, vx, vy, v, vdir
