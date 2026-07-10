@@ -8,7 +8,7 @@ import pytest
 from itzi.const import VerbosityLevel
 from itzi.itzi import main, itzi_run, reconcile_hotstart_commands
 from itzi.itzi_error import ItziFatal
-from itzi.parser import build_parser
+from itzi.cli_parser import build_parser
 
 
 def test_run_parser_accepts_multiple_config_files():

@@ -2,8 +2,6 @@
 
 First of all, thanks to take time to contribute to Itzï.
 This is much appreciated.
-This file is a work in progress.
-It will be updated as time goes.
 
 ## Code of Conduct
 
@@ -14,7 +12,7 @@ Please report unacceptable behaviour to [contact@itzi.org](mailto:contact@itzi.o
 ## How Can I Contribute?
 
 ### Reporting Bugs
-If a developer don't know about a bug, he/she cannot fix it!
+If a developer does not know about a bug, they cannot fix it!
 Therefore, it is very valuable to thoroughly describe the problem you encounter on the bug-tracker.
 
 ### Write documentation
@@ -25,11 +23,10 @@ But writing good documentation is time consuming.
 The documentation of Itzï is hosted on [Readthedocs](https://itzi.readthedocs.io).
 It is written in [reStructuredText](http://docutils.sourceforge.net/rst.html)
 and generated with [Sphinx](http://www.sphinx-doc.org/en/stable/).
-The source code of the documentation lies on its own git [repository](https://bitbucket.org/itzi-model/itzi_docs).
+The source code of the documentation is in `the docs/` directory of the main repository.
 
 Please use one sentence per line and try to keep line length under 90 characters.
 If above that threshold, break the line.
-
 
 ### Code
 
