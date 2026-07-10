@@ -8,6 +8,8 @@ from setuptools.extension import Extension
 from setuptools.command.build_ext import build_ext
 from Cython.Build import cythonize
 
+BUILD_JOBS = 5
+
 
 def parse_env_bool(name: str) -> bool | None:
     """Return a boolean override from an environment variable."""
@@ -226,6 +228,11 @@ macos_libs = [
 
 
 class build_ext_compiler_check(build_ext):
+    def finalize_options(self) -> None:
+        super().finalize_options()
+        if self.parallel is None:
+            self.parallel = BUILD_JOBS
+
     def build_extensions(self):
         build_config = BuildConfig()
         compiler = self.compiler.compiler_type
@@ -234,6 +241,7 @@ class build_ext_compiler_check(build_ext):
         print(f"Platform: {build_config.platform}")
         print(f"Architecture: {build_config.architecture}")
         print(f"OpenMP enabled: {build_config.use_openmp}")
+        print(f"Parallel build jobs: {self.parallel}")
 
         # Get optimization flags from BuildConfig
         try:
@@ -320,9 +328,9 @@ extensions = [
     ),
     Extension("itzi.compute.rastermetrics", sources=["src/itzi/compute/rastermetrics.pyx"]),
     Extension("itzi.compute.hydrology", sources=["src/itzi/compute/hydrology.pyx"]),
-    Extension("itzi.snippets", sources=["src/itzi/snippets.pyx"]),
+    Extension("itzi.snippets", sources=["benchmarks/snippets.pyx"]),
 ]
 setup(
-    ext_modules=cythonize(extensions, nthreads=4),
+    ext_modules=cythonize(extensions, nthreads=BUILD_JOBS),
     cmdclass={"build_ext": build_ext_compiler_check},
 )

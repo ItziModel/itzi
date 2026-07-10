@@ -1,4 +1,5 @@
 *.py[cod]
+*.c
 *.so
 *.zip
 *.out
@@ -13,6 +14,5 @@ build/
 dist/
 *.egg-info/
 wheelhouse/
-src/itzi/**/*.c
 docs/_build/
 tests/test_data_temp/
