@@ -5,7 +5,7 @@
 - The GRASS-based tests need `--forked` so each tests run in a separate process: `uv run pytest --forked tests/grass`.
 - It is not necessary to run core tests with `--forked`. Additionally, `--forked` prevents the display of print statements and other outputs.
 - Enforce code formatting: `uvx ruff format .`
-- After editing a *.pyx file, recompile with `uv pip install -e .`; if not the, old binary will continue to be used.
+- After editing a *.pyx file, recompile with `uv pip install -e .`; if not the old binary will continue to be used.
 
 ## Code style
 - Use python type hints. When a function that does not yet use hints is substantially edited, take the opportunity to add type hints.
