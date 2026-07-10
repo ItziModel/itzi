@@ -12,6 +12,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
+from __future__ import annotations
 import math
 from datetime import timedelta
 from typing import TYPE_CHECKING
@@ -24,6 +25,7 @@ from itzi.itzi_error import NullError, DtError
 
 if TYPE_CHECKING:
     from itzi.data_containers import SurfaceFlowParameters
+    from itzi.rasterdomain import RasterDomain
 
 
 class SurfaceFlowSimulation:
@@ -36,8 +38,8 @@ class SurfaceFlowSimulation:
 
     def __init__(
         self,
-        domain,
-        flow_params: "SurfaceFlowParameters",
+        domain: RasterDomain,
+        flow_params: SurfaceFlowParameters,
     ):
         self.dom = domain
         self.dtmax = flow_params.dtmax
@@ -77,23 +79,27 @@ class SurfaceFlowSimulation:
         accommodate non-square cells
         The time-step is limited by the maximum time-step dtmax.
         """
-        maxh = np.amax(self.dom.get_array("water_depth"))  # max depth in domain
+        maxh = float(np.amax(self.dom.get_array("water_depth")))  # max depth in domain
         min_dim = min(self.dx, self.dy)
         if maxh > 0:
-            dt = self.cfl * (min_dim / (math.sqrt(self.g * maxh)))
-            self._dt = min(self.dtmax, dt)
+            dt = self.dt_s(self.cfl, min_dim, self.g, maxh)
+            self._dt = float(min(self.dtmax, dt))
         else:
-            self._dt = self.dtmax
+            self._dt = float(self.dtmax)
         if self._dt <= self._dt_fudge:
             raise DtError(f"Tiny computed dt ({self._dt}s)")
         return self
+
+    @staticmethod
+    def dt_s(cfl, min_dim, g, maxh):
+        return cfl * (min_dim / (math.sqrt(g * maxh)))
 
     @property
     def dt(self):
         return timedelta(seconds=self._dt)
 
     @dt.setter
-    def dt(self, newdt):
+    def dt(self, newdt: timedelta):
         """return an error if new dt is higher than current one or negative"""
         newdt_s = newdt.total_seconds()
         if self._dt is None:

@@ -61,7 +61,7 @@ class BmiItzi(Bmi):
 
     # Model control functions #
 
-    def initialize(self, filename=None):
+    def initialize(self, filename=None) -> None:
         """Initialize the Itzï model.
 
         Parameters

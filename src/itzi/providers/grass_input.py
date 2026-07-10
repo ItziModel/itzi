@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 class GrassRasterInputConfig(TypedDict):
     grass_interface: GrassInterface
     # A dict of key: input names
-    input_map_names: Mapping[str, str]
+    input_map_names: Mapping[str, str | None]
     default_start_time: datetime
     default_end_time: datetime
 
@@ -56,8 +56,8 @@ class GrassRasterInputProvider(RasterInputProvider):
         )
 
     def get_map_lists(
-        self, map_names: Mapping[str, str]
-    ) -> Mapping[str, list[GrassInterface.MapData]]:
+        self, map_names: Mapping[str, str | None]
+    ) -> Mapping[str, list[GrassInterface.MapData] | None]:
         """Read maps names from GIS.
         input map_names is a dictionary of maps/STDS names
         for each entry in map_names:
@@ -69,7 +69,7 @@ class GrassRasterInputProvider(RasterInputProvider):
         each map is stored as a MapData namedtuple
         store result in instance's dictionary
         """
-        map_lists: dict[str, None] = {
+        map_lists: dict[str, list[GrassInterface.MapData] | None] = {
             arr_def.key: None
             for arr_def in ARRAY_DEFINITIONS
             if ArrayCategory.INPUT in arr_def.category

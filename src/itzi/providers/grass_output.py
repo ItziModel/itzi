@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 
-from typing import Dict, TypedDict, Union, TYPE_CHECKING
+from typing import TypedDict, TYPE_CHECKING
 
 import numpy as np
 
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 class GrassRasterOutputConfig(TypedDict):
     grass_interface: "GrassInterface"
-    out_map_names: Dict[str, str]
+    out_map_names: dict[str, str | None]
     hmin: float
     temporal_type: TemporalType
 
@@ -60,7 +60,7 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         self.output_maplist = {k: [] for k in self.out_map_names.keys()}
 
     def _write_array(
-        self, array: np.ndarray, map_key: str, sim_time: Union[datetime, timedelta]
+        self, array: np.ndarray, map_key: str, sim_time: datetime | timedelta
     ) -> None:
         """Write simulation data for current time step."""
         suffix = str(self.record_counter[map_key]).zfill(4)
@@ -75,7 +75,7 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         self.record_counter[map_key] += 1
 
     def write_arrays(
-        self, array_dict: Dict[str, np.ndarray], sim_time: Union[datetime, timedelta]
+        self, array_dict: dict[str, np.ndarray], sim_time: datetime | timedelta
     ) -> None:
         for arr_key, arr in array_dict.items():
             if isinstance(arr, np.ndarray):
@@ -123,7 +123,7 @@ class GrassVectorOutputProvider(VectorOutputProvider):
         self.vector_drainage_maplist = []
 
     def write_vector(
-        self, drainage_data: DrainageNetworkData | None, sim_time: Union[datetime, timedelta]
+        self, drainage_data: DrainageNetworkData | None, sim_time: datetime | timedelta
     ) -> None:
         """Write drainage simulation data for current time step."""
         if self.drainage_map_name and drainage_data:

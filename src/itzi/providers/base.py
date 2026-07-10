@@ -45,7 +45,7 @@ class RasterInputProvider(ABC):
     @abstractmethod
     def get_array(
         self, map_key: str, current_time: datetime
-    ) -> tuple[np.ndarray, datetime, datetime]:
+    ) -> tuple[np.ndarray | None, datetime, datetime]:
         """Take a given map key and current time
         return a numpy array associated with its half-open validity window `[start, end)`.
 

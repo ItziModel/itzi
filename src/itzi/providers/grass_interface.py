@@ -264,7 +264,8 @@ class GrassInterface:
         """
         return self.start_time + timedelta(seconds=self.to_s(unit, time))
 
-    def has_mask(self) -> bool:
+    @staticmethod
+    def has_mask() -> bool:
         """Return True if the mapset has a mask, False otherwise."""
         return bool(gscript.read_command("g.list", type="raster", pattern="MASK"))
 
@@ -331,6 +332,10 @@ class GrassInterface:
             return "@".join((name, gutils.getenv("MAPSET")))
 
     @staticmethod
+    def get_current_mapset() -> str:
+        return gutils.getenv("MAPSET")
+
+    @staticmethod
     def name_is_stds(name: str) -> bool:
         """return True if the name given as input is a registered strds
         False if not
@@ -355,7 +360,7 @@ class GrassInterface:
         """Set null values under a given threshold"""
         gscript.run_command("r.null", flags="f", map=map_id, setnull=f"0.0-{threshold}")
 
-    def get_sim_extend_in_stds_unit(self, strds) -> tuple[int, int]:
+    def get_sim_extend_in_stds_unit(self, strds) -> tuple[int | datetime, int | datetime]:
         """Take a strds object as input
         Return the simulation start_time and end_time, expressed in
         the unit of the input strds

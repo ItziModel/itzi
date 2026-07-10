@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 import sys
 import os
 import subprocess
-import importlib
+import importlib.util
 
 import itzi.messenger as msgr
 

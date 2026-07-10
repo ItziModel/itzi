@@ -12,10 +12,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
+from typing import Callable, NoReturn
 import sys
 import logging
 import os
-from typing import NoReturn
 from datetime import timedelta, datetime
 
 from itzi.itzi_error import ItziFatal
@@ -40,7 +40,7 @@ class ItziLogger:
 
     def __init__(self):
         self.logger = logging.getLogger("itzi")
-        self.raise_on_error = True
+        self.raise_on_error: bool = True
         self._setup_handlers()
 
     def _setup_handlers(self):
@@ -66,7 +66,7 @@ class ItziLogger:
         file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
         self.logger.addHandler(file_handler)
 
-    def set_verbosity(self, verbosity_level):
+    def set_verbosity(self, verbosity_level: int):
         """Map verbosity to logging level"""
         mapping = {
             VerbosityLevel.SUPER_QUIET: logging.ERROR,
@@ -83,7 +83,7 @@ class ItziLogger:
             ):
                 handler.setLevel(level)
 
-    def fatal(self, msg) -> NoReturn:
+    def fatal(self, msg: str) -> NoReturn:
         """Log fatal error and raise or exit"""
         self.logger.error(f"ERROR: {msg}")
         if raise_on_error:
@@ -91,16 +91,16 @@ class ItziLogger:
         else:
             sys.exit(f"ERROR: {msg}")
 
-    def warning(self, msg) -> None:
+    def warning(self, msg: str) -> None:
         self.logger.warning(f"WARNING: {msg}")
 
-    def message(self, msg) -> None:
+    def message(self, msg: str) -> None:
         self.logger.info(msg)
 
-    def verbose(self, msg) -> None:
+    def verbose(self, msg: str) -> None:
         self.logger.log(self.VERBOSE_LEVEL, msg)
 
-    def debug(self, msg) -> None:
+    def debug(self, msg: str) -> None:
         self.logger.debug(msg)
 
 
@@ -108,12 +108,12 @@ class ItziLogger:
 _itzi_logger = ItziLogger()
 
 # Backward-compatible module-level interface
-raise_on_error = _itzi_logger.raise_on_error
-fatal = _itzi_logger.fatal
-warning = _itzi_logger.warning
-message = _itzi_logger.message
-verbose = _itzi_logger.verbose
-debug = _itzi_logger.debug
+raise_on_error: bool = _itzi_logger.raise_on_error
+fatal: Callable[[str], NoReturn] = _itzi_logger.fatal
+warning: Callable[[str], None] = _itzi_logger.warning
+message: Callable[[str], None] = _itzi_logger.message
+verbose: Callable[[str], None] = _itzi_logger.verbose
+debug: Callable[[str], None] = _itzi_logger.debug
 
 
 def percent(start_time, end_time, sim_time, sim_start_time):
