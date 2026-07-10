@@ -41,7 +41,7 @@ from itzi.configreader import ConfigReader
 import itzi.itzi_error as itzi_error
 import itzi.messenger as msgr
 from itzi.const import VerbosityLevel
-from itzi.parser import build_parser
+from itzi.cli_parser import build_parser
 from itzi.profiler import profile_context
 from itzi.simulation_builder import SimulationBuilder
 from itzi.grass_session import GrassSessionManager
