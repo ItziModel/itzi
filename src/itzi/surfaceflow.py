@@ -1,5 +1,5 @@
 """
-Copyright (C) 2015-2025 Laurent Courty
+Copyright (C) 2015-2026 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -18,7 +18,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-import itzi.flow as flow
+from itzi.compute.partial_inertia_q import solve_q, accumulate_boundary_fluxes
+from itzi.compute.partial_inertia_h import solve_h
 from itzi.itzi_error import NullError, DtError
 
 if TYPE_CHECKING:
@@ -56,31 +57,7 @@ class SurfaceFlowSimulation:
         self._dt_fudge = timedelta.resolution.total_seconds()
 
     def update_flow_dir(self):
-        """Return arrays of flow directions used for rain routing
-        each cell is assigned a direction in which it will drain
-        0: the flow is going dowstream, index-wise
-        1: the flow is going upstream, index-wise
-        -1: no routing happening on that face
-        """
-        # get a padded array
-        arrp_z = self.dom.get_padded("dem")
-        # define differences in Z
-        z0 = arrp_z[1:-1, 1:-1]
-        zN = arrp_z[0:-2, 1:-1]
-        zS = arrp_z[2:, 1:-1]
-        zE = arrp_z[1:-1, 2:]
-        zW = arrp_z[1:-1, 0:-2]
-        dN = z0 - zN
-        dE = z0 - zE
-        dS = z0 - zS
-        dW = z0 - zW
-        # maximum altitude difference
-        arr_max_dz = np.maximum(np.maximum(dN, dS), np.maximum(dE, dW))
-        # y direction
-        flow.flow_dir(arr_max_dz, dN, dS, self.dom.get_array("dirs"))
-        # x direction
-        flow.flow_dir(arr_max_dz, dW, dE, self.dom.get_array("dire"))
-
+        """Deprecated."""
         return self
 
     def step(self):
@@ -132,7 +109,7 @@ class SurfaceFlowSimulation:
 
     def update_h(self):
         """Calculate new water depth, average velocity and Froude number"""
-        flow.solve_h(
+        solve_h(
             arr_ext=self.dom.get_padded("ext"),
             arr_qe=self.dom.get_padded("qe_new"),
             arr_qs=self.dom.get_padded("qs_new"),
@@ -161,9 +138,7 @@ class SurfaceFlowSimulation:
         arr_qe_new = self.dom.get_padded("qe_new")
         arr_qs_new = self.dom.get_padded("qs_new")
         arr_boundaries_accum = self.dom.get_padded("boundaries_accum")
-        flow.solve_q(
-            arr_dire=self.dom.get_padded("dire"),
-            arr_dirs=self.dom.get_padded("dirs"),
+        solve_q(
             arr_z=self.dom.get_padded("dem"),
             arr_n=self.dom.get_padded("friction"),
             arr_h=self.dom.get_padded("water_depth"),
@@ -172,21 +147,18 @@ class SurfaceFlowSimulation:
             arr_hfe=self.dom.get_padded("hfe"),
             arr_hfs=self.dom.get_padded("hfs"),
             arr_bctype=self.dom.get_padded("bctype"),
-            arr_bcvalue=self.dom.get_padded("bcval"),
             arr_qe_new=arr_qe_new,
             arr_qs_new=arr_qs_new,
-            arr_bcaccum=arr_boundaries_accum,
             dt=self._dt,
             dx=self.dx,
             dy=self.dy,
             g=self.g,
             theta=self.theta,
             hf_min=self.min_flow_depth,
-            v_rout=self.v_routing,
             slope_threshold=self.slope_threshold,
             max_slope=self.max_slope,
         )
-        flow.accumulate_boundary_fluxes(
+        accumulate_boundary_fluxes(
             arr_qe_new=arr_qe_new,
             arr_qs_new=arr_qs_new,
             arr_bcaccum=arr_boundaries_accum,

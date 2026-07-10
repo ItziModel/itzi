@@ -26,7 +26,7 @@ from itzi.data_containers import HotstartSimulationState
 from itzi.hotstart import HotstartWriter
 import itzi.messenger as msgr
 from itzi.itzi_error import NullError, MassBalanceError, DtError
-from itzi import rastermetrics
+from itzi.compute import rastermetrics
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
 if TYPE_CHECKING:

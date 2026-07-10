@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 from datetime import timedelta
 
-import itzi.flow as flow
+from itzi.compute.hydrology import infiltration_user, infiltration_ga
 from itzi.itzi_error import DtError
 
 
@@ -56,7 +56,7 @@ class InfConstantRate(InfiltrationModel):
 
     def step(self):
         """Update infiltration rate map in m/s"""
-        flow.infiltration_user(
+        infiltration_user(
             arr_h=self.dom.get_array("water_depth"),
             arr_inf_in=self.dom.get_array("infiltration"),
             arr_inf_out=self.dom.get_array("computed_infiltration"),
@@ -70,7 +70,7 @@ class InfGreenAmpt(InfiltrationModel):
 
     def step(self):
         """update infiltration rate map in m/s."""
-        flow.infiltration_ga(
+        infiltration_ga(
             arr_h=self.dom.get_array("water_depth"),
             arr_eff_por=self.dom.get_array("effective_porosity"),
             arr_pressure=self.dom.get_array("capillary_pressure"),

@@ -19,7 +19,7 @@ import io
 import numpy as np
 
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
-from itzi import rastermetrics
+from .compute import rastermetrics
 from itzi.itzi_error import HotstartError
 
 if TYPE_CHECKING:

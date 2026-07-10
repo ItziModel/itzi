@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 from datetime import timedelta
 
-import itzi.flow as flow
+from itzi.compute.hydrology import infiltration_user, apply_hydrology
 from itzi.itzi_error import DtError
 
 
@@ -57,7 +57,7 @@ class Hydrology:
 
     def cap_losses(self):
         """User-defined losses are treated like user infiltration."""
-        flow.infiltration_user(
+        infiltration_user(
             arr_h=self.dom.get_array("water_depth"),
             arr_inf_in=self.dom.get_array("losses"),
             arr_inf_out=self.dom.get_array("capped_losses"),
@@ -68,7 +68,7 @@ class Hydrology:
         """Update effective precipitation (eff_precip) by adding/removing depth from:
         rainfall, infiltration, evapotranspiration and lump-sum drainage.
         """
-        flow.apply_hydrology(
+        apply_hydrology(
             arr_rain=self.dom.get_array("rain"),
             arr_inf=self.dom.get_array("computed_infiltration"),
             arr_capped_losses=self.dom.get_array("capped_losses"),

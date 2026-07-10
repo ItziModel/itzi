@@ -18,7 +18,7 @@ import copy
 from datetime import datetime, timedelta
 from typing import Dict, TYPE_CHECKING
 
-from itzi import rastermetrics
+from itzi.compute import rastermetrics
 from itzi.const import TemporalType
 from itzi.data_containers import SimulationData, MassBalanceData
 from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
