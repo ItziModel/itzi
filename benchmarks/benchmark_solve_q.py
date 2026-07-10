@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pytest
 
-import itzi.flow as flow
+from itzi.compute.partial_inertia_q import set_solve_q_tile_size, get_solve_q_tile_size, solve_q
 from itzi.data_containers import SurfaceFlowParameters
 
 NUM_CELLS_TO_SHAPE: dict[int, tuple[int, int]] = {
@@ -47,23 +47,17 @@ def setup_solve_q_args(num_cells: int) -> tuple:
     arr_n = pad_array(np.full((rows, cols), 0.03, dtype=np.float32))
     arr_h = pad_array(np.full((rows, cols), starting_depth, dtype=np.float32))
 
-    arr_dire = zero_padded_array(shape)
-    arr_dirs = zero_padded_array(shape)
     arr_qe = zero_padded_array(shape)
     arr_qs = zero_padded_array(shape)
     arr_hfe = zero_padded_array(shape)
     arr_hfs = zero_padded_array(shape)
     arr_bctype = zero_padded_array(shape)
-    arr_bcvalue = zero_padded_array(shape)
     arr_qe_new = zero_padded_array(shape)
     arr_qs_new = zero_padded_array(shape)
-    arr_bcaccum = zero_padded_array(shape)
 
     dt = min(params.dtmax, params.cfl * (min(dx, dy) / math.sqrt(params.g * starting_depth)))
 
     return (
-        arr_dire,
-        arr_dirs,
         arr_z,
         arr_n,
         arr_h,
@@ -72,17 +66,14 @@ def setup_solve_q_args(num_cells: int) -> tuple:
         arr_hfe,
         arr_hfs,
         arr_bctype,
-        arr_bcvalue,
         arr_qe_new,
         arr_qs_new,
-        arr_bcaccum,
         dt,
         dx,
         dy,
         params.g,
         params.theta,
         params.hmin,
-        params.vrouting,
         params.slope_threshold,
         params.max_slope,
     )
@@ -96,13 +87,13 @@ def setup_solve_q_args(num_cells: int) -> tuple:
 )
 def test_benchmark_solve_q(benchmark, num_cells: int, tile_rows: int, tile_cols: int) -> None:
     solve_q_args = setup_solve_q_args(num_cells)
-    previous_tile_rows, previous_tile_cols = flow.get_solve_q_tile_size()
+    previous_tile_rows, previous_tile_cols = get_solve_q_tile_size()
 
-    flow.set_solve_q_tile_size(tile_rows, tile_cols)
+    set_solve_q_tile_size(tile_rows, tile_cols)
     try:
-        benchmark(flow.solve_q, *solve_q_args)
+        benchmark(solve_q, *solve_q_args)
     finally:
-        flow.set_solve_q_tile_size(previous_tile_rows, previous_tile_cols)
+        set_solve_q_tile_size(previous_tile_rows, previous_tile_cols)
 
     benchmark.extra_info["lattice_updates"] = num_cells
     benchmark.extra_info["tile_rows"] = tile_rows

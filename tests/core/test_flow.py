@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from math import atan2, pi
 
-import itzi.flow as flow
+from itzi.compute.partial_inertia_h import solve_h
 
 
 def test_velocity_direction_calculation():
@@ -93,7 +93,7 @@ def test_solve_h_uses_dx_and_dy_separately_in_flow_divergence():
     arr_qs[1, 2] = qn
     arr_qs[2, 2] = qs
 
-    flow.solve_h(
+    solve_h(
         arr_ext=arr_ext,
         arr_qe=arr_qe,
         arr_qs=arr_qs,
@@ -157,7 +157,7 @@ class TestWaterDepthFunction:
     def test_solve_h_velocity_calculations(self):
         """Test that solve_h produces reasonable velocity calculations"""
         # Run solve_h
-        flow.solve_h(
+        solve_h(
             arr_ext=self.arr_ext,
             arr_qe=self.arr_qe,
             arr_qs=self.arr_qs,
@@ -202,7 +202,7 @@ class TestWaterDepthFunction:
         self.arr_hfs[2, 2] = 0.0
 
         # Run solve_h
-        flow.solve_h(
+        solve_h(
             arr_ext=self.arr_ext,
             arr_qe=self.arr_qe,
             arr_qs=self.arr_qs,
@@ -281,7 +281,7 @@ class TestFixedWaterLevel:
         arr_hfix = np.zeros(self.shape, dtype=self.dtype)
         assert arr_bcv.shape == self.shape
 
-        flow.solve_h(
+        solve_h(
             arr_ext=self.arr_ext,
             arr_qe=self.arr_qe,
             arr_qs=self.arr_qs,
@@ -321,7 +321,7 @@ class TestFixedWaterLevel:
         arr_hfix = np.zeros(self.shape, dtype=self.dtype)
         assert arr_bcv.shape == self.shape
 
-        flow.solve_h(
+        solve_h(
             arr_ext=self.arr_ext,
             arr_qe=self.arr_qe,
             arr_qs=self.arr_qs,

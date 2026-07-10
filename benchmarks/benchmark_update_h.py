@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pytest
 
-import itzi.flow as flow
+from itzi.compute.partial_inertia_h import set_solve_h_tile_size, get_solve_h_tile_size, solve_h
 from itzi.data_containers import SurfaceFlowParameters
 
 NUM_CELLS_TO_SHAPE: dict[int, tuple[int, int]] = {
@@ -92,13 +92,13 @@ def setup_update_h_args(num_cells: int) -> tuple:
 )
 def test_benchmark_update_h(benchmark, num_cells: int, tile_rows: int, tile_cols: int) -> None:
     solve_h_args = setup_update_h_args(num_cells)
-    previous_tile_rows, previous_tile_cols = flow.get_solve_h_tile_size()
+    previous_tile_rows, previous_tile_cols = get_solve_h_tile_size()
 
-    flow.set_solve_h_tile_size(tile_rows, tile_cols)
+    set_solve_h_tile_size(tile_rows, tile_cols)
     try:
-        benchmark(flow.solve_h, *solve_h_args)
+        benchmark(solve_h, *solve_h_args)
     finally:
-        flow.set_solve_h_tile_size(previous_tile_rows, previous_tile_cols)
+        set_solve_h_tile_size(previous_tile_rows, previous_tile_cols)
 
     benchmark.extra_info["lattice_updates"] = num_cells
     benchmark.extra_info["tile_rows"] = tile_rows
