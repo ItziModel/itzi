@@ -26,7 +26,7 @@ def test_ea8b_scenario(
     ea8b_drainage_results,
     ea8b_simulation,
     helpers,
-    test_data_temp_path,
+    ea8b_temp_path,
 ):
     ds_itzi_results = ea8b_drainage_results
     ds_ref = ea8b_reference
@@ -74,7 +74,7 @@ def test_ea8b_scenario(
     print(f"Water depth data shape: {water_depth_data.shape}")
     print(f"Water depth data dimensions: {water_depth_data.dims}")
 
-    stat_file_path = Path(test_data_temp_path) / "ea8b.csv"
+    stat_file_path = Path(ea8b_temp_path) / "ea8b.csv"
     if stat_file_path.exists():
         df_stats = pd.read_csv(stat_file_path, sep=",")
         df_stats["percent_error"] = (

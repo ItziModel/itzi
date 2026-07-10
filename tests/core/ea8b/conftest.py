@@ -1,4 +1,5 @@
 import os
+import shutil
 from datetime import datetime, timedelta
 from io import StringIO
 from pathlib import Path
@@ -33,9 +34,23 @@ TEST8B_MD5 = "84b865cedd28f8156cfe70b84004b62c"
 
 
 @pytest.fixture(scope="session")
+def ea8b_temp_path(test_data_temp_path) -> Path:
+    temp_path = Path(test_data_temp_path) / "ea8b_hotstart"
+    temp_path.mkdir(exist_ok=True)
+
+    for entry in temp_path.iterdir():
+        if entry.is_dir():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+
+    return temp_path
+
+
+@pytest.fixture(scope="session")
 def ea8b_test_data(test_data_temp_path, helpers):
     file_name = "Test8B_dataset_2010.zip"
-    file_path = os.path.join(test_data_temp_path, file_name)
+    file_path = Path(test_data_temp_path) / file_name
     try:
         assert helpers.md5(file_path) == TEST8B_MD5
     except Exception:
@@ -54,12 +69,12 @@ def ea8b_test_data(test_data_temp_path, helpers):
 
 
 @pytest.fixture(scope="package")
-def ea8b_data(ea8b_test_data, test_data_temp_path):
-    os.chdir(test_data_temp_path)
+def ea8b_data(ea8b_test_data, ea8b_temp_path):
+    os.chdir(ea8b_temp_path)
 
     with zipfile.ZipFile(ea8b_test_data, "r") as zip_ref:
         zip_ref.extractall()
-    unzip_path = os.path.join(test_data_temp_path, "Test8B dataset 2010")
+    unzip_path = ea8b_temp_path / "Test8B dataset 2010"
 
     west, south, east, north = 263976, 664408, 264940, 664808
     res = 2.0
@@ -111,17 +126,17 @@ def ea8b_data(ea8b_test_data, test_data_temp_path):
         "crs": crs,
         "x_coords": x_coords,
         "y_coords": y_coords,
-        "unzip_path": unzip_path,
+        "unzip_path": str(unzip_path),
         "rows": rows,
         "cols": cols,
     }
 
 
 @pytest.fixture(scope="package")
-def ea8b_simulation(ea8b_data, test_data_path, test_data_temp_path):
-    os.chdir(test_data_temp_path)
+def ea8b_simulation(ea8b_data, test_data_path, ea8b_temp_path):
+    os.chdir(ea8b_temp_path)
 
-    output_dir = Path(test_data_temp_path) / "spatialite_output"
+    output_dir = ea8b_temp_path / "spatialite_output"
     output_dir.mkdir(exist_ok=True)
     db_file = output_dir / "out_drainage.db"
     if db_file.exists():
@@ -199,7 +214,7 @@ def ea8b_simulation(ea8b_data, test_data_path, test_data_temp_path):
         simulation.update()
 
     hotstart_split = simulation.create_hotstart()
-    hotstart_split_path = Path(test_data_temp_path) / "ea8b_hotstart_split.zip"
+    hotstart_split_path = ea8b_temp_path / "ea8b_hotstart_split.zip"
     with open(hotstart_split_path, "wb") as f:
         f.write(hotstart_split.getvalue())
 
@@ -207,13 +222,13 @@ def ea8b_simulation(ea8b_data, test_data_path, test_data_temp_path):
         simulation.update()
 
     hotstart_end = simulation.create_hotstart()
-    hotstart_end_path = Path(test_data_temp_path) / "ea8b_hotstart.zip"
+    hotstart_end_path = ea8b_temp_path / "ea8b_hotstart.zip"
     with open(hotstart_end_path, "wb") as f:
         f.write(hotstart_end.getvalue())
 
     simulation.finalize()
 
-    final_state_path = Path(test_data_temp_path) / "ea8b_final_state.npz"
+    final_state_path = ea8b_temp_path / "ea8b_final_state.npz"
     final_state = {}
     for key in simulation.raster_domain.k_all:
         final_state[f"raster_{key}"] = simulation.raster_domain.get_array(key)

@@ -43,7 +43,7 @@ def test_ea8b_hotstart_roundtrip(
     ea8b_reference,
     ea8b_data,
     test_data_path,
-    test_data_temp_path,
+    ea8b_temp_path,
     helpers,
 ):
     """Test that resuming from hotstart at the split point reproduces the full run.
@@ -81,7 +81,7 @@ def test_ea8b_hotstart_roundtrip(
         orifice_coeff=1.0,
     )
 
-    os.chdir(test_data_temp_path)
+    os.chdir(ea8b_temp_path)
 
     hotstart_loader = HotstartLoader.from_file(hotstart_split_path)
 
