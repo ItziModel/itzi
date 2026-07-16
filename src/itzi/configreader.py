@@ -20,16 +20,16 @@ from pathlib import Path
 from typing import Any, Callable, NoReturn
 
 from pydantic import BaseModel, ConfigDict, ValidationError
-
-import itzi.messenger as msgr
-from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
-from itzi.const import InfiltrationModelType, TemporalType
-from itzi.data_containers import (
-    GrassParams,
+from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.const import InfiltrationModelType, TemporalType
+from itzi_core.data_containers import (
     SimulationConfig,
     SurfaceFlowParameters,
     HotstartRunConfig,
 )
+
+import itzi.messenger as msgr
+from itzi.grass_session import GrassParams
 
 DEPRECATED_INPUT_ALIASES: list[tuple[str, str]] = [
     # (old, new)

@@ -11,7 +11,6 @@ import pytest
 
 from itzi import SimulationRunner
 from itzi.configreader import ConfigReader
-from itzi.itzi_error import ItziFatal
 
 
 def _create_timed_rain_inputs(name_prefix: str) -> dict[str, str]:
@@ -192,7 +191,7 @@ def test_fails_when_region_has_no_dem_data(test_data_temp_path):
 
     conf_data = ConfigReader(config_file)
 
-    with pytest.raises(ItziFatal, match=r"input map <dem> contains only NULL/NaN cells"):
+    with pytest.raises(RuntimeError, match=r"input map <dem> contains only NULL/NaN cells"):
         SimulationRunner(conf_data.get_sim_params(), conf_data.get_grass_params())
 
 

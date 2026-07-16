@@ -22,7 +22,7 @@ from bmipy import Bmi
 from itzi import SimulationRunner
 from itzi.configreader import ConfigReader
 from itzi.grass_session import GrassSessionManager
-from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
 
 class BmiItzi(Bmi):
@@ -127,7 +127,7 @@ class BmiItzi(Bmi):
 
     def get_end_time(self):
         """End time of model."""
-        duration = self.itzi.sim.start_time - self.itzi.sim.end_time
+        duration = self.itzi.sim.end_time - self.itzi.sim.start_time
         return float(duration.total_seconds())
 
     def get_current_time(self):

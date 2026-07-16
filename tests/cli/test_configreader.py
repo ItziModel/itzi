@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
+from itzi_core.const import DefaultValues, InfiltrationModelType, TemporalType
+from itzi_core.data_containers import SurfaceFlowParameters
+
 from itzi.configreader import ConfigReader
-from itzi.const import DefaultValues, InfiltrationModelType, TemporalType
-from itzi.data_containers import SurfaceFlowParameters
-from itzi.itzi_error import ItziFatal
 
 
 def write_config_file(tmp_path, config_dict: dict[str, dict[str, str]]) -> str:
@@ -185,7 +185,7 @@ def test_reader_accepts_supported_time_combinations(
 def test_reader_rejects_invalid_time_combinations(tmp_path, time_section):
     config_file = write_config_file(tmp_path, make_config_dict(time=time_section))
 
-    with pytest.raises(ItziFatal, match="accepted combinations"):
+    with pytest.raises(RuntimeError, match="accepted combinations"):
         ConfigReader(config_file)
 
 
@@ -202,7 +202,7 @@ def test_reader_rejects_mutually_exclusive_initial_conditions(tmp_path):
         ),
     )
 
-    with pytest.raises(ItziFatal, match="mutually exclusive"):
+    with pytest.raises(RuntimeError, match="mutually exclusive"):
         ConfigReader(config_file)
 
 
@@ -238,7 +238,7 @@ def test_reader_requires_all_green_ampt_maps(tmp_path):
         ),
     )
 
-    with pytest.raises(ItziFatal, match="mutualy inclusive"):
+    with pytest.raises(RuntimeError, match="mutualy inclusive"):
         ConfigReader(config_file)
 
 
@@ -274,5 +274,5 @@ def test_reader_fails_fast_when_swmm_inp_is_missing(tmp_path, monkeypatch):
         make_config_dict(drainage={"swmm_inp": "missing_swmm.inp"}),
     )
 
-    with pytest.raises(ItziFatal, match="SWMM input file <missing_swmm.inp> not found"):
+    with pytest.raises(RuntimeError, match="SWMM input file <missing_swmm.inp> not found"):
         ConfigReader(config_file)

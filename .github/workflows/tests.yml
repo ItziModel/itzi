@@ -12,15 +12,15 @@ jobs:
       matrix:
         python-version: ["3.12", "3.13"]
 
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     container: osgeo/grass-gis:releasebranch_8_4-ubuntu
     steps:
     - name: Install dependencies
       run: |
-        apt update
-        apt install -y ca-certificates clang build-essential libomp-dev nodejs
+        apt-get update
+        apt-get install -y ca-certificates
 
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
 
     - name: Install uv and Python
       run: |
@@ -29,14 +29,14 @@ jobs:
 
     - name: Pytest
       run: |
-        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-core-results.xml --cov-report=xml --cov-report=html tests/core
-        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-core-results.xml --cov-report=xml --cov-report=html tests/cli
+        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-cli-results.xml --cov-report=xml --cov-report=html tests/cli tests/test_grass_session.py
         $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-itzi-results.xml --cov-report=xml --cov-report=html tests/grass/test_itzi.py
         $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-bmi-results.xml --cov-report=xml --cov-report=html tests/grass/test_bmi.py
         $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-tutorial-results.xml --cov-report=xml --cov-report=html tests/grass/test_tutorial.py
+        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-temporal-overwrite-results.xml --cov-report=xml --cov-report=html tests/grass/test_temporal_overwrite.py
 
     - name: Upload coverage
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: coverage-report-${{ matrix.python-version }}
         path: |

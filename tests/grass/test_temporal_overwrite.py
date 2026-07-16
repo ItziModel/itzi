@@ -9,8 +9,7 @@ import pytest
 
 from itzi import SimulationRunner
 from itzi.configreader import ConfigReader
-from itzi.const import TemporalType
-from itzi.itzi_error import ItziFatal
+from itzi_core.const import TemporalType
 
 
 def _build_runner(
@@ -79,5 +78,5 @@ def test_runner_creation_fails_when_overwriting_strds_with_different_temporal_ty
     initial_runner = _build_runner(test_data_temp_path, prefix, existing_temporal_type)
     initial_runner.run().finalize()
 
-    with pytest.raises(ItziFatal, match=r"temporal type"):
+    with pytest.raises(RuntimeError, match=r"temporal type"):
         _build_runner(test_data_temp_path, prefix, simulation_temporal_type)

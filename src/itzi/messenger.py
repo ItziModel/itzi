@@ -12,16 +12,28 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-from typing import Callable, NoReturn
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Callable, NoReturn
 import sys
 import logging
 import os
 from datetime import timedelta, datetime
 
-from itzi.itzi_error import ItziFatal
-from itzi.const import VerbosityLevel
+if TYPE_CHECKING:
+    from itzi_core.data_containers import SimulationConfig
 
 raise_on_error = True
+
+
+class VerbosityLevel:
+    """Messenger verbosity levels"""
+
+    SUPER_QUIET = 0
+    QUIET = 1
+    MESSAGE = 2
+    VERBOSE = 3
+    DEBUG = 4
 
 
 def verbosity():
@@ -87,7 +99,7 @@ class ItziLogger:
         """Log fatal error and raise or exit"""
         self.logger.error(f"ERROR: {msg}")
         if raise_on_error:
-            raise ItziFatal(msg)
+            raise RuntimeError(msg)
         else:
             sys.exit(f"ERROR: {msg}")
 
@@ -141,3 +153,35 @@ def percent(start_time, end_time, sim_time, sim_start_time):
             pad=" " * 10,
         )
         print(disp, file=sys.stderr, end="\r")
+
+
+def display_sim_param(sim_config: SimulationConfig) -> None:
+    """Display simulation parameters if verbose."""
+    inter_txt = "#" * 50
+    txt_template = "{:<24s} {}"
+    verbose(inter_txt)
+    verbose("Input maps:")
+    for key, value in sim_config.input_map_names.items():
+        verbose(txt_template.format(key, value))
+    verbose(inter_txt)
+    verbose("Output maps:")
+    for key, value in sim_config.output_map_names.items():
+        verbose(txt_template.format(key, value))
+    verbose(inter_txt)
+    verbose("Simulation parameters:")
+    sim_params = {
+        **sim_config.surface_flow_parameters.model_dump(),
+        "dtinf": sim_config.dtinf,
+        "inf_model": sim_config.infiltration_model,
+    }
+    for key, value in sim_params.items():
+        verbose(txt_template.format(key, value))
+    verbose(inter_txt)
+    verbose("Simulation times:")
+    txt_start_time = sim_config.start_time.isoformat(" ").split(".")[0]
+    txt_end_time = sim_config.end_time.isoformat(" ").split(".")[0]
+    verbose(txt_template.format("start", txt_start_time))
+    verbose(txt_template.format("end", txt_end_time))
+    verbose(txt_template.format("duration", sim_config.end_time - sim_config.start_time))
+    verbose(txt_template.format("record_step", sim_config.record_step))
+    verbose(inter_txt)

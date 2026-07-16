@@ -2,8 +2,7 @@
 Programer's manual
 ==================
 
-Itzï is written principally in Python.
-The computationally intensive parts of the code are written in Cython.
+Itzï is written in Python.
 
 
 Source code management
@@ -24,32 +23,8 @@ Once the itzi repository is cloned and uv installed, you can run itzi with:
 
     uv run itzi
 
-This will create a virtual environment, install all the dependencies listed in the *pyproject.toml* file, including dev dependencies, and build the Cython extensions.
+This will create a virtual environment, install all the dependencies listed in the *pyproject.toml* file, including dev dependencies.
 Now, every change you make to the Python code will be directly reflected when running the tests or *uv run itzi* .
-
-
-Cython code
------------
-
-After editing the Cython code, you need to compile it again.
-You can do so by running the following command in the root directory of the repository:
-
-.. code:: sh
-
-    uv pip install -e .
-
-
-Profiling
----------
-
-.. versionchanged:: 25.8
-
-Profiling is activated by setting the environment variable *ITZI_PROFILE=1*.
-*pyinstrument* is part of the dev dependencies, so it should be installed when using ``uv`` in dev mode.
-Running ``itzi`` in the CLI will write the profiling report to the terminal.
-
-Additionally, the tests cases *ea8a*, *ea8b* and *tutorial* are also profiled and save the results to text files in the form *\*_profile.txt* inside the *test_data_temp* directory.
-
 
 Testing
 -------
@@ -61,6 +36,10 @@ the tests must be run in separate processes using *pytest-forked*.
 .. code:: sh
 
     uv run pytest --forked -v tests/
+
+This would be quite slow, because all individual tests will be run in a separate process.
+The tests needing forking are marked with *@pytest.mark.forked*.
+It is faster to run each test file independently, and let the marking do its job.
 
 To estimate the test coverage:
 
@@ -79,7 +58,7 @@ The tests not relying on GRASS can be run directly:
 
 .. code:: sh
 
-    uv run pytest tests/core
+    uv run pytest tests/cli
 
 
 Select the python version to test against with the *--python* option.

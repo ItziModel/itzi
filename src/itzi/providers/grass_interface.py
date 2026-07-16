@@ -24,10 +24,10 @@ from queue import Queue
 import copy
 
 import numpy as np
+from itzi_core.data_containers import DrainageNetworkData
+from itzi_core.const import TemporalType
 
 import itzi.messenger as msgr
-from itzi.data_containers import DrainageNetworkData
-from itzi.const import TemporalType
 
 import grass.script as gscript
 import grass.temporal as tgis

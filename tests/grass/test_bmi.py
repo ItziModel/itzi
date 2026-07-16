@@ -89,6 +89,9 @@ class TestBmi:
         start_time = bmi_object.get_start_time()
         assert start_time == 0
 
+    def test_end_time(self, bmi_object):
+        assert bmi_object.get_end_time() == 60
+
     def test_current_time(self, bmi_object):
         current_time = bmi_object.get_current_time()
         assert current_time == 0

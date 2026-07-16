@@ -1,17 +1,18 @@
 [project]
 name = "itzi"
-version = "26.6"
+version = "26.7"
 description = "A distributed dynamic flood model."
 authors = [
     {name = "Laurent Courty", email = "lrntct@gmail.com"},
 ]
 dependencies = [
     "numpy>=2.5",
-    "pyswmm>=2.1.0",
+    "itzi-core>=0.2.0",
     "bmipy>=2.0.1",
-    "pydantic>=2.13.4",
+    "pydantic>=2.10"
 ]
-requires-python = ">=3.12,<3.14"  # 3.12 for typing. pyswmm does not support python > 3.13
+# min 3.12 for typing. itzi-core/pyswmm does not support python > 3.13
+requires-python = ">=3.12,<3.14"
 readme = "README.md"
 license = "GPL-2.0-or-later"
 keywords = ["science", "engineering", "hydrology", "flood"]
@@ -20,7 +21,6 @@ classifiers = [
     "Environment :: Console",
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
-    "Programming Language :: Cython",
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Hydrology",
@@ -35,57 +35,37 @@ Issues = "https://github.com/ItziModel/itzi/issues/"
 [project.scripts]
 itzi = "itzi.itzi:main"
 
-[project.optional-dependencies]
-cloud = [
-    "icechunk>=2.0.6",
-    "obstore>=0.11.0",
-    "pandas>=3.0.3",
-    "pyproj>=3.7.2",
-    "xarray[io,parallel]>=2026.4.0",
-    "zarr>=3.2.1",
-]
-
 [dependency-groups]
 dev = [
     "pytest>=9.1",
     "pytest-cov==6.*",
-    "pytest-forked==1.*",
     "pandas>=3.0.3",
     "requests>=2.34",
-    "pytest-benchmark[histogram]==5.*",
-    "scipy>=1.18",
     "pre-commit>=4.6",
     "ruff>=0.15",
     "ty>=0.0.55",
-    "pyinstrument>=5.1",
-    "rioxarray>=0.22.0",
     "sphinx>=9.1.0",
     "sphinx-argparse>=0.5.2",
     "sphinx-rtd-theme>=3.1.0",
+    "pytest-forked>=1.6.0",
 ]
 
 [build-system]
-requires = [
-    "setuptools>=82",
-    "numpy==2.*",
-    "cython>=3.2.6"
-]
+requires = ["setuptools >= 83"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-"*" = ["*.pyx"]
 "itzi.data" = ["*.ini"]
 "itzi.data.colortable" = ["*.txt"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
-addopts = ["--import-mode=importlib", "--benchmark-min-rounds=7"]
+addopts = ["--import-mode=importlib"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "cloud: marks tests using cloud functions (deselect with '-m \"not cloud\"')",
 ]
 
 [tool.ruff]

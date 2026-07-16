@@ -5,9 +5,7 @@ import os
 
 import pytest
 
-from itzi.const import VerbosityLevel
-from itzi.itzi import main, itzi_run, reconcile_hotstart_commands
-from itzi.itzi_error import ItziFatal
+from itzi.itzi import main, itzi_run, reconcile_hotstart_commands, VerbosityLevel
 from itzi.cli_parser import build_parser
 
 
@@ -76,7 +74,7 @@ def test_reconcile_hotstart_commands_accepts_duplicate_basenames_with_paths():
 
 
 def test_reconcile_hotstart_commands_rejects_single_resume_for_multiple_configs():
-    with pytest.raises(ItziFatal):
+    with pytest.raises(RuntimeError):
         reconcile_hotstart_commands(["/tmp/a.ini", "/tmp/b.ini"], [(None, "restart.zip")])
 
 
@@ -91,7 +89,7 @@ def test_reconcile_hotstart_commands_accepts_single_named_resume_for_multiple_co
 
 
 def test_reconcile_hotstart_commands_rejects_unnamed_values_in_batch_mode():
-    with pytest.raises(ItziFatal):
+    with pytest.raises(RuntimeError):
         reconcile_hotstart_commands(
             ["/tmp/a.ini", "/tmp/b.ini"],
             [("a.ini", "restart_a.zip"), (None, "restart_b.zip")],
@@ -99,7 +97,7 @@ def test_reconcile_hotstart_commands_rejects_unnamed_values_in_batch_mode():
 
 
 def test_reconcile_hotstart_commands_rejects_unknown_config_key():
-    with pytest.raises(ItziFatal):
+    with pytest.raises(RuntimeError):
         reconcile_hotstart_commands(
             ["/tmp/a.ini", "/tmp/b.ini"],
             [("missing.ini", "restart.zip"), ("b.ini", "restart_b.zip")],

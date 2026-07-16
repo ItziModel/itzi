@@ -2,10 +2,8 @@
 
 ## Common commands
 - Run a single test: `uv run pytest tests/my_test.py`
-- The GRASS-based tests need `--forked` so each tests run in a separate process: `uv run pytest --forked tests/grass`.
-- It is not necessary to run core tests with `--forked`. Additionally, `--forked` prevents the display of print statements and other outputs.
+- Due to a bug in GRASS, tests will fails if the mapset is changed between tests. Run each test file independently to prevent this. Tests that need to run in a separate process are marked with `@pytest.mark.forked`.
 - Enforce code formatting: `uvx ruff format .`
-- After editing a *.pyx file, recompile with `uv pip install -e .`; if not the old binary will continue to be used.
 
 ## Code style
 - Use python type hints. When a function that does not yet use hints is substantially edited, take the opportunity to add type hints.

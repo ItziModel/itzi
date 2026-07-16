@@ -5,7 +5,7 @@ Run a simulation
 ----------------
 
 .. argparse::
-   :filename: ../src/itzi/parser.py
+   :filename: ../src/itzi/cli_parser.py
    :func: build_parser
    :prog: itzi
    :path: run
@@ -62,7 +62,7 @@ Get the version number
 ----------------------
 
 .. argparse::
-   :filename: ../src/itzi/parser.py
+   :filename: ../src/itzi/cli_parser.py
    :func: build_parser
    :prog: itzi
    :path: version

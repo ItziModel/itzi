@@ -17,11 +17,11 @@ from __future__ import annotations
 from typing import Mapping, TypedDict, TYPE_CHECKING
 
 import numpy as np
+from itzi_core.providers.domain_data import DomainData
+from itzi_core.providers.base import RasterInputProvider
+from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 
-from itzi.providers.base import RasterInputProvider
-from itzi.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
 import itzi.messenger as msgr
-from itzi.providers.domain_data import DomainData
 
 if TYPE_CHECKING:
     from datetime import datetime
