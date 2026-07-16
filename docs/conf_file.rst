@@ -117,7 +117,7 @@ The table below reflects the current implementation.
      - Allowed
      - The resumed hydrology schedule uses the new value.
    * - ``[options] cfl``, ``theta``, ``dtmax``, ``slope_threshold``,
-       ``max_slope``, ``vrouting``, ``max_error``
+       ``max_slope``, ``max_error``
      - Allowed
      - These are the only surface-flow options explicitly allowed to change on
        resume.
@@ -414,27 +414,30 @@ However, due to the way the volumes are computed internally, small variations co
 .. versionadded:: 25.8
     *max_error* is added.
 
-+----------+----------------------------------------------+----------------+---------------+
-| Keyword  | Description                                  | Format         | Default value |
-+==========+==============================================+================+===============+
-| hmin     | Water depth threshold in metres              | positive float | 0.005         |
-+----------+----------------------------------------------+----------------+---------------+
-| cfl      | Coefficient applied to calculate time-step   | positive float | 0.7           |
-+----------+----------------------------------------------+----------------+---------------+
-| theta    | Inertia weighting coefficient                | float between  | 0.9           |
-|          |                                              | 0 and 1        |               |
-+----------+----------------------------------------------+----------------+---------------+
-| vrouting | Routing velocity in m/s                      | positive float | 0.1           |
-+----------+----------------------------------------------+----------------+---------------+
-| dtmax    | Maximum surface flow time-step in seconds.   | positive float | 5.0           |
-+----------+----------------------------------------------+----------------+---------------+
-| dtinf    | Time-step of infiltration and losses, in s   | positive float | 60.0          |
-+----------+----------------------------------------------+----------------+---------------+
-| max_error| Maximum relative volume error.               | positive float | 0.05          |
-|          | Simulation will stop if above.               |                |               |
-+----------+----------------------------------------------+----------------+---------------+
++-----------------+----------------------------------------------+----------------+---------------+
+| Keyword         | Description                                  | Format         | Default value |
++=================+==============================================+================+===============+
+| hmin            | Water depth threshold in metres              | positive float | 0.005         |
++-----------------+----------------------------------------------+----------------+---------------+
+| cfl             | Coefficient applied to calculate time-step   | positive float | 0.7           |
++-----------------+----------------------------------------------+----------------+---------------+
+| theta           | Inertia weighting coefficient                | float between  | 0.9           |
+|                 |                                              | 0 and 1        |               |
++-----------------+----------------------------------------------+----------------+---------------+
+| slope_threshold | Slope threshold in m/m                       | positive float | 0.8           |
++-----------------+----------------------------------------------+----------------+---------------+
+| max_slope       | Maximum slope in m/s                         | positive float | 0.8           |
++-----------------+----------------------------------------------+----------------+---------------+
+| dtmax           | Maximum surface flow time-step in seconds.   | positive float | 5.0           |
++-----------------+----------------------------------------------+----------------+---------------+
+| dtinf           | Time-step of infiltration and losses, in s   | positive float | 60.0          |
++-----------------+----------------------------------------------+----------------+---------------+
+| max_error       | Maximum relative volume error.               | positive float | 0.05          |
+|                 | Simulation will stop if above.               |                |               |
++-----------------+----------------------------------------------+----------------+---------------+
 
-When water depth is under *hmin*, the flow is routed at the fixed velocity defined by *vrouting*.
+When the water depth is above *hmin* and the slope is below *slope_threshold*, the partial inertia flow equation is used.
+I other cases, the Gauckler-Manning-Strickler formula is used, with the slope limited to *max_slope*.
 
 
 [drainage]
