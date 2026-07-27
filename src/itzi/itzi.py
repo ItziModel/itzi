@@ -51,7 +51,7 @@ if TYPE_CHECKING:
     from itzi.providers.grass_interface import GrassInterface
 
 
-def main(argv=None):
+def main(argv: list[str] | None = None) -> int | None:
     """argv: alternative CLI arguments, used for testing (default to sys.argv)"""
     args = build_parser().parse_args(argv)
 
@@ -60,8 +60,11 @@ def main(argv=None):
         "version": itzi_version,
     }
 
-    # args.command is the name of the subcommand
-    command_mapper[args.command](args)
+    try:
+        # args.command is the name of the subcommand
+        command_mapper[args.command](args)
+    except msgr.FatalError:
+        return 1
 
 
 class SimulationRunner:
@@ -211,6 +214,8 @@ def sim_runner_worker(conf_file: str, hotstart_file: str | None):
                 hotstart_file,
             )
             sim_runner.run().finalize()
+    except msgr.FatalError:
+        return
     except Exception:
         msgr.warning("Error during execution: {}".format(traceback.format_exc()))
 

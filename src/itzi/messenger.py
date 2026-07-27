@@ -36,6 +36,10 @@ class VerbosityLevel:
     DEBUG = 4
 
 
+class FatalError(RuntimeError):
+    """An expected fatal error that has already been shown to the user."""
+
+
 def verbosity():
     """Return the current verbosity as integer"""
     try:
@@ -99,7 +103,7 @@ class ItziLogger:
         """Log fatal error and raise or exit"""
         self.logger.error(f"ERROR: {msg}")
         if raise_on_error:
-            raise RuntimeError(msg)
+            raise FatalError(msg)
         else:
             sys.exit(f"ERROR: {msg}")
 
