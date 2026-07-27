@@ -5,8 +5,15 @@ import os
 
 import pytest
 
-from itzi.itzi import main, itzi_run, reconcile_hotstart_commands, VerbosityLevel
+import itzi.messenger as msgr
 from itzi.cli_parser import build_parser
+from itzi.itzi import (
+    VerbosityLevel,
+    itzi_run,
+    main,
+    reconcile_hotstart_commands,
+    sim_runner_worker,
+)
 
 
 def test_run_parser_accepts_multiple_config_files():
@@ -41,6 +48,43 @@ def test_prints_version(monkeypatch, capsys):
     monkeypatch.setattr("itzi.itzi.version", lambda _: "22.2")
     assert main(["version"]) is None
     assert capsys.readouterr().out.strip() == "22.2"
+
+
+def test_main_returns_error_status_for_fatal_error(monkeypatch, itzi_stderr):
+    def fail(_):
+        msgr.fatal("expected failure")
+
+    monkeypatch.setattr("itzi.itzi.itzi_run", fail)
+
+    assert main(["run", "a.ini"]) == 1
+    stderr = itzi_stderr.getvalue()
+    assert stderr.count("ERROR: expected failure") == 1
+    assert "Traceback" not in stderr
+
+
+def test_main_propagates_unexpected_error(monkeypatch):
+    def fail(_):
+        raise ValueError("unexpected")
+
+    monkeypatch.setattr("itzi.itzi.itzi_run", fail)
+
+    with pytest.raises(ValueError, match="unexpected"):
+        main(["run", "a.ini"])
+
+
+def test_worker_does_not_format_fatal_error_as_traceback(monkeypatch, itzi_stderr):
+    def fail(_):
+        msgr.fatal("expected worker failure")
+
+    monkeypatch.setenv("ITZI_VERBOSE", str(VerbosityLevel.QUIET))
+    monkeypatch.setattr("itzi.itzi.ConfigReader", fail)
+
+    sim_runner_worker("a.ini", None)
+
+    stderr = itzi_stderr.getvalue()
+    assert stderr.count("ERROR: expected worker failure") == 1
+    assert "Traceback" not in stderr
+    assert "WARNING: Error during execution" not in stderr
 
 
 def test_reconcile_hotstart_commands_accepts_single_resume_for_single_config():
