@@ -29,7 +29,7 @@ from __future__ import annotations
 import os
 import sys
 import time
-import traceback
+
 from datetime import datetime, timedelta
 from importlib.metadata import version
 from multiprocessing import Process
@@ -197,7 +197,7 @@ class SimulationRunner:
             self.g_interface.cleanup()
 
 
-def sim_runner_worker(conf_file: str, hotstart_file: str | None):
+def sim_runner_worker(conf_file: str, hotstart_file: str | None) -> None:
     """Run one simulation"""
     msgr.raise_on_error = True
     msgr._itzi_logger.set_verbosity(msgr.verbosity())
@@ -215,20 +215,30 @@ def sim_runner_worker(conf_file: str, hotstart_file: str | None):
             )
             sim_runner.run().finalize()
     except msgr.FatalError:
-        return
-    except Exception:
-        msgr.warning("Error during execution: {}".format(traceback.format_exc()))
+        raise SystemExit(1) from None
+    except SystemExit as error:
+        detail = error.code if isinstance(error.code, str) else f"exit status {error.code}"
+        msgr.warning(f"Simulation terminated with {detail}")
+        raise SystemExit(1) from None
+    except Exception as error:
+        msgr.warning(f"Error during execution: {type(error).__name__}: {error}")
+        raise SystemExit(1) from None
 
 
-def itzi_run_one(conf_file: str, hotstart_file: str | None):
+def itzi_run_one(conf_file: str, hotstart_file: str | None) -> bool:
     """Run a simulation in a subprocess"""
     worker_args = (conf_file, hotstart_file)
     p = Process(target=sim_runner_worker, args=worker_args)
     p.start()
     p.join()
-    if p.exitcode != 0:
-        msgr.warning(("Execution of {} ended with an error").format(conf_file))
+    exitcode = p.exitcode
     p.close()
+    if exitcode == 0:
+        return True
+
+    reason = f"signal {-exitcode}" if exitcode < 0 else f"exit status {exitcode}"
+    msgr.warning(f"Execution of {conf_file} ended with an error ({reason})")
+    return False
 
 
 def reconcile_hotstart_commands(
@@ -325,6 +335,7 @@ def itzi_run(cli_args):
     total_sim_start = time.time()
     # dictionary to store computation times
     times_list = []
+    failed_files = []
     run_commands = reconcile_hotstart_commands(
         cli_args.config_file,
         getattr(cli_args, "resume_from", []),
@@ -332,7 +343,8 @@ def itzi_run(cli_args):
     for conf_file, hotstart_file in run_commands:
         sim_start = time.time()
         # Run the simulation
-        itzi_run_one(conf_file, hotstart_file)
+        if not itzi_run_one(conf_file, hotstart_file):
+            failed_files.append(conf_file)
         # store computational time
         comp_time = timedelta(seconds=int(time.time() - sim_start))
         list_elem = (os.path.basename(conf_file), comp_time)
@@ -341,12 +353,17 @@ def itzi_run(cli_args):
     # stop total time counter
     total_elapsed_time = timedelta(seconds=int(time.time() - total_sim_start))
     # display total computation duration
-    msgr.message("Simulation(s) complete. Elapsed times:")
+    if failed_files:
+        msgr.message("Simulation run(s) finished with errors. Elapsed times:")
+    else:
+        msgr.message("Simulation(s) complete. Elapsed times:")
     for f, t in times_list:
         msgr.message("{}: {}".format(f, t))
     msgr.message("Total: {}".format(total_elapsed_time))
     avg_time_s = int(total_elapsed_time.total_seconds() / len(times_list))
     msgr.message("Average: {}".format(timedelta(seconds=avg_time_s)))
+    if failed_files:
+        msgr.fatal(f"{len(failed_files)} simulation(s) failed")
 
 
 def itzi_version(cli_args):

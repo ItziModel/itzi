@@ -52,6 +52,15 @@ colors_rules_dict = {
     "vdir": str(RULE_VDIR),
     "froude": str(RULE_FR),
 }
+
+
+def _init_temporal() -> None:
+    """Initialize GRASS temporal APIs without allowing them to exit Itzi."""
+    gscript.set_raise_on_error(True)
+    tgis.init(raise_fatal_error=True)
+    tgis.set_raise_on_error(True)
+
+
 # Check if color rule paths are OK
 for f in colors_rules_dict.values():
     assert Path(f).is_file()
@@ -194,7 +203,7 @@ class GrassInterface:
             self.set_temp_mask()
         self.overwrite = gscript.overwrite()
         # init temporal module
-        tgis.init()
+        _init_temporal()
         # Create thread and queue for writing raster maps
         if self.non_blocking_write:
             self.raster_lock = Lock()
@@ -341,7 +350,7 @@ class GrassInterface:
         False if not
         """
         # make sure temporal module is initialized
-        tgis.init()
+        _init_temporal()
         return bool(tgis.SpaceTimeRasterDataset(name).is_in_db())
 
     @staticmethod
