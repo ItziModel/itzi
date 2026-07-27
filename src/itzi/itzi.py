@@ -51,7 +51,7 @@ if TYPE_CHECKING:
     from itzi.providers.grass_interface import GrassInterface
 
 
-def main(argv: list[str] | None = None) -> int | None:
+def main(argv: list[str] | None = None) -> int:
     """argv: alternative CLI arguments, used for testing (default to sys.argv)"""
     args = build_parser().parse_args(argv)
 
@@ -65,6 +65,7 @@ def main(argv: list[str] | None = None) -> int | None:
         command_mapper[args.command](args)
     except msgr.FatalError:
         return 1
+    return 0
 
 
 class SimulationRunner:
