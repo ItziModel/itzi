@@ -369,6 +369,14 @@ class GrassInterface:
             # get start time and end time in seconds
             rel_end_time = (self.end_time - self.start_time).total_seconds()
             rel_unit = strds.get_relative_time_unit()
+            if rel_unit not in self.t_unit_conv:
+                supported_units = ", ".join(sorted(self.t_unit_conv))
+                if rel_unit is None:
+                    msgr.fatal(f"STRDS <{strds.get_id()}> has no relative time unit")
+                msgr.fatal(
+                    f"STRDS <{strds.get_id()}> uses unsupported relative time unit "
+                    f"<{rel_unit}>; supported units are {supported_units}"
+                )
             start_time_in_stds_unit = 0
             end_time_in_stds_unit = self.from_s(rel_unit, rel_end_time)
         elif strds.get_temporal_type() == TemporalType.ABSOLUTE:
@@ -387,6 +395,12 @@ class GrassInterface:
         """
         out = True
         stds = tgis.open_stds.open_old_stds(stds_id, "strds")
+        stds_start, stds_end = stds.get_temporal_extent_as_tuple()
+        if stds_start is None or stds_end is None:
+            msgr.fatal(
+                f"STRDS <{stds_id}> has no temporal extent; "
+                "make sure it contains registered raster maps"
+            )
         # valid topology
         if not stds.check_temporal_topology():
             out = False
@@ -397,7 +411,6 @@ class GrassInterface:
             msgr.warning("{}: gaps found".format(stds_id))
         # cover all simulation time
         sim_start, sim_end = self.get_sim_extend_in_stds_unit(stds)
-        stds_start, stds_end = stds.get_temporal_extent_as_tuple()
         if stds_start > sim_start:
             out = False
             msgr.warning("{}: starts after simulation".format(stds_id))

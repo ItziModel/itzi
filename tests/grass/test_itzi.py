@@ -197,6 +197,87 @@ def test_fails_when_region_has_no_dem_data(test_data_temp_path):
 
 @pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
+@pytest.mark.parametrize("temporal_type", ["relative", "absolute"])
+def test_empty_strds_fails_with_clear_error(test_data_temp_path, temporal_type: str):
+    current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
+    strds_name = f"empty_{temporal_type}_rain_{uuid4().hex[:8]}"
+    gscript.run_command(
+        "t.create",
+        output=strds_name,
+        type="strds",
+        temporaltype=temporal_type,
+        semantictype="mean",
+        title=strds_name,
+        description=strds_name,
+    )
+
+    input_names = {
+        "rain": f"{strds_name}@{current_mapset}",
+        "water_depth": f"start_h@{current_mapset}",
+    }
+    with pytest.raises(
+        RuntimeError,
+        match=rf"STRDS <{strds_name}@{current_mapset}> has no temporal extent",
+    ):
+        _build_timed_rain_runner(
+            test_data_temp_path,
+            input_names=input_names,
+            duration="00:00:20",
+            record_step="00:00:20",
+            prefix=f"out_empty_{temporal_type}_{uuid4().hex[:8]}",
+        )
+
+
+@pytest.mark.forked
+@pytest.mark.usefixtures("grass_5by5")
+def test_relative_strds_with_unsupported_unit_fails_with_clear_error(test_data_temp_path):
+    current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
+    suffix = uuid4().hex[:8]
+    strds_name = f"monthly_rain_{suffix}"
+    rain_map_name = f"monthly_rain_map_{suffix}"
+    gscript.mapcalc(f"{rain_map_name}=10")
+    gscript.run_command(
+        "t.create",
+        output=strds_name,
+        type="strds",
+        temporaltype="relative",
+        semantictype="mean",
+        title=strds_name,
+        description=strds_name,
+    )
+    gscript.run_command(
+        "t.register",
+        flags="i",
+        input=strds_name,
+        type="raster",
+        maps=rain_map_name,
+        start="0",
+        increment="1",
+        unit="months",
+    )
+
+    input_names = {
+        "rain": f"{strds_name}@{current_mapset}",
+        "water_depth": f"start_h@{current_mapset}",
+    }
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            rf"STRDS <{strds_name}@{current_mapset}> uses unsupported relative time unit "
+            r"<months>"
+        ),
+    ):
+        _build_timed_rain_runner(
+            test_data_temp_path,
+            input_names=input_names,
+            duration="00:00:20",
+            record_step="00:00:20",
+            prefix=f"out_monthly_relative_{uuid4().hex[:8]}",
+        )
+
+
+@pytest.mark.forked
+@pytest.mark.usefixtures("grass_5by5")
 @pytest.mark.parametrize(
     ("target_seconds", "expected_rain_mm_per_hour", "expected_window_seconds"),
     [
