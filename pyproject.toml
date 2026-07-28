@@ -1,13 +1,13 @@
 [project]
 name = "itzi"
-version = "26.7"
+version = "26.8"
 description = "A distributed dynamic flood model."
 authors = [
     {name = "Laurent Courty", email = "lrntct@gmail.com"},
 ]
 dependencies = [
     "numpy>=2.5",
-    "itzi-core>=0.2.0",
+    "itzi-core>=0.4.0",
     "bmipy>=2.0.1",
     "pydantic>=2.10"
 ]

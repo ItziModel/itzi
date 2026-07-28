@@ -7,6 +7,17 @@ These are the major changes made in each release.
 For more details please see the commit log of the git repository.
 
 
+Itzï 26.8
+---------
+
+*Unreleased*
+
+**Internals**
+
+- Rely on itzi-core for the computing part.
+  Itzï is the user-facing interface, including GRASS.
+
+
 Itzï 26.6
 ---------
 

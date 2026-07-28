@@ -274,7 +274,7 @@ wheels = [
 
 [[package]]
 name = "itzi"
-version = "26.7"
+version = "26.8"
 source = { editable = "." }
 dependencies = [
     { name = "bmipy" },
@@ -301,7 +301,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "bmipy", specifier = ">=2.0.1" },
-    { name = "itzi-core", specifier = ">=0.2.0" },
+    { name = "itzi-core", specifier = ">=0.4.0" },
     { name = "numpy", specifier = ">=2.5" },
     { name = "pydantic", specifier = ">=2.10" },
 ]
@@ -323,7 +323,7 @@ dev = [
 
 [[package]]
 name = "itzi-core"
-version = "0.2.0"
+version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bmipy" },
@@ -331,22 +331,22 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyswmm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d1/c3/9285c13d33d385e3f98a82197667092a88e8e23ab15972ec469a3ac276b3/itzi_core-0.2.0.tar.gz", hash = "sha256:51278ec283ac595325aac749158b43025c31654587a69cbb6d109c81bc6843c9", size = 993423, upload-time = "2026-07-15T18:01:35.86Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ba/08/bf938aaa63599ec678896d7c81751ce15d23f778a223eed6ff890a913c28/itzi_core-0.4.0.tar.gz", hash = "sha256:699032e4dbd7ba361684aea7a4342f7ed88d3bd3fddb9945dd3c0068642b6cba", size = 1004292, upload-time = "2026-07-28T18:07:56.267Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f5/a6/46adb9c26cd9e3b6eae8c239562d13df2291995b2dcb402cb82725f82b46/itzi_core-0.2.0-cp312-cp312-macosx_14_0_arm64.whl", hash = "sha256:e58a80a5abaa16e3435f0e6c3467887c6405ef2fe6392062b097ac1c300a0e96", size = 1402963, upload-time = "2026-07-15T18:01:10.823Z" },
-    { url = "https://files.pythonhosted.org/packages/c6/3c/7c8d746d9da646f00b72a2f4b3860e982f759e13e8c46819146213e0fbe6/itzi_core-0.2.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:08734cf1b5fc0818bbc9d6ad3fdc875da3b85886dea98b02a69da1dc05043cc4", size = 4330922, upload-time = "2026-07-15T18:01:12.773Z" },
-    { url = "https://files.pythonhosted.org/packages/6b/af/460673cfa7bc90681ad718887904ee18200856664586a3a5431edd588d09/itzi_core-0.2.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:f10d4b4a95011b3a6e4836c89bec703deea80120b90fbe51bf91eb2ff831e744", size = 4408159, upload-time = "2026-07-15T18:01:14.997Z" },
-    { url = "https://files.pythonhosted.org/packages/8e/cd/c4e20b769c885522bd7301c1705f52cef0cf623e01ff82d12d84bc416dfe/itzi_core-0.2.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:5043b8459b5211394fae0603ba17575ec264b511dbe1e4dab25f3cd48825eb63", size = 4239638, upload-time = "2026-07-15T18:01:16.685Z" },
-    { url = "https://files.pythonhosted.org/packages/45/8d/bd3d98eefa8d5f2c0b2a0878de55666ce6c1a45a30902f33a7a60455843a/itzi_core-0.2.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:2e1313ceaac94a672c946c735d343b6df0d57cb070bebc587cf3d2f98f8d673c", size = 4374629, upload-time = "2026-07-15T18:01:18.768Z" },
-    { url = "https://files.pythonhosted.org/packages/9f/b5/3d46b0dd2338744dc8b506f3fe765f569aecd318d1832210611cb5545871/itzi_core-0.2.0-cp312-cp312-win_amd64.whl", hash = "sha256:220c52d01ae817a0dd7677ce0bfa6950970dc2f3e0c47266ba698783c245e635", size = 1527831, upload-time = "2026-07-15T18:01:20.489Z" },
-    { url = "https://files.pythonhosted.org/packages/9f/2c/60370bdd801f3181e4babc7d2a9b488075cbbec4b1f101f1f4fae5033dd2/itzi_core-0.2.0-cp312-cp312-win_arm64.whl", hash = "sha256:c794fa3b26d625c7939c0a8bbcd6d5c4146ff7d82e3fe17f6395b46990f5d0de", size = 1517400, upload-time = "2026-07-15T18:01:22.176Z" },
-    { url = "https://files.pythonhosted.org/packages/56/ad/26224a18b4e953f5ba919cb0af5611c62b1762071071ff5d737a7dc3f966/itzi_core-0.2.0-cp313-cp313-macosx_14_0_arm64.whl", hash = "sha256:3417bc3182b3bc37e61fd6aae1c6de32149bf5e5edc1b05ebd8ecc02f038598d", size = 1399440, upload-time = "2026-07-15T18:01:23.681Z" },
-    { url = "https://files.pythonhosted.org/packages/1c/85/8ec4eae4a507e55b6aa057805f3512c2e02d9fc9dfcae87ba856f97827c7/itzi_core-0.2.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:f1b9829077ee1896cc0d399cd3617955c9c80e7935ffc372f1f5c3fbe915dd43", size = 4302064, upload-time = "2026-07-15T18:01:25.463Z" },
-    { url = "https://files.pythonhosted.org/packages/4b/bd/5d96539786f56e37428d7ab488a644d87742e86c7a39c69a3d34ebd8a00b/itzi_core-0.2.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:1845b2794c3a0ca78ba2b36ae81eb239d6abb3e65601147f3ebbbfe5948c4e4a", size = 4367559, upload-time = "2026-07-15T18:01:27.143Z" },
-    { url = "https://files.pythonhosted.org/packages/74/0b/58bb1bbd63dfe81d0a3bebd1ef5a9f9729e9de56302591d19e50d739a4af/itzi_core-0.2.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:f5dccb7fe029efe2b76a2527f939349e7d962b142f7310544242647f51c67c4b", size = 4220332, upload-time = "2026-07-15T18:01:28.813Z" },
-    { url = "https://files.pythonhosted.org/packages/7e/36/5c80f097971d73f05d52b67afb1cae714d06c3d2342dd472ec14afd6c310/itzi_core-0.2.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:5de3de93e0b9f9b25f42aa3dd805e2b65db5cd0044fa87ac279d618d3eb10f64", size = 4344764, upload-time = "2026-07-15T18:01:30.57Z" },
-    { url = "https://files.pythonhosted.org/packages/19/bd/1d02b737f4881536dfeb20349f7bbbf93ad1309ce04f8ca566d9c57c2a19/itzi_core-0.2.0-cp313-cp313-win_amd64.whl", hash = "sha256:d1f0ac02545f7a3b8dccf3f59f6336c0b703b42961cfa839558ed7d5e39bc263", size = 1526615, upload-time = "2026-07-15T18:01:32.407Z" },
-    { url = "https://files.pythonhosted.org/packages/38/17/5718aa10d47125ace659f03e27eeed152f41015cee066bf4005585701499/itzi_core-0.2.0-cp313-cp313-win_arm64.whl", hash = "sha256:694bd0663260a7672e9a8f081423cce09800baac5ecb37514a0e7bdf33a56752", size = 1517069, upload-time = "2026-07-15T18:01:34.01Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/ef/bb182f56f0c2673a76d0d87f70bc5f9e37cc23991269b2469f14ad4973b2/itzi_core-0.4.0-cp312-cp312-macosx_14_0_arm64.whl", hash = "sha256:567b7acabb926f524021c04dba55c093ace6e1a7cda42826dab280577cd91a87", size = 1407120, upload-time = "2026-07-28T18:07:29.097Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/f6/b8d85d51191e28ab257fa077d4e9e7405c72be8daeedaffcbcd7edd18b20/itzi_core-0.4.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:ec9af82010b7f590b030d29457461d3578163aebf1c51b6dd207d7c4f6fbcc4c", size = 4341698, upload-time = "2026-07-28T18:07:31.445Z" },
+    { url = "https://files.pythonhosted.org/packages/36/b3/554b5b81dc087927a60e11b65e2c2d65d9a9ecd2fc7dcb8dc822d514702f/itzi_core-0.4.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:9cf1716daa1adab96c57d172f595fffaff3597ae8e8e560ebd36a5868a3c0c37", size = 4415325, upload-time = "2026-07-28T18:07:33.418Z" },
+    { url = "https://files.pythonhosted.org/packages/15/02/3f52fc58ea9ed8a7e4a553763a2a2caeff28ab1597e356fc0022721299f5/itzi_core-0.4.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:34e526b54a16a92817aad78f073bd739c6090d4b59a05fe310166cba6395eb1f", size = 4248548, upload-time = "2026-07-28T18:07:35.292Z" },
+    { url = "https://files.pythonhosted.org/packages/a0/b5/4684bbf3b7299615344d93898e9a4aa4679d29ab6a0fc6664e9f4dbab121/itzi_core-0.4.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:1087da46d6594135ae3c633e5d680b31a8317679cd954081d51aafa82950aeb3", size = 4371516, upload-time = "2026-07-28T18:07:37.387Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/6b/e3a1f8d513f49119ea697277bf2b8426a8254dbbdd4052f262f21a734979/itzi_core-0.4.0-cp312-cp312-win_amd64.whl", hash = "sha256:95e065f4b250bb365451f569ce45bf8c0f5ad93f7011fd0f7951e4e18b7b41ca", size = 1531839, upload-time = "2026-07-28T18:07:39.108Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/00/bb276f3d0de30e40edad43959a0d24859d216baa5d908c18c8a599ee8fa1/itzi_core-0.4.0-cp312-cp312-win_arm64.whl", hash = "sha256:96b1931bb4274c63a5380b45c62202e24f56cb33d10e2e5ea280c4447a8107c4", size = 1521742, upload-time = "2026-07-28T18:07:40.785Z" },
+    { url = "https://files.pythonhosted.org/packages/78/08/fbd9c937dfa8c67f7cfda11243f0cd758d54407bb684933d81a1f066329a/itzi_core-0.4.0-cp313-cp313-macosx_14_0_arm64.whl", hash = "sha256:b782354aed73668eda1f55e23800fb2efbb8a4e264867db8b3a63572d8398919", size = 1403702, upload-time = "2026-07-28T18:07:42.365Z" },
+    { url = "https://files.pythonhosted.org/packages/44/9f/f6d20914a0dfd07e0eceb01c09d436321204740e2a1ea2157f656017e276/itzi_core-0.4.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:5f9607c1b889885961472b7d14ef347510cc717882e6fccb7e774ae8d033b812", size = 4311272, upload-time = "2026-07-28T18:07:44.188Z" },
+    { url = "https://files.pythonhosted.org/packages/76/70/e148f3cd9ab6c74fe1320d2c2df4cab2c32d6e343991390ca19c5ffae46f/itzi_core-0.4.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:764478f8fbfad1b6cc0bebfb1c8c7e57b6dae22622eb8f89ef585544f695d0c5", size = 4372757, upload-time = "2026-07-28T18:07:46Z" },
+    { url = "https://files.pythonhosted.org/packages/db/58/2733752005b27473d9a52d1b5d50df6c353d0a38218da4707119e25766a6/itzi_core-0.4.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:65bcc935157623b48092ccc5be79ded893e0208e559e7f0b19056a603915c92b", size = 4232850, upload-time = "2026-07-28T18:07:47.995Z" },
+    { url = "https://files.pythonhosted.org/packages/1c/e0/64316942804477d247a2caebe01b2fd82c82127b53d4b17acbebbc1aaf3b/itzi_core-0.4.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:18c2ad7f36ce8ee023c5f915096594e59c32e34de6dc42b900fa5fc2d41ca90e", size = 4343685, upload-time = "2026-07-28T18:07:51.117Z" },
+    { url = "https://files.pythonhosted.org/packages/15/79/2b6adf1dedfbae3dff42afde7e7d16fd596b8e403087ec62c9fc3952a352/itzi_core-0.4.0-cp313-cp313-win_amd64.whl", hash = "sha256:f4bc45cfa7d2ec9a06a48403d330f6101c7a43dff9159e6d3b21af300ebbb0de", size = 1530629, upload-time = "2026-07-28T18:07:53.033Z" },
+    { url = "https://files.pythonhosted.org/packages/24/1a/609e66a46985f4839a5c533e92108def6eeb387e7938fded4e0f0956cdb0/itzi_core-0.4.0-cp313-cp313-win_arm64.whl", hash = "sha256:cab8efd01099398dcf191e813ae4a421161115bc04600474a6cdc778f31cdee9", size = 1521294, upload-time = "2026-07-28T18:07:54.708Z" },
 ]
 
 [[package]]

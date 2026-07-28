@@ -135,6 +135,60 @@ def test_worker_formats_numeric_system_exit_as_status(monkeypatch, itzi_stderr):
     assert "WARNING: Simulation terminated with exit status 1" in itzi_stderr.getvalue()
 
 
+def test_worker_passes_statistics_file_to_simulation_runner(monkeypatch):
+    sim_params = object()
+    grass_params = object()
+    runner_arguments = {}
+
+    class FakeConfigReader:
+        def __init__(self, _):
+            pass
+
+        def get_sim_params(self):
+            return sim_params
+
+        def get_grass_params(self):
+            return grass_params
+
+        def get_stats_file(self):
+            return "statistics.csv"
+
+    class FakeGrassSessionManager:
+        def __init__(self, received_grass_params):
+            assert received_grass_params is grass_params
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            pass
+
+    class FakeSimulationRunner:
+        def __init__(self, *args, **kwargs):
+            runner_arguments["args"] = args
+            runner_arguments["kwargs"] = kwargs
+
+        def run(self):
+            return self
+
+        def finalize(self):
+            return self
+
+    monkeypatch.setattr("itzi.itzi.ConfigReader", FakeConfigReader)
+    monkeypatch.setattr("itzi.itzi.GrassSessionManager", FakeGrassSessionManager)
+    monkeypatch.setattr("itzi.itzi.SimulationRunner", FakeSimulationRunner)
+
+    sim_runner_worker("a.ini", "hotstart.zip")
+
+    assert runner_arguments == {
+        "args": (sim_params, grass_params),
+        "kwargs": {
+            "hotstart_path": "hotstart.zip",
+            "stats_file": "statistics.csv",
+        },
+    }
+
+
 def test_run_one_reports_worker_signal(monkeypatch, itzi_stderr):
     class FailedProcess:
         exitcode = -11

@@ -392,6 +392,9 @@ class ConfigReader:
         self.raw_input_times = _read_time_values(params)
         self.input_map_names = _read_input_map_names(params)
         self.out_prefix, self.out_values, self.output_map_names = _read_output_config(params)
+        self.stats_file = (
+            _read_optional_value(params, "statistics", "stats_file", params.get) or None
+        )
         self.sim_times = SimulationTimes.from_raw_values(self.raw_input_times)
         self._check_general_input(self.input_map_names)
         infiltration_model = self._resolve_infiltration_model(self.input_map_names)
@@ -415,10 +418,6 @@ class ConfigReader:
 
         if self.hotstart_config is not None:
             simulation_kwargs["hotstart_config"] = self.hotstart_config
-
-        stats_file = _read_optional_value(params, "statistics", "stats_file", params.get)
-        if stats_file is not None:
-            simulation_kwargs["stats_file"] = stats_file
 
         simulation_kwargs.update(_read_simulation_option_values(params))
         simulation_kwargs.update(_read_simulation_drainage_values(params))
@@ -473,3 +472,7 @@ class ConfigReader:
     def get_grass_params(self) -> GrassParams:
         """Return validated GRASS GIS session parameters."""
         return self.grass_params
+
+    def get_stats_file(self) -> str | None:
+        """Return the CSV statistics output file name, if configured."""
+        return self.stats_file

@@ -64,7 +64,7 @@ def test_reader_uses_defaults_when_optional_sections_are_missing(tmp_path):
 
     assert sim_config.hotstart_config is None
     assert sim_config.surface_flow_parameters == SurfaceFlowParameters()
-    assert sim_config.stats_file is None
+    assert reader.get_stats_file() is None
     assert sim_config.dtinf == DefaultValues.DTINF
     assert sim_config.swmm_inp is None
     assert sim_config.drainage_output is None
@@ -79,6 +79,30 @@ def test_reader_uses_defaults_when_optional_sections_are_missing(tmp_path):
         "mask": None,
         "grass_bin": None,
     }
+
+
+@pytest.mark.parametrize(
+    ("statistics", "expected_stats_file"),
+    [
+        (None, None),
+        ({"stats_file": ""}, None),
+        ({"stats_file": "statistics.csv"}, "statistics.csv"),
+    ],
+)
+def test_reader_exposes_stats_file_separately_from_simulation_config(
+    tmp_path,
+    statistics,
+    expected_stats_file,
+):
+    config_file = write_config_file(
+        tmp_path,
+        make_config_dict(statistics=statistics),
+    )
+
+    reader = ConfigReader(config_file)
+
+    assert reader.get_stats_file() == expected_stats_file
+    assert "stats_file" not in type(reader.get_sim_params()).model_fields
 
 
 def test_reader_normalizes_deprecated_aliases(tmp_path, caplog):

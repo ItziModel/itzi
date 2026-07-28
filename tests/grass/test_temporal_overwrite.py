@@ -64,7 +64,11 @@ def _build_runner(
         parser.write(file_handle)
 
     conf_data = ConfigReader(config_file)
-    return SimulationRunner(conf_data.get_sim_params(), conf_data.get_grass_params())
+    return SimulationRunner(
+        conf_data.get_sim_params(),
+        conf_data.get_grass_params(),
+        stats_file=conf_data.get_stats_file(),
+    )
 
 
 @pytest.mark.forked

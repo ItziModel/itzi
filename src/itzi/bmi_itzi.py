@@ -75,7 +75,11 @@ class BmiItzi(Bmi):
         self.grass_session_manager = GrassSessionManager(grass_params)
         self.grass_session_manager.open()
 
-        self.itzi = SimulationRunner(sim_params, grass_params)
+        self.itzi = SimulationRunner(
+            sim_params,
+            grass_params,
+            stats_file=conf_data.get_stats_file(),
+        )
 
     def update(self):
         """Advance model by one time step."""

@@ -91,7 +91,11 @@ def _build_timed_rain_runner(
         parser.write(file_handle)
 
     conf_data = ConfigReader(config_file)
-    return SimulationRunner(conf_data.get_sim_params(), conf_data.get_grass_params())
+    return SimulationRunner(
+        conf_data.get_sim_params(),
+        conf_data.get_grass_params(),
+        stats_file=conf_data.get_stats_file(),
+    )
 
 
 @pytest.mark.forked
@@ -143,7 +147,11 @@ def test_region_mask(test_data_path):
     conf_data = ConfigReader(config_file)
     sim_params = conf_data.get_sim_params()
     grass_params = conf_data.get_grass_params()
-    sim_runner = SimulationRunner(sim_params, grass_params)
+    sim_runner = SimulationRunner(
+        sim_params,
+        grass_params,
+        stats_file=conf_data.get_stats_file(),
+    )
     # Run simulation
     sim_runner.run().finalize()
     # Check temporary mask and region
@@ -192,7 +200,11 @@ def test_fails_when_region_has_no_dem_data(test_data_temp_path):
     conf_data = ConfigReader(config_file)
 
     with pytest.raises(RuntimeError, match=r"input map <dem> contains only NULL/NaN cells"):
-        SimulationRunner(conf_data.get_sim_params(), conf_data.get_grass_params())
+        SimulationRunner(
+            conf_data.get_sim_params(),
+            conf_data.get_grass_params(),
+            stats_file=conf_data.get_stats_file(),
+        )
 
 
 @pytest.mark.forked
