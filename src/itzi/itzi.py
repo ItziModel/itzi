@@ -36,6 +36,7 @@ from multiprocessing import Process
 from typing import TYPE_CHECKING, Callable
 
 import numpy as np
+from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProvider
 from itzi_core.simulation_builder import SimulationBuilder
 
 from itzi.configreader import ConfigReader
@@ -76,7 +77,8 @@ class SimulationRunner:
         sim_config: SimulationConfig,
         grass_params: GrassParams,
         hotstart_path: str | None = None,
-    ):
+        stats_file: str | None = None,
+    ) -> None:
         self.grass_required_version = "8.4.0"
         self.g_interface: GrassInterface
         self.sim: Simulation
@@ -149,6 +151,8 @@ class SimulationRunner:
             .with_raster_output_provider(raster_output_provider)
             .with_vector_output_provider(vector_output_provider)
         )
+        if stats_file:
+            sim_builder.with_mass_balance_output_provider(CSVMassBalanceOutputProvider(stats_file))
         if hotstart_path:
             sim_builder.with_hotstart(hotstart_path)
         self.sim: Simulation = sim_builder.build()
@@ -212,7 +216,8 @@ def sim_runner_worker(conf_file: str, hotstart_file: str | None) -> None:
             sim_runner = SimulationRunner(
                 sim_params,
                 grass_params,
-                hotstart_file,
+                hotstart_path=hotstart_file,
+                stats_file=conf_data.get_stats_file(),
             )
             sim_runner.run().finalize()
     except msgr.FatalError:
