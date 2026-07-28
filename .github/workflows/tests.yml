@@ -18,7 +18,7 @@ jobs:
     - name: Install dependencies
       run: |
         apt-get update
-        apt-get install -y ca-certificates
+        apt-get install -y ca-certificates git-lfs
 
     - uses: actions/checkout@v7
       with:
