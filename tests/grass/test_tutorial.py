@@ -2,7 +2,6 @@
 
 import os
 from io import StringIO
-import requests
 import pathlib
 import tempfile
 from configparser import ConfigParser
@@ -16,31 +15,13 @@ from itzi import SimulationRunner
 from itzi.configreader import ConfigReader
 from itzi_core.data_containers import DrainageNodeAttributes, DrainageLinkAttributes
 
-DEM_URL = "https://zenodo.org/api/records/15009114/files/elev_lid792_1m.gtiff/content"
-MD5_SUM = "224f73dfa37244722b879a5f653682c9"
 DATA_EPSG = "3358"
 
 
 @pytest.fixture(scope="class")
-def tutorial_test_file(test_data_temp_path, helpers):
-    """Download the tutorial main file."""
-    file_name = "elev_lid792_1m.gtiff"
-    file_path = os.path.join(test_data_temp_path, file_name)
-    # Check if the file exists and has the right hash
-    try:
-        assert helpers.md5(file_path) == MD5_SUM
-    except Exception:
-        # Download the file
-        print("downloading file from Zenodo...")
-        file_response = requests.get(DEM_URL, stream=True, timeout=5)
-        if file_response.status_code == 200:
-            with open(file_path, "wb") as data_file:
-                for chunk in file_response.iter_content(chunk_size=8192):
-                    data_file.write(chunk)
-            print(f"File successfully downloaded to {file_path}")
-        else:
-            print(f"Failed to download file: Status code {file_response.status_code}")
-    return file_path
+def tutorial_test_file(test_data_path):
+    """Return the tutorial DEM managed by Git LFS."""
+    return pathlib.Path(test_data_path) / "tutorial_files" / "elev_lid792_1m.gtiff"
 
 
 @pytest.fixture(scope="class")

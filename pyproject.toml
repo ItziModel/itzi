@@ -40,7 +40,6 @@ dev = [
     "pytest>=9.1",
     "pytest-cov==6.*",
     "pandas>=3.0.3",
-    "requests>=2.34",
     "pre-commit>=4.6",
     "ruff>=0.15",
     "ty>=0.0.55",

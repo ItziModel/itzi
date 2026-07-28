@@ -1,4 +1,3 @@
-import hashlib
 import os
 
 import pytest
@@ -13,14 +12,6 @@ class Helpers:
         f = timeseries.diff()
         normed_f = (f - f.mean()) / f.std()
         return (normed_f.diff() ** 2).sum()
-
-    @staticmethod
-    def md5(file_path):
-        hash_md5 = hashlib.md5()
-        with open(file_path, "rb") as f:
-            for chunk in iter(lambda: f.read(4096), b""):
-                hash_md5.update(chunk)
-        return hash_md5.hexdigest()
 
 
 @pytest.fixture(scope="session")
