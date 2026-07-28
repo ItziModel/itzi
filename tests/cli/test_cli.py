@@ -10,6 +10,7 @@ from itzi.cli_parser import build_parser
 from itzi.itzi import (
     VerbosityLevel,
     itzi_run,
+    itzi_run_one,
     main,
     reconcile_hotstart_commands,
     sim_runner_worker,
@@ -46,7 +47,7 @@ def test_run_parser_rejects_v_and_q_together():
 
 def test_prints_version(monkeypatch, capsys):
     monkeypatch.setattr("itzi.itzi.version", lambda _: "22.2")
-    assert main(["version"]) is None
+    assert main(["version"]) == 0
     assert capsys.readouterr().out.strip() == "22.2"
 
 
@@ -79,12 +80,80 @@ def test_worker_does_not_format_fatal_error_as_traceback(monkeypatch, itzi_stder
     monkeypatch.setenv("ITZI_VERBOSE", str(VerbosityLevel.QUIET))
     monkeypatch.setattr("itzi.itzi.ConfigReader", fail)
 
-    sim_runner_worker("a.ini", None)
+    with pytest.raises(SystemExit) as error:
+        sim_runner_worker("a.ini", None)
 
+    assert error.value.code == 1
     stderr = itzi_stderr.getvalue()
     assert stderr.count("ERROR: expected worker failure") == 1
     assert "Traceback" not in stderr
     assert "WARNING: Error during execution" not in stderr
+
+
+def test_worker_reports_unexpected_error_without_traceback(monkeypatch, itzi_stderr):
+    def fail(_):
+        raise ValueError("unexpected worker failure")
+
+    monkeypatch.setenv("ITZI_VERBOSE", str(VerbosityLevel.QUIET))
+    monkeypatch.setattr("itzi.itzi.ConfigReader", fail)
+
+    with pytest.raises(SystemExit) as error:
+        sim_runner_worker("a.ini", None)
+
+    assert error.value.code == 1
+    stderr = itzi_stderr.getvalue()
+    assert "WARNING: Error during execution: ValueError: unexpected worker failure" in stderr
+    assert "Traceback" not in stderr
+
+
+def test_worker_reports_system_exit_without_traceback(monkeypatch, itzi_stderr):
+    def fail(_):
+        raise SystemExit("GRASS failure")
+
+    monkeypatch.setenv("ITZI_VERBOSE", str(VerbosityLevel.QUIET))
+    monkeypatch.setattr("itzi.itzi.ConfigReader", fail)
+
+    with pytest.raises(SystemExit) as error:
+        sim_runner_worker("a.ini", None)
+
+    assert error.value.code == 1
+    stderr = itzi_stderr.getvalue()
+    assert "WARNING: Simulation terminated with GRASS failure" in stderr
+    assert "Traceback" not in stderr
+
+
+def test_worker_formats_numeric_system_exit_as_status(monkeypatch, itzi_stderr):
+    def fail(_):
+        raise SystemExit(1)
+
+    monkeypatch.setenv("ITZI_VERBOSE", str(VerbosityLevel.QUIET))
+    monkeypatch.setattr("itzi.itzi.ConfigReader", fail)
+
+    with pytest.raises(SystemExit):
+        sim_runner_worker("a.ini", None)
+
+    assert "WARNING: Simulation terminated with exit status 1" in itzi_stderr.getvalue()
+
+
+def test_run_one_reports_worker_signal(monkeypatch, itzi_stderr):
+    class FailedProcess:
+        exitcode = -11
+
+        def start(self):
+            pass
+
+        def join(self):
+            pass
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr("itzi.itzi.Process", lambda **_: FailedProcess())
+
+    assert itzi_run_one("a.ini", None) is False
+    assert "WARNING: Execution of a.ini ended with an error (signal 11)" in (
+        itzi_stderr.getvalue()
+    )
 
 
 def test_reconcile_hotstart_commands_accepts_single_resume_for_single_config():
@@ -152,9 +221,11 @@ def test_itzi_run_sets_env_and_dispatches(monkeypatch):
     calls = []
     messages = []
 
-    monkeypatch.setattr(
-        "itzi.itzi.itzi_run_one", lambda conf, hotstart: calls.append((conf, hotstart))
-    )
+    def record_run(conf_file, hotstart_file):
+        calls.append((conf_file, hotstart_file))
+        return True
+
+    monkeypatch.setattr("itzi.itzi.itzi_run_one", record_run)
     monkeypatch.setattr("itzi.itzi.msgr.message", messages.append)
 
     args = argparse.Namespace(
@@ -172,3 +243,14 @@ def test_itzi_run_sets_env_and_dispatches(monkeypatch):
     assert os.environ["ITZI_VERBOSE"] == str(VerbosityLevel.VERBOSE)
     assert os.environ["GRASS_VERBOSE"] == "2"
     assert any("Simulation(s) complete" in m for m in messages)
+
+
+def test_main_returns_error_status_when_simulation_fails(monkeypatch, itzi_stderr):
+    monkeypatch.setattr("itzi.itzi.itzi_run_one", lambda *_: False)
+    msgr._itzi_logger.set_verbosity(VerbosityLevel.MESSAGE)
+
+    assert main(["run", "a.ini"]) == 1
+    stderr = itzi_stderr.getvalue()
+    assert "Simulation run(s) finished with errors" in stderr
+    assert "ERROR: 1 simulation(s) failed" in stderr
+    assert "Traceback" not in stderr

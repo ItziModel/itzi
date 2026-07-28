@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from configparser import ConfigParser
 import os
 from uuid import uuid4
@@ -10,6 +11,15 @@ import pytest
 from itzi import SimulationRunner
 from itzi.configreader import ConfigReader
 from itzi_core.const import TemporalType
+
+
+@pytest.fixture(autouse=True)
+def stop_temporal_subprocesses() -> Iterator[None]:
+    yield
+
+    import grass.temporal as tgis
+
+    tgis.stop_subprocesses()
 
 
 def _build_runner(
@@ -55,6 +65,23 @@ def _build_runner(
 
     conf_data = ConfigReader(config_file)
     return SimulationRunner(conf_data.get_sim_params(), conf_data.get_grass_params())
+
+
+@pytest.mark.forked
+@pytest.mark.usefixtures("grass_5by5")
+def test_temporal_fatal_errors_are_raised_as_exceptions() -> None:
+    import grass.temporal as tgis
+    from grass.exceptions import FatalError
+
+    from itzi.providers.grass_interface import GrassInterface
+
+    tgis.set_raise_on_error(False)
+
+    with pytest.raises(FatalError, match="mapset is missing"):
+        GrassInterface.name_is_stds("missing_strds")
+
+    assert gscript.get_raise_on_error() is True
+    assert tgis.get_raise_on_error() is True
 
 
 @pytest.mark.forked
