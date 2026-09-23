@@ -137,6 +137,7 @@ class SimulationRunner:
                 "temporal_type": sim_config.temporal_type,
             }
         )
+        # TODO: with itzi-core 0.8.0, create only if sim_config.drainage_output is not None
         vector_output_provider = GrassVectorOutputProvider(
             {
                 "grass_interface": self.g_interface,

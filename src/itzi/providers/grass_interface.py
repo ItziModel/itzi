@@ -616,7 +616,7 @@ class GrassInterface:
             raise ValueError("Drainage topology and attributes have different node IDs")
         if topology_link_ids != set(link_attributes):
             raise ValueError("Drainage topology and attributes have different link IDs")
-
+        # TODO: itzi-core 0.8.0 no longer require to force tuple
         linking_elements = {
             "node": DBLayerDescription(
                 table_suffix="_node",
