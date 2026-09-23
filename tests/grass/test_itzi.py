@@ -1,8 +1,6 @@
-""" """
-
+import os
 from configparser import ConfigParser
 from datetime import timedelta
-import os
 from uuid import uuid4
 
 import grass.script as gscript
@@ -105,7 +103,10 @@ def test_number_of_output():
     assert current_mapset == "5by5"
 
     h_map_list = gscript.list_grouped("raster", pattern="*out_5by5_water_depth_*")[current_mapset]
-    assert len(h_map_list) == 4
+    assert len(h_map_list) == 3
+
+    hmax_map_list = gscript.list_grouped("raster", pattern="*out_5by5_hmax_*")[current_mapset]
+    assert len(hmax_map_list) == 3
 
     wse_map_list = gscript.list_grouped("raster", pattern="*out_5by5_water_surface_elevation_*")[
         current_mapset
@@ -116,7 +117,10 @@ def test_number_of_output():
     assert len(fr_map_list) == 3
 
     v_map_list = gscript.list_grouped("raster", pattern="*out_5by5_v_*")[current_mapset]
-    assert len(v_map_list) == 4
+    assert len(v_map_list) == 3
+
+    vmax_map_list = gscript.list_grouped("raster", pattern="*out_5by5_vmax_*")[current_mapset]
+    assert len(vmax_map_list) == 3
 
     vdir_map_list = gscript.list_grouped("raster", pattern="*out_5by5_vdir_*")[current_mapset]
     assert len(vdir_map_list) == 3
@@ -127,10 +131,10 @@ def test_number_of_output():
     qy_map_list = gscript.list_grouped("raster", pattern="*out_5by5_qy_*")[current_mapset]
     assert len(qy_map_list) == 3
 
-    verr_map_list = gscript.list_grouped("raster", pattern="*out_5by5_volume_error_*")[
+    created_volume_map_list = gscript.list_grouped("raster", pattern="*out_5by5_created_volume_*")[
         current_mapset
     ]
-    assert len(verr_map_list) == 3
+    assert len(created_volume_map_list) == 3
 
 
 @pytest.mark.forked
@@ -155,7 +159,7 @@ def test_region_mask(test_data_path):
     # Run simulation
     sim_runner.run().finalize()
     # Check temporary mask and region
-    assert int(gscript.parse_command("r.univar", map="out_5by5_v_max", flags="g")["n"]) == 9
+    assert int(gscript.parse_command("r.univar", map="out_5by5_vmax_0002", flags="g")["n"]) == 9
     # Check tear down
     assert int(gscript.parse_command("g.region", flags="pg")["cells"]) == init_ncells
     assert int(gscript.parse_command("r.univar", map="z", flags="g")["null_cells"]) == init_nulls
@@ -317,16 +321,16 @@ def test_timed_grass_rain_switches_cleanly_around_boundary(
         simulation = sim_runner.sim
         simulation.update_until(timedelta(seconds=target_seconds))
 
-        assert simulation.timed_arrays is not None
-        rain_timed_array = simulation.timed_arrays["rain"]
+        rain_window = simulation.get_input_window("rain")
+        assert rain_window is not None
         np.testing.assert_allclose(
             simulation.raster_domain.get_array("rain"),
             expected_rain_mm_per_hour / (1000 * 3600),
         )
-        assert rain_timed_array.arr_start == simulation.start_time + timedelta(
+        assert rain_window.start == simulation.start_time + timedelta(
             seconds=expected_window_seconds[0]
         )
-        assert rain_timed_array.arr_end == simulation.start_time + timedelta(
+        assert rain_window.end == simulation.start_time + timedelta(
             seconds=expected_window_seconds[1]
         )
     finally:

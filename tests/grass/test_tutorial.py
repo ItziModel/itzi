@@ -109,9 +109,8 @@ class TestItziTutorial:
         )
         sim_runner.run().finalize()
         # Check the results
-        h_max_univar = gscript.parse_command(
-            "r.univar", map="nc_itzi_tutorial_water_depth_max", flags="g"
-        )
+        hmax_maps = gscript.list_grouped("raster", pattern="nc_itzi_tutorial_hmax_*")["PERMANENT"]
+        h_max_univar = gscript.parse_command("r.univar", map=max(hmax_maps), flags="g")
         assert float(h_max_univar["max"]) == pytest.approx(2.298454, abs=1e-2)
         assert float(h_max_univar["mean_of_abs"]) == pytest.approx(0.0355, abs=1e-3)
 
@@ -127,7 +126,7 @@ class TestItziTutorial:
             "inflow_volume",
             "losses_volume",
             "drainage_network_volume",
-            "volume_error",
+            "created_volume",
         ]
         sum_inputs = df_stats[volume_columns].sum(axis=1)
         assert np.all(np.isclose(sum_inputs, df_stats["volume_change"], atol=1)), (
@@ -181,7 +180,7 @@ class TestItziTutorial:
             "inflow_volume",
             "losses_volume",
             "drainage_network_volume",
-            "volume_error",
+            "created_volume",
         ]
         sum_inputs = df_stats[volume_columns].sum(axis=1)
         assert np.all(np.isclose(sum_inputs, df_stats["volume_change"], atol=1)), (

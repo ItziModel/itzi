@@ -1,12 +1,11 @@
 """Test the reading and parsing of the config file."""
 
+import logging
 from configparser import ConfigParser
 from datetime import datetime, timedelta
-import logging
 from pathlib import Path
 
 import pytest
-
 from itzi_core.const import DefaultValues, InfiltrationModelType, TemporalType
 from itzi_core.data_containers import SurfaceFlowParameters
 
@@ -71,6 +70,8 @@ def test_reader_uses_defaults_when_optional_sections_are_missing(tmp_path):
     assert sim_config.orifice_coeff == DefaultValues.ORIFICE_COEFF
     assert sim_config.free_weir_coeff == DefaultValues.FREE_WEIR_COEFF
     assert sim_config.submerged_weir_coeff == DefaultValues.SUBMERGED_WEIR_COEFF
+    assert sim_config.input_map_names == {"dem": "z", "friction": "n"}
+    assert sim_config.output_map_names == {"water_depth": "out_water_depth"}
     assert grass_params.model_dump() == {
         "grassdata": None,
         "location": None,
@@ -139,6 +140,28 @@ def test_reader_normalizes_deprecated_aliases(tmp_path, caplog):
     )
     assert any("Output 'h' is deprecated" in message for message in warning_messages)
     assert any("Output 'drainage_cap' is deprecated" in message for message in warning_messages)
+
+
+@pytest.mark.parametrize("legacy_name", ["verror", "volume_error"])
+def test_reader_normalizes_legacy_created_volume_aliases(tmp_path, caplog, legacy_name):
+    config_file = write_config_file(
+        tmp_path,
+        make_config_dict(output={"prefix": "legacy", "values": legacy_name}),
+    )
+
+    itzi_logger = logging.getLogger("itzi")
+    with caplog.at_level(logging.WARNING, logger="itzi"):
+        itzi_logger.addHandler(caplog.handler)
+        try:
+            sim_config = ConfigReader(config_file).get_sim_params()
+        finally:
+            itzi_logger.removeHandler(caplog.handler)
+
+    assert sim_config.output_map_names == {"created_volume": "legacy_created_volume"}
+    assert any(
+        f"Output '{legacy_name}' is deprecated. Use 'created_volume' instead." in record.message
+        for record in caplog.records
+    )
 
 
 @pytest.mark.parametrize(

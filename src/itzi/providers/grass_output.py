@@ -14,28 +14,30 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 
-from typing import TypedDict, TYPE_CHECKING
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, TypedDict
 
 import numpy as np
-
-from itzi_core.const import TemporalType
-from itzi_core.providers.base import RasterOutputProvider, VectorOutputProvider
+from itzi_core.providers import RasterOutputProvider, VectorOutputProvider
 
 if TYPE_CHECKING:
     from datetime import datetime, timedelta
+
+    from itzi_core import TemporalType
+    from itzi_core.domain_data import DrainageNetworkAttributes, DrainageNetworkTopology
+
     from itzi.providers.grass_interface import GrassInterface
-    from itzi_core.data_containers import SimulationData, DrainageNetworkData
 
 
 class GrassRasterOutputConfig(TypedDict):
-    grass_interface: "GrassInterface"
-    out_map_names: dict[str, str | None]
+    grass_interface: GrassInterface
+    out_map_names: Mapping[str, str]
     hmin: float
     temporal_type: TemporalType
 
 
 class GrassVectorOutputConfig(TypedDict):
-    grass_interface: "GrassInterface"
+    grass_interface: GrassInterface
     drainage_map_name: str
     temporal_type: TemporalType
 
@@ -56,15 +58,15 @@ class GrassRasterOutputProvider(RasterOutputProvider):
                 stds_type="strds",
                 expected_temporal_type=self.temporal_type,
             )
-        self.record_counter = {k: 0 for k in self.out_map_names.keys()}
-        self.output_maplist = {k: [] for k in self.out_map_names.keys()}
+        self.record_counter = {k: 0 for k in self.out_map_names}
+        self.output_maplist = {k: [] for k in self.out_map_names}
 
     def _write_array(
         self, array: np.ndarray, map_key: str, sim_time: datetime | timedelta
     ) -> None:
         """Write simulation data for current time step."""
         suffix = str(self.record_counter[map_key]).zfill(4)
-        map_name = "{}_{}".format(self.out_map_names[map_key], suffix)
+        map_name = f"{self.out_map_names[map_key]}_{suffix}"
         # write the raster
         self.grass_interface.write_raster_map(array, map_name, map_key, self.hmin)
         # Set depth values to null under the given threshold. Temporarily in gis.py
@@ -75,17 +77,13 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         self.record_counter[map_key] += 1
 
     def write_arrays(
-        self, array_dict: dict[str, np.ndarray], sim_time: datetime | timedelta
+        self, array_dict: Mapping[str, np.ndarray], sim_time: datetime | timedelta
     ) -> None:
         for arr_key, arr in array_dict.items():
             if isinstance(arr, np.ndarray):
                 self._write_array(array=arr, map_key=arr_key, sim_time=sim_time)
 
-    def _write_max_array(self, arr_max, map_key):
-        map_max_name = f"{self.out_map_names[map_key]}_max"
-        self.grass_interface.write_raster_map(arr_max, map_max_name, map_key, hmin=0.0)
-
-    def finalize(self, final_data: SimulationData) -> None:
+    def finalize(self) -> None:
         """Finalize outputs and cleanup."""
 
         # Write the final raster maps
@@ -98,11 +96,6 @@ class GrassRasterOutputProvider(RasterOutputProvider):
             self.grass_interface.register_maps_in_stds(
                 map_key, strds_name, lst, "strds", self.temporal_type
             )
-        # write maps of maximal values
-        if self.out_map_names["water_depth"]:
-            self._write_max_array(final_data.raw_arrays["hmax"], "water_depth")
-        if self.out_map_names["v"]:
-            self._write_max_array(final_data.raw_arrays["vmax"], "v")
 
 
 class GrassVectorOutputProvider(VectorOutputProvider):
@@ -120,25 +113,32 @@ class GrassVectorOutputProvider(VectorOutputProvider):
         )
 
         self.record_counter = 0
-        self.vector_drainage_maplist = []
+        self.vector_drainage_maplist: list[tuple[str, datetime | timedelta]] = []
+        self.drainage_topology: DrainageNetworkTopology | None = None
 
-    def write_vector(
-        self, drainage_data: DrainageNetworkData | None, sim_time: datetime | timedelta
+    def write_topology(self, topology: DrainageNetworkTopology) -> None:
+        """Store the fixed drainage-network geometry for subsequent records."""
+        if self.drainage_topology is not None:
+            raise RuntimeError("Drainage topology has already been written.")
+        self.drainage_topology = topology
+
+    def write_attributes(
+        self, attributes: DrainageNetworkAttributes, sim_time: datetime | timedelta
     ) -> None:
         """Write drainage simulation data for current time step."""
-        if self.drainage_map_name and drainage_data:
-            # format map name
-            suffix = str(self.record_counter).zfill(4)
-            map_name = f"{self.drainage_map_name}_{suffix}"
-            # write the map
-            self.grass_interface.write_vector_map(drainage_data, map_name)
-            # add map name and time to the list
-            self.vector_drainage_maplist.append((map_name, sim_time))
-            self.record_counter += 1
+        if not self.drainage_map_name:
+            return
+        if self.drainage_topology is None:
+            raise RuntimeError("Drainage attributes cannot be written before topology.")
+        suffix = str(self.record_counter).zfill(4)
+        map_name = f"{self.drainage_map_name}_{suffix}"
+        self.grass_interface.write_vector_map(self.drainage_topology, attributes, map_name)
+        self.vector_drainage_maplist.append((map_name, sim_time))
+        self.record_counter += 1
 
-    def finalize(self, drainage_data: DrainageNetworkData | None) -> None:
+    def finalize(self) -> None:
         """Finalize outputs and cleanup."""
-        if self.drainage_map_name and drainage_data:
+        if self.drainage_map_name and self.vector_drainage_maplist:
             self.grass_interface.register_maps_in_stds(
                 stds_title="Itzï drainage results",
                 stds_name=self.drainage_map_name,

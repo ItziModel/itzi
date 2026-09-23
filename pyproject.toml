@@ -1,18 +1,18 @@
 [project]
 name = "itzi"
-version = "26.8"
+version = "26.10"
 description = "A distributed dynamic flood model."
 authors = [
     {name = "Laurent Courty", email = "lrntct@gmail.com"},
 ]
 dependencies = [
     "numpy>=2.5",
-    "itzi-core>=0.4.0",
+    "itzi-core==0.7.0",
     "bmipy>=2.0.1",
     "pydantic>=2.10"
 ]
-# min 3.12 for typing. itzi-core/pyswmm does not support python > 3.13
-requires-python = ">=3.12,<3.14"
+# min 3.12 for typing.
+requires-python = ">=3.12"
 readme = "README.md"
 license = "GPL-2.0-or-later"
 keywords = ["science", "engineering", "hydrology", "flood"]

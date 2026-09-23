@@ -14,19 +14,22 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from configparser import ConfigParser
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, NoReturn
+from typing import Any, NoReturn
 
-from pydantic import BaseModel, ConfigDict, ValidationError
-from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
-from itzi_core.const import InfiltrationModelType, TemporalType
-from itzi_core.data_containers import (
+from itzi_core import (
+    ARRAY_DEFINITIONS,
+    ArrayCategory,
+    HotstartRunConfig,
+    InfiltrationModelType,
     SimulationConfig,
     SurfaceFlowParameters,
-    HotstartRunConfig,
+    TemporalType,
 )
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 import itzi.messenger as msgr
 from itzi.grass_session import GrassParams
@@ -44,7 +47,8 @@ DEPRECATED_OUTPUT_ALIASES: list[tuple[str, str]] = [
     ("h", "water_depth"),
     ("wse", "water_surface_elevation"),
     ("boundaries", "mean_boundary_flow"),
-    ("verror", "volume_error"),
+    ("verror", "created_volume"),
+    ("volume_error", "created_volume"),
     ("inflow", "mean_inflow"),
     ("infiltration", "mean_infiltration"),
     ("rainfall", "mean_rainfall"),

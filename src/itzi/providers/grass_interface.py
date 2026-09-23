@@ -12,31 +12,34 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
-import os
-from pathlib import Path
-from collections import namedtuple
-from datetime import datetime, timedelta
-from typing import Self
-
-# from multiprocessing import Process, JoinableQueue
-from threading import Thread, Lock
-from queue import Queue
 import copy
+import os
+from collections.abc import Mapping
+from datetime import datetime, timedelta
+from pathlib import Path
+from queue import Queue
+from threading import Lock, Thread
+from types import MappingProxyType
+from typing import ClassVar, NamedTuple, Self
 
-import numpy as np
-from itzi_core.data_containers import DrainageNetworkData
-from itzi_core.const import TemporalType
-
-import itzi.messenger as msgr
-
+import grass.pygrass.utils as gutils
 import grass.script as gscript
 import grass.temporal as tgis
-import grass.pygrass.utils as gutils
-from grass.pygrass.gis.region import Region
+import numpy as np
 from grass.pygrass import raster
+from grass.pygrass.gis.region import Region
 from grass.pygrass.vector import VectorTopo
-from grass.pygrass.vector.geometry import Point, Line
-from grass.pygrass.vector.table import Link
+from grass.pygrass.vector.geometry import Line, Point
+from grass.pygrass.vector.table import Link, Table
+from itzi_core import TemporalType
+from itzi_core.data_containers import (
+    DrainageLinkAttributes,
+    DrainageNetworkAttributes,
+    DrainageNetworkTopology,
+    DrainageNodeAttributes,
+)
+
+import itzi.messenger as msgr
 
 # color rules
 _ROOT = Path(__file__).parent.parent
@@ -48,7 +51,9 @@ RULE_FR = _DIR / "froude.txt"
 RULE_DEF = _DIR / "default.txt"
 colors_rules_dict = {
     "water_depth": str(RULE_H),
+    "hmax": str(RULE_H),
     "v": str(RULE_V),
+    "vmax": str(RULE_V),
     "vdir": str(RULE_VDIR),
     "froude": str(RULE_FR),
 }
@@ -75,14 +80,14 @@ def file_exists(name):
         return GrassInterface.name_is_map(_id) or GrassInterface.name_is_stds(_id)
 
 
-def check_output_files(file_list):
+def check_output_files(file_list) -> None:
     """Check if the output files exist"""
     for map_name in file_list:
         if file_exists(map_name) and not gscript.overwrite():
-            msgr.fatal("File {} exists and will not be overwritten".format(map_name))
+            msgr.fatal(f"File {map_name} exists and will not be overwritten")
 
 
-def apply_color_table(map_name, mkey):
+def apply_color_table(map_name, mkey) -> None:
     """Apply a color table determined by mkey to the given map"""
     try:
         colors_rules = colors_rules_dict[mkey]
@@ -91,7 +96,6 @@ def apply_color_table(map_name, mkey):
         pass
     else:
         gscript.run_command("r.colors", quiet=True, rules=colors_rules, map=map_name)
-    return None
 
 
 def raster_writer(q, lock):
@@ -120,6 +124,23 @@ def raster_writer(q, lock):
         q.task_done()
 
 
+class MapData(NamedTuple):
+    id: str
+    start_time: datetime
+    end_time: datetime
+
+
+class DBLinkDescription(NamedTuple):
+    layer: int
+    table: Table
+
+
+class DBLayerDescription(NamedTuple):
+    table_suffix: str
+    columns: tuple[tuple[str, str], ...]
+    layer_number: int
+
+
 class GrassInterface:
     """
     A class providing an access to GRASS GIS Python interfaces:
@@ -128,32 +149,31 @@ class GrassInterface:
     Everything related to GRASS maps or stds stays in that class.
     """
 
-    strds_cols: list[str] = ["id", "start_time", "end_time"]
-    MapData = namedtuple("MapData", strds_cols)
-    LinkDescr = namedtuple("LinkDescr", ["layer", "table"])
-    LayerDescr = namedtuple("LayerDescr", ["table_suffix", "cols", "layer_number"])
-
     # a unit convertion table relative to seconds
-    t_unit_conv: dict[str, int] = {"seconds": 1, "minutes": 60, "hours": 3600, "days": 86400}
+    time_unit_conv: ClassVar[Mapping[str, int]] = MappingProxyType(
+        {"seconds": 1, "minutes": 60, "hours": 3600, "days": 86400}
+    )
     # datatype conversion between GRASS and numpy
-    dtype_conv: dict[str, tuple] = {
-        "FCELL": ("float16", "float32"),
-        "DCELL": ("float_", "float64"),
-        "CELL": (
-            "bool_",
-            "int_",
-            "intc",
-            "intp",
-            "int8",
-            "int16",
-            "int32",
-            "int64",
-            "uint8",
-            "uint16",
-            "uint32",
-            "uint64",
-        ),
-    }
+    dtype_conv: ClassVar[Mapping[str, tuple]] = MappingProxyType(
+        {
+            "FCELL": ("float16", "float32"),
+            "DCELL": ("float_", "float64"),
+            "CELL": (
+                "bool_",
+                "int_",
+                "intc",
+                "intp",
+                "int8",
+                "int16",
+                "int32",
+                "int64",
+                "uint8",
+                "uint16",
+                "uint32",
+                "uint64",
+            ),
+        }
+    )
 
     def __init__(
         self,
@@ -257,13 +277,13 @@ class GrassInterface:
 
     def to_s(self, unit: str, time: int) -> int:
         """Change an input time into seconds"""
-        assert isinstance(unit, str), "{} Not a string".format(unit)
-        return self.t_unit_conv[unit] * time
+        assert isinstance(unit, str), f"{unit} Not a string"
+        return self.time_unit_conv[unit] * time
 
     def from_s(self, unit: str, time: float) -> int:
         """Change an input time from seconds to another unit"""
-        assert isinstance(unit, str), "{} Not a string".format(unit)
-        return int(time) / self.t_unit_conv[unit]
+        assert isinstance(unit, str), f"{unit} Not a string"
+        return int(time / self.time_unit_conv[unit])
 
     def to_datetime(self, unit: str, time: int) -> datetime:
         """Take a number and a unit as entry
@@ -293,7 +313,7 @@ class GrassInterface:
         has_old_mask: bool = self.has_mask()
         if has_old_mask:
             # Save the current MASK under a temp name
-            self.old_mask_name = "itzi_old_MASK_{}".format(os.getpid())
+            self.old_mask_name = f"itzi_old_MASK_{os.getpid()}"
             gscript.run_command(
                 "g.rename",
                 quiet=True,
@@ -378,8 +398,8 @@ class GrassInterface:
             # get start time and end time in seconds
             rel_end_time = (self.end_time - self.start_time).total_seconds()
             rel_unit = strds.get_relative_time_unit()
-            if rel_unit not in self.t_unit_conv:
-                supported_units = ", ".join(sorted(self.t_unit_conv))
+            if rel_unit not in self.time_unit_conv:
+                supported_units = ", ".join(sorted(self.time_unit_conv))
                 if rel_unit is None:
                     msgr.fatal(f"STRDS <{strds.get_id()}> has no relative time unit")
                 msgr.fatal(
@@ -413,19 +433,19 @@ class GrassInterface:
         # valid topology
         if not stds.check_temporal_topology():
             out = False
-            msgr.warning("{}: invalid topology".format(stds_id))
+            msgr.warning(f"{stds_id}: invalid topology")
         # no gap
         if stds.count_gaps() != 0:
             out = False
-            msgr.warning("{}: gaps found".format(stds_id))
+            msgr.warning(f"{stds_id}: gaps found")
         # cover all simulation time
         sim_start, sim_end = self.get_sim_extend_in_stds_unit(stds)
         if stds_start > sim_start:
             out = False
-            msgr.warning("{}: starts after simulation".format(stds_id))
+            msgr.warning(f"{stds_id}: starts after simulation")
         if stds_end < sim_end:
             out = False
-            msgr.warning("{}: ends before simulation".format(stds_id))
+            msgr.warning(f"{stds_id}: ends before simulation")
         return out
 
     def raster_list_from_strds(self, strds_name: str) -> list[MapData]:
@@ -440,11 +460,9 @@ class GrassInterface:
         sim_start, sim_end = self.get_sim_extend_in_stds_unit(strds)
 
         # retrieve data from DB
-        where = "start_time <= '{e}' AND end_time >= '{s}'".format(
-            e=str(sim_end), s=str(sim_start)
-        )
+        where = f"start_time <= '{sim_end!s}' AND end_time >= '{sim_start!s}'"
         maplist = strds.get_registered_maps(
-            columns=",".join(self.strds_cols), where=where, order="start_time"
+            columns=",".join(MapData._fields), where=where, order="start_time"
         )
         # check if every map exist
         maps_not_found = [m[0] for m in maplist if not self.name_is_map(m[0])]
@@ -463,7 +481,7 @@ class GrassInterface:
                 )
                 for i in maplist
             ]
-        return [self.MapData(*i) for i in maplist]
+        return [MapData(*i) for i in maplist]
 
     def validate_output_stds_temporal_type(
         self,
@@ -492,10 +510,9 @@ class GrassInterface:
     def read_raster_map(self, rast_name: str) -> np.ndarray:
         """Read a GRASS raster and return a numpy array"""
         if self.non_blocking_write:
-            with self.raster_lock:
-                with raster.RasterRow(rast_name, mode="r") as rast:
-                    array = np.array(rast, dtype=self.dtype)
-                    array = self._replace_cell_null_sentinel(rast.mtype, array)
+            with self.raster_lock, raster.RasterRow(rast_name, mode="r") as rast:
+                array = np.array(rast, dtype=self.dtype)
+                array = self._replace_cell_null_sentinel(rast.mtype, array)
         else:
             with raster.RasterRow(rast_name, mode="r") as rast:
                 array = np.array(rast, dtype=self.dtype)
@@ -530,7 +547,7 @@ class GrassInterface:
     def write_raster_map_nonblocking(
         self, arr: np.ndarray, rast_name: str, mkey: str, hmin: float
     ) -> Self:
-        mtype = self.grass_dtype(arr.dtype)
+        mtype = self.grass_dtype(str(arr.dtype))
         assert isinstance(mtype, str), "not a string!"
         q_obj = (
             arr.copy(),
@@ -546,7 +563,7 @@ class GrassInterface:
     def write_raster_map_blocking(
         self, arr: np.ndarray, rast_name: str, mkey: str, hmin: float
     ) -> Self:
-        mtype = self.grass_dtype(arr.dtype)
+        mtype = self.grass_dtype(str(arr.dtype))
         assert isinstance(mtype, str), "not a string!"
         with raster.RasterRow(
             rast_name, mode="w", mtype=mtype, overwrite=self.overwrite
@@ -563,8 +580,8 @@ class GrassInterface:
         return self
 
     def create_db_links(
-        self, vect_map: VectorTopo, linking_elem: dict[str, LayerDescr]
-    ) -> dict[str, LinkDescr]:
+        self, vect_map: VectorTopo, linking_elem: dict[str, DBLayerDescription]
+    ) -> dict[str, DBLinkDescription]:
         """vect_map an open vector map"""
         dblinks = {}
         for layer_name, layer_dscr in linking_elem.items():
@@ -580,18 +597,37 @@ class GrassInterface:
                 vect_map.dblinks.add(dblink)
             # create table
             dbtable = dblink.table()
-            dbtable.create(layer_dscr.cols, overwrite=True)
-            dblinks[layer_name] = self.LinkDescr(dblink.layer, dbtable)
+            dbtable.create(layer_dscr.columns, overwrite=True)
+            dblinks[layer_name] = DBLinkDescription(dblink.layer, dbtable)
         return dblinks
 
-    def write_vector_map(self, drainage_data: DrainageNetworkData, map_name: str) -> Self:
+    def write_vector_map(
+        self,
+        topology: DrainageNetworkTopology,
+        attributes: DrainageNetworkAttributes,
+        map_name: str,
+    ) -> Self:
         """Write a vector map to GRASS GIS"""
-        # Get column definitions from input data
-        node_columns_def = drainage_data.nodes[0].attributes.get_columns_definition()
-        link_columns_def = drainage_data.links[0].attributes.get_columns_definition()
+        node_attributes = {node.node_id: node for node in attributes.nodes}
+        link_attributes = {link.link_id: link for link in attributes.links}
+        topology_node_ids = {node.node_id for node in topology.nodes}
+        topology_link_ids = {link.link_id for link in topology.links}
+        if topology_node_ids != set(node_attributes):
+            raise ValueError("Drainage topology and attributes have different node IDs")
+        if topology_link_ids != set(link_attributes):
+            raise ValueError("Drainage topology and attributes have different link IDs")
+
         linking_elements = {
-            "node": self.LayerDescr(table_suffix="_node", cols=node_columns_def, layer_number=1),
-            "link": self.LayerDescr(table_suffix="_link", cols=link_columns_def, layer_number=2),
+            "node": DBLayerDescription(
+                table_suffix="_node",
+                columns=tuple(DrainageNodeAttributes.get_columns_definition()),
+                layer_number=1,
+            ),
+            "link": DBLayerDescription(
+                table_suffix="_link",
+                columns=tuple(DrainageLinkAttributes.get_columns_definition()),
+                layer_number=2,
+            ),
         }
         # set category manually
         cat_num = 1
@@ -605,14 +641,14 @@ class GrassInterface:
             # Write in the correct layer
             map_layer, _ = dblinks["node"]
             vector_map.layer = map_layer
-            for node in drainage_data.nodes:
-                if node.coordinates:
+            for node in topology.nodes:
+                if node.coordinates is not None:
                     point = Point(*node.coordinates)
                     # The write function of the vector map set the layer to the one we set earlier
                     vector_map.write(point, cat=cat_num)
                 # Get DB attributes even if no associated geometry
-                node_attributes = tuple(value for _, value in node.attributes.model_dump().items())
-                attrs = (cat_num,) + node_attributes
+                node_values = tuple(node_attributes[node.node_id].model_dump().values())
+                attrs = (cat_num,) + node_values
                 db_info["node"].append(attrs)
                 cat_num += 1
 
@@ -620,15 +656,15 @@ class GrassInterface:
             # Set the vector map to the correct layer
             map_layer, _ = dblinks["link"]
             vector_map.layer = map_layer
-            for link in drainage_data.links:
+            for link in topology.links:
                 # assemble geometry
-                if all(link.vertices):
+                if link.vertices and all(vertex is not None for vertex in link.vertices):
                     line_object = Line(link.vertices)
                     # The write function of the vector map set the layer to the one we set earlier
                     vector_map.write(line_object, cat=cat_num)
                 # Get DB attributes even if no associated geometry
-                link_attributes = tuple(value for _, value in link.attributes.model_dump().items())
-                attrs = (cat_num,) + link_attributes
+                link_values = tuple(link_attributes[link.link_id].model_dump().values())
+                attrs = (cat_num,) + link_values
                 db_info["link"].append(attrs)
                 cat_num += 1
 
@@ -685,6 +721,7 @@ class GrassInterface:
             map_dts.load()
             # set time
             if t_type == TemporalType.RELATIVE:
+                assert isinstance(map_time, timedelta)
                 rel_time = map_time.total_seconds()
                 map_dts.set_relative_time(rel_time, None, "seconds")
             elif t_type == TemporalType.ABSOLUTE:

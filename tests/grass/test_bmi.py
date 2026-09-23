@@ -2,8 +2,8 @@
 
 import os
 
-import pytest
 import numpy as np
+import pytest
 
 from itzi import BmiItzi
 
@@ -67,7 +67,7 @@ class TestBmi:
 
     def test_get_output_item_count(self, bmi_object):
         count = bmi_object.get_output_item_count()
-        assert count == 14
+        assert count == 16
 
     def test_get_input_var_names(self, bmi_object):
         names = bmi_object.get_input_var_names()
@@ -76,6 +76,12 @@ class TestBmi:
     def test_get_output_var_names(self, bmi_object):
         names = bmi_object.get_output_var_names()
         assert len(names) == bmi_object.get_output_item_count()
+        assert {
+            "land_surface_water__max_of_depth",
+            "land_surface_water_flow__max_of_speed",
+            "land_surface_water__time_integral_of_created_volume",
+        } <= set(names)
+        assert "land_surface_water__time_integral_of_error_volume" not in names
 
     # Time functions #
     def test_time_unit(self, bmi_object):
