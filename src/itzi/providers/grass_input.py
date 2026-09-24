@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, TypedDict
 
 import numpy as np
 from itzi_core import ARRAY_DEFINITIONS, ArrayCategory, DomainData
-from itzi_core.providers.base import RasterInputProvider
+from itzi_core.providers import RasterInputProvider
 
 import itzi.messenger as msgr
 from itzi.providers.grass_interface import MapData
