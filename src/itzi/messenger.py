@@ -14,11 +14,12 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, NoReturn
-import sys
 import logging
 import os
-from datetime import timedelta, datetime
+import sys
+from collections.abc import Callable
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, NoReturn
 
 if TYPE_CHECKING:
     from itzi_core.data_containers import SimulationConfig
