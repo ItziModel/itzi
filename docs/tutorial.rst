@@ -101,15 +101,15 @@ It should look like the following:
     record_step = 00:05:00
 
     [input]
-    dem = elev_lid792_5m@PERMANENT
+    ground_elevation = elev_lid792_5m@PERMANENT
     friction = n@PERMANENT
-    rain = rain@PERMANENT
-    bctype = bctype@PERMANENT
-    bcval = bcvalue@PERMANENT
+    rainfall_rate = rain@PERMANENT
+    boundary_type = bctype@PERMANENT
+    boundary_value = bcvalue@PERMANENT
 
     [output]
     prefix = nc_itzi_tutorial
-    values = water_depth, hmax, water_surface_elevation, v, vdir, mean_boundary_flow
+    values = water_depth, max_water_depth, water_surface_elevation, flow_speed, flow_velocity_direction, mean_boundary_flow
 
     [statistics]
     stats_file = nc_itzi_tutorial.csv
@@ -295,15 +295,15 @@ The parameter file of created in the precedent tutorial could be used and adapte
     record_step = 00:05:00
 
     [input]
-    dem = elev_lid792_5m@PERMANENT
+    ground_elevation = elev_lid792_5m@PERMANENT
     friction = n@PERMANENT
-    rain = rain@PERMANENT
-    bctype = bctype@PERMANENT
-    bcval = bcvalue@PERMANENT
+    rainfall_rate = rain@PERMANENT
+    boundary_type = bctype@PERMANENT
+    boundary_value = bcvalue@PERMANENT
 
     [output]
     prefix = nc_itzi_tutorial_drainage
-    values = water_depth, v, vdir
+    values = water_depth, flow_speed, flow_velocity_direction
 
     [statistics]
     stats_file = nc_itzi_tutorial_drainage.csv

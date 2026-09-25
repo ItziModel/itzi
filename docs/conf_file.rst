@@ -59,16 +59,14 @@ time, allowing the run to be resumed later with ``itzi run --resume-from``.
 Current behavior and limitations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- The ``[hotstart]`` section is optional. If it is absent, no checkpoint is
-  written.
-- When the ``[hotstart]`` section is present, both ``wallclock_step`` and
-  ``save_file`` must be provided.
+- The ``[hotstart]`` section is optional. If it is absent, no checkpoint is written.
+- When the ``[hotstart]`` section is present, both ``wallclock_step`` and ``save_file`` must be provided.
 - ``wallclock_step`` is measured in wall-clock time, not simulation time.
-- ``save_file`` is overwritten every time a new checkpoint is written. Only the
-  most recent checkpoint is kept automatically.
+- ``save_file`` is overwritten every time a new checkpoint is written.
+  Only the most recent checkpoint is kept automatically.
 - There is no extra automatic checkpoint at the very end of the simulation.
-- If the run finishes before ``wallclock_step`` has elapsed in real time, no
-  hotstart file is written.
+- If the run finishes before ``wallclock_step`` has elapsed in real time,
+  no hotstart file is written.
 
 Resume requirements
 ^^^^^^^^^^^^^^^^^^^
@@ -86,12 +84,15 @@ Resume is rejected when any of the following checks fail:
 - the archived run contains drainage state but the resumed configuration has no
   drainage model, or the reverse;
 - the infiltration model changes between the archived run and the resumed run;
-- a surface-flow parameter changes outside the set explicitly allowed on
-  resume;
+- a surface-flow parameter changes outside the set explicitly allowed on resume;
 - ``start_time`` differs from the value stored in the hotstart;
 - ``end_time`` is changed to a value that is not strictly after the archived
   checkpoint time;
 
+.. versionchanged:: 26.10
+
+   Hotstart archives created by Itzi 26.10's predecessor cannot be resumed.
+   Continue those runs with the earlier Itzi release, or start a new simulation with this release.
 
 Config changes allowed on resume
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -116,7 +117,7 @@ The table below reflects the current implementation.
    * - ``[options] dtinf``
      - Allowed
      - The resumed hydrology schedule uses the new value.
-   * - ``[options] cfl``, ``theta``, ``dtmax``, ``slope_threshold``,
+   * - ``[options] hmin``, ``cfl``, ``theta``, ``dtmax``, ``slope_threshold``,
        ``max_slope``, ``max_error``
      - Allowed
      - These are the only surface-flow options explicitly allowed to change on
@@ -128,9 +129,9 @@ The table below reflects the current implementation.
    * - ``[output] prefix``, ``[output] values``, ``[statistics] stats_file``
      - Allowed
      - Output targets come from the resumed configuration file.
-   * - ``[options] hmin``, ``g``
+   * - ``[options] g``
      - Must match
-     - Changing any of these raises a hotstart compatibility error.
+     - Changing gravity raises a hotstart compatibility error.
    * - Infiltration model selection from ``[input]``
      - Must match
      - The model type must stay the same: no infiltration, constant
@@ -181,7 +182,7 @@ The following inputs are mandatory:
    * - Keyword
      - Description
      - Unit
-   * - dem
+   * - ground_elevation
      - Terrain elevation.
      - m
    * - water_depth
@@ -189,22 +190,22 @@ The following inputs are mandatory:
      - m
    * - water_surface_elevation
      - Starting water surface elevation.
-       Equivalent to *dem* + *water_depth*.
+        Equivalent to *ground_elevation* + *water_depth*.
      - m
    * - friction
      - Friction as Manning’s *n*
-     - m s-(1/3)
-   * - rain
+     - s m-(1/3)
+   * - rainfall_rate
      - Rainfall rate.
      - mm/h
    * - inflow
      - Point inflow.
        (ex: for 20 m3/s on a 10x10 cell, velocity is 0.2 m/s)
      - m/s
-   * - bctype
+   * - boundary_type
      - Boundary conditions type.
      - None
-   * - bcval
+   * - boundary_value
      - Boundary conditions values.
      - m
    * - infiltration
@@ -231,11 +232,19 @@ The following inputs are mandatory:
 .. versionchanged:: 25.8
     *start_h* to *water_depth*.
 
+.. versionchanged:: 26.10
+
+    *dem* to *ground_elevation*.
+    *rain* to *rainfall_rate*.
+    *bctype* to *boundary_type*.
+    *bcval* to *boundary_value*.
+
 .. versionadded:: 25.8
     *soil_water_content* and *water_surface_elevation*.
 
 .. note:: When using a deprecated keyword, a warning will be displayed, and the map loaded normally.
-    However, you must update you input file, as the deprecation warning will go away in the future, and the unrecognized name will be ignored.
+    However, you must update you input file, as the deprecation warning will go away in the future,
+    and the unrecognized name will be ignored.
 
 Every input could be either a map or a Space-Time Raster Dataset.
 
@@ -267,7 +276,7 @@ Two infiltration models are available:
 Likewise, if any of *effective_porosity*, *capillary_pressure* and *hydraulic_conductivity* is given, all the others should be given as well.
 
 .. caution:: Although all inputs could vary in time, allowing some to do so might result in unexpected behaviour.
-    For example, time-varying *dem* is possible but has never been tested.
+    For example, time-varying *ground_elevation* is possible but has never been tested.
     Also, forcing a change in water depth in time with either *water_depth* or *water_surface_elevation* will conflict with the internal water depth computation.
 
 [output]
@@ -283,45 +292,64 @@ Likewise, if any of *effective_porosity*, *capillary_pressure* and *hydraulic_co
 
 The possible values to be exported are the following:
 
-+-------------------------+---------------------------------------------------------+--------+
-| Keyword                 | Description                                             | Unit   |
-+=========================+=========================================================+========+
-| water_depth             | Water depth                                             | m      |
-+-------------------------+---------------------------------------------------------+--------+
-| hmax                    | Maximum water depth since simulation start              | m      |
-+-------------------------+---------------------------------------------------------+--------+
-| water_surface_elevation | Water surface elevation (depth + elevation)             | m      |
-+-------------------------+---------------------------------------------------------+--------+
-| v                       | Overland flow speed (velocity's magnitude)              | m/s    |
-+-------------------------+---------------------------------------------------------+--------+
-| vmax                    | Maximum water speed since simulation start              | m/s    |
-+-------------------------+---------------------------------------------------------+--------+
-| vdir                    | Velocity's direction. Counter-clockwise from East       | degrees|
-+-------------------------+---------------------------------------------------------+--------+
-| froude                  | The Froude number                                       | none   |
-+-------------------------+---------------------------------------------------------+--------+
-| qx                      | Volumetric flow, x direction. Positive if going East    | m³/s   |
-+-------------------------+---------------------------------------------------------+--------+
-| qy                      | Volumetric flow, y direction. Positive if going South   | m³/s   |
-+-------------------------+---------------------------------------------------------+--------+
-| mean_boundary_flow      | Flow coming in (positive) or going out (negative) the   | m/s    |
-|                         | domain due to boundary conditions. Mean since the       |        |
-|                         | last record                                             |        |
-+-------------------------+---------------------------------------------------------+--------+
-| mean_infiltration       | Mean infiltration rate since the last record            | mm/h   |
-+-------------------------+---------------------------------------------------------+--------+
-| mean_rainfall           | Mean rainfall rate since the last record                | mm/h   |
-+-------------------------+---------------------------------------------------------+--------+
-| mean_inflow             | Mean user flow since the last record                    | m/s    |
-+-------------------------+---------------------------------------------------------+--------+
-| mean_losses             | Mean losses since the last record                       | mm/h   |
-+-------------------------+---------------------------------------------------------+--------+
-| mean_drainage_flow      | Mean exchange flow between surface and drainage model   |        |
-|                         | since the last record                                   | m/s    |
-+-------------------------+---------------------------------------------------------+--------+
-| created_volume          | Cumulative volume created due to numerical              | m³     |
-|                         | instabilities                                           |        |
-+-------------------------+---------------------------------------------------------+--------+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 60 15
+
+   * - Keyword
+     - Description
+     - Unit
+   * - water_depth
+     - Water depth.
+     - m
+   * - max_water_depth
+     - Maximum water depth since simulation start.
+     - m
+   * - water_surface_elevation
+     - Water surface elevation (depth + elevation.)
+     - m
+   * - flow_speed
+     - Overland flow speed (velocity's magnitude.)
+     - m/s
+   * - max_flow_speed
+     - Maximum water speed since simulation start.
+     - m/s
+   * - flow_velocity_direction
+     - Velocity's direction. Counter-clockwise from East.
+     - degrees
+   * - froude
+     - The Froude number.
+     - none
+   * - flow_rate_x
+     - Volumetric flow, x direction. Positive if going East.
+     - m³/s
+   * - flow_rate_y
+     - Volumetric flow, y direction. Positive if going South.
+     - m³/s
+   * - mean_boundary_flow
+     - Flow coming in (positive) or going out (negative) the domain due to boundary conditions.
+       Mean since the last record
+     - m/s
+   * - mean_infiltration
+     - Mean infiltration rate since the last record.
+     - mm/h
+   * - mean_rainfall
+     - Mean rainfall rate since the last record.
+     - mm/h
+   * - mean_inflow
+     - Mean user flow since the last record
+     - m/s
+   * - mean_losses
+     - Mean losses since the last record
+     - mm/h
+   * - mean_drainage_flow
+     - Mean exchange flow between surface and drainage model since the last record.
+       Positive if entering the domain.
+     - m/s
+   * - created_volume
+     - Cumulative volume created due to numerical instabilities.
+     - m³
+
 
 .. versionchanged:: 25.8
     *h* to *water_depth*.
@@ -342,21 +370,31 @@ The possible values to be exported are the following:
 
 .. versionchanged:: 26.10
     *verror* and *volume_error* are deprecated aliases for *created_volume*.
-    *hmax* and *vmax* are explicit outputs.
+    *hmax* to *max_water_depth*.
+    *v* to *flow_speed*.
+    *vmax* to *max_flow_speed*.
+    *vdir* to *flow_velocity_direction*.
+    *qx* to *flow_rate_x*.
+    *qy* to *flow_rate_y*.
+    *max_water_depth* and *max_flow_speed* are explicit outputs.
 
 .. caution:: If a deprecated output name is requested, a warning will be displayed and the new, correct output will be written to disk.
     You must update your configuration file, as the deprecation substitution will be removed in a future version.
 
-*hmax* and *vmax* are cumulative maximum values since the simulation start.
+*max_water_depth* and *max_flow_speed* are cumulative maximum values since the start of the simulation.
 Request them explicitly to write them as regular time-indexed raster outputs.
-Since version 26.10, selecting *water_depth* or *v* no longer creates implicit final static maximum maps.
+Since version 26.10, selecting *water_depth* or *flow_speed* no longer creates implicit final static maximum maps.
 
 In the water depth maps, the values under the *hmin* threshold are masked with the *r.null* GRASS command.
-This does not apply to *hmax*.
+This does not apply to *max_water_depth*.
 
 If an exported map is totally empty, it is deleted at the end of the simulation when registered in the STRDS.
 
 When the water depth is zero, the Froude number is set to zero to prevent undefined values.
+
+.. note:: The computation cost of *froude* and *flow_velocity_direction* is high.
+    Requesting the output of either one could make the simulation noticeably slower.
+
 
 [statistics]
 ------------
@@ -414,12 +452,15 @@ Water leaving the domain is negative.
 +-------------------------+----------------------------------------------------------------------+--------+
 
 *volume_change* is the sum of *boundary_volume*, *rainfall_volume*, *infiltration_volume*,
-*inflow_volume*, *losses_volume*, *drainage_network_volume*, *created_volume*, and
-*closure_residual*. Small non-zero closure residuals can occur due to numerical precision.
+*inflow_volume*, *losses_volume*, *drainage_network_volume*, *created_volume*, and *closure_residual*.
+Small non-zero closure residuals can occur due to numerical precision.
 
 .. versionchanged:: 25.8
     Columns names are more explicit. *volume_change* is added.
 
+
+.. versionchanged:: 26.10
+    *closure_residual* and *relative_closure_error* are added.
 
 [options]
 ---------
@@ -437,9 +478,9 @@ Water leaving the domain is negative.
 | theta           | Inertia weighting coefficient                | float between  | 0.9           |
 |                 |                                              | 0 and 1        |               |
 +-----------------+----------------------------------------------+----------------+---------------+
-| slope_threshold | Slope threshold in m/m                       | positive float | 0.8           |
+| slope_threshold | GMS slope threshold in m/m                   | positive float | 0.8           |
 +-----------------+----------------------------------------------+----------------+---------------+
-| max_slope       | Maximum slope in m/s                         | positive float | 0.8           |
+| max_slope       | Maximum slope of the GMS in m/m              | positive float | 0.8           |
 +-----------------+----------------------------------------------+----------------+---------------+
 | dtmax           | Maximum surface flow time-step in seconds.   | positive float | 5.0           |
 +-----------------+----------------------------------------------+----------------+---------------+
@@ -451,6 +492,7 @@ Water leaving the domain is negative.
 
 When the water depth is above *hmin* and the slope is below *slope_threshold*, the partial inertia flow equation is used.
 I other cases, the Gauckler-Manning-Strickler formula is used, with the slope limited to *max_slope*.
+The *max_slope* value must be greater than or equal to *slope_threshold*.
 
 
 [drainage]
@@ -491,6 +533,10 @@ This section is needed only if carrying out a simulation that couples SWMM drain
 Drainage output
 ^^^^^^^^^^^^^^^
 
+Set *output* to write drainage results as vector maps. Omitting it still runs
+the coupled SWMM and surface-flow simulation, but writes no drainage vector
+output.
+
 The results from the drainage network simulation are saved as vector maps, organised in two layers.
 The nodes are stored in layer 1, the links in layer 2.
 
@@ -500,7 +546,7 @@ The values stored for the nodes are described below. All are instantaneous.
 +------------------+-----------------------------------------------------------------------+
 | Column           | Description                                                           |
 +==================+=======================================================================+
-| cat              | DB key                                                                |
+| cat              | DB primary key                                                        |
 +------------------+-----------------------------------------------------------------------+
 | node_id          | Name of the node                                                      |
 +------------------+-----------------------------------------------------------------------+
@@ -546,7 +592,7 @@ The values for the links are as follows:
 +---------------+-------------------------------------------------------+
 | Column        | Description                                           |
 +===============+=======================================================+
-| cat           | DB key                                                |
+| cat           | DB primary  key                                       |
 +---------------+-------------------------------------------------------+
 | link_id       | Name of the link                                      |
 +---------------+-------------------------------------------------------+
