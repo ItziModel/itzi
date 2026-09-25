@@ -7,7 +7,7 @@ authors = [
 ]
 dependencies = [
     "numpy>=2.5",
-    "itzi-core==0.7.0",
+    "itzi-core==0.8.0",
     "bmipy>=2.0.1",
     "pydantic>=2.10"
 ]

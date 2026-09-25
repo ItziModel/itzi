@@ -36,6 +36,10 @@ from itzi.grass_session import GrassParams
 
 DEPRECATED_INPUT_ALIASES: list[tuple[str, str]] = [
     # (old, new)
+    ("dem", "ground_elevation"),
+    ("rain", "rainfall_rate"),
+    ("bctype", "boundary_type"),
+    ("bcval", "boundary_value"),
     ("drainage_capacity", "losses"),
     ("effective_pororosity", "effective_porosity"),
     ("start_h", "water_depth"),
@@ -46,6 +50,12 @@ DEPRECATED_OUTPUT_ALIASES: list[tuple[str, str]] = [
     ("drainage_cap", "mean_losses"),
     ("h", "water_depth"),
     ("wse", "water_surface_elevation"),
+    ("hmax", "max_water_depth"),
+    ("v", "flow_speed"),
+    ("vdir", "flow_velocity_direction"),
+    ("vmax", "max_flow_speed"),
+    ("qx", "flow_rate_x"),
+    ("qy", "flow_rate_y"),
     ("boundaries", "mean_boundary_flow"),
     ("verror", "created_volume"),
     ("volume_error", "created_volume"),
@@ -192,11 +202,17 @@ def _normalize_output_values(raw_values: str | None) -> list[str]:
     if raw_values is None:
         return []
 
-    output_values = [value.strip() for value in raw_values.split(",") if value.strip()]
-    for old_output_name, new_output_name in DEPRECATED_OUTPUT_ALIASES:
-        if old_output_name in output_values and new_output_name not in output_values:
-            _warn_about_deprecated_alias("Output", old_output_name, new_output_name)
-            output_values.append(new_output_name)
+    aliases = dict(DEPRECATED_OUTPUT_ALIASES)
+    output_values = []
+    for output_name in raw_values.split(","):
+        output_name = output_name.strip()
+        if not output_name:
+            continue
+        canonical_name = aliases.get(output_name, output_name)
+        if canonical_name != output_name:
+            _warn_about_deprecated_alias("Output", output_name, canonical_name)
+        if canonical_name not in output_values:
+            output_values.append(canonical_name)
     return output_values
 
 
@@ -461,9 +477,13 @@ class ConfigReader:
     def _check_general_input(self, input_map_names: dict[str, str | None]) -> None:
         """Validate mandatory and mutually exclusive input maps."""
         if not all(
-            [input_map_names["dem"], input_map_names["friction"], self.sim_times.record_step]
+            [
+                input_map_names["ground_elevation"],
+                input_map_names["friction"],
+                self.sim_times.record_step,
+            ]
         ):
-            msgr.fatal("inputs <dem>, <friction> and <record_step> are mandatory")
+            msgr.fatal("inputs <ground_elevation>, <friction> and <record_step> are mandatory")
         if input_map_names["water_depth"] and input_map_names["water_surface_elevation"]:
             msgr.fatal(
                 "inputs <water_depth> and <water_surface_elevation> are mutually exclusive."
