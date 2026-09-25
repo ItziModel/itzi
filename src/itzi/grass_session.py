@@ -13,10 +13,11 @@ GNU General Public License for more details.
 """
 
 from __future__ import annotations
-import sys
+
+import importlib.util
 import os
 import subprocess
-import importlib.util
+import sys
 
 from pydantic import BaseModel, ConfigDict
 

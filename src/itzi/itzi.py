@@ -29,25 +29,25 @@ from __future__ import annotations
 import os
 import sys
 import time
-
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from importlib.metadata import version
 from multiprocessing import Process
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 import numpy as np
-from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProvider
-from itzi_core.simulation_builder import SimulationBuilder
+from itzi_core import SimulationBuilder
+from itzi_core.providers import CSVMassBalanceOutputProvider
 
-from itzi.configreader import ConfigReader
 import itzi.messenger as msgr
-from itzi.messenger import VerbosityLevel
 from itzi.cli_parser import build_parser
+from itzi.configreader import ConfigReader
 from itzi.grass_session import GrassSessionManager
+from itzi.messenger import VerbosityLevel
 
 if TYPE_CHECKING:
-    from itzi_core.data_containers import SimulationConfig
-    from itzi_core.simulation import Simulation
+    from itzi_core import Simulation, SimulationConfig
+
     from itzi.grass_session import GrassParams
     from itzi.providers.grass_interface import GrassInterface
 
@@ -92,10 +92,8 @@ class SimulationRunner:
         grass_version = gscript.parse_command("g.version", flags="g")["version"]
         if grass_version < self.grass_required_version:
             msgr.fatal(
-                (
-                    f"Itzi requires at least GRASS {self.grass_required_version}, "
-                    f"version {grass_version} detected."
-                )
+                f"Itzi requires at least GRASS {self.grass_required_version}, "
+                f"version {grass_version} detected."
             )
         msgr.debug("GRASS session set")
 
@@ -118,8 +116,10 @@ class SimulationRunner:
         # Create Simulation with GRASS backend
         msgr.verbose("Setting up GRASS simulation...")
         from itzi.providers.grass_input import GrassRasterInputProvider
-        from itzi.providers.grass_output import GrassRasterOutputProvider
-        from itzi.providers.grass_output import GrassVectorOutputProvider
+        from itzi.providers.grass_output import (
+            GrassRasterOutputProvider,
+            GrassVectorOutputProvider,
+        )
 
         raster_input_provider = GrassRasterInputProvider(
             {
@@ -137,6 +137,7 @@ class SimulationRunner:
                 "temporal_type": sim_config.temporal_type,
             }
         )
+        # TODO: with itzi-core 0.8.0, create only if sim_config.drainage_output is not None
         vector_output_provider = GrassVectorOutputProvider(
             {
                 "grass_interface": self.g_interface,
@@ -191,9 +192,7 @@ class SimulationRunner:
 
     @property
     def origin(self):
-        # Get origin from a TimedArray object
-        tarr = next(iter(self.sim.timed_arrays.values()))
-        return tarr.origin
+        return (self.sim.domain_data.north, self.sim.domain_data.west)
 
     def __del__(self):
         # Cleanup the grass interface object
@@ -238,6 +237,9 @@ def itzi_run_one(conf_file: str, hotstart_file: str | None) -> bool:
     p.start()
     p.join()
     exitcode = p.exitcode
+    if exitcode is None:
+        msgr.warning(f"Execution of {conf_file} did not report an exit status")
+        return False
     p.close()
     if exitcode == 0:
         return True

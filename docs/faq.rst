@@ -14,7 +14,7 @@ In some cases, numerical instabilities could occur, stopping the simulation with
 
 .. code:: sh
 
-    WARNING: Error during execution: itzi.itzi_error.MassBalanceError: Mass balance error 0.07 exceeds threshold 0.05
+    WARNING: Error during execution: itzi_core.itzi_error.MassBalanceError: Created volume ratio 0.07 exceeds threshold 0.05
 
 There are two ways to reduce those instabilities.
 The first and more effective one is reducing the time-step,
@@ -32,13 +32,12 @@ Why does a resumed run differ from an uninterrupted run?
 
 .. versionadded:: 26.6
 
-Hotstart resume is a continuation mechanism, not a guarantee of bitwise
-identity with an uninterrupted run.
+Hotstart resume is a continuation mechanism,
+not a guarantee of identity with an uninterrupted run.
 
-For surface-only cases, resumed runs should normally be very close to the
-original run. With drainage enabled, the current SWMM hotstart behavior is not
-always restart-exact.
-A resumed run can therefore show small differences relative to an uninterrupted run
+For surface-only cases, resumed runs should normally be very close to the original run.
+With drainage enabled, the current SWMM hotstart behavior is not always exact.
+A resumed run can therefore show small differences relative to an uninterrupted run,
 even when the hotstart file and configuration are valid.
 
 See :doc:`conf_file` for the configuration constraints enforced when resuming.

@@ -288,9 +288,13 @@ The possible values to be exported are the following:
 +=========================+=========================================================+========+
 | water_depth             | Water depth                                             | m      |
 +-------------------------+---------------------------------------------------------+--------+
+| hmax                    | Maximum water depth since simulation start              | m      |
++-------------------------+---------------------------------------------------------+--------+
 | water_surface_elevation | Water surface elevation (depth + elevation)             | m      |
 +-------------------------+---------------------------------------------------------+--------+
 | v                       | Overland flow speed (velocity's magnitude)              | m/s    |
++-------------------------+---------------------------------------------------------+--------+
+| vmax                    | Maximum water speed since simulation start              | m/s    |
 +-------------------------+---------------------------------------------------------+--------+
 | vdir                    | Velocity's direction. Counter-clockwise from East       | degrees|
 +-------------------------+---------------------------------------------------------+--------+
@@ -315,8 +319,8 @@ The possible values to be exported are the following:
 | mean_drainage_flow      | Mean exchange flow between surface and drainage model   |        |
 |                         | since the last record                                   | m/s    |
 +-------------------------+---------------------------------------------------------+--------+
-| volume_error            | Total created volume due to numerical error since the   | m³     |
-|                         | last record                                             |        |
+| created_volume          | Cumulative volume created due to numerical              | m³     |
+|                         | instabilities                                           |        |
 +-------------------------+---------------------------------------------------------+--------+
 
 .. versionchanged:: 25.8
@@ -336,14 +340,19 @@ The possible values to be exported are the following:
 .. versionadded:: 25.8
     *froude*.
 
+.. versionchanged:: 26.10
+    *verror* and *volume_error* are deprecated aliases for *created_volume*.
+    *hmax* and *vmax* are explicit outputs.
+
 .. caution:: If a deprecated output name is requested, a warning will be displayed and the new, correct output will be written to disk.
     You must update your configuration file, as the deprecation substitution will be removed in a future version.
 
-In addition to output a map at each *record_step*, *water_depth* and *v* also
-produce each a map of maximum values attained all over the domain since the beginning of the simulation.
+*hmax* and *vmax* are cumulative maximum values since the simulation start.
+Request them explicitly to write them as regular time-indexed raster outputs.
+Since version 26.10, selecting *water_depth* or *v* no longer creates implicit final static maximum maps.
 
 In the water depth maps, the values under the *hmin* threshold are masked with the *r.null* GRASS command.
-This does not apply to the map of maximum values.
+This does not apply to *hmax*.
 
 If an exported map is totally empty, it is deleted at the end of the simulation when registered in the STRDS.
 
@@ -395,14 +404,18 @@ Water leaving the domain is negative.
 +-------------------------+----------------------------------------------------------------------+--------+
 | volume_change           | Changes in volume since the last record.                             | m³     |
 +-------------------------+----------------------------------------------------------------------+--------+
-| volume_error            | Water volume created due to numerical errors since last record.      | m³     |
+| created_volume          | Cumulative water volume created due to numerical instabilities.      | m³     |
 +-------------------------+----------------------------------------------------------------------+--------+
-| percent_error           | Percentage of the domain volume change due to numerical              | %      |
-|                         | error. Corresponds to *volume_error* / *volume_change* \* 100        |        |
+| created_volume_ratio    | Ratio of created volume to volume change.                            | none   |
++-------------------------+----------------------------------------------------------------------+--------+
+| closure_residual        | Difference between volume change and accounted volume terms.         | m³     |
++-------------------------+----------------------------------------------------------------------+--------+
+| relative_closure_error  | Absolute closure residual normalized by volume throughput.           | none   |
 +-------------------------+----------------------------------------------------------------------+--------+
 
-*volume_change* is equal to the sum of *boundary_volume*, *rainfall_volume*, *infiltration_volume*, *inflow_volume*, *losses_volume*, *drainage_network_volume*, and *volume_error*.
-However, due to the way the volumes are computed internally, small variations could occur.
+*volume_change* is the sum of *boundary_volume*, *rainfall_volume*, *infiltration_volume*,
+*inflow_volume*, *losses_volume*, *drainage_network_volume*, *created_volume*, and
+*closure_residual*. Small non-zero closure residuals can occur due to numerical precision.
 
 .. versionchanged:: 25.8
     Columns names are more explicit. *volume_change* is added.
