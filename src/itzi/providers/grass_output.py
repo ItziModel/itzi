@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from datetime import datetime, timedelta
 
     from itzi_core import TemporalType
-    from itzi_core.domain_data import DrainageNetworkAttributes, DrainageNetworkTopology
+    from itzi_core.data_containers import DrainageNetworkAttributes, DrainageNetworkTopology
 
     from itzi.providers.grass_interface import GrassInterface
 
@@ -126,8 +126,6 @@ class GrassVectorOutputProvider(VectorOutputProvider):
         self, attributes: DrainageNetworkAttributes, sim_time: datetime | timedelta
     ) -> None:
         """Write drainage simulation data for current time step."""
-        if not self.drainage_map_name:
-            return
         if self.drainage_topology is None:
             raise RuntimeError("Drainage attributes cannot be written before topology.")
         suffix = str(self.record_counter).zfill(4)
@@ -138,7 +136,7 @@ class GrassVectorOutputProvider(VectorOutputProvider):
 
     def finalize(self) -> None:
         """Finalize outputs and cleanup."""
-        if self.drainage_map_name and self.vector_drainage_maplist:
+        if self.vector_drainage_maplist:
             self.grass_interface.register_maps_in_stds(
                 stds_title="Itzï drainage results",
                 stds_name=self.drainage_map_name,

@@ -30,7 +30,7 @@ def _build_runner(
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     config_dict = {
         "input": {
-            "dem": f"z@{current_mapset}",
+            "ground_elevation": f"z@{current_mapset}",
             "friction": f"n@{current_mapset}",
             "water_depth": f"start_h@{current_mapset}",
         },

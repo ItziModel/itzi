@@ -100,7 +100,10 @@ class SimulationRunner:
         # return error if output files exist
         from itzi.providers import grass_interface
 
-        grass_interface.check_output_files(sim_config.output_map_names.values())
+        output_names = list(sim_config.output_map_names.values())
+        if sim_config.drainage_output is not None:
+            output_names.append(sim_config.drainage_output)
+        grass_interface.check_output_files(output_names)
         msgr.debug("Output files OK")
 
         data_type = np.float32
@@ -137,21 +140,20 @@ class SimulationRunner:
                 "temporal_type": sim_config.temporal_type,
             }
         )
-        # TODO: with itzi-core 0.8.0, create only if sim_config.drainage_output is not None
-        vector_output_provider = GrassVectorOutputProvider(
-            {
-                "grass_interface": self.g_interface,
-                "temporal_type": sim_config.temporal_type,
-                "drainage_map_name": sim_config.drainage_output,
-            }
-        )
-
         sim_builder = (
             SimulationBuilder(sim_config, self.g_interface.get_npmask(), data_type)
             .with_input_provider(raster_input_provider)
             .with_raster_output_provider(raster_output_provider)
-            .with_vector_output_provider(vector_output_provider)
         )
+        if sim_config.drainage_output is not None:
+            vector_output_provider = GrassVectorOutputProvider(
+                {
+                    "grass_interface": self.g_interface,
+                    "temporal_type": sim_config.temporal_type,
+                    "drainage_map_name": sim_config.drainage_output,
+                }
+            )
+            sim_builder.with_vector_output_provider(vector_output_provider)
         if stats_file:
             sim_builder.with_mass_balance_output_provider(CSVMassBalanceOutputProvider(stats_file))
         if hotstart_path:

@@ -79,9 +79,15 @@ class TestBmi:
         assert {
             "land_surface_water__max_of_depth",
             "land_surface_water_flow__max_of_speed",
+            "land_surface_water_surface__elevation",
+            "land_surface_water__x_component_of_runoff_volume_flow_rate",
+            "land_surface_water__y_component_of_runoff_volume_flow_rate",
             "land_surface_water__time_integral_of_created_volume",
         } <= set(names)
         assert "land_surface_water__time_integral_of_error_volume" not in names
+        assert "land_surface_water__elevation" not in names
+        assert "land_surface_water__x_component_of_runoff_volume_flux" not in names
+        assert "land_surface_water__y_component_of_runoff_volume_flux" not in names
 
     # Time functions #
     def test_time_unit(self, bmi_object):
@@ -134,12 +140,12 @@ class TestBmi:
     # Values getting and setting functions #
     def test_get_value_ptr(self, bmi_object):
         value_ptr = bmi_object.get_value_ptr("land_surface__elevation")
-        ref_value = bmi_object.itzi.sim.get_array("dem")
+        ref_value = bmi_object.itzi.sim.get_array("ground_elevation")
         assert np.all(value_ptr == ref_value)
 
     def test_get_value(self, bmi_object):
         value = bmi_object.get_value("land_surface__elevation")
-        ref_value = bmi_object.itzi.sim.get_array("dem")
+        ref_value = bmi_object.itzi.sim.get_array("ground_elevation")
         assert np.all(value == ref_value)
 
     def test_get_value_at_indices(self, bmi_object):

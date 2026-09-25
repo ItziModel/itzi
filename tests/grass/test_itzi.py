@@ -47,7 +47,7 @@ def _create_timed_rain_inputs(name_prefix: str) -> dict[str, str]:
     )
 
     return {
-        "rain": f"{strds_name}@{current_mapset}",
+        "rainfall_rate": f"{strds_name}@{current_mapset}",
         "water_depth": f"{zero_depth_map}@{current_mapset}",
     }
 
@@ -63,10 +63,10 @@ def _build_timed_rain_runner(
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     config_dict = {
         "input": {
-            "dem": f"z@{current_mapset}",
+            "ground_elevation": f"z@{current_mapset}",
             "friction": f"n@{current_mapset}",
             "water_depth": input_names["water_depth"],
-            "rain": input_names["rain"],
+            "rainfall_rate": input_names["rainfall_rate"],
         },
         "time": {
             "duration": duration,
@@ -105,7 +105,9 @@ def test_number_of_output():
     h_map_list = gscript.list_grouped("raster", pattern="*out_5by5_water_depth_*")[current_mapset]
     assert len(h_map_list) == 3
 
-    hmax_map_list = gscript.list_grouped("raster", pattern="*out_5by5_hmax_*")[current_mapset]
+    hmax_map_list = gscript.list_grouped("raster", pattern="*out_5by5_max_water_depth_*")[
+        current_mapset
+    ]
     assert len(hmax_map_list) == 3
 
     wse_map_list = gscript.list_grouped("raster", pattern="*out_5by5_water_surface_elevation_*")[
@@ -116,19 +118,23 @@ def test_number_of_output():
     fr_map_list = gscript.list_grouped("raster", pattern="*out_5by5_froude_*")[current_mapset]
     assert len(fr_map_list) == 3
 
-    v_map_list = gscript.list_grouped("raster", pattern="*out_5by5_v_*")[current_mapset]
+    v_map_list = gscript.list_grouped("raster", pattern="*out_5by5_flow_speed_*")[current_mapset]
     assert len(v_map_list) == 3
 
-    vmax_map_list = gscript.list_grouped("raster", pattern="*out_5by5_vmax_*")[current_mapset]
+    vmax_map_list = gscript.list_grouped("raster", pattern="*out_5by5_max_flow_speed_*")[
+        current_mapset
+    ]
     assert len(vmax_map_list) == 3
 
-    vdir_map_list = gscript.list_grouped("raster", pattern="*out_5by5_vdir_*")[current_mapset]
+    vdir_map_list = gscript.list_grouped("raster", pattern="*out_5by5_flow_velocity_direction_*")[
+        current_mapset
+    ]
     assert len(vdir_map_list) == 3
 
-    qx_map_list = gscript.list_grouped("raster", pattern="*out_5by5_qx_*")[current_mapset]
+    qx_map_list = gscript.list_grouped("raster", pattern="*out_5by5_flow_rate_x_*")[current_mapset]
     assert len(qx_map_list) == 3
 
-    qy_map_list = gscript.list_grouped("raster", pattern="*out_5by5_qy_*")[current_mapset]
+    qy_map_list = gscript.list_grouped("raster", pattern="*out_5by5_flow_rate_y_*")[current_mapset]
     assert len(qy_map_list) == 3
 
     created_volume_map_list = gscript.list_grouped("raster", pattern="*out_5by5_created_volume_*")[
@@ -159,7 +165,10 @@ def test_region_mask(test_data_path):
     # Run simulation
     sim_runner.run().finalize()
     # Check temporary mask and region
-    assert int(gscript.parse_command("r.univar", map="out_5by5_vmax_0002", flags="g")["n"]) == 9
+    assert (
+        int(gscript.parse_command("r.univar", map="out_5by5_max_flow_speed_0002", flags="g")["n"])
+        == 9
+    )
     # Check tear down
     assert int(gscript.parse_command("g.region", flags="pg")["cells"]) == init_ncells
     assert int(gscript.parse_command("r.univar", map="z", flags="g")["null_cells"]) == init_nulls
@@ -174,7 +183,7 @@ def test_fails_when_region_has_no_dem_data(test_data_temp_path):
 
     config_dict = {
         "input": {
-            "dem": "z@5by5",
+            "ground_elevation": "z@5by5",
             "friction": "n@5by5",
             "water_depth": "start_h@5by5",
         },
@@ -203,7 +212,9 @@ def test_fails_when_region_has_no_dem_data(test_data_temp_path):
 
     conf_data = ConfigReader(config_file)
 
-    with pytest.raises(RuntimeError, match=r"input map <dem> contains only NULL/NaN cells"):
+    with pytest.raises(
+        RuntimeError, match=r"input map <ground_elevation> contains only NULL/NaN cells"
+    ):
         SimulationRunner(
             conf_data.get_sim_params(),
             conf_data.get_grass_params(),
@@ -228,7 +239,7 @@ def test_empty_strds_fails_with_clear_error(test_data_temp_path, temporal_type: 
     )
 
     input_names = {
-        "rain": f"{strds_name}@{current_mapset}",
+        "rainfall_rate": f"{strds_name}@{current_mapset}",
         "water_depth": f"start_h@{current_mapset}",
     }
     with pytest.raises(
@@ -273,7 +284,7 @@ def test_relative_strds_with_unsupported_unit_fails_with_clear_error(test_data_t
     )
 
     input_names = {
-        "rain": f"{strds_name}@{current_mapset}",
+        "rainfall_rate": f"{strds_name}@{current_mapset}",
         "water_depth": f"start_h@{current_mapset}",
     }
     with pytest.raises(
@@ -295,18 +306,18 @@ def test_relative_strds_with_unsupported_unit_fails_with_clear_error(test_data_t
 @pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 @pytest.mark.parametrize(
-    ("target_seconds", "expected_rain_mm_per_hour", "expected_window_seconds"),
+    ("target_seconds", "expected_rain_mm_per_hour", "expected_input_deadline_seconds"),
     [
-        (9, 0.0, (0, 10)),
-        (10, 360.0, (10, 20)),
-        (12, 360.0, (10, 20)),
+        (9, 0.0, 10),
+        (10, 360.0, 20),
+        (12, 360.0, 20),
     ],
 )
 def test_timed_grass_rain_switches_cleanly_around_boundary(
     test_data_temp_path,
     target_seconds: int,
     expected_rain_mm_per_hour: float,
-    expected_window_seconds: tuple[int, int],
+    expected_input_deadline_seconds: int,
 ):
     input_names = _create_timed_rain_inputs("timed_boundary")
     sim_runner = _build_timed_rain_runner(
@@ -321,17 +332,12 @@ def test_timed_grass_rain_switches_cleanly_around_boundary(
         simulation = sim_runner.sim
         simulation.update_until(timedelta(seconds=target_seconds))
 
-        rain_window = simulation.get_input_window("rain")
-        assert rain_window is not None
         np.testing.assert_allclose(
-            simulation.raster_domain.get_array("rain"),
+            simulation.raster_domain.get_array("rainfall_rate"),
             expected_rain_mm_per_hour / (1000 * 3600),
         )
-        assert rain_window.start == simulation.start_time + timedelta(
-            seconds=expected_window_seconds[0]
-        )
-        assert rain_window.end == simulation.start_time + timedelta(
-            seconds=expected_window_seconds[1]
+        assert simulation.next_ts["input"] == simulation.start_time + timedelta(
+            seconds=expected_input_deadline_seconds
         )
     finally:
         sim_runner.g_interface.finalize()
@@ -361,7 +367,7 @@ def test_timed_grass_rain_is_applied_before_a_step_crosses_its_boundary(test_dat
         )
         assert domain_volume == pytest.approx(0.0, abs=1e-6)
         np.testing.assert_allclose(
-            simulation.raster_domain.get_array("rain"),
+            simulation.raster_domain.get_array("rainfall_rate"),
             360.0 / (1000 * 3600),
         )
     finally:

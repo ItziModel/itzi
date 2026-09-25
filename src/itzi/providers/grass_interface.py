@@ -51,10 +51,10 @@ RULE_FR = _DIR / "froude.txt"
 RULE_DEF = _DIR / "default.txt"
 colors_rules_dict = {
     "water_depth": str(RULE_H),
-    "hmax": str(RULE_H),
-    "v": str(RULE_V),
-    "vmax": str(RULE_V),
-    "vdir": str(RULE_VDIR),
+    "max_water_depth": str(RULE_H),
+    "flow_speed": str(RULE_V),
+    "max_flow_speed": str(RULE_V),
+    "flow_velocity_direction": str(RULE_VDIR),
     "froude": str(RULE_FR),
 }
 
@@ -616,16 +616,15 @@ class GrassInterface:
             raise ValueError("Drainage topology and attributes have different node IDs")
         if topology_link_ids != set(link_attributes):
             raise ValueError("Drainage topology and attributes have different link IDs")
-        # TODO: itzi-core 0.8.0 no longer require to force tuple
         linking_elements = {
             "node": DBLayerDescription(
                 table_suffix="_node",
-                columns=tuple(DrainageNodeAttributes.get_columns_definition()),
+                columns=DrainageNodeAttributes.get_columns_definition(),
                 layer_number=1,
             ),
             "link": DBLayerDescription(
                 table_suffix="_link",
-                columns=tuple(DrainageLinkAttributes.get_columns_definition()),
+                columns=DrainageLinkAttributes.get_columns_definition(),
                 layer_number=2,
             ),
         }
