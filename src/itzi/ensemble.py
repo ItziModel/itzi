@@ -44,7 +44,6 @@ from itzi.ensemble_models import (
     SourceDocument,
     _canonical_json,
     _canonical_value,
-    _semantic_value,
     parse_iso_duration,
     render_template,
 )
@@ -257,7 +256,6 @@ def load_yaml_stream(path: str | Path) -> LoadedYamlStream:
         source = SourceDocument(
             path=source_path,
             document_index=document_index,
-            start_line=start_line,
             file_digest=file_digest,
             document_digest=_document_digest(raw_document),
         )
@@ -307,8 +305,6 @@ def expand_yaml_document(
     source: SourceDocument, document: YamlEnsembleDocumentV1
 ) -> ExpandedEnsemble:
     """Expand sweep dimensions in canonical path order into scalar simulations."""
-    if document.hotstart is not None:
-        raise EnsembleError("YAML hotstart output requires Stage 2 checkpoint support")
     normalized_time = normalize_time(document.time)
     dimensions = _collect_dimensions(document)
     count = _checked_product(tuple(len(values) for _, values in dimensions))
@@ -324,8 +320,7 @@ def expand_yaml_document(
             path: value for (path, _), value in zip(dimensions, selected_values, strict=True)
         }
         coordinates = tuple(
-            (path, _freeze_json(_semantic_value(value)))
-            for path, value in sorted(selected.items())
+            (path, _freeze_json(value)) for path, value in sorted(selected.items())
         )
         input_maps = _selected_input_maps(document.input, selected)
         infiltration = _normalize_infiltration(
@@ -338,7 +333,6 @@ def expand_yaml_document(
             ExpandedSimulation(
                 source=source,
                 ensemble_id=document.ensemble.id,
-                ensemble_name=document.ensemble.name,
                 coordinates=coordinates,
                 domain=document.domain,
                 time=normalized_time,
@@ -458,9 +452,7 @@ def _output_templates(document: YamlEnsembleDocumentV1) -> OutputTemplates:
     drainage_dataset = (
         document.outputs.drainage.vector_dataset if document.outputs.drainage else None
     )
-    hotstart_file = document.hotstart.file if document.hotstart else None
-    interval = parse_iso_duration(document.hotstart.wallclock_step) if document.hotstart else None
-    for template in (raster_prefix, statistics_file, drainage_dataset, hotstart_file):
+    for template in (raster_prefix, statistics_file, drainage_dataset):
         if template is not None:
             render_template(template, ensemble=document.ensemble.id, simulation="simulation")
     return OutputTemplates(
@@ -468,8 +460,6 @@ def _output_templates(document: YamlEnsembleDocumentV1) -> OutputTemplates:
         raster_variables=variables,
         statistics_file=statistics_file,
         drainage_dataset=drainage_dataset,
-        hotstart_file=hotstart_file,
-        hotstart_interval=interval,
     )
 
 

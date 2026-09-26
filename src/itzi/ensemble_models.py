@@ -94,7 +94,6 @@ class SourceDocument:
 
     path: Path
     document_index: int
-    start_line: int
     file_digest: str
     document_digest: str
 
@@ -171,8 +170,6 @@ class OutputTemplates:
     raster_variables: tuple[str, ...]
     statistics_file: str | None
     drainage_dataset: str | None
-    hotstart_file: str | None
-    hotstart_interval: timedelta | None
 
 
 @dataclass(frozen=True)
@@ -181,7 +178,6 @@ class ExpandedSimulation:
 
     source: SourceDocument
     ensemble_id: str
-    ensemble_name: str | None
     coordinates: tuple[tuple[str, JsonValue], ...]
     domain: DomainConfig
     time: NormalizedTime
@@ -224,8 +220,6 @@ class ArtifactSummary:
 class ResolvedSimulation:
     """Spawn-serializable execution payload with one final core configuration."""
 
-    source: SourceDocument
-    ensemble_id: str
     simulation_id: str
     coordinates: tuple[tuple[str, JsonValue], ...]
     grass_params: GrassParams
@@ -241,23 +235,9 @@ class ResolvedSimulation:
 class ValidationFailure:
     """A coordinate that could not become an executable resolved simulation."""
 
-    source: SourceDocument
-    ensemble_id: str
     coordinates: tuple[tuple[str, JsonValue], ...]
     phase: str
     detail: str
-
-
-@dataclass(frozen=True)
-class ResolvedEnsemble:
-    """Resolved member payloads and local validation failures for one ensemble."""
-
-    source: SourceDocument
-    ensemble_id: str
-    ensemble_name: str | None
-    manifest_file: Path
-    simulations: tuple[ResolvedSimulation, ...]
-    failures: tuple[ValidationFailure, ...]
 
 
 @dataclass(frozen=True)
@@ -308,14 +288,6 @@ def format_iso_duration(value: timedelta) -> str:
             rendered_seconds = format(seconds, ".6f").rstrip("0").rstrip(".")
             parts.append(f"{rendered_seconds}S")
     return "".join(parts)
-
-
-def _semantic_value(value: Any) -> Any:
-    if isinstance(value, BaseModel):
-        dumped = value.model_dump(mode="python")
-        dumped.pop("label", None)
-        return dumped
-    return value
 
 
 def _canonical_json(value: Any) -> str:

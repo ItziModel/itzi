@@ -70,9 +70,9 @@ wall-clock times without conversion.
 
 YAML infiltration alternatives are explicit under ``input.infiltration``:
 ``type: "none"``, ``type: "constant"`` with a ``rate`` map, or
-``type: "green-ampt"`` with ``effective_porosity``, ``capillary_pressure``, and
-``hydraulic_conductivity`` maps. A list of complete alternatives is one sweep
-dimension. The optional ``label`` is documentation only.
+``type: "green-ampt"`` with ``effective_porosity``, ``capillary_pressure``,
+and ``hydraulic_conductivity`` maps.
+A list of complete alternatives is one sweep dimension.
 
 ``{ensemble}`` and ``{simulation}`` are the only output-template substitutions.
 Output maps are always bare names in the active execution mapset; qualified

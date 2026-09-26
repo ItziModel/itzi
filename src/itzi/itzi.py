@@ -331,8 +331,6 @@ def _run_ensemble_batch(cli_args) -> None:
         except EnsembleError as error:
             failures.extend(
                 ValidationFailure(
-                    source=simulation.source,
-                    ensemble_id=ensemble.ensemble_id,
                     coordinates=simulation.coordinates,
                     phase="artifact_validation",
                     detail=str(error),
@@ -436,8 +434,6 @@ def _resolve_in_spawn(expanded: ExpandedSimulation) -> ResolvedSimulation | Vali
     if status == "resolved" and isinstance(payload, ResolvedSimulation):
         return payload
     return ValidationFailure(
-        source=expanded.source,
-        ensemble_id=expanded.ensemble_id,
         coordinates=expanded.coordinates,
         phase="input_resolution",
         detail=str(payload),

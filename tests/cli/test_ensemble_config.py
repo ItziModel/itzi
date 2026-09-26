@@ -157,7 +157,7 @@ outputs: {}
     assert [ensemble.ensemble_id for ensemble in stream.ensembles] == ["valid"]
 
 
-def test_infiltration_alternatives_are_explicit_and_labels_are_not_semantic(tmp_path):
+def test_infiltration_alternatives_are_explicit(tmp_path):
     content = document(
         extra="""\
 input:
@@ -165,7 +165,6 @@ input:
   friction: manning
   infiltration:
     - type: none
-      label: "first"
     - type: constant
       rate: infiltration_rate
 options: {}
@@ -181,13 +180,25 @@ outputs: {}
         InfiltrationModelType.CONSTANT,
     ]
 
-    duplicate = content.replace(
-        "    - type: constant\n      rate: infiltration_rate",
-        '    - type: none\n      label: "second"',
+    labelled = content.replace("    - type: none", '    - type: none\n      label: "first"')
+    labelled_stream = load_yaml_stream(write_yaml(tmp_path, labelled))
+    assert labelled_stream.failures[0].phase == "schema"
+
+
+def test_yaml_rejects_unsupported_hotstart(tmp_path):
+    content = (
+        document()
+        + """\
+hotstart:
+  wallclock_step: "PT1M"
+  file: "checkpoint.zip"
+"""
     )
-    duplicate_stream = load_yaml_stream(write_yaml(tmp_path, duplicate))
-    assert duplicate_stream.failures[0].phase == "schema"
-    assert "duplicate semantic values" in duplicate_stream.failures[0].detail
+
+    stream = load_yaml_stream(write_yaml(tmp_path, content))
+
+    assert stream.ensembles == ()
+    assert stream.failures[0].phase == "schema"
 
 
 def test_absolute_offsets_keep_wall_clock_values(tmp_path):

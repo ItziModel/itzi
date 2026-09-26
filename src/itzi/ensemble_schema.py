@@ -15,7 +15,6 @@ GNU General Public License for more details.
 from __future__ import annotations
 
 import math
-from datetime import timedelta
 from typing import Annotated, Any, Literal
 
 from pydantic import (
@@ -33,8 +32,6 @@ from itzi.ensemble_models import (
     DomainConfig,
     StrictModel,
     _canonical_json,
-    _semantic_value,
-    parse_iso_duration,
 )
 
 type SweepString = StrictStr | list[StrictStr]
@@ -83,18 +80,15 @@ type TimeConfig = RelativeTimeConfig | AbsoluteDurationTimeConfig | AbsoluteEndT
 
 class NoInfiltration(StrictModel):
     type: Literal["none"]
-    label: StrictStr | None = None
 
 
 class ConstantInfiltration(StrictModel):
     type: Literal["constant"]
-    label: StrictStr | None = None
     rate: StrictStr
 
 
 class GreenAmptInfiltration(StrictModel):
     type: Literal["green-ampt"]
-    label: StrictStr | None = None
     effective_porosity: StrictStr
     capillary_pressure: StrictStr
     hydraulic_conductivity: StrictStr
@@ -234,25 +228,6 @@ class OutputConfig(StrictModel):
     manifest: ManifestOutputs | None = None
 
 
-class HotstartOutputConfig(StrictModel):
-    wallclock_step: StrictStr
-    file: StrictStr
-
-    @field_validator("wallclock_step")
-    @classmethod
-    def validate_step(cls, value: str) -> str:
-        if parse_iso_duration(value) <= timedelta():
-            raise ValueError("must be strictly positive")
-        return value
-
-    @field_validator("file")
-    @classmethod
-    def validate_file(cls, value: str) -> str:
-        if not value:
-            raise ValueError("must not be empty")
-        return value
-
-
 class YamlEnsembleDocumentV1(StrictModel):
     schema_version: Literal[1]
     ensemble: EnsembleMetadata
@@ -262,7 +237,6 @@ class YamlEnsembleDocumentV1(StrictModel):
     options: OptionSweepConfig
     drainage: DrainageSweepConfig | None = None
     outputs: OutputConfig
-    hotstart: HotstartOutputConfig | None = None
 
     @model_validator(mode="after")
     def validate_drainage_output(self) -> YamlEnsembleDocumentV1:
@@ -286,7 +260,7 @@ def _validate_sweep(
         if numeric and (not isinstance(item, float) or not math.isfinite(item)):
             raise ValueError("must contain finite numbers")
 
-    semantic_values = [_canonical_json(_semantic_value(item)) for item in values]
+    semantic_values = [_canonical_json(item) for item in values]
     if len(semantic_values) != len(set(semantic_values)):
         raise ValueError("contains duplicate semantic values")
     return value

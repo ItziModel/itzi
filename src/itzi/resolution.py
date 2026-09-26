@@ -89,8 +89,6 @@ def _resolve_in_active_context(
         swmm_path,
     )
     return ResolvedSimulation(
-        source=expanded.source,
-        ensemble_id=expanded.ensemble_id,
         simulation_id=simulation_id,
         coordinates=expanded.coordinates,
         grass_params=actual_params,

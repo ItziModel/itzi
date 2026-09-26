@@ -72,7 +72,6 @@ def _legacy_ensemble(path: Path) -> ExpandedEnsemble:
     source = SourceDocument(
         path=source_path,
         document_index=0,
-        start_line=1,
         file_digest=hashlib.blake2b(source_bytes, digest_size=32).hexdigest(),
         document_digest=hashlib.blake2b(b"legacy-v1\0" + source_bytes, digest_size=32).hexdigest(),
     )
@@ -127,7 +126,6 @@ def _legacy_ensemble(path: Path) -> ExpandedEnsemble:
     expanded = ExpandedSimulation(
         source=source,
         ensemble_id=ensemble_id,
-        ensemble_name=source_path.stem,
         coordinates=(),
         domain=DomainConfig(grass=context, region=grass.region, mask=grass.mask),
         time=normalized_time,
@@ -142,8 +140,6 @@ def _legacy_ensemble(path: Path) -> ExpandedEnsemble:
             raster_variables=tuple(reader.out_values),
             statistics_file=stats_file,
             drainage_dataset=config.drainage_output,
-            hotstart_file=None,
-            hotstart_interval=None,
         ),
     )
     return ExpandedEnsemble(source, ensemble_id, source_path.stem, None, (expanded,))

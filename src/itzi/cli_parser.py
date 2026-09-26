@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 
-
 DESCR = "A dynamic, fully distributed hydraulic and hydrologic model."
 
 
@@ -44,8 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Resume a simulation from a hotstart file. "
             "If only the path to a hotstart file is given, batch is not allowed. "
-            "For batch processing, use CONFIG_PATH=HOTSTART_PATH or "
-            "ENSEMBLE#SIMULATION=HOTSTART_PATH."
+            "For batch processing, use CONFIG_PATH=HOTSTART_PATH."
         ),
     )
     run_parser.add_argument(
