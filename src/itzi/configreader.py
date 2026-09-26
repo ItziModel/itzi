@@ -297,7 +297,6 @@ class SimulationTimes(BaseModel):
 
     start: datetime
     end: datetime
-    duration: timedelta
     record_step: timedelta | None
     temporal_type: TemporalType
 
@@ -323,7 +322,6 @@ class SimulationTimes(BaseModel):
         return cls(
             start=start,
             end=end,
-            duration=duration,
             record_step=record_step,
             temporal_type=temporal_type,
         )
@@ -389,16 +387,14 @@ class ConfigReader:
             msgr.fatal("Not a valid configuration file")
 
         self.config_file = filename
-        self.ga_list = list(GREEN_AMPT_KEYS)
-        self.grass_mandatory = list(GRASS_MANDATORY_KEYS)
 
         params = _read_parser(filename)
         self.hotstart_config = _read_hotstart_values(params)
-        self.raw_input_times = _read_time_values(params)
+        raw_time_values = _read_time_values(params)
         self.input_map_names = _read_input_map_names(params)
         self.out_prefix, self.out_values, self.output_map_names = _read_output_config(params)
         self.stats_file = params.get("statistics", "stats_file", fallback=None) or None
-        self.sim_times = SimulationTimes.from_raw_values(self.raw_input_times)
+        self.sim_times = SimulationTimes.from_raw_values(raw_time_values)
         self._check_general_input(self.input_map_names)
         infiltration_model = self._resolve_infiltration_model(self.input_map_names)
 
@@ -434,18 +430,18 @@ class ConfigReader:
     def _check_grass_params(self, grass_params: GrassParams) -> None:
         """Ensure mandatory GRASS settings are provided together."""
         grass_values = grass_params.model_dump()
-        grass_any = any(grass_values[key] for key in self.grass_mandatory)
-        grass_all = all(grass_values[key] for key in self.grass_mandatory)
+        grass_any = any(grass_values[key] for key in GRASS_MANDATORY_KEYS)
+        grass_all = all(grass_values[key] for key in GRASS_MANDATORY_KEYS)
         if grass_any and not grass_all:
-            msgr.fatal(f"{self.grass_mandatory} are mutualy inclusive")
+            msgr.fatal(f"{GRASS_MANDATORY_KEYS} are mutualy inclusive")
 
     def _resolve_infiltration_model(
         self, input_map_names: dict[str, str | None]
     ) -> InfiltrationModelType:
         """Infer the infiltration model from the configured input maps."""
         infiltration_input = input_map_names["infiltration"]
-        ga_any = any(input_map_names[key] for key in self.ga_list)
-        ga_all = all(input_map_names[key] for key in self.ga_list)
+        ga_any = any(input_map_names[key] for key in GREEN_AMPT_KEYS)
+        ga_all = all(input_map_names[key] for key in GREEN_AMPT_KEYS)
 
         if not infiltration_input and not ga_any:
             return InfiltrationModelType.NULL
@@ -454,7 +450,7 @@ class ConfigReader:
         if infiltration_input and ga_any:
             msgr.fatal("Infiltration model incompatible with user-defined rate")
         if ga_any and not ga_all:
-            msgr.fatal(f"{self.ga_list} are mutualy inclusive")
+            msgr.fatal(f"{GREEN_AMPT_KEYS} are mutualy inclusive")
         return InfiltrationModelType.GREEN_AMPT
 
     def _check_general_input(self, input_map_names: dict[str, str | None]) -> None:
@@ -471,15 +467,3 @@ class ConfigReader:
             msgr.fatal(
                 "inputs <water_depth> and <water_surface_elevation> are mutually exclusive."
             )
-
-    def get_sim_params(self) -> SimulationConfig:
-        """Return validated simulation parameters."""
-        return self.sim_config
-
-    def get_grass_params(self) -> GrassParams:
-        """Return validated GRASS GIS session parameters."""
-        return self.grass_params
-
-    def get_stats_file(self) -> str | None:
-        """Return the CSV statistics output file name, if configured."""
-        return self.stats_file

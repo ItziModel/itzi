@@ -70,15 +70,15 @@ class BmiItzi(Bmi):
             Path to name of input file.
         """
         conf_data = ConfigReader(filename)
-        sim_params = conf_data.get_sim_params()
-        grass_params = conf_data.get_grass_params()
+        sim_params = conf_data.sim_config
+        grass_params = conf_data.grass_params
         self.grass_session_manager = GrassSessionManager(grass_params)
         self.grass_session_manager.open()
 
         self.itzi = SimulationRunner(
             sim_params,
             grass_params,
-            stats_file=conf_data.get_stats_file(),
+            stats_file=conf_data.stats_file,
         )
 
     def update(self):

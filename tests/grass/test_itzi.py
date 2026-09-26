@@ -90,9 +90,9 @@ def _build_timed_rain_runner(
 
     conf_data = ConfigReader(config_file)
     return SimulationRunner(
-        conf_data.get_sim_params(),
-        conf_data.get_grass_params(),
-        stats_file=conf_data.get_stats_file(),
+        conf_data.sim_config,
+        conf_data.grass_params,
+        stats_file=conf_data.stats_file,
     )
 
 
@@ -155,12 +155,12 @@ def test_region_mask(test_data_path):
     # Set simulation (should set region and mask)
     config_file = os.path.join(test_data_path, "5by5", "5by5_mask.ini")
     conf_data = ConfigReader(config_file)
-    sim_params = conf_data.get_sim_params()
-    grass_params = conf_data.get_grass_params()
+    sim_params = conf_data.sim_config
+    grass_params = conf_data.grass_params
     sim_runner = SimulationRunner(
         sim_params,
         grass_params,
-        stats_file=conf_data.get_stats_file(),
+        stats_file=conf_data.stats_file,
     )
     # Run simulation
     sim_runner.run().finalize()
@@ -216,9 +216,9 @@ def test_fails_when_region_has_no_dem_data(test_data_temp_path):
         RuntimeError, match=r"input map <ground_elevation> contains only NULL/NaN cells"
     ):
         SimulationRunner(
-            conf_data.get_sim_params(),
-            conf_data.get_grass_params(),
-            stats_file=conf_data.get_stats_file(),
+            conf_data.sim_config,
+            conf_data.grass_params,
+            stats_file=conf_data.stats_file,
         )
 
 

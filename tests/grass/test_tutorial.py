@@ -102,9 +102,9 @@ class TestItziTutorial:
         conf_data = ConfigReader(config_file)
 
         sim_runner = SimulationRunner(
-            conf_data.get_sim_params(),
-            conf_data.get_grass_params(),
-            stats_file=conf_data.get_stats_file(),
+            conf_data.sim_config,
+            conf_data.grass_params,
+            stats_file=conf_data.stats_file,
         )
         sim_runner.run().finalize()
         # Check the results
@@ -164,9 +164,9 @@ class TestItziTutorial:
         # Run the simulation
         conf_data = ConfigReader(config_file)
         sim_runner = SimulationRunner(
-            conf_data.get_sim_params(),
-            conf_data.get_grass_params(),
-            stats_file=conf_data.get_stats_file(),
+            conf_data.sim_config,
+            conf_data.grass_params,
+            stats_file=conf_data.stats_file,
         )
         sim_runner.run().finalize()
 
@@ -275,9 +275,9 @@ class TestItziTutorial:
         config_file = os.path.join(test_data_path, "tutorial_files", "tutorial_drainage.ini")
         conf_data = ConfigReader(config_file)
         sim_runner = SimulationRunner(
-            conf_data.get_sim_params(),
-            conf_data.get_grass_params(),
-            stats_file=conf_data.get_stats_file(),
+            conf_data.sim_config,
+            conf_data.grass_params,
+            stats_file=conf_data.stats_file,
         )
 
         try:

@@ -63,10 +63,10 @@ def load_batch(
 def _legacy_ensemble(path: Path) -> ExpandedEnsemble:
     """Adapt the public one-member INI reader to the scalar batch model."""
     reader = ConfigReader(str(path))
-    config = reader.get_sim_params()
+    config = reader.sim_config
     if config.hotstart_config is not None:
         raise EnsembleError("hotstart output requires Stage 2 checkpoint support in mixed batches")
-    grass = reader.get_grass_params()
+    grass = reader.grass_params
     source_path = path.expanduser().resolve()
     source_bytes = source_path.read_bytes()
     source = SourceDocument(
@@ -119,7 +119,7 @@ def _legacy_ensemble(path: Path) -> ExpandedEnsemble:
             config.record_step,
             False,
         )
-    stats_file = reader.get_stats_file()
+    stats_file = reader.stats_file
     if stats_file is not None:
         # The INI deprecation release preserves cwd-relative destinations.
         stats_file = str((Path.cwd() / stats_file).resolve())

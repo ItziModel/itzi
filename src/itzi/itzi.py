@@ -83,14 +83,14 @@ def sim_runner_worker(conf_file: str, hotstart_file: str | None) -> None:
         # Run the simulation
         msgr.message(f"Starting simulation of {os.path.basename(conf_file)}...")
         conf_data = ConfigReader(conf_file)
-        sim_params = conf_data.get_sim_params()
-        grass_params = conf_data.get_grass_params()
+        sim_params = conf_data.sim_config
+        grass_params = conf_data.grass_params
         with GrassSessionManager(grass_params):
             sim_runner = SimulationRunner(
                 sim_params,
                 grass_params,
                 hotstart_path=hotstart_file,
-                stats_file=conf_data.get_stats_file(),
+                stats_file=conf_data.stats_file,
             )
             sim_runner.run().finalize()
     except msgr.FatalError:

@@ -65,9 +65,9 @@ def _build_runner(
 
     conf_data = ConfigReader(config_file)
     return SimulationRunner(
-        conf_data.get_sim_params(),
-        conf_data.get_grass_params(),
-        stats_file=conf_data.get_stats_file(),
+        conf_data.sim_config,
+        conf_data.grass_params,
+        stats_file=conf_data.stats_file,
     )
 
 

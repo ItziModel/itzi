@@ -151,16 +151,9 @@ def test_worker_passes_statistics_file_to_simulation_runner(monkeypatch):
 
     class FakeConfigReader:
         def __init__(self, _):
-            pass
-
-        def get_sim_params(self):
-            return sim_params
-
-        def get_grass_params(self):
-            return grass_params
-
-        def get_stats_file(self):
-            return "statistics.csv"
+            self.sim_config = sim_params
+            self.grass_params = grass_params
+            self.stats_file = "statistics.csv"
 
     class FakeGrassSessionManager:
         def __init__(self, received_grass_params):
