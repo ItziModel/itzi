@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from itzi_core import SimulationBuilder, SimulationConfig
-from itzi_core.providers import CSVMassBalanceOutputProvider
+from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProvider
 
 import itzi.messenger as msgr
 from itzi.ensemble import EffectiveMask
