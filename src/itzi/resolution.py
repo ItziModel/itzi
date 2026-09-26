@@ -16,7 +16,7 @@ from typing import Literal
 from itzi_core import DomainData, SimulationConfig, SurfaceFlowParameters
 from pydantic import ValidationError
 
-from itzi.ensemble import (
+from itzi.ensemble_models import (
     ArtifactSummary,
     EffectiveMask,
     EnsembleError,

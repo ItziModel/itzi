@@ -6,10 +6,10 @@ from datetime import datetime, timedelta
 
 from itzi_core import InfiltrationModelType, TemporalType
 
-from itzi.ensemble import (
+from itzi.ensemble import load_yaml_stream
+from itzi.ensemble_models import (
     MAX_ENSEMBLE_MEMBERS,
     format_iso_duration,
-    load_yaml_stream,
     parse_iso_duration,
     render_template,
 )

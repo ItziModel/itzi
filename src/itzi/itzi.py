@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 NAME:      Itzï
 
@@ -39,7 +38,7 @@ from queue import Empty
 import itzi.messenger as msgr
 from itzi.cli_parser import build_parser
 from itzi.configreader import ConfigReader
-from itzi.ensemble import (
+from itzi.ensemble_models import (
     DocumentFailure,
     EnsembleError,
     ExpandedEnsemble,

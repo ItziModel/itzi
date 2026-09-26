@@ -14,14 +14,14 @@ GNU General Public License for more details.
 
 from collections.abc import Mapping
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 from itzi_core import SimulationBuilder, SimulationConfig
 from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProvider
 
 import itzi.messenger as msgr
-from itzi.ensemble import EffectiveMask
+from itzi.ensemble_models import EffectiveMask
 from itzi.grass_session import GrassParams
 
 if TYPE_CHECKING:
@@ -31,7 +31,8 @@ if TYPE_CHECKING:
 
 
 class SimulationRunner:
-    """Provide the necessary tools to run one simulation."""
+    """Provide the necessary tools to run one simulation.
+    Must be instantiated within an active GRASS session."""
 
     def __init__(
         self,
@@ -40,7 +41,7 @@ class SimulationRunner:
         hotstart_path: str | None = None,
         stats_file: str | None = None,
         effective_mask: EffectiveMask | None = None,
-        input_kinds: Mapping[str, str] | None = None,
+        input_kinds: Mapping[str, Literal["raster", "strds"]] | None = None,
         exclusive_stats: bool = False,
     ) -> None:
         self.grass_required_version = "8.4.0"
@@ -92,21 +93,17 @@ class SimulationRunner:
         )
 
         raster_input_provider = GrassRasterInputProvider(
-            {
-                "grass_interface": self.g_interface,
-                "input_map_names": sim_config.input_map_names,
-                "default_start_time": sim_config.start_time,
-                "default_end_time": sim_config.end_time,
-                "input_kinds": input_kinds,
-            }
+            grass_interface=self.g_interface,
+            input_map_names=sim_config.input_map_names,
+            default_start_time=sim_config.start_time,
+            default_end_time=sim_config.end_time,
+            input_kinds=input_kinds,
         )
         raster_output_provider = GrassRasterOutputProvider(
-            {
-                "grass_interface": self.g_interface,
-                "out_map_names": sim_config.output_map_names,
-                "hmin": sim_config.surface_flow_parameters.hmin,
-                "temporal_type": sim_config.temporal_type,
-            }
+            grass_interface=self.g_interface,
+            out_map_names=sim_config.output_map_names,
+            hmin=sim_config.surface_flow_parameters.hmin,
+            temporal_type=sim_config.temporal_type,
         )
         sim_builder = (
             SimulationBuilder(sim_config, self.g_interface.get_npmask(), data_type)
@@ -115,11 +112,9 @@ class SimulationRunner:
         )
         if sim_config.drainage_output is not None:
             vector_output_provider = GrassVectorOutputProvider(
-                {
-                    "grass_interface": self.g_interface,
-                    "temporal_type": sim_config.temporal_type,
-                    "drainage_map_name": sim_config.drainage_output,
-                }
+                grass_interface=self.g_interface,
+                temporal_type=sim_config.temporal_type,
+                drainage_map_name=sim_config.drainage_output,
             )
             sim_builder.with_vector_output_provider(vector_output_provider)
         if stats_file:

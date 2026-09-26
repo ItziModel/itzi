@@ -9,7 +9,8 @@ from itzi_core import TemporalType
 
 import itzi.messenger as msgr
 from itzi.configreader import ConfigReader
-from itzi.ensemble import (
+from itzi.ensemble import load_yaml_stream
+from itzi.ensemble_models import (
     DIRECT_INPUT_KEYS,
     GREEN_AMPT_KEYS,
     DocumentFailure,
@@ -24,7 +25,6 @@ from itzi.ensemble import (
     SourceDocument,
     check_batch_limits,
     check_unique_ensemble_ids,
-    load_yaml_stream,
 )
 
 

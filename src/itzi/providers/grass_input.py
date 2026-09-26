@@ -15,7 +15,7 @@ GNU General Public License for more details.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Literal, TypedDict
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 from itzi_core import ARRAY_DEFINITIONS, ArrayCategory, DomainData
@@ -30,22 +30,20 @@ if TYPE_CHECKING:
     from itzi.providers.grass_interface import GrassInterface
 
 
-class GrassRasterInputConfig(TypedDict):
-    grass_interface: GrassInterface
-    # A dict of key: input names
-    input_map_names: Mapping[str, str | None]
-    default_start_time: datetime
-    default_end_time: datetime
-    input_kinds: Mapping[str, Literal["raster", "strds"]] | None
-
-
 class GrassRasterInputProvider(RasterInputProvider):
-    def __init__(self, config: GrassRasterInputConfig) -> None:
-        self.grass_interface = config["grass_interface"]
-        self.start_time = config["default_start_time"]
-        self.end_time = config["default_end_time"]
-        self.input_kinds = config.get("input_kinds")
-        self.map_lists = self._get_map_lists(config["input_map_names"])
+    def __init__(
+        self,
+        grass_interface: GrassInterface,
+        input_map_names: Mapping[str, str | None],
+        default_start_time: datetime,
+        default_end_time: datetime,
+        input_kinds: Mapping[str, Literal["raster", "strds"]] | None,
+    ) -> None:
+        self.grass_interface = grass_interface
+        self.start_time = default_start_time
+        self.end_time = default_end_time
+        self.input_kinds = input_kinds
+        self.map_lists = self._get_map_lists(input_map_names)
 
     def get_domain_data(self) -> DomainData:
         """Return a DomainData object"""

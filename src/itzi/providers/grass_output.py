@@ -15,7 +15,7 @@ GNU General Public License for more details.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING
 
 import numpy as np
 from itzi_core.providers import RasterOutputProvider, VectorOutputProvider
@@ -27,19 +27,6 @@ if TYPE_CHECKING:
     from itzi_core.data_containers import DrainageNetworkAttributes, DrainageNetworkTopology
 
     from itzi.providers.grass_interface import GrassInterface
-
-
-class GrassRasterOutputConfig(TypedDict):
-    grass_interface: GrassInterface
-    out_map_names: Mapping[str, str]
-    hmin: float
-    temporal_type: TemporalType
-
-
-class GrassVectorOutputConfig(TypedDict):
-    grass_interface: GrassInterface
-    drainage_map_name: str
-    temporal_type: TemporalType
 
 
 def derived_record_name(dataset_name: str, record_index: int) -> str:
@@ -57,13 +44,18 @@ def derived_drainage_table_names(vector_name: str) -> tuple[str, str]:
 class GrassRasterOutputProvider(RasterOutputProvider):
     """Write simulation outputs to GRASS."""
 
-    def __init__(self, config: GrassRasterOutputConfig) -> None:
-        """Initialize output provider with configuration."""
-        self.grass_interface = config["grass_interface"]
+    def __init__(
+        self,
+        grass_interface: GrassInterface,
+        out_map_names: Mapping[str, str],
+        hmin: float,
+        temporal_type: TemporalType,
+    ) -> None:
+        self.grass_interface = grass_interface
         # user-selected map names. Keys are user-facing names
-        self.out_map_names = config["out_map_names"]
-        self.hmin = config["hmin"]
-        self.temporal_type = config["temporal_type"]
+        self.out_map_names = out_map_names
+        self.hmin = hmin
+        self.temporal_type = temporal_type
         for stds_name in self.out_map_names.values():
             self.grass_interface.validate_output_stds_temporal_type(
                 stds_name=stds_name,
@@ -76,7 +68,6 @@ class GrassRasterOutputProvider(RasterOutputProvider):
     def _write_array(
         self, array: np.ndarray, map_key: str, sim_time: datetime | timedelta
     ) -> None:
-        """Write simulation data for current time step."""
         map_name = derived_record_name(self.out_map_names[map_key], self.record_counter[map_key])
         # write the raster
         self.grass_interface.write_raster_map(array, map_name, map_key, self.hmin)
@@ -112,11 +103,15 @@ class GrassRasterOutputProvider(RasterOutputProvider):
 class GrassVectorOutputProvider(VectorOutputProvider):
     """Write drainage simulation outputs to GRASS."""
 
-    def __init__(self, config: GrassVectorOutputConfig) -> None:
-        """Initialize output provider with simulation configuration."""
-        self.grass_interface = config["grass_interface"]
-        self.drainage_map_name = config["drainage_map_name"]
-        self.temporal_type = config["temporal_type"]
+    def __init__(
+        self,
+        grass_interface: GrassInterface,
+        drainage_map_name: str,
+        temporal_type: TemporalType,
+    ) -> None:
+        self.grass_interface = grass_interface
+        self.drainage_map_name = drainage_map_name
+        self.temporal_type = temporal_type
         self.grass_interface.validate_output_stds_temporal_type(
             stds_name=self.drainage_map_name,
             stds_type="stvds",
