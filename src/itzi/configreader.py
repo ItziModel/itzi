@@ -14,7 +14,6 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from configparser import ConfigParser
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -102,25 +101,13 @@ def _read_parser(filename: str) -> ConfigParser:
     return params
 
 
-def _read_optional_value(
-    params: ConfigParser,
-    section: str,
-    option: str,
-    reader: Callable[[str, str], Any],
-) -> Any | None:
-    """Read one config value when the option exists."""
-    if not params.has_option(section, option):
-        return None
-    return reader(section, option)
-
-
 def _read_string_options(
     params: ConfigParser, section: str, option_names: tuple[str, ...]
 ) -> dict[str, str]:
     """Collect the string-valued options present in a section."""
     values: dict[str, str] = {}
     for option_name in option_names:
-        value = _read_optional_value(params, section, option_name, params.get)
+        value = params.get(section, option_name, fallback=None)
         if value is not None:
             values[option_name] = value
     return values
@@ -132,7 +119,7 @@ def _read_float_options(
     """Collect the float-valued options present in a section."""
     values: dict[str, float] = {}
     for option_name in option_names:
-        value = _read_optional_value(params, section, option_name, params.getfloat)
+        value = params.getfloat(section, option_name, fallback=None)
         if value is not None:
             values[option_name] = value
     return values
@@ -169,8 +156,8 @@ def _read_hotstart_values(params: ConfigParser) -> HotstartRunConfig | None:
         return None
 
     hotstart_values = {
-        "wallclock_step": _read_optional_value(params, "hotstart", "wallclock_step", params.get),
-        "save_file_name": _read_optional_value(params, "hotstart", "save_file", params.get),
+        "wallclock_step": params.get("hotstart", "wallclock_step", fallback=None),
+        "save_file_name": params.get("hotstart", "save_file", fallback=None),
     }
     if all(value is None for value in hotstart_values.values()):
         return None
@@ -227,12 +214,10 @@ def _generate_output_map_names(prefix: str, output_values: list[str]) -> dict[st
 
 def _read_output_config(params: ConfigParser) -> tuple[str, list[str], dict[str, str | None]]:
     """Read output settings and derive output map names."""
-    prefix = _read_optional_value(params, "output", "prefix", params.get)
+    prefix = params.get("output", "prefix", fallback=None)
     if prefix is None:
         prefix = f"itzi_results_{datetime.now().strftime('%Y%m%dT%H%M%S')}"
-    output_values = _normalize_output_values(
-        _read_optional_value(params, "output", "values", params.get)
-    )
+    output_values = _normalize_output_values(params.get("output", "values", fallback=None))
     output_map_names = _generate_output_map_names(prefix, output_values)
     return prefix, output_values, output_map_names
 
@@ -256,7 +241,7 @@ def _read_simulation_drainage_values(params: ConfigParser) -> dict[str, str | fl
     drainage_values: dict[str, str | float] = {}
 
     for option_name in DRAINAGE_STRING_KEYS:
-        value = _read_optional_value(params, "drainage", option_name, params.get)
+        value = params.get("drainage", option_name, fallback=None)
         if value is None:
             continue
         if option_name == "output":
@@ -412,9 +397,7 @@ class ConfigReader:
         self.raw_input_times = _read_time_values(params)
         self.input_map_names = _read_input_map_names(params)
         self.out_prefix, self.out_values, self.output_map_names = _read_output_config(params)
-        self.stats_file = (
-            _read_optional_value(params, "statistics", "stats_file", params.get) or None
-        )
+        self.stats_file = params.get("statistics", "stats_file", fallback=None) or None
         self.sim_times = SimulationTimes.from_raw_values(self.raw_input_times)
         self._check_general_input(self.input_map_names)
         infiltration_model = self._resolve_infiltration_model(self.input_map_names)
