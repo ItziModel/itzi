@@ -9,7 +9,8 @@ dependencies = [
     "numpy>=2.5",
     "itzi-core==0.8.0",
     "bmipy>=2.0.1",
-    "pydantic>=2.10"
+    "pydantic>=2.10",
+    "pyyaml>=6.0"
 ]
 # min 3.12 for typing.
 requires-python = ">=3.12"
@@ -57,7 +58,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"itzi.data" = ["*.ini"]
+"itzi.data" = ["*.ini", "*.yaml"]
 "itzi.data.colortable" = ["*.txt"]
 
 [tool.pytest.ini_options]

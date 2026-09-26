@@ -2,10 +2,90 @@
 Configuration file
 ==================
 
-The parameters of a simulation are given through a configuration file in
-a format similar to Microsoft Windows INI files.
-An example is given in the tutorial above.
-The file is separated in sections described below.
+The public configuration format is a versioned YAML stream. Each non-empty
+YAML document defines one ensemble, and a document may contain sweep lists for
+Cartesian member expansion. A command may receive several YAML streams and
+legacy INI files in order.
+
+YAML files must use the ``.yaml`` extension. Other extensions are interpreted
+as deprecated legacy INI configurations during the migration release. A YAML
+syntax or schema error never falls back to INI parsing.
+
+The supported YAML subset rejects duplicate mapping keys, merge keys, custom
+tags, empty documents, and unknown schema fields. Quote timestamps, durations,
+map identifiers, paths, templates, and ambiguous strings such as ``yes`` or
+``on``. Documents after an explicit ``---`` marker are independently loaded,
+so an invalid document does not prevent a later explicitly delimited document
+from being reported.
+
+Basic YAML example
+------------------
+
+.. code-block:: yaml
+
+   schema_version: 1
+   ensemble:
+     id: "central-city"
+     name: "Central city rainfall study"
+   domain:
+     grass:
+       database: "/srv/grassdata"
+       project: "central_city"
+       mapset: "itzi"
+       executable: "grass"
+     region: "central_city_5m"
+     mask: "central_city_mask"
+   time:
+     start: "2026-09-01T00:00:00"
+     duration: "PT2H"
+     record_step: "PT5M"
+   input:
+     ground_elevation: "elevation_5m@PERMANENT"
+     friction: "manning_n@PERMANENT"
+     rainfall_rate: ["rain_10yr@PERMANENT", "rain_100yr@PERMANENT"]
+     infiltration:
+       type: "none"
+   options:
+     cfl: [0.5, 0.7]
+   outputs:
+     rasters:
+       prefix: "central_city_{simulation}"
+       variables: [water_depth, flow_speed]
+     statistics:
+       file: "results/{simulation}.csv"
+
+The example expands to four simulations: two rainfall maps multiplied by two
+``cfl`` values. Scalars are fixed across an ensemble, while non-empty lists in
+``input``, ``options``, or ``drainage`` are sweep dimensions. ``domain`` and
+``time`` are always scalar. Output variable lists are selections, not sweeps.
+An ensemble may contain at most 100 candidate simulations; a full command may
+contain at most 200.
+
+All simulations in an ensemble use one geographical domain, time form, and
+``record_step``. Time accepts exactly one of a relative ``duration``, absolute
+``start`` plus ``duration``, or absolute ``start`` plus ``end``. Durations use
+the supported non-calendar ISO 8601 subset, such as ``"PT5M"`` and ``"P1DT2H"``.
+Timezone offsets are retained as source metadata but execute as naive GRASS
+wall-clock times without conversion.
+
+YAML infiltration alternatives are explicit under ``input.infiltration``:
+``type: "none"``, ``type: "constant"`` with a ``rate`` map, or
+``type: "green-ampt"`` with ``effective_porosity``, ``capillary_pressure``, and
+``hydraulic_conductivity`` maps. A list of complete alternatives is one sweep
+dimension. The optional ``label`` is documentation only.
+
+``{ensemble}`` and ``{simulation}`` are the only output-template substitutions.
+Output maps are always bare names in the active execution mapset; qualified
+output names are rejected. YAML filesystem paths are relative to the YAML
+source file. Use ``itzi run --dry study.yaml`` to resolve and validate members
+without creating output artifacts.
+
+Legacy INI reference
+--------------------
+
+The remaining sections document the deprecated single-simulation INI format.
+It remains supported for one announced migration release. New configurations
+should use YAML.
 
 [time]
 ------

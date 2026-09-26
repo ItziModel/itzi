@@ -15,7 +15,7 @@ GNU General Public License for more details.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Literal, TypedDict
 
 import numpy as np
 from itzi_core import ARRAY_DEFINITIONS, ArrayCategory, DomainData
@@ -36,6 +36,7 @@ class GrassRasterInputConfig(TypedDict):
     input_map_names: Mapping[str, str | None]
     default_start_time: datetime
     default_end_time: datetime
+    input_kinds: Mapping[str, Literal["raster", "strds"]] | None
 
 
 class GrassRasterInputProvider(RasterInputProvider):
@@ -43,6 +44,7 @@ class GrassRasterInputProvider(RasterInputProvider):
         self.grass_interface = config["grass_interface"]
         self.start_time = config["default_start_time"]
         self.end_time = config["default_end_time"]
+        self.input_kinds = config.get("input_kinds")
         self.map_lists = self._get_map_lists(config["input_map_names"])
 
     def get_domain_data(self) -> DomainData:
@@ -81,7 +83,25 @@ class GrassRasterInputProvider(RasterInputProvider):
                 map_list = None
                 continue
             map_id = self.grass_interface.format_id(map_name)
-            if self.grass_interface.name_is_stds(map_id):
+            expected_kind = self.input_kinds.get(k) if self.input_kinds is not None else None
+            if expected_kind == "strds":
+                if not self.grass_interface.name_is_stds(map_id):
+                    msgr.fatal(f"Resolved STRDS input <{map_id}> is no longer available")
+                strds_id = map_id
+                if not self.grass_interface.stds_temporal_sanity(strds_id):
+                    msgr.fatal(f"{map_name}: inadequate temporal format")
+                map_list = self.grass_interface.raster_list_from_strds(strds_id)
+            elif expected_kind == "raster":
+                if not self.grass_interface.name_is_map(map_id):
+                    msgr.fatal(f"Resolved raster input <{map_id}> is no longer available")
+                map_list = [
+                    MapData(
+                        id=map_id,
+                        start_time=self.start_time,
+                        end_time=self.end_time,
+                    )
+                ]
+            elif self.grass_interface.name_is_stds(map_id):
                 strds_id = map_id
                 if not self.grass_interface.stds_temporal_sanity(strds_id):
                     msgr.fatal(f"{map_name}: inadequate temporal format")

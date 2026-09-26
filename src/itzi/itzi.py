@@ -30,26 +30,33 @@ import os
 import sys
 import time
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import timedelta
 from importlib.metadata import version
-from multiprocessing import Process
-from typing import TYPE_CHECKING
-
-import numpy as np
-from itzi_core import SimulationBuilder
-from itzi_core.providers import CSVMassBalanceOutputProvider
+from multiprocessing import Process, get_context
+from pathlib import Path
+from queue import Empty
 
 import itzi.messenger as msgr
 from itzi.cli_parser import build_parser
 from itzi.configreader import ConfigReader
+from itzi.ensemble import (
+    DocumentFailure,
+    EnsembleError,
+    ExpandedEnsemble,
+    ExpandedSimulation,
+    ResolvedSimulation,
+    ValidationFailure,
+    render_template,
+)
 from itzi.grass_session import GrassSessionManager
 from itzi.messenger import VerbosityLevel
-
-if TYPE_CHECKING:
-    from itzi_core import Simulation, SimulationConfig
-
-    from itzi.grass_session import GrassParams
-    from itzi.providers.grass_interface import GrassInterface
+from itzi.resolution import (
+    resolve_simulation,
+    validate_resolved_ensemble,
+    verify_resolved_simulation,
+)
+from itzi.run_plan import load_batch
+from itzi.simulation_runner import SimulationRunner
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -67,140 +74,6 @@ def main(argv: list[str] | None = None) -> int:
     except msgr.FatalError:
         return 1
     return 0
-
-
-class SimulationRunner:
-    """Provide the necessary tools to run one simulation."""
-
-    def __init__(
-        self,
-        sim_config: SimulationConfig,
-        grass_params: GrassParams,
-        hotstart_path: str | None = None,
-        stats_file: str | None = None,
-    ) -> None:
-        self.grass_required_version = "8.4.0"
-        self.g_interface: GrassInterface
-        self.sim: Simulation
-
-        # display parameters (if verbose)
-        msgr.display_sim_param(sim_config)
-
-        # Check GRASS version
-        import grass.script as gscript
-
-        grass_version = gscript.parse_command("g.version", flags="g")["version"]
-        if grass_version < self.grass_required_version:
-            msgr.fatal(
-                f"Itzi requires at least GRASS {self.grass_required_version}, "
-                f"version {grass_version} detected."
-            )
-        msgr.debug("GRASS session set")
-
-        # return error if output files exist
-        from itzi.providers import grass_interface
-
-        output_names = list(sim_config.output_map_names.values())
-        if sim_config.drainage_output is not None:
-            output_names.append(sim_config.drainage_output)
-        grass_interface.check_output_files(output_names)
-        msgr.debug("Output files OK")
-
-        data_type = np.float32
-        # Create the grass_interface object
-        self.g_interface = grass_interface.GrassInterface(
-            start_time=sim_config.start_time,
-            end_time=sim_config.end_time,
-            dtype=data_type,
-            region_id=grass_params.region,
-            raster_mask_id=grass_params.mask,
-            non_blocking_write=False,
-        )
-        # Create Simulation with GRASS backend
-        msgr.verbose("Setting up GRASS simulation...")
-        from itzi.providers.grass_input import GrassRasterInputProvider
-        from itzi.providers.grass_output import (
-            GrassRasterOutputProvider,
-            GrassVectorOutputProvider,
-        )
-
-        raster_input_provider = GrassRasterInputProvider(
-            {
-                "grass_interface": self.g_interface,
-                "input_map_names": sim_config.input_map_names,
-                "default_start_time": sim_config.start_time,
-                "default_end_time": sim_config.end_time,
-            }
-        )
-        raster_output_provider = GrassRasterOutputProvider(
-            {
-                "grass_interface": self.g_interface,
-                "out_map_names": sim_config.output_map_names,
-                "hmin": sim_config.surface_flow_parameters.hmin,
-                "temporal_type": sim_config.temporal_type,
-            }
-        )
-        sim_builder = (
-            SimulationBuilder(sim_config, self.g_interface.get_npmask(), data_type)
-            .with_input_provider(raster_input_provider)
-            .with_raster_output_provider(raster_output_provider)
-        )
-        if sim_config.drainage_output is not None:
-            vector_output_provider = GrassVectorOutputProvider(
-                {
-                    "grass_interface": self.g_interface,
-                    "temporal_type": sim_config.temporal_type,
-                    "drainage_map_name": sim_config.drainage_output,
-                }
-            )
-            sim_builder.with_vector_output_provider(vector_output_provider)
-        if stats_file:
-            sim_builder.with_mass_balance_output_provider(CSVMassBalanceOutputProvider(stats_file))
-        if hotstart_path:
-            sim_builder.with_hotstart(hotstart_path)
-        self.sim: Simulation = sim_builder.build()
-        # Initialize the simulation
-        self.sim.initialize()
-
-    def run(self):
-        """Run a full simulation"""
-        sim_start_time = datetime.now()
-        msgr.verbose("Starting time-stepping...")
-        while self.sim.sim_time < self.sim.end_time:
-            # display advance of simulation
-            msgr.percent(
-                self.sim.start_time,
-                self.sim.end_time,
-                self.sim.sim_time,
-                sim_start_time,
-            )
-            # step models
-            self.step()
-        return self
-
-    def finalize(self):
-        """Tear down the simulation and return to previous state."""
-        self.sim.finalize()
-        # Cleanup the grass interface object
-        if hasattr(self, "g_interface"):
-            self.g_interface.finalize()
-            self.g_interface.cleanup()
-        return self
-
-    def step(self):
-        """Do one simulation step."""
-        self.sim.update()
-        return self
-
-    @property
-    def origin(self):
-        return (self.sim.domain_data.north, self.sim.domain_data.west)
-
-    def __del__(self):
-        # Cleanup the grass interface object
-        if hasattr(self, "g_interface"):
-            self.g_interface.finalize()
-            self.g_interface.cleanup()
 
 
 def sim_runner_worker(conf_file: str, hotstart_file: str | None) -> None:
@@ -230,6 +103,45 @@ def sim_runner_worker(conf_file: str, hotstart_file: str | None) -> None:
     except Exception as error:
         msgr.warning(f"Error during execution: {type(error).__name__}: {error}")
         raise SystemExit(1) from None
+
+
+def resolved_sim_runner_worker(simulation: ResolvedSimulation, result_queue) -> None:
+    """Run one resolved member and return a small structured worker result."""
+    msgr.raise_on_error = True
+    msgr._itzi_logger.set_verbosity(msgr.verbosity())
+    runner: SimulationRunner | None = None
+    try:
+        with GrassSessionManager(simulation.grass_params):
+            verify_resolved_simulation(simulation)
+            runner = SimulationRunner(
+                simulation.simulation_config,
+                simulation.grass_params,
+                stats_file=str(simulation.artifacts.statistics_file)
+                if simulation.artifacts.statistics_file is not None
+                else None,
+                effective_mask=simulation.effective_mask,
+                input_kinds=dict(simulation.input_kinds),
+                exclusive_stats=True,
+            )
+            runner.run().finalize()
+        result_queue.put(("completed", None))
+    except Exception as error:
+        if runner is not None:
+            try:
+                runner.finalize()
+            except Exception:
+                pass
+        result_queue.put(("execution_failed", f"{type(error).__name__}: {error}"))
+
+
+def resolver_worker(expanded: ExpandedSimulation, result_queue) -> None:
+    """Resolve one scalar member in a short-lived spawned GRASS process."""
+    msgr.raise_on_error = True
+    msgr._itzi_logger.set_verbosity(msgr.verbosity())
+    try:
+        result_queue.put(("resolved", resolve_simulation(expanded)))
+    except Exception as error:
+        result_queue.put(("validation_failed", f"{type(error).__name__}: {error}"))
 
 
 def itzi_run_one(conf_file: str, hotstart_file: str | None) -> bool:
@@ -341,6 +253,25 @@ def itzi_run(cli_args):
         # only warnings
         os.environ["GRASS_VERBOSE"] = "0"
 
+    if _uses_legacy_execution_path(cli_args):
+        _run_legacy_batch(cli_args)
+        return
+    _run_ensemble_batch(cli_args)
+
+
+def _uses_legacy_execution_path(cli_args) -> bool:
+    """Keep the one-simulation INI execution API during its deprecation window."""
+    return (
+        all(Path(path).suffix != ".yaml" for path in cli_args.config_file)
+        and not getattr(cli_args, "member", [])
+        and not getattr(cli_args, "dry", False)
+    )
+
+
+def _run_legacy_batch(cli_args) -> None:
+    """Execute the retained pre-ensemble INI path."""
+    for config_file in cli_args.config_file:
+        msgr.warning(f"INI configuration <{config_file}> is deprecated; use YAML instead.")
     # start total time counter
     total_sim_start = time.time()
     # dictionary to store computation times
@@ -374,6 +305,348 @@ def itzi_run(cli_args):
     msgr.message("Average: {}".format(timedelta(seconds=avg_time_s)))
     if failed_files:
         msgr.fatal(f"{len(failed_files)} simulation(s) failed")
+
+
+def _run_ensemble_batch(cli_args) -> None:
+    """Resolve and execute an ordered YAML/INI batch through spawn boundaries."""
+    if getattr(cli_args, "resume_from", []):
+        msgr.fatal("Resume is not available for YAML ensembles until Stage 2")
+    ensembles, document_failures = load_batch(cli_args.config_file)
+    for failure in document_failures:
+        msgr.warning(failure.format())
+
+    resolved: list[
+        tuple[ExpandedEnsemble, tuple[ResolvedSimulation, ...], tuple[ValidationFailure, ...]]
+    ] = []
+    for ensemble in ensembles:
+        successful: list[ResolvedSimulation] = []
+        failures: list[ValidationFailure] = []
+        for expanded in ensemble.simulations:
+            result = _resolve_in_spawn(expanded)
+            if isinstance(result, ResolvedSimulation):
+                successful.append(result)
+            else:
+                failures.append(result)
+        try:
+            validate_resolved_ensemble(tuple(successful))
+        except EnsembleError as error:
+            failures.extend(
+                ValidationFailure(
+                    source=simulation.source,
+                    ensemble_id=ensemble.ensemble_id,
+                    coordinates=simulation.coordinates,
+                    phase="artifact_validation",
+                    detail=str(error),
+                )
+                for simulation in successful
+            )
+            successful = []
+        resolved.append((ensemble, tuple(successful), tuple(failures)))
+
+    selected = _select_members(resolved, getattr(cli_args, "member", []))
+    if getattr(cli_args, "dry", False):
+        _display_dry_plan(resolved, selected, document_failures)
+        if document_failures or any(failures for _, _, failures in resolved):
+            msgr.fatal("YAML batch validation failed")
+        return
+
+    failure_count = len(document_failures)
+    for ensemble, simulations, failures in resolved:
+        selected_ids = selected.get(ensemble.ensemble_id, set())
+        if not selected_ids and not (not getattr(cli_args, "member", []) and failures):
+            continue
+        manifest_path = _manifest_path(ensemble)
+        states = _initial_member_states(
+            simulations, failures, selected_ids, bool(getattr(cli_args, "member", []))
+        )
+        try:
+            _validate_manifest_destination(manifest_path, ensemble, simulations)
+        except EnsembleError as error:
+            msgr.warning(str(error))
+            failure_count += max(1, len(selected_ids))
+            continue
+        try:
+            _create_manifest(manifest_path, ensemble, states, overwrite=bool(cli_args.o))
+        except OSError as error:
+            msgr.warning(f"Cannot create manifest <{manifest_path}>: {error}")
+            failure_count += max(1, len(selected_ids))
+            continue
+
+        for simulation in simulations:
+            if simulation.simulation_id not in selected_ids:
+                continue
+            if states[simulation.simulation_id]["status"] != "planned":
+                continue
+            if (
+                simulation.artifacts.statistics_file is not None
+                and simulation.artifacts.statistics_file.exists()
+                and not cli_args.o
+            ):
+                states[simulation.simulation_id]["status"] = "validation_failed"
+                states[simulation.simulation_id]["failure"] = {
+                    "phase": "artifact_validation",
+                    "detail": f"statistics file <{simulation.artifacts.statistics_file}> already exists",
+                }
+                _update_manifest(manifest_path, ensemble, states)
+                continue
+            states[simulation.simulation_id]["status"] = "running"
+            try:
+                _update_manifest(manifest_path, ensemble, states)
+            except OSError as error:
+                msgr.warning(f"Cannot update manifest <{manifest_path}>: {error}")
+                failure_count += 1
+                break
+            started = time.monotonic()
+            status, detail = _run_resolved_in_spawn(simulation)
+            states[simulation.simulation_id]["status"] = status
+            states[simulation.simulation_id]["elapsed_seconds"] = time.monotonic() - started
+            if detail is not None:
+                states[simulation.simulation_id]["failure"] = detail
+                failure_count += 1
+            try:
+                _update_manifest(manifest_path, ensemble, states)
+            except OSError as error:
+                msgr.warning(f"Cannot update manifest <{manifest_path}>: {error}")
+                failure_count += 1
+                break
+        failure_count += sum(
+            1
+            for state in states.values()
+            if state["status"] == "validation_failed" and state.get("selected", False)
+        )
+
+    if failure_count:
+        msgr.fatal(f"{failure_count} ensemble simulation(s) failed validation or execution")
+    msgr.message("Simulation(s) complete.")
+
+
+def _resolve_in_spawn(expanded: ExpandedSimulation) -> ResolvedSimulation | ValidationFailure:
+    context = get_context("spawn")
+    result_queue = context.Queue()
+    process = context.Process(target=resolver_worker, args=(expanded, result_queue))
+    process.start()
+    process.join()
+    try:
+        status, payload = result_queue.get(timeout=1)
+    except Empty:
+        status = "validation_failed"
+        payload = f"resolver exited with status {process.exitcode} without returning a result"
+    finally:
+        result_queue.close()
+        process.close()
+    if status == "resolved" and isinstance(payload, ResolvedSimulation):
+        return payload
+    return ValidationFailure(
+        source=expanded.source,
+        ensemble_id=expanded.ensemble_id,
+        coordinates=expanded.coordinates,
+        phase="input_resolution",
+        detail=str(payload),
+    )
+
+
+def _run_resolved_in_spawn(simulation: ResolvedSimulation) -> tuple[str, str | None]:
+    context = get_context("spawn")
+    result_queue = context.Queue()
+    process = context.Process(target=resolved_sim_runner_worker, args=(simulation, result_queue))
+    process.start()
+    process.join()
+    try:
+        status, detail = result_queue.get(timeout=1)
+    except Empty:
+        reason = (
+            f"signal {-process.exitcode}"
+            if process.exitcode and process.exitcode < 0
+            else str(process.exitcode)
+        )
+        status, detail = (
+            "execution_failed",
+            f"worker exited with {reason} without returning a result",
+        )
+    finally:
+        result_queue.close()
+        process.close()
+    return status, detail
+
+
+def _select_members(
+    resolved: list[
+        tuple[ExpandedEnsemble, tuple[ResolvedSimulation, ...], tuple[ValidationFailure, ...]]
+    ],
+    selectors: list[str],
+) -> dict[str, set[str]]:
+    """Resolve member selectors only against successfully resolved members."""
+    selected = {ensemble.ensemble_id: set() for ensemble, _, _ in resolved}
+    all_members = {
+        f"{ensemble.ensemble_id}#{simulation.simulation_id}": simulation.simulation_id
+        for ensemble, simulations, _ in resolved
+        for simulation in simulations
+    }
+    if not selectors:
+        for ensemble, simulations, _ in resolved:
+            selected[ensemble.ensemble_id] = {
+                simulation.simulation_id for simulation in simulations
+            }
+        return selected
+    if any("#" not in selector for selector in selectors) and len(resolved) != 1:
+        msgr.fatal("Unqualified --member IDs require a batch with exactly one ensemble")
+    for selector in selectors:
+        qualified = selector if "#" in selector else f"{resolved[0][0].ensemble_id}#{selector}"
+        simulation_id = all_members.get(qualified)
+        if simulation_id is None:
+            msgr.fatal(f"--member {selector!r} does not match a successfully resolved simulation")
+        ensemble_id, _separator, _member = qualified.partition("#")
+        selected[ensemble_id].add(simulation_id)
+    return selected
+
+
+def _manifest_path(ensemble: ExpandedEnsemble) -> Path:
+    if ensemble.manifest_template is not None:
+        rendered = render_template(
+            ensemble.manifest_template, ensemble=ensemble.ensemble_id, simulation=None
+        )
+        path = Path(rendered).expanduser()
+        return (path if path.is_absolute() else ensemble.source.path.parent / path).resolve()
+    return (
+        ensemble.source.path.parent
+        / f"{ensemble.source.path.stem}.{ensemble.ensemble_id}.manifest.json"
+    )
+
+
+def _validate_manifest_destination(
+    manifest_path: Path,
+    ensemble: ExpandedEnsemble,
+    simulations: tuple[ResolvedSimulation, ...],
+) -> None:
+    """Keep the parent-owned manifest away from files required by the run."""
+    protected = {ensemble.source.path.resolve()}
+    for simulation in simulations:
+        if simulation.simulation_config.swmm_inp is not None:
+            protected.add(simulation.simulation_config.swmm_inp.resolve())
+        if simulation.artifacts.statistics_file is not None:
+            protected.add(simulation.artifacts.statistics_file.resolve())
+    if manifest_path in protected:
+        raise EnsembleError(
+            f"manifest <{manifest_path}> aliases a protected input or member artifact"
+        )
+    for path in protected:
+        if manifest_path.exists() and path.exists() and manifest_path.samefile(path):
+            raise EnsembleError(
+                f"manifest <{manifest_path}> aliases a protected input or member artifact"
+            )
+
+
+def _initial_member_states(
+    simulations: tuple[ResolvedSimulation, ...],
+    failures: tuple[ValidationFailure, ...],
+    selected_ids: set[str],
+    has_selectors: bool,
+) -> dict[str, dict]:
+    states: dict[str, dict] = {}
+    for simulation in simulations:
+        selected = simulation.simulation_id in selected_ids
+        states[simulation.simulation_id] = {
+            "simulation_id": simulation.simulation_id,
+            "coordinates": simulation.coordinates,
+            "status": "planned" if selected else "not_selected",
+            "selected": selected,
+            "artifacts": {
+                "rasters": dict(simulation.artifacts.output_map_names),
+                "drainage": simulation.artifacts.drainage_output,
+                "statistics": str(simulation.artifacts.statistics_file)
+                if simulation.artifacts.statistics_file is not None
+                else None,
+            },
+        }
+    for index, failure in enumerate(failures):
+        key = f"validation-{index}"
+        states[key] = {
+            "simulation_id": None,
+            "coordinates": failure.coordinates,
+            "status": "not_selected" if has_selectors else "validation_failed",
+            "selected": not has_selectors,
+            "failure": {"phase": failure.phase, "detail": failure.detail},
+        }
+    return states
+
+
+def _manifest_document(ensemble: ExpandedEnsemble, states: dict[str, dict]) -> dict:
+    return {
+        "manifest_version": 1,
+        "ensemble": {"id": ensemble.ensemble_id, "name": ensemble.ensemble_name},
+        "source": {
+            "path": str(ensemble.source.path),
+            "document_index": ensemble.source.document_index,
+            "file_digest": ensemble.source.file_digest,
+            "document_digest": ensemble.source.document_digest,
+        },
+        "members": list(states.values()),
+    }
+
+
+def _create_manifest(
+    path: Path, ensemble: ExpandedEnsemble, states: dict[str, dict], *, overwrite: bool
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mode = "w" if overwrite else "x"
+    with path.open(mode, encoding="utf-8") as file_obj:
+        import json
+
+        json.dump(
+            _manifest_document(ensemble, states),
+            file_obj,
+            allow_nan=False,
+            indent=2,
+            sort_keys=True,
+        )
+        file_obj.write("\n")
+
+
+def _update_manifest(path: Path, ensemble: ExpandedEnsemble, states: dict[str, dict]) -> None:
+    import json
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", delete=False
+    ) as file_obj:
+        temporary_path = Path(file_obj.name)
+        json.dump(
+            _manifest_document(ensemble, states),
+            file_obj,
+            allow_nan=False,
+            indent=2,
+            sort_keys=True,
+        )
+        file_obj.write("\n")
+        file_obj.flush()
+        os.fsync(file_obj.fileno())
+    try:
+        temporary_path.replace(path)
+    except Exception:
+        temporary_path.unlink(missing_ok=True)
+        raise
+
+
+def _display_dry_plan(
+    resolved: list[
+        tuple[ExpandedEnsemble, tuple[ResolvedSimulation, ...], tuple[ValidationFailure, ...]]
+    ],
+    selected: dict[str, set[str]],
+    document_failures: tuple[DocumentFailure, ...],
+) -> None:
+    for ensemble, simulations, failures in resolved:
+        msgr.message(f"Ensemble {ensemble.ensemble_id}:")
+        for simulation in simulations:
+            selection = (
+                "selected"
+                if simulation.simulation_id in selected[ensemble.ensemble_id]
+                else "not selected"
+            )
+            msgr.message(f"  {simulation.simulation_id} ({selection})")
+        for failure in failures:
+            msgr.warning(f"  validation failed: {failure.detail}")
+    for failure in document_failures:
+        msgr.warning(failure.format())
 
 
 def itzi_version(cli_args):

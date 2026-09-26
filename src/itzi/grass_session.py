@@ -18,6 +18,7 @@ import importlib.util
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
@@ -43,15 +44,59 @@ class GrassSessionManager:
     def __init__(self, grass_params: GrassParams):
         self.grass_params = grass_params
         self.grass_session = None
-        if importlib.util.find_spec("grass"):
-            self._is_active = True
-        else:
-            self._is_active = False
+        self._owns_session = False
+
+    @staticmethod
+    def current_context() -> tuple[str, str, str] | None:
+        """Return the active GRASS context, or ``None`` outside a session."""
+        # Importing PyGRASS without a GISRC can terminate through GRASS' C API.
+        # The environment guard keeps configuration parsing and external launches
+        # independent from GRASS imports.
+        if not os.environ.get("GISRC"):
+            return None
+        if importlib.util.find_spec("grass") is None and "grass" not in sys.modules:
+            return None
+        try:
+            from grass.pygrass.utils import getenv
+
+            values = (getenv("GISDBASE"), getenv("LOCATION_NAME"), getenv("MAPSET"))
+        except (ImportError, RuntimeError, SystemExit):
+            return None
+        if not all(values):
+            return None
+        return values
+
+    def _validate_requested_context(self) -> None:
+        """Ensure an explicit request matches the session selected for this process."""
+        active = self.current_context()
+        if active is None:
+            msgr.fatal("Unable to determine the active GRASS context")
+        requested = (
+            self.grass_params.grassdata,
+            self.grass_params.location,
+            self.grass_params.mapset,
+        )
+        if not any(requested):
+            return
+        if not all(requested):
+            msgr.fatal("GRASS database, location, and mapset must be supplied together")
+        requested_database = str(Path(requested[0]).expanduser().resolve())
+        active_database = str(Path(active[0]).expanduser().resolve())
+        if (requested_database, requested[1], requested[2]) != (
+            active_database,
+            active[1],
+            active[2],
+        ):
+            msgr.fatal(
+                "Requested GRASS context does not match the active session "
+                f"({active_database}/{active[1]}/{active[2]})"
+            )
 
     def open(self):
         """Open a GRASS session if needed."""
-        if self._is_active:
-            return  # Already started
+        if self.current_context() is not None:
+            self._validate_requested_context()
+            return
 
         # Check if mandatory GRASS parameters are present
         if not all(
@@ -87,17 +132,21 @@ class GrassSessionManager:
         self.grass_session = gscript.setup.init(
             path=gisdb, location=location, mapset=mapset, grass_path=grassbin
         )
-
-        self._is_active = True
+        self._owns_session = True
+        # GRASS 8.4 setup establishes GISRC.  The fallback retains support for
+        # embedders whose setup object deliberately hides its environment.
+        if self.current_context() is not None:
+            self._validate_requested_context()
 
     def close(self):
         """Stop GRASS session."""
-        if self.grass_session is not None and self._is_active:
+        if self.grass_session is not None and self._owns_session:
             try:
                 self.grass_session.finish()
             except Exception as e:
                 print(f"Warning: Error cleaning up GRASS session: {e}")
-        self._is_active = False
+        self.grass_session = None
+        self._owns_session = False
 
     def __enter__(self):
         self.open()

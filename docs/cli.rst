@@ -9,7 +9,29 @@ Run a simulation
    :func: build_parser
    :prog: itzi
    :path: run
-   :nodefault:
+    :nodefault:
+
+YAML ensembles
+~~~~~~~~~~~~~~
+
+Each YAML document is one ensemble. Use ``--dry`` to perform parsing,
+expansion, GRASS input resolution, member-ID calculation, and artifact
+validation without writing manifests or model outputs:
+
+.. code-block:: bash
+
+   itzi run --dry studies.yaml
+
+Select resolved members with a qualified ensemble and simulation ID. The
+unqualified ID form is accepted only when the batch contains one ensemble.
+
+.. code-block:: bash
+
+   itzi run studies.yaml --member central-city#sim-c1f52e9a
+
+Stage 1 provides basic YAML ensemble execution. YAML hotstart resume mapping
+and checkpoint provenance are introduced in Stage 2; the retained INI resume
+syntax below continues to apply to legacy INI-only invocations.
 
 
 Hotstart usage

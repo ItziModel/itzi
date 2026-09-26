@@ -182,6 +182,7 @@ class GrassInterface:
         dtype,
         region_id: str | None,
         raster_mask_id: str | None,
+        effective_mask: tuple[str, str | None] | None = None,
         non_blocking_write=True,
     ) -> None:
         assert isinstance(start_time, datetime), "start_time not a datetime object!"
@@ -194,8 +195,6 @@ class GrassInterface:
         self.end_time = end_time
         self.dtype = dtype
         self.non_blocking_write = non_blocking_write
-
-        self.old_mask_name = None
 
         # LatLon is not supported
         if gscript.locn_is_latlong():
@@ -218,9 +217,7 @@ class GrassInterface:
             "n": self.region.north,
             "s": self.region.south,
         }
-        # Set temporary mask
-        if self.raster_mask_id:
-            self.set_temp_mask()
+        self.mask_mode, self.mask_source = self._select_effective_mask(effective_mask)
         self.overwrite = gscript.overwrite()
         # init temporal module
         _init_temporal()
@@ -252,10 +249,7 @@ class GrassInterface:
             self.raster_writer_queue.join()
 
     def cleanup(self) -> None:
-        """Remove temporary region and mask."""
-        if self.raster_mask_id:
-            msgr.debug("Remove temp MASK...")
-            self.del_temp_mask()
+        """Remove the temporary region and stop the raster writer."""
         if self.region_id:
             msgr.debug("Remove temp region...")
             gscript.del_temp_region()
@@ -296,45 +290,44 @@ class GrassInterface:
     @staticmethod
     def has_mask() -> bool:
         """Return True if the mapset has a mask, False otherwise."""
-        return bool(gscript.read_command("g.list", type="raster", pattern="MASK"))
+        return bool(gutils.get_mapset_raster("MASK", gutils.getenv("MAPSET")))
+
+    def _select_effective_mask(
+        self, effective_mask: tuple[str, str | None] | None
+    ) -> tuple[str, str | None]:
+        """Select a mask descriptor without modifying the mapset-wide MASK."""
+        if effective_mask is not None:
+            mode, source = effective_mask
+            if mode == "none":
+                return mode, None
+            if source is None:
+                msgr.fatal(f"Effective {mode} mask has no source")
+            return mode, source
+        if self.raster_mask_id:
+            return "explicit", self.format_id(self.raster_mask_id)
+        if self.has_mask():
+            return "active", f"MASK@{gutils.getenv('MAPSET')}"
+        return "none", None
 
     def get_npmask(self) -> np.ndarray:
         """Return a boolean numpy ndarray where True is outside the domain."""
-        if self.has_mask():
-            grass_mask = self.read_raster_map("MASK")
-            return ~np.isclose(grass_mask, 1.0)
-        else:
+        if self.mask_mode == "none":
             return np.full(shape=(self.yr, self.xr), fill_value=False, dtype=np.bool_)
+        assert self.mask_source is not None
+        grass_mask = self.read_raster_map(self.mask_source)
+        if self.mask_mode == "explicit":
+            # r.mask accepts every non-NULL cell, including a zero value.
+            return np.isnan(grass_mask)
+        # A mapset MASK uses CELL semantics: zero and NULL are outside.
+        return np.isnan(grass_mask) | (grass_mask == 0)
 
     def set_temp_mask(self) -> Self:
-        """If a mask is already set, keep it for later.
-        Set a new mask.
-        """
-        has_old_mask: bool = self.has_mask()
-        if has_old_mask:
-            # Save the current MASK under a temp name
-            self.old_mask_name = f"itzi_old_MASK_{os.getpid()}"
-            gscript.run_command(
-                "g.rename",
-                quiet=True,
-                overwrite=True,
-                raster=f"MASK,{self.old_mask_name}",
-            )
-        gscript.run_command("r.mask", quiet=True, raster=self.raster_mask_id)
-        assert self.has_mask()
+        """Retained API: masks are now applied in NumPy without GRASS mutation."""
+        msgr.fatal("Itzi never installs a temporary mapset MASK")
         return self
 
     def del_temp_mask(self) -> Self:
-        """Reset the old mask, remove if there was not."""
-        if self.old_mask_name is not None:
-            gscript.run_command(
-                "g.rename",
-                quiet=True,
-                overwrite=True,
-                raster=f"{self.old_mask_name},MASK",
-            )
-        else:
-            gscript.run_command("r.mask", quiet=True, flags="r")
+        """Retained API: Itzi never installs a temporary mapset MASK."""
         return self
 
     def coor2pixel(self, coor: tuple[float, float]) -> tuple[int, int]:
@@ -508,16 +501,56 @@ class GrassInterface:
             )
 
     def read_raster_map(self, rast_name: str) -> np.ndarray:
-        """Read a GRASS raster and return a numpy array"""
+        """Read a raster through GRASS 8.4's no-mask row APIs.
+
+        The active mapset MASK must not alter model input values.  The one
+        effective mask selected for the simulation is applied separately by
+        :meth:`get_npmask` and passed to itzi-core.
+        """
         if self.non_blocking_write:
-            with self.raster_lock, raster.RasterRow(rast_name, mode="r") as rast:
-                array = np.array(rast, dtype=self.dtype)
-                array = self._replace_cell_null_sentinel(rast.mtype, array)
-        else:
-            with raster.RasterRow(rast_name, mode="r") as rast:
-                array = np.array(rast, dtype=self.dtype)
-                array = self._replace_cell_null_sentinel(rast.mtype, array)
-        return array
+            with self.raster_lock:
+                return self._read_raster_map_nomask(rast_name)
+        return self._read_raster_map_nomask(rast_name)
+
+    def _read_raster_map_nomask(self, rast_name: str) -> np.ndarray:
+        """Read the current computational region while bypassing GRASS MASK."""
+        from grass.lib import raster as libraster
+
+        name, separator, mapset = rast_name.partition("@")
+        if separator and (not name or not mapset or "@" in mapset):
+            msgr.fatal(f"Invalid raster identifier <{rast_name}>")
+        if not separator:
+            mapset = gutils.get_mapset_raster(name)
+        if not mapset:
+            msgr.fatal(f"Raster <{rast_name}> not found")
+        raster_type = libraster.Rast_map_type(name, mapset)
+        reader_data = {
+            libraster.CELL_TYPE: (libraster.Rast_allocate_c_buf, libraster.Rast_get_c_row_nomask),
+            libraster.FCELL_TYPE: (libraster.Rast_allocate_f_buf, libraster.Rast_get_f_row_nomask),
+            libraster.DCELL_TYPE: (libraster.Rast_allocate_d_buf, libraster.Rast_get_d_row_nomask),
+        }.get(raster_type)
+        if reader_data is None:
+            msgr.fatal(f"Raster <{rast_name}> has an unsupported data type")
+        allocate, read_row = reader_data
+        file_descriptor = libraster.Rast_open_old(name, mapset)
+        if file_descriptor < 0:
+            msgr.fatal(f"Raster <{rast_name}> cannot be opened")
+        buffer = allocate()
+        try:
+            array = np.empty((self.yr, self.xr), dtype=self.dtype)
+            for row_index in range(self.yr):
+                read_row(file_descriptor, buffer, row_index)
+                array[row_index] = np.ctypeslib.as_array(buffer, shape=(self.xr,))
+        finally:
+            libraster.Rast_close(file_descriptor)
+        return self._replace_cell_null_sentinel(
+            {
+                libraster.CELL_TYPE: "CELL",
+                libraster.FCELL_TYPE: "FCELL",
+                libraster.DCELL_TYPE: "DCELL",
+            }[raster_type],
+            array,
+        )
 
     @staticmethod
     def _replace_cell_null_sentinel(raster_type: str, array: np.ndarray) -> np.ndarray:
@@ -597,7 +630,7 @@ class GrassInterface:
                 vect_map.dblinks.add(dblink)
             # create table
             dbtable = dblink.table()
-            dbtable.create(layer_dscr.columns, overwrite=True)
+            dbtable.create(layer_dscr.columns, overwrite=self.overwrite)
             dblinks[layer_name] = DBLinkDescription(dblink.layer, dbtable)
         return dblinks
 

@@ -346,6 +346,7 @@ dependencies = [
     { name = "itzi-core" },
     { name = "numpy" },
     { name = "pydantic" },
+    { name = "pyyaml" },
 ]
 
 [package.dev-dependencies]
@@ -368,6 +369,7 @@ requires-dist = [
     { name = "itzi-core", specifier = "==0.8.0" },
     { name = "numpy", specifier = ">=2.5" },
     { name = "pydantic", specifier = ">=2.10" },
+    { name = "pyyaml", specifier = ">=6.0" },
 ]
 
 [package.metadata.requires-dev]

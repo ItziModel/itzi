@@ -42,6 +42,18 @@ class GrassVectorOutputConfig(TypedDict):
     temporal_type: TemporalType
 
 
+def derived_record_name(dataset_name: str, record_index: int) -> str:
+    """Return the shared raster/vector child name for one output record."""
+    if record_index < 0:
+        raise ValueError("record_index must be non-negative")
+    return f"{dataset_name}_{record_index:04d}"
+
+
+def derived_drainage_table_names(vector_name: str) -> tuple[str, str]:
+    """Return the table names created for a drainage vector child."""
+    return (f"{vector_name}_node", f"{vector_name}_link")
+
+
 class GrassRasterOutputProvider(RasterOutputProvider):
     """Write simulation outputs to GRASS."""
 
@@ -65,8 +77,7 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         self, array: np.ndarray, map_key: str, sim_time: datetime | timedelta
     ) -> None:
         """Write simulation data for current time step."""
-        suffix = str(self.record_counter[map_key]).zfill(4)
-        map_name = f"{self.out_map_names[map_key]}_{suffix}"
+        map_name = derived_record_name(self.out_map_names[map_key], self.record_counter[map_key])
         # write the raster
         self.grass_interface.write_raster_map(array, map_name, map_key, self.hmin)
         # Set depth values to null under the given threshold. Temporarily in gis.py
@@ -128,8 +139,7 @@ class GrassVectorOutputProvider(VectorOutputProvider):
         """Write drainage simulation data for current time step."""
         if self.drainage_topology is None:
             raise RuntimeError("Drainage attributes cannot be written before topology.")
-        suffix = str(self.record_counter).zfill(4)
-        map_name = f"{self.drainage_map_name}_{suffix}"
+        map_name = derived_record_name(self.drainage_map_name, self.record_counter)
         self.grass_interface.write_vector_map(self.drainage_topology, attributes, map_name)
         self.vector_drainage_maplist.append((map_name, sim_time))
         self.record_counter += 1

@@ -40,6 +40,15 @@ def test_run_parser_accepts_resume_from_args():
     assert args.resume_from == [("a.ini", "restart_a.zip"), ("b.ini", "restart_b.zip")]
 
 
+def test_run_parser_accepts_yaml_dry_run_and_member_selection():
+    args = build_parser().parse_args(
+        ["run", "study.yaml", "--dry", "--member", "study#sim-a", "--member", "study#sim-b"]
+    )
+
+    assert args.dry is True
+    assert args.member == ["study#sim-a", "study#sim-b"]
+
+
 def test_run_parser_rejects_v_and_q_together():
     with pytest.raises(SystemExit):
         build_parser().parse_args(["run", "a.ini", "-v", "-q"])
