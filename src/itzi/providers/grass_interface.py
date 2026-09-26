@@ -48,7 +48,6 @@ RULE_H = _DIR / "depth.txt"
 RULE_V = _DIR / "velocity.txt"
 RULE_VDIR = _DIR / "vdir.txt"
 RULE_FR = _DIR / "froude.txt"
-RULE_DEF = _DIR / "default.txt"
 colors_rules_dict = {
     "water_depth": str(RULE_H),
     "max_water_depth": str(RULE_H),

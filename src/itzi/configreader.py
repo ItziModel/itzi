@@ -73,7 +73,6 @@ TIME_COMBINATION_ERROR = (
 )
 
 TIME_OPTION_KEYS = ("start_time", "end_time", "duration", "record_step")
-HOTSTART_OPTION_KEYS = ("wallclock_step", "save_file")
 GREEN_AMPT_KEYS = (
     "effective_porosity",
     "capillary_pressure",

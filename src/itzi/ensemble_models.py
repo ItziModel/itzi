@@ -65,11 +65,6 @@ SURFACE_FLOW_DEFAULTS = {
     "max_slope": DefaultValues.MAX_SLOPE,
     "max_error": DefaultValues.MAX_ERROR,
 }
-DRAINAGE_DEFAULTS = {
-    "orifice_coeff": DefaultValues.ORIFICE_COEFF,
-    "free_weir_coeff": DefaultValues.FREE_WEIR_COEFF,
-    "submerged_weir_coeff": DefaultValues.SUBMERGED_WEIR_COEFF,
-}
 MAX_ENSEMBLE_MEMBERS = 100
 MAX_BATCH_MEMBERS = 200
 DURATION_RE = re.compile(

@@ -58,7 +58,6 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"itzi.data" = ["*.ini", "*.yaml"]
 "itzi.data.colortable" = ["*.txt"]
 
 [tool.pytest.ini_options]
