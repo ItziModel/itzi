@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from itzi_core import InfiltrationModelType, TemporalType
+from pydantic import ValidationError
 
 from itzi.ensemble import load_yaml_stream
 from itzi.ensemble_models import (
@@ -14,6 +15,13 @@ from itzi.ensemble_models import (
     format_duration,
     parse_duration,
     render_template,
+)
+from itzi.ensemble_schema import (
+    EnsembleMetadata,
+    InputSweepConfig,
+    ManifestOutputs,
+    OptionSweepConfig,
+    StatisticsOutputs,
 )
 from itzi.resolution import _render_artifacts, _resolve_inputs
 
@@ -60,6 +68,23 @@ def test_scalar_document_expands_to_one_member(tmp_path):
     assert simulation.time.start is None
     assert simulation.time.end is None
     assert simulation.time.duration == timedelta(hours=2)
+
+
+@pytest.mark.parametrize(
+    ("model", "value"),
+    (
+        (EnsembleMetadata, {"id": "invalid!"}),
+        (InputSweepConfig, {"ground_elevation": [], "friction": "manning"}),
+        (InputSweepConfig, {"ground_elevation": ["elevation"], "friction": [["manning"]]}),
+        (OptionSweepConfig, {"cfl": [float("nan")]}),
+        (OptionSweepConfig, {"cfl": [0.5, 0.5]}),
+        (StatisticsOutputs, {"file": ""}),
+        (ManifestOutputs, {"file": ""}),
+    ),
+)
+def test_schema_constraints_reject_invalid_values(model, value):
+    with pytest.raises(ValidationError):
+        model.model_validate(value)
 
 
 def test_cartesian_sweeps_use_canonical_coordinate_order(tmp_path):

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import itertools
+import math
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -307,7 +308,7 @@ def expand_yaml_document(
     """Expand sweep dimensions in canonical path order into scalar simulations."""
     normalized_time = normalize_time(document.time)
     dimensions = _collect_dimensions(document)
-    count = _checked_product(tuple(len(values) for _, values in dimensions))
+    count = math.prod(len(values) for _, values in dimensions)
     if count > MAX_ENSEMBLE_MEMBERS:
         sizes = ", ".join(f"{path}={len(values)}" for path, values in dimensions)
         raise EnsembleError(
@@ -375,17 +376,6 @@ def _collect_dimensions(
             if isinstance(value, list):
                 dimensions.append((f"drainage.{key}", tuple(value)))
     return tuple(sorted(dimensions, key=lambda item: item[0]))
-
-
-def _checked_product(sizes: tuple[int, ...]) -> int:
-    product = 1
-    for size in sizes:
-        if size <= 0:
-            raise EnsembleError("sweep lists must not be empty")
-        product *= size
-        if product > MAX_ENSEMBLE_MEMBERS:
-            return product
-    return product
 
 
 def _selected_input_maps(

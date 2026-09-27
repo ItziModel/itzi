@@ -14,7 +14,6 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 
-import math
 from typing import Annotated, Any, Literal
 
 from pydantic import (
@@ -26,32 +25,20 @@ from pydantic import (
 )
 
 from itzi.ensemble_models import (
-    ENSEMBLE_ID_CHARS,
-    ENSEMBLE_ID_START_CHARS,
     OUTPUT_KEYS,
     DomainConfig,
     StrictModel,
     _canonical_json,
 )
 
-type SweepString = StrictStr | list[StrictStr]
-type SweepFloat = StrictFloat | list[StrictFloat]
+type SweepString = StrictStr | Annotated[list[StrictStr], Field(min_length=1)]
+type FiniteFloat = Annotated[StrictFloat, Field(allow_inf_nan=False)]
+type SweepFloat = FiniteFloat | Annotated[list[FiniteFloat], Field(min_length=1)]
 
 
 class EnsembleMetadata(StrictModel):
-    id: StrictStr
+    id: StrictStr = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
     name: StrictStr | None = None
-
-    @field_validator("id")
-    @classmethod
-    def validate_id(cls, value: str) -> str:
-        if (
-            not value
-            or value[0] not in ENSEMBLE_ID_START_CHARS
-            or any(character not in ENSEMBLE_ID_CHARS for character in value[1:])
-        ):
-            raise ValueError("must match [A-Za-z0-9][A-Za-z0-9._-]*")
-        return value
 
 
 class RelativeTimeConfig(StrictModel):
@@ -99,6 +86,9 @@ type InfiltrationAlternative = Annotated[
     NoInfiltration | ConstantInfiltration | GreenAmptInfiltration,
     Field(discriminator="type"),
 ]
+type SweepInfiltration = (
+    InfiltrationAlternative | Annotated[list[InfiltrationAlternative], Field(min_length=1)]
+)
 
 
 class InputSweepConfig(StrictModel):
@@ -111,9 +101,7 @@ class InputSweepConfig(StrictModel):
     inflow: SweepString | None = None
     boundary_value: SweepString | None = None
     boundary_type: SweepString | None = None
-    infiltration: InfiltrationAlternative | list[InfiltrationAlternative] = NoInfiltration(
-        type="none"
-    )
+    infiltration: SweepInfiltration = NoInfiltration(type="none")
 
     @field_validator(
         "ground_elevation",
@@ -132,9 +120,7 @@ class InputSweepConfig(StrictModel):
 
     @field_validator("infiltration")
     @classmethod
-    def validate_infiltration_sweep(
-        cls, value: InfiltrationAlternative | list[InfiltrationAlternative]
-    ) -> InfiltrationAlternative | list[InfiltrationAlternative]:
+    def validate_infiltration_sweep(cls, value: SweepInfiltration) -> SweepInfiltration:
         return _validate_sweep(value)
 
     @model_validator(mode="after")
@@ -158,7 +144,7 @@ class OptionSweepConfig(StrictModel):
     @field_validator("*")
     @classmethod
     def validate_numeric_sweep(cls, value: SweepFloat | None) -> SweepFloat | None:
-        return _validate_sweep(value, numeric=True)
+        return _validate_sweep(value)
 
 
 class DrainageSweepConfig(StrictModel):
@@ -175,7 +161,7 @@ class DrainageSweepConfig(StrictModel):
     @field_validator("orifice_coeff", "free_weir_coeff", "submerged_weir_coeff")
     @classmethod
     def validate_coeff_sweep(cls, value: SweepFloat) -> SweepFloat:
-        return _validate_sweep(value, numeric=True)
+        return _validate_sweep(value)
 
 
 class RasterOutputs(StrictModel):
@@ -196,14 +182,7 @@ class RasterOutputs(StrictModel):
 
 
 class StatisticsOutputs(StrictModel):
-    file: StrictStr
-
-    @field_validator("file")
-    @classmethod
-    def validate_file(cls, value: str) -> str:
-        if not value:
-            raise ValueError("must not be empty")
-        return value
+    file: StrictStr = Field(min_length=1)
 
 
 class DrainageOutputs(StrictModel):
@@ -211,14 +190,7 @@ class DrainageOutputs(StrictModel):
 
 
 class ManifestOutputs(StrictModel):
-    file: StrictStr
-
-    @field_validator("file")
-    @classmethod
-    def validate_file(cls, value: str) -> str:
-        if not value:
-            raise ValueError("must not be empty")
-        return value
+    file: StrictStr = Field(min_length=1)
 
 
 class OutputConfig(StrictModel):
@@ -245,21 +217,9 @@ class YamlEnsembleDocumentV1(StrictModel):
         return self
 
 
-def _validate_sweep(
-    value: Any,
-    *,
-    numeric: bool = False,
-) -> Any:
+def _validate_sweep(value: Any) -> Any:
     """Validate one scalar-or-list sweep field after Pydantic's type validation."""
     values = value if isinstance(value, list) else [value]
-    if not values:
-        raise ValueError("sweep lists must not be empty")
-    for item in values:
-        if isinstance(item, list):
-            raise ValueError("nested sweep lists are not supported")  # noqa: TRY004
-        if numeric and (not isinstance(item, float) or not math.isfinite(item)):
-            raise ValueError("must contain finite numbers")
-
     semantic_values = [_canonical_json(item) for item in values]
     if len(semantic_values) != len(set(semantic_values)):
         raise ValueError("contains duplicate semantic values")

@@ -66,8 +66,6 @@ SURFACE_FLOW_DEFAULTS = {
 }
 MAX_ENSEMBLE_MEMBERS = 100
 MAX_BATCH_MEMBERS = 200
-ENSEMBLE_ID_START_CHARS = string.ascii_letters + string.digits
-ENSEMBLE_ID_CHARS = ENSEMBLE_ID_START_CHARS + "._-"
 
 type JsonValue = (
     None | bool | int | float | str | tuple[JsonValue, ...] | tuple[tuple[str, JsonValue], ...]
