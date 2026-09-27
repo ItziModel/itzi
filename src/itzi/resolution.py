@@ -22,6 +22,7 @@ from itzi.ensemble_models import (
     EnsembleError,
     ExpandedSimulation,
     ResolvedSimulation,
+    ValidationFailure,
     format_duration,
     render_template,
 )
@@ -33,6 +34,63 @@ def resolve_simulation(expanded: ExpandedSimulation) -> ResolvedSimulation:
     requested_params = _requested_grass_params(expanded)
     with GrassSessionManager(requested_params):
         return _resolve_in_active_context(expanded, requested_params)
+
+
+def resolve_ensemble(
+    simulations: tuple[ExpandedSimulation, ...],
+) -> tuple[ResolvedSimulation | ValidationFailure, ...]:
+    """Resolve one ensemble in one GRASS session, retaining member-local failures."""
+    if not simulations:
+        return ()
+    requested_params = _requested_grass_params(simulations[0])
+    if any(
+        _requested_grass_params(simulation) != requested_params for simulation in simulations[1:]
+    ):
+        raise EnsembleError("all simulations in an ensemble must use the same GRASS context")
+
+    with GrassSessionManager(requested_params):
+        import grass.script as gscript
+        from grass.pygrass.gis import Mapset
+        from grass.pygrass.gis.region import Region
+        from grass.pygrass.utils import getenv
+
+        actual_params = _active_grass_params(requested_params, getenv)
+        domain = _read_domain(simulations[0].domain.region, Region, gscript)
+        effective_mask = _resolve_effective_mask(simulations[0].domain.mask, getenv)
+        _initialize_temporal()
+        input_cache: dict[str, tuple[str, Literal["raster", "strds"]] | Exception] = {}
+        swmm_cache: dict[Path, str] = {}
+        results: list[ResolvedSimulation | ValidationFailure] = []
+        for expanded in simulations:
+            try:
+                input_names, input_kinds = _resolve_inputs(
+                    dict(expanded.input_maps) | dict(expanded.infiltration.input_maps),
+                    Mapset,
+                    cache=input_cache,
+                    initialize_temporal=False,
+                )
+                swmm_path, swmm_digest = _resolve_swmm_input(expanded, swmm_cache)
+                results.append(
+                    _build_resolved_simulation(
+                        expanded,
+                        actual_params,
+                        domain,
+                        effective_mask,
+                        input_names,
+                        input_kinds,
+                        swmm_path,
+                        swmm_digest,
+                    )
+                )
+            except Exception as error:
+                results.append(
+                    ValidationFailure(
+                        coordinates=expanded.coordinates,
+                        phase="input_resolution",
+                        detail=f"{type(error).__name__}: {error}",
+                    )
+                )
+        return tuple(results)
 
 
 def _requested_grass_params(expanded: ExpandedSimulation) -> GrassParams:
@@ -58,14 +116,7 @@ def _resolve_in_active_context(
     from grass.pygrass.gis.region import Region
     from grass.pygrass.utils import getenv
 
-    actual_params = GrassParams(
-        grassdata=str(Path(getenv("GISDBASE")).expanduser().resolve()),
-        location=getenv("LOCATION_NAME"),
-        mapset=getenv("MAPSET"),
-        region=requested_params.region,
-        mask=requested_params.mask,
-        grass_bin=requested_params.grass_bin,
-    )
+    actual_params = _active_grass_params(requested_params, getenv)
     domain = _read_domain(expanded.domain.region, Region, gscript)
     effective_mask = _resolve_effective_mask(expanded.domain.mask, getenv)
     input_names, input_kinds = _resolve_inputs(
@@ -73,6 +124,39 @@ def _resolve_in_active_context(
         Mapset,
     )
     swmm_path, swmm_digest = _resolve_swmm_input(expanded)
+    return _build_resolved_simulation(
+        expanded,
+        actual_params,
+        domain,
+        effective_mask,
+        input_names,
+        input_kinds,
+        swmm_path,
+        swmm_digest,
+    )
+
+
+def _active_grass_params(requested_params: GrassParams, getenv) -> GrassParams:
+    return GrassParams(
+        grassdata=str(Path(getenv("GISDBASE")).expanduser().resolve()),
+        location=getenv("LOCATION_NAME"),
+        mapset=getenv("MAPSET"),
+        region=requested_params.region,
+        mask=requested_params.mask,
+        grass_bin=requested_params.grass_bin,
+    )
+
+
+def _build_resolved_simulation(
+    expanded: ExpandedSimulation,
+    actual_params: GrassParams,
+    domain: DomainData,
+    effective_mask: EffectiveMask,
+    input_names: dict[str, str],
+    input_kinds: dict[str, Literal["raster", "strds"]],
+    swmm_path: Path | None,
+    swmm_digest: str | None,
+) -> ResolvedSimulation:
     simulation_id, normalized_payload = _simulation_identity(
         expanded,
         actual_params,
@@ -137,25 +221,46 @@ def _split_identifier(identifier: str) -> tuple[str, str | None]:
 def _resolve_inputs(
     inputs: dict[str, str],
     mapset_type: type,
+    *,
+    cache: dict[str, tuple[str, Literal["raster", "strds"]] | Exception] | None = None,
+    initialize_temporal: bool = True,
 ) -> tuple[dict[str, str], dict[str, Literal["raster", "strds"]]]:
+    if initialize_temporal:
+        _initialize_temporal()
     resolved: dict[str, str] = {}
     kinds: dict[str, Literal["raster", "strds"]] = {}
     for key, identifier in inputs.items():
-        source, kind = _resolve_input_identifier(identifier, mapset_type)
+        result = cache.get(identifier) if cache is not None else None
+        if result is None:
+            try:
+                result = _resolve_input_identifier(identifier, mapset_type)
+            except Exception as error:
+                if cache is not None:
+                    cache[identifier] = error
+                raise
+            if cache is not None:
+                cache[identifier] = result
+        if isinstance(result, Exception):
+            raise result
+        source, kind = result
         resolved[key] = source
         kinds[key] = kind
     return resolved, kinds
+
+
+def _initialize_temporal() -> None:
+    import grass.temporal as tgis
+
+    tgis.init(raise_fatal_error=True)
+    tgis.set_raise_on_error(True)
 
 
 def _resolve_input_identifier(
     identifier: str, mapset_type: type
 ) -> tuple[str, Literal["raster", "strds"]]:
     """Resolve both input namespaces and reject a visible ambiguity."""
-    import grass.temporal as tgis
     from grass.pygrass import utils as gutils
-
-    tgis.init(raise_fatal_error=True)
-    tgis.set_raise_on_error(True)
+    import grass.temporal as tgis
 
     name, requested_mapset = _split_identifier(identifier)
     raster_mapset = gutils.get_mapset_raster(name, requested_mapset or "")
@@ -201,7 +306,9 @@ def _resolve_effective_mask(mask: str | None, getenv) -> EffectiveMask:
     return EffectiveMask("none", None)
 
 
-def _resolve_swmm_input(expanded: ExpandedSimulation) -> tuple[Path | None, str | None]:
+def _resolve_swmm_input(
+    expanded: ExpandedSimulation, cache: dict[Path, str] | None = None
+) -> tuple[Path | None, str | None]:
     if expanded.drainage is None:
         return None, None
     drainage = dict(expanded.drainage)
@@ -210,7 +317,12 @@ def _resolve_swmm_input(expanded: ExpandedSimulation) -> tuple[Path | None, str 
     path = path.resolve()
     if not path.is_file():
         raise EnsembleError(f"SWMM input file <{path}> not found")
-    return path, f"blake2b:{hashlib.blake2b(path.read_bytes(), digest_size=32).hexdigest()}"
+    if cache is not None and path in cache:
+        return path, cache[path]
+    digest = f"blake2b:{hashlib.blake2b(path.read_bytes(), digest_size=32).hexdigest()}"
+    if cache is not None:
+        cache[path] = digest
+    return path, digest
 
 
 def _simulation_identity(

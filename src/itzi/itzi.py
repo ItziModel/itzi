@@ -32,6 +32,7 @@ from collections.abc import Callable
 from datetime import timedelta
 from importlib.metadata import version
 from multiprocessing import Process, get_context
+from multiprocessing.connection import wait
 from pathlib import Path
 from queue import Empty
 
@@ -50,7 +51,7 @@ from itzi.ensemble_models import (
 from itzi.grass_session import GrassSessionManager
 from itzi.messenger import VerbosityLevel
 from itzi.resolution import (
-    resolve_simulation,
+    resolve_ensemble,
     validate_resolved_ensemble,
     verify_resolved_simulation,
 )
@@ -133,14 +134,16 @@ def resolved_sim_runner_worker(simulation: ResolvedSimulation, result_queue) -> 
         result_queue.put(("execution_failed", f"{type(error).__name__}: {error}"))
 
 
-def resolver_worker(expanded: ExpandedSimulation, result_queue) -> None:
-    """Resolve one scalar member in a short-lived spawned GRASS process."""
+def resolver_worker(expanded: tuple[ExpandedSimulation, ...], result_connection) -> None:
+    """Resolve one ensemble in a short-lived spawned GRASS process."""
     msgr.raise_on_error = True
     msgr._itzi_logger.set_verbosity(msgr.verbosity())
     try:
-        result_queue.put(("resolved", resolve_simulation(expanded)))
+        result_connection.send(("resolved", resolve_ensemble(expanded)))
     except Exception as error:
-        result_queue.put(("validation_failed", f"{type(error).__name__}: {error}"))
+        result_connection.send(("validation_failed", f"{type(error).__name__}: {error}"))
+    finally:
+        result_connection.close()
 
 
 def itzi_run_one(conf_file: str, hotstart_file: str | None) -> bool:
@@ -319,17 +322,16 @@ def _run_ensemble_batch(cli_args) -> None:
     ] = []
     for ensemble in ensembles:
         successful: list[ResolvedSimulation] = []
-        failures: list[ValidationFailure] = []
-        for expanded in ensemble.simulations:
-            result = _resolve_in_spawn(expanded)
+        member_failures: list[ValidationFailure] = []
+        for result in _resolve_ensemble_in_spawn(ensemble.simulations):
             if isinstance(result, ResolvedSimulation):
                 successful.append(result)
             else:
-                failures.append(result)
+                member_failures.append(result)
         try:
             validate_resolved_ensemble(tuple(successful))
         except EnsembleError as error:
-            failures.extend(
+            member_failures.extend(
                 ValidationFailure(
                     coordinates=simulation.coordinates,
                     phase="artifact_validation",
@@ -338,7 +340,7 @@ def _run_ensemble_batch(cli_args) -> None:
                 for simulation in successful
             )
             successful = []
-        resolved.append((ensemble, tuple(successful), tuple(failures)))
+        resolved.append((ensemble, tuple(successful), tuple(member_failures)))
 
     selected = _select_members(resolved, getattr(cli_args, "member", []))
     if getattr(cli_args, "dry", False):
@@ -417,26 +419,44 @@ def _run_ensemble_batch(cli_args) -> None:
     msgr.message("Simulation(s) complete.")
 
 
-def _resolve_in_spawn(expanded: ExpandedSimulation) -> ResolvedSimulation | ValidationFailure:
+def _resolve_ensemble_in_spawn(
+    expanded: tuple[ExpandedSimulation, ...],
+) -> tuple[ResolvedSimulation | ValidationFailure, ...]:
     context = get_context("spawn")
-    result_queue = context.Queue()
-    process = context.Process(target=resolver_worker, args=(expanded, result_queue))
+    receiver, sender = context.Pipe(duplex=False)
+    process = context.Process(target=resolver_worker, args=(expanded, sender))
     process.start()
-    process.join()
+    sender.close()
     try:
-        status, payload = result_queue.get(timeout=1)
-    except Empty:
+        ready = wait((receiver, process.sentinel))
+        if receiver in ready:
+            status, payload = receiver.recv()
+        else:
+            process.join()
+            status, payload = (
+                receiver.recv()
+                if receiver.poll()
+                else (
+                    "validation_failed",
+                    f"resolver exited with status {process.exitcode} without returning a result",
+                )
+            )
+    except EOFError:
         status = "validation_failed"
         payload = f"resolver exited with status {process.exitcode} without returning a result"
     finally:
-        result_queue.close()
+        process.join()
+        receiver.close()
         process.close()
-    if status == "resolved" and isinstance(payload, ResolvedSimulation):
+    if status == "resolved" and isinstance(payload, tuple):
         return payload
-    return ValidationFailure(
-        coordinates=expanded.coordinates,
-        phase="input_resolution",
-        detail=str(payload),
+    return tuple(
+        ValidationFailure(
+            coordinates=simulation.coordinates,
+            phase="input_resolution",
+            detail=str(payload),
+        )
+        for simulation in expanded
     )
 
 

@@ -28,7 +28,7 @@ input:
   ground_elevation: "z"
   friction: "n"
 options:
-  cfl: 0.2
+  cfl: [0.2, 0.3]
   dtmax: 0.3
 outputs:
   rasters:
@@ -53,6 +53,9 @@ outputs:
 
     manifest_path = Path(test_data_temp_path) / "basic.manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    member = manifest["members"][0]
-    assert member["status"] == "completed"
-    assert member["artifacts"]["rasters"]["water_depth"].startswith("basic_sim-")
+    assert len(manifest["members"]) == 2
+    assert all(member["status"] == "completed" for member in manifest["members"])
+    assert all(
+        member["artifacts"]["rasters"]["water_depth"].startswith("basic_sim-")
+        for member in manifest["members"]
+    )

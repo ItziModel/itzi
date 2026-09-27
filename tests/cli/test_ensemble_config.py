@@ -15,7 +15,7 @@ from itzi.ensemble_models import (
     parse_duration,
     render_template,
 )
-from itzi.resolution import _render_artifacts
+from itzi.resolution import _render_artifacts, _resolve_inputs
 
 
 def write_yaml(tmp_path, content: str):
@@ -281,3 +281,30 @@ def test_statistics_file_template_is_rendered(tmp_path, monkeypatch):
     artifacts = _render_artifacts(expanded, "sim-a", None)
 
     assert artifacts.statistics_file == tmp_path / "results/sim-a.csv"
+
+
+def test_input_resolution_cache_reuses_shared_identifiers(monkeypatch):
+    calls = []
+
+    def resolve(identifier, _mapset_type):
+        calls.append(identifier)
+        return f"{identifier}@PERMANENT", "raster"
+
+    monkeypatch.setattr("itzi.resolution._resolve_input_identifier", resolve)
+    cache = {}
+
+    _resolve_inputs(
+        {"ground_elevation": "shared", "rainfall_rate": "first"},
+        object,
+        cache=cache,
+        initialize_temporal=False,
+    )
+    resolved, _ = _resolve_inputs(
+        {"ground_elevation": "shared", "rainfall_rate": "second"},
+        object,
+        cache=cache,
+        initialize_temporal=False,
+    )
+
+    assert calls == ["shared", "first", "second"]
+    assert resolved["ground_elevation"] == "shared@PERMANENT"

@@ -2,6 +2,7 @@
 
 import argparse
 import os
+from types import SimpleNamespace
 
 import pytest
 
@@ -9,6 +10,7 @@ import itzi.messenger as msgr
 from itzi.cli_parser import build_parser
 from itzi.itzi import (
     VerbosityLevel,
+    _run_ensemble_batch,
     itzi_run,
     itzi_run_one,
     main,
@@ -47,6 +49,25 @@ def test_run_parser_accepts_yaml_dry_run_and_member_selection():
 
     assert args.dry is True
     assert args.member == ["study#sim-a", "study#sim-b"]
+
+
+def test_ensemble_members_are_resolved_in_one_spawn(monkeypatch):
+    simulations = (object(), object())
+    ensemble = SimpleNamespace(ensemble_id="study", simulations=simulations)
+    calls = []
+
+    monkeypatch.setattr("itzi.itzi.load_batch", lambda _: ((ensemble,), ()))
+    monkeypatch.setattr(
+        "itzi.itzi._resolve_ensemble_in_spawn",
+        lambda received: calls.append(received) or (),
+    )
+    monkeypatch.setattr("itzi.itzi._display_dry_plan", lambda *_: None)
+
+    _run_ensemble_batch(
+        SimpleNamespace(config_file=["study.yaml"], resume_from=[], member=[], dry=True)
+    )
+
+    assert calls == [simulations]
 
 
 def test_run_parser_rejects_v_and_q_together():
