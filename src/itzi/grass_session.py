@@ -133,10 +133,11 @@ class GrassSessionManager:
             path=gisdb, location=location, mapset=mapset, grass_path=grassbin
         )
         self._owns_session = True
-        # GRASS 8.4 setup establishes GISRC.  The fallback retains support for
-        # embedders whose setup object deliberately hides its environment.
-        if self.current_context() is not None:
-            self._validate_requested_context()
+        if not os.environ.get("GISRC"):
+            session_env = getattr(self.grass_session, "env", None)
+            if session_env and session_env.get("GISRC"):
+                os.environ.update(session_env)
+        self._validate_requested_context()
 
     def close(self):
         """Stop GRASS session."""

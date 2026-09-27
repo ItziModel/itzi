@@ -120,7 +120,7 @@ class SimulationRunner:
             sim_builder.with_vector_output_provider(vector_output_provider)
         if stats_file:
             if exclusive_stats:
-                from itzi.providers import ExclusiveCSVMassBalanceOutputProvider
+                from itzi.providers.csv_output import ExclusiveCSVMassBalanceOutputProvider
 
                 stats_provider = ExclusiveCSVMassBalanceOutputProvider(
                     stats_file, overwrite=self.g_interface.overwrite
