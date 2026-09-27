@@ -29,7 +29,7 @@ import os
 import sys
 import time
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import datetime, timedelta
 from importlib.metadata import version
 from multiprocessing import Process, get_context
 from multiprocessing.connection import wait
@@ -607,6 +607,7 @@ def _manifest_coordinates(
 def _manifest_document(ensemble: ExpandedEnsemble, states: dict[str, dict]) -> dict:
     return {
         "manifest_version": 1,
+        "last_updated_at": datetime.now().astimezone().isoformat(),
         "ensemble": {"id": ensemble.ensemble_id, "name": ensemble.ensemble_name},
         "source": {
             "path": str(ensemble.source.path),

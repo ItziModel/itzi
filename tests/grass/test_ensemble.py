@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from datetime import datetime
 from pathlib import Path
 
 import grass.script as gscript
@@ -57,7 +58,11 @@ outputs:
     manifest_path = Path(test_data_temp_path) / "results" / "basic.manifest.yaml"
     manifest_text = manifest_path.read_text(encoding="utf-8")
     assert not manifest_text.lstrip().startswith("{")
+    assert manifest_text.splitlines()[1].startswith("last_updated_at: ")
     manifest = yaml.safe_load(manifest_text)
+    last_updated_at = manifest["last_updated_at"]
+    assert isinstance(last_updated_at, str)
+    assert datetime.fromisoformat(last_updated_at).utcoffset() is not None
     assert len(manifest["members"]) == 2
     assert all(member["status"] == "completed" for member in manifest["members"])
     assert [member["coordinates"] for member in manifest["members"]] == [
