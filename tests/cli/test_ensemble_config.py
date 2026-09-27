@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 from itzi_core import InfiltrationModelType, TemporalType
@@ -14,6 +15,7 @@ from itzi.ensemble_models import (
     parse_duration,
     render_template,
 )
+from itzi.resolution import _render_artifacts
 
 
 def write_yaml(tmp_path, content: str):
@@ -260,3 +262,22 @@ def test_duration_and_template_helpers_are_strict():
         render_template("{{{ensemble}}}-{simulation}", ensemble="study", simulation="sim-a")
         == "{study}-sim-a"
     )
+
+
+def test_statistics_file_template_is_rendered(tmp_path, monkeypatch):
+    expanded = SimpleNamespace(
+        ensemble_id="study",
+        source=SimpleNamespace(path=tmp_path / "study.yaml"),
+        outputs=SimpleNamespace(
+            raster_prefix=None,
+            raster_variables=(),
+            statistics_file="results/{simulation}.csv",
+            drainage_dataset=None,
+        ),
+        drainage=None,
+    )
+    monkeypatch.setattr("itzi.resolution._validate_output_names", lambda *_: None)
+
+    artifacts = _render_artifacts(expanded, "sim-a", None)
+
+    assert artifacts.statistics_file == tmp_path / "results/sim-a.csv"

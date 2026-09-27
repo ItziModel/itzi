@@ -251,7 +251,7 @@ def _simulation_identity(
         "drainage": drainage,
     }
     canonical = json.dumps(payload, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    digest = hashlib.blake2b(canonical.encode(), digest_size=16).hexdigest()
+    digest = hashlib.blake2b(canonical.encode(), digest_size=4).hexdigest()
     return f"sim-{digest}", canonical
 
 
@@ -280,7 +280,14 @@ def _render_artifacts(
         else None
     )
     stats_file = (
-        _source_relative_path(expanded.outputs.statistics_file, expanded.source.path.parent)
+        _source_relative_path(
+            render_template(
+                expanded.outputs.statistics_file,
+                ensemble=expanded.ensemble_id,
+                simulation=simulation_id,
+            ),
+            expanded.source.path.parent,
+        )
         if expanded.outputs.statistics_file is not None
         else None
     )
