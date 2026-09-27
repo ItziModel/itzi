@@ -14,10 +14,11 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal, cast
 
 from pydantic import (
     Field,
+    JsonValue as PydanticJsonValue,
     StrictFloat,
     StrictStr,
     field_validator,
@@ -217,10 +218,12 @@ class YamlEnsembleDocumentV1(StrictModel):
         return self
 
 
-def _validate_sweep(value: Any) -> Any:
+def _validate_sweep[T](value: T) -> T:
     """Validate one scalar-or-list sweep field after Pydantic's type validation."""
     values = value if isinstance(value, list) else [value]
-    semantic_values = [_canonical_json(item) for item in values]
+    semantic_values = [
+        _canonical_json(cast(PydanticJsonValue | InfiltrationAlternative, item)) for item in values
+    ]
     if len(semantic_values) != len(set(semantic_values)):
         raise ValueError("contains duplicate semantic values")
     return value

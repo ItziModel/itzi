@@ -17,7 +17,7 @@ from __future__ import annotations
 from configparser import ConfigParser
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import NoReturn
 
 from itzi_core import (
     ARRAY_DEFINITIONS,
@@ -91,6 +91,19 @@ SIMULATION_OPTION_KEYS = ("dtinf",)
 DRAINAGE_STRING_KEYS = ("swmm_inp", "output")
 DRAINAGE_FLOAT_KEYS = ("orifice_coeff", "free_weir_coeff", "submerged_weir_coeff")
 
+type SimulationConfigValue = (
+    datetime
+    | timedelta
+    | TemporalType
+    | HotstartRunConfig
+    | dict[str, str | None]
+    | SurfaceFlowParameters
+    | InfiltrationModelType
+    | float
+    | str
+    | Path
+)
+
 
 def _read_parser(filename: str) -> ConfigParser:
     """Read the INI file or fail fast if it is missing."""
@@ -162,7 +175,7 @@ def _read_hotstart_values(params: ConfigParser) -> HotstartRunConfig | None:
         return None
 
     try:
-        return HotstartRunConfig(**hotstart_values)
+        return HotstartRunConfig.model_validate(hotstart_values)
     except ValidationError as error:
         _fatal_validation_error(error)
 
@@ -281,10 +294,10 @@ def _read_grass_params(params: ConfigParser) -> GrassParams:
     return GrassParams(**_read_string_options(params, "grass", GRASS_OPTION_KEYS))
 
 
-def _build_simulation_config(**kwargs: Any) -> SimulationConfig:
+def _build_simulation_config(values: dict[str, SimulationConfigValue]) -> SimulationConfig:
     """Build a validated simulation config from normalized values."""
     try:
-        return SimulationConfig(**kwargs)
+        return SimulationConfig.model_validate(values)
     except ValidationError as error:
         _fatal_validation_error(error)
 
@@ -403,7 +416,7 @@ class ConfigReader:
         surface_flow_parameters = _read_surface_flow_parameters(params)
         assert self.sim_times.record_step is not None
 
-        simulation_kwargs: dict[str, Any] = {
+        simulation_kwargs: dict[str, SimulationConfigValue] = {
             "start_time": self.sim_times.start,
             "end_time": self.sim_times.end,
             "record_step": self.sim_times.record_step,
@@ -419,12 +432,12 @@ class ConfigReader:
 
         simulation_kwargs.update(_read_simulation_option_values(params))
         simulation_kwargs.update(_read_simulation_drainage_values(params))
-        if "swmm_inp" in simulation_kwargs:
-            simulation_kwargs["swmm_inp"] = _resolve_swmm_input_path(
-                simulation_kwargs["swmm_inp"], self.config_file
-            )
+        swmm_inp = simulation_kwargs.get("swmm_inp")
+        if swmm_inp is not None:
+            assert isinstance(swmm_inp, str)
+            simulation_kwargs["swmm_inp"] = _resolve_swmm_input_path(swmm_inp, self.config_file)
 
-        self.sim_config = _build_simulation_config(**simulation_kwargs)
+        self.sim_config = _build_simulation_config(simulation_kwargs)
 
     def _check_grass_params(self, grass_params: GrassParams) -> None:
         """Ensure mandatory GRASS settings are provided together."""

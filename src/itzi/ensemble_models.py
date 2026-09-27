@@ -15,12 +15,11 @@ GNU General Public License for more details.
 from __future__ import annotations
 
 import json
-import math
 import string
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 from itzi_core import (
     ARRAY_DEFINITIONS,
@@ -31,7 +30,14 @@ from itzi_core import (
     TemporalType,
 )
 from itzi_core.const import DefaultValues
-from pydantic import BaseModel, ConfigDict, StrictStr, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    JsonValue as PydanticJsonValue,
+    StrictStr,
+    TypeAdapter,
+    model_validator,
+)
 
 from itzi.grass_session import GrassParams
 
@@ -70,6 +76,8 @@ MAX_BATCH_MEMBERS = 200
 type JsonValue = (
     None | bool | int | float | str | tuple[JsonValue, ...] | tuple[tuple[str, JsonValue], ...]
 )
+
+_JSON_VALUE_ADAPTER = TypeAdapter(PydanticJsonValue)
 
 
 class EnsembleError(ValueError):
@@ -266,32 +274,20 @@ def format_duration(value: timedelta) -> str:
     return rendered
 
 
-def _canonical_json(value: Any) -> str:
-    return json.dumps(
-        _canonical_value(value),
-        allow_nan=False,
-        ensure_ascii=True,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
-
-
-def _canonical_value(value: Any) -> Any:
+def _canonical_json(value: PydanticJsonValue | BaseModel) -> str:
+    """Serialize a JSON-compatible value or model in a stable form."""
     if isinstance(value, BaseModel):
-        return _canonical_value(value.model_dump(mode="python"))
-    if isinstance(value, dict):
-        return {str(key): _canonical_value(item) for key, item in value.items()}
-    if isinstance(value, list | tuple):
-        return [_canonical_value(item) for item in value]
-    if isinstance(value, datetime):
-        return {"$datetime": value.isoformat()}
-    if isinstance(value, date):
-        return {"$date": value.isoformat()}
-    if isinstance(value, timedelta):
-        return {"$duration": format_duration(value)}
-    if isinstance(value, float) and not math.isfinite(value):
-        raise EnsembleError("NaN and infinity are not supported")
-    return value
+        value = _JSON_VALUE_ADAPTER.validate_json(value.model_dump_json())
+    try:
+        return json.dumps(
+            value,
+            allow_nan=False,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+    except ValueError as error:
+        raise EnsembleError("NaN and infinity are not supported") from error
 
 
 def render_template(template: str, *, ensemble: str, simulation: str | None) -> str:

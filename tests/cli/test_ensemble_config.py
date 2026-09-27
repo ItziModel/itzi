@@ -185,6 +185,19 @@ outputs: {}
     assert [ensemble.ensemble_id for ensemble in stream.ensembles] == ["valid"]
 
 
+def test_loader_rejects_non_json_yaml_and_keeps_later_document(tmp_path):
+    content = (
+        document(ensemble_id="binary")
+        + "extra: !!binary AQI=\n---\n"
+        + document(ensemble_id="valid")
+    )
+
+    stream = load_yaml_stream(write_yaml(tmp_path, content))
+
+    assert [failure.phase for failure in stream.failures] == ["parse"]
+    assert [ensemble.ensemble_id for ensemble in stream.ensembles] == ["valid"]
+
+
 def test_infiltration_alternatives_are_explicit(tmp_path):
     content = document(
         extra="""\

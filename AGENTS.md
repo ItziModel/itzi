@@ -2,13 +2,14 @@
 
 ## Common commands
 - Run a single test: `uv run pytest tests/my_test.py`
-- Due to a bug in GRASS, tests will fails if the mapset is changed between tests. Run each test file independently to prevent this. Tests that need to run in a separate process are marked with `@pytest.mark.forked`.
+- Due to a bug in GRASS<8.5, a change of mapset change cannot occur within the same process. Run each test file independently to prevent this type of failure. Tests that need to run in a separate process are marked with `@pytest.mark.forked`.
 - Enforce code formatting: `uvx ruff format .`
 
 ## Code style
-- Use python type hints. When a function that does not yet use hints is substantially edited, take the opportunity to add type hints.
+- Use python type annotation. When a function that does not yet use hints is substantially edited, take the opportunity to add type hints.
 - Do not quote class names in hints. Use `from __future__ import annotations` when necessary.
-- Since the arguments types and return types are already documented by the hints, there's no need to duplicate this information in the docstrings.
+- Do not use the `Any` type, and avoid the use of the general `object` type. Define the actual type instead.
+- Since the arguments types and return types are already documented by the annotations, there's no need to duplicate this information in the docstrings.
 - Use pydantic BaseModel when validation is needed, and dataclass for internal data exchange.
 - Place imports at the top of the file. Only break this rule to prevent heavy imports in a rarely used function (for example, CLI options).
 

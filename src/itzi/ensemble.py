@@ -17,14 +17,15 @@ from __future__ import annotations
 import hashlib
 import itertools
 import math
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 import yaml
 from itzi_core import InfiltrationModelType, TemporalType
 from itzi_core.const import DefaultValues
-from pydantic import BaseModel, ValidationError
+from pydantic import JsonValue as PydanticJsonValue
+from pydantic import TypeAdapter, ValidationError
 from yaml.constructor import ConstructorError
 from yaml.resolver import BaseResolver
 
@@ -44,7 +45,6 @@ from itzi.ensemble_models import (
     OutputTemplates,
     SourceDocument,
     _canonical_json,
-    _canonical_value,
     parse_duration,
     render_template,
 )
@@ -56,9 +56,26 @@ from itzi.ensemble_schema import (
     InputSweepConfig,
     NoInfiltration,
     OptionSweepConfig,
+    SweepFloat,
+    SweepString,
     TimeConfig,
     YamlEnsembleDocumentV1,
 )
+
+type RawYamlScalar = None | bool | int | float | str | bytes | date | datetime
+type RawYamlKey = RawYamlScalar | tuple[RawYamlKey, ...]
+type RawYamlValue = (
+    RawYamlScalar
+    | list[RawYamlValue]
+    | tuple[RawYamlValue, ...]
+    | dict[RawYamlKey, RawYamlValue]
+    | set[RawYamlKey]
+)
+type RawYamlMapping = dict[RawYamlKey, RawYamlValue]
+type YamlDocument = dict[str, PydanticJsonValue]
+type SweepScalar = str | float | InfiltrationAlternative
+
+_YAML_DOCUMENT_ADAPTER = TypeAdapter(YamlDocument)
 
 
 class _StrictSafeLoader(yaml.SafeLoader):
@@ -67,8 +84,8 @@ class _StrictSafeLoader(yaml.SafeLoader):
 
 def _construct_mapping(
     loader: _StrictSafeLoader, node: yaml.MappingNode, deep: bool = False
-) -> dict:
-    mapping: dict[Any, Any] = {}
+) -> RawYamlMapping:
+    mapping: RawYamlMapping = {}
     for key_node, value_node in node.value:
         if key_node.tag == "tag:yaml.org,2002:merge":
             raise ConstructorError(
@@ -77,7 +94,7 @@ def _construct_mapping(
                 "YAML merge keys are not supported",
                 key_node.start_mark,
             )
-        key = loader.construct_object(key_node, deep=deep)
+        key = cast(RawYamlKey, loader.construct_object(key_node, deep=deep))
         try:
             duplicate = key in mapping
         except TypeError as error:
@@ -94,7 +111,7 @@ def _construct_mapping(
                 f"duplicate mapping key {key!r}",
                 key_node.start_mark,
             )
-        mapping[key] = loader.construct_object(value_node, deep=deep)
+        mapping[key] = cast(RawYamlValue, loader.construct_object(value_node, deep=deep))
     return mapping
 
 
@@ -159,8 +176,11 @@ def _parse_datetime(value: str) -> datetime:
         raise EnsembleError(f"invalid ISO 8601 timestamp {value!r}") from error
 
 
-def _document_digest(document: Any) -> str:
-    payload = {"schema": "itzi-yaml-document-v1", "document": _canonical_value(document)}
+def _document_digest(document: YamlDocument) -> str:
+    payload: dict[str, PydanticJsonValue] = {
+        "schema": "itzi-yaml-document-v1",
+        "document": document,
+    }
     return hashlib.blake2b(_canonical_json(payload).encode(), digest_size=32).hexdigest()
 
 
@@ -199,15 +219,18 @@ def _segments(text: str) -> tuple[tuple[int, int, str], ...]:
     return tuple(segments)
 
 
-def _parse_segment(segment: str) -> dict[str, Any]:
+def _parse_segment(segment: str) -> YamlDocument:
     if any(line.startswith("%") for line in segment.split("\n")):
         raise EnsembleError("YAML directives are not supported")
-    value = yaml.load(segment, Loader=_StrictSafeLoader)
+    value = cast(RawYamlValue, yaml.load(segment, Loader=_StrictSafeLoader))
     if value is None:
         raise EnsembleError("empty YAML documents are not supported")
     if not isinstance(value, dict):
         raise EnsembleError("document root must be a mapping")
-    return value
+    try:
+        return _YAML_DOCUMENT_ADAPTER.validate_python(value, strict=True)
+    except ValidationError as error:
+        raise EnsembleError("document must contain JSON-compatible values") from error
 
 
 def load_yaml_stream(path: str | Path) -> LoadedYamlStream:
@@ -228,6 +251,7 @@ def load_yaml_stream(path: str | Path) -> LoadedYamlStream:
     for document_index, (start_line, _offset, segment) in enumerate(_segments(text)):
         try:
             raw_document = _parse_segment(segment)
+            document_digest = _document_digest(raw_document)
         except yaml.YAMLError as error:
             marker = getattr(error, "problem_mark", None)
             failures.append(
@@ -258,7 +282,7 @@ def load_yaml_stream(path: str | Path) -> LoadedYamlStream:
             path=source_path,
             document_index=document_index,
             file_digest=file_digest,
-            document_digest=_document_digest(raw_document),
+            document_digest=document_digest,
         )
         try:
             document = YamlEnsembleDocumentV1.model_validate(raw_document)
@@ -317,16 +341,19 @@ def expand_yaml_document(
 
     simulations = []
     for selected_values in itertools.product(*(values for _, values in dimensions)):
-        selected = {
+        selected: dict[str, SweepScalar] = {
             path: value for (path, _), value in zip(dimensions, selected_values, strict=True)
         }
         coordinates = tuple(
             (path, _freeze_json(value)) for path, value in sorted(selected.items())
         )
         input_maps = _selected_input_maps(document.input, selected)
-        infiltration = _normalize_infiltration(
-            selected.get("input.infiltration", document.input.infiltration)
+        infiltration_value = selected.get("input.infiltration", document.input.infiltration)
+        assert isinstance(
+            infiltration_value,
+            (NoInfiltration, ConstantInfiltration, GreenAmptInfiltration),
         )
+        infiltration = _normalize_infiltration(infiltration_value)
         options = _selected_options(document.options, selected)
         drainage = _selected_drainage(document.drainage, selected)
         outputs = _output_templates(document)
@@ -358,42 +385,44 @@ def expand_yaml_document(
 
 def _collect_dimensions(
     document: YamlEnsembleDocumentV1,
-) -> tuple[tuple[str, tuple[Any, ...]], ...]:
-    dimensions: list[tuple[str, tuple[Any, ...]]] = []
+) -> tuple[tuple[str, tuple[SweepScalar, ...]], ...]:
+    dimensions: list[tuple[str, tuple[SweepScalar, ...]]] = []
     for key in DIRECT_INPUT_KEYS:
-        value = getattr(document.input, key)
+        value = cast(SweepString | None, getattr(document.input, key))
         if isinstance(value, list):
-            dimensions.append((f"input.{key}", tuple(value)))
+            dimensions.append((f"input.{key}", cast(tuple[SweepScalar, ...], tuple(value))))
     if isinstance(document.input.infiltration, list):
-        dimensions.append(("input.infiltration", tuple(document.input.infiltration)))
+        dimensions.append(
+            (
+                "input.infiltration",
+                cast(tuple[SweepScalar, ...], tuple(document.input.infiltration)),
+            )
+        )
     for key in type(document.options).model_fields:
-        value = getattr(document.options, key)
+        value = cast(SweepFloat | None, getattr(document.options, key))
         if isinstance(value, list):
-            dimensions.append((f"options.{key}", tuple(value)))
+            dimensions.append((f"options.{key}", cast(tuple[SweepScalar, ...], tuple(value))))
     if document.drainage is not None:
         for key in type(document.drainage).model_fields:
-            value = getattr(document.drainage, key)
+            value = cast(SweepString | SweepFloat, getattr(document.drainage, key))
             if isinstance(value, list):
-                dimensions.append((f"drainage.{key}", tuple(value)))
+                dimensions.append((f"drainage.{key}", cast(tuple[SweepScalar, ...], tuple(value))))
     return tuple(sorted(dimensions, key=lambda item: item[0]))
 
 
 def _selected_input_maps(
-    input_config: InputSweepConfig, selected: dict[str, Any]
+    input_config: InputSweepConfig, selected: dict[str, SweepScalar]
 ) -> dict[str, str]:
     values: dict[str, str] = {}
     for key in DIRECT_INPUT_KEYS:
-        value = selected.get(f"input.{key}", getattr(input_config, key))
+        value = selected.get(f"input.{key}", cast(SweepString | None, getattr(input_config, key)))
         if value is not None:
             assert isinstance(value, str)
             values[key] = value
     return values
 
 
-def _normalize_infiltration(
-    value: InfiltrationAlternative | list[InfiltrationAlternative],
-) -> NormalizedInfiltration:
-    assert not isinstance(value, list), "infiltration must be scalar after expansion"
+def _normalize_infiltration(value: InfiltrationAlternative) -> NormalizedInfiltration:
     if isinstance(value, NoInfiltration):
         return NormalizedInfiltration(InfiltrationModelType.NULL, ())
     if isinstance(value, ConstantInfiltration):
@@ -411,11 +440,13 @@ def _normalize_infiltration(
     return NormalizedInfiltration(InfiltrationModelType.GREEN_AMPT, tuple(sorted(maps.items())))
 
 
-def _selected_options(options: OptionSweepConfig, selected: dict[str, Any]) -> dict[str, float]:
+def _selected_options(
+    options: OptionSweepConfig, selected: dict[str, SweepScalar]
+) -> dict[str, float]:
     values = dict(SURFACE_FLOW_DEFAULTS)
     values["dtinf"] = DefaultValues.DTINF
     for key in type(options).model_fields:
-        value = selected.get(f"options.{key}", getattr(options, key))
+        value = selected.get(f"options.{key}", cast(SweepFloat | None, getattr(options, key)))
         if value is not None:
             assert isinstance(value, float)
             values[key] = value
@@ -423,14 +454,16 @@ def _selected_options(options: OptionSweepConfig, selected: dict[str, Any]) -> d
 
 
 def _selected_drainage(
-    drainage: DrainageSweepConfig | None, selected: dict[str, Any]
+    drainage: DrainageSweepConfig | None, selected: dict[str, SweepScalar]
 ) -> dict[str, str | float] | None:
     if drainage is None:
         return None
     values: dict[str, str | float] = {}
     for key in type(drainage).model_fields:
-        value = selected.get(f"drainage.{key}", getattr(drainage, key))
-        assert not isinstance(value, list), "drainage must be scalar after expansion"
+        value = selected.get(
+            f"drainage.{key}", cast(SweepString | SweepFloat, getattr(drainage, key))
+        )
+        assert isinstance(value, (str, float)), "drainage must be scalar after expansion"
         values[key] = value
     return values
 
@@ -453,13 +486,20 @@ def _output_templates(document: YamlEnsembleDocumentV1) -> OutputTemplates:
     )
 
 
-def _freeze_json(value: Any) -> JsonValue:
-    if isinstance(value, BaseModel):
-        return _freeze_json(value.model_dump(mode="python"))
-    if isinstance(value, dict):
-        return tuple((str(key), _freeze_json(item)) for key, item in sorted(value.items()))
-    if isinstance(value, list | tuple):
-        return tuple(_freeze_json(item) for item in value)
-    if isinstance(value, (str, int, float, bool)) or value is None:
+def _freeze_json(value: SweepScalar) -> JsonValue:
+    if isinstance(value, (str, float)):
         return value
-    raise TypeError(f"unsupported coordinate value {value!r}")
+    if isinstance(value, NoInfiltration):
+        return (("type", value.type),)
+    if isinstance(value, ConstantInfiltration):
+        return (("rate", value.rate), ("type", value.type))
+    assert isinstance(value, GreenAmptInfiltration)
+    values: list[tuple[str, JsonValue]] = [
+        ("capillary_pressure", value.capillary_pressure),
+        ("effective_porosity", value.effective_porosity),
+        ("hydraulic_conductivity", value.hydraulic_conductivity),
+        ("type", value.type),
+    ]
+    if value.soil_water_content is not None:
+        values.insert(3, ("soil_water_content", value.soil_water_content))
+    return tuple(values)
