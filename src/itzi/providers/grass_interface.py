@@ -320,15 +320,6 @@ class GrassInterface:
         # A mapset MASK uses CELL semantics: zero and NULL are outside.
         return np.isnan(grass_mask) | (grass_mask == 0)
 
-    def set_temp_mask(self) -> Self:
-        """Retained API: masks are now applied in NumPy without GRASS mutation."""
-        msgr.fatal("Itzi never installs a temporary mapset MASK")
-        return self
-
-    def del_temp_mask(self) -> Self:
-        """Retained API: Itzi never installs a temporary mapset MASK."""
-        return self
-
     def coor2pixel(self, coor: tuple[float, float]) -> tuple[int, int]:
         """convert coordinates easting and northing to pixel row and column"""
         row, col = gutils.coor2pixel(coor, self.region)

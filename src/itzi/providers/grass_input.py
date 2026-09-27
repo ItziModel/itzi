@@ -81,39 +81,31 @@ class GrassRasterInputProvider(RasterInputProvider):
                 map_list = None
                 continue
             map_id = self.grass_interface.format_id(map_name)
-            expected_kind = self.input_kinds.get(k) if self.input_kinds is not None else None
-            if expected_kind == "strds":
+            kind = self.input_kinds.get(k) if self.input_kinds is not None else None
+            if kind == "strds":
                 if not self.grass_interface.name_is_stds(map_id):
-                    msgr.fatal(f"Resolved STRDS input <{map_id}> is no longer available")
-                strds_id = map_id
-                if not self.grass_interface.stds_temporal_sanity(strds_id):
-                    msgr.fatal(f"{map_name}: inadequate temporal format")
-                map_list = self.grass_interface.raster_list_from_strds(strds_id)
-            elif expected_kind == "raster":
+                    msgr.fatal(f"STRDS input <{map_id}> is no longer available")
+            elif kind == "raster":
                 if not self.grass_interface.name_is_map(map_id):
-                    msgr.fatal(f"Resolved raster input <{map_id}> is no longer available")
-                map_list = [
-                    MapData(
-                        id=map_id,
-                        start_time=self.start_time,
-                        end_time=self.end_time,
-                    )
-                ]
+                    msgr.fatal(f"raster input <{map_id}> is no longer available")
             elif self.grass_interface.name_is_stds(map_id):
-                strds_id = map_id
-                if not self.grass_interface.stds_temporal_sanity(strds_id):
-                    msgr.fatal(f"{map_name}: inadequate temporal format")
-                map_list = self.grass_interface.raster_list_from_strds(strds_id)
+                kind = "strds"
             elif self.grass_interface.name_is_map(map_id):
-                map_list = [
-                    MapData(
-                        id=map_id,
-                        start_time=self.start_time,
-                        end_time=self.end_time,
-                    )
-                ]
+                kind = "raster"
             else:
                 msgr.fatal(f"{map_name} not found!")
+            if kind == "strds":
+                if not self.grass_interface.stds_temporal_sanity(map_id):
+                    msgr.fatal(f"{map_name}: inadequate temporal format")
+                map_list = self.grass_interface.raster_list_from_strds(map_id)
+            else:
+                map_list = [
+                    MapData(
+                        id=map_id,
+                        start_time=self.start_time,
+                        end_time=self.end_time,
+                    )
+                ]
             map_lists[k] = map_list
         return map_lists
 
