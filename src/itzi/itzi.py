@@ -35,6 +35,7 @@ from multiprocessing import Process, get_context
 from multiprocessing.connection import wait
 from pathlib import Path
 from queue import Empty
+from typing import cast
 
 import yaml
 
@@ -46,6 +47,7 @@ from itzi.ensemble_models import (
     EnsembleError,
     ExpandedEnsemble,
     ExpandedSimulation,
+    JsonValue,
     ResolvedSimulation,
     ValidationFailure,
     render_template,
@@ -400,7 +402,14 @@ def _run_ensemble_batch(cli_args) -> None:
             started = time.monotonic()
             status, detail = _run_resolved_in_spawn(simulation)
             states[simulation.simulation_id]["status"] = status
-            states[simulation.simulation_id]["elapsed_seconds"] = time.monotonic() - started
+            state = states[simulation.simulation_id]
+            states[simulation.simulation_id] = {
+                "simulation_id": state["simulation_id"],
+                "selected": state["selected"],
+                "status": state["status"],
+                "elapsed_seconds": time.monotonic() - started,
+                **state,
+            }
             if detail is not None:
                 states[simulation.simulation_id]["failure"] = detail
                 failure_count += 1
@@ -561,9 +570,9 @@ def _initial_member_states(
         selected = simulation.simulation_id in selected_ids
         states[simulation.simulation_id] = {
             "simulation_id": simulation.simulation_id,
-            "coordinates": simulation.coordinates,
-            "status": "planned" if selected else "not_selected",
             "selected": selected,
+            "status": "planned" if selected else "not_selected",
+            "coordinates": _manifest_coordinates(simulation.coordinates),
             "artifacts": {
                 "rasters": dict(simulation.artifacts.output_map_names),
                 "drainage": simulation.artifacts.drainage_output,
@@ -576,12 +585,23 @@ def _initial_member_states(
         key = f"validation-{index}"
         states[key] = {
             "simulation_id": None,
-            "coordinates": failure.coordinates,
-            "status": "not_selected" if has_selectors else "validation_failed",
             "selected": not has_selectors,
+            "status": "not_selected" if has_selectors else "validation_failed",
+            "coordinates": _manifest_coordinates(failure.coordinates),
             "failure": {"phase": failure.phase, "detail": failure.detail},
         }
     return states
+
+
+def _manifest_coordinates(
+    coordinates: tuple[tuple[str, JsonValue], ...],
+) -> dict[str, JsonValue | dict[str, JsonValue]]:
+    return {
+        path: dict(cast(tuple[tuple[str, JsonValue], ...], value))
+        if isinstance(value, tuple)
+        else value
+        for path, value in coordinates
+    }
 
 
 def _manifest_document(ensemble: ExpandedEnsemble, states: dict[str, dict]) -> dict:
@@ -604,7 +624,7 @@ def _create_manifest(
     path.parent.mkdir(parents=True, exist_ok=True)
     mode = "w" if overwrite else "x"
     with path.open(mode, encoding="utf-8") as file_obj:
-        yaml.safe_dump(_manifest_document(ensemble, states), file_obj, sort_keys=True)
+        yaml.safe_dump(_manifest_document(ensemble, states), file_obj, sort_keys=False)
 
 
 def _update_manifest(path: Path, ensemble: ExpandedEnsemble, states: dict[str, dict]) -> None:
@@ -614,7 +634,7 @@ def _update_manifest(path: Path, ensemble: ExpandedEnsemble, states: dict[str, d
         mode="w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", delete=False
     ) as file_obj:
         temporary_path = Path(file_obj.name)
-        yaml.safe_dump(_manifest_document(ensemble, states), file_obj, sort_keys=True)
+        yaml.safe_dump(_manifest_document(ensemble, states), file_obj, sort_keys=False)
         file_obj.flush()
         os.fsync(file_obj.fileno())
     try:

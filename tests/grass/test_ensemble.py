@@ -29,6 +29,9 @@ time:
 input:
   ground_elevation: "z"
   friction: "n"
+  infiltration:
+    - type: "constant"
+      rate: "infiltration_rate"
 options:
   cfl: [0.2, 0.3]
   dtmax: 0.3
@@ -57,6 +60,16 @@ outputs:
     manifest = yaml.safe_load(manifest_text)
     assert len(manifest["members"]) == 2
     assert all(member["status"] == "completed" for member in manifest["members"])
+    assert [member["coordinates"] for member in manifest["members"]] == [
+        {
+            "input.infiltration": {"rate": "infiltration_rate", "type": "constant"},
+            "options.cfl": 0.2,
+        },
+        {
+            "input.infiltration": {"rate": "infiltration_rate", "type": "constant"},
+            "options.cfl": 0.3,
+        },
+    ]
     assert all(
         member["artifacts"]["rasters"]["water_depth"].startswith("basic_sim-")
         for member in manifest["members"]
