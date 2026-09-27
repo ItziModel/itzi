@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import os
 from datetime import datetime
 from pathlib import Path
@@ -11,6 +10,7 @@ import grass.script as gscript
 import pytest
 import yaml
 
+from itzi.cli_parser import build_parser
 from itzi.itzi import itzi_run
 
 
@@ -43,15 +43,7 @@ outputs:
 """,
         encoding="utf-8",
     )
-    args = argparse.Namespace(
-        config_file=[str(config_path)],
-        o=True,
-        v=None,
-        q=None,
-        resume_from=[],
-        member=[],
-        dry=False,
-    )
+    args = build_parser().parse_args(["run", str(config_path), "-o"])
 
     itzi_run(args)
 
@@ -117,15 +109,7 @@ outputs:
 """,
         encoding="utf-8",
     )
-    args = argparse.Namespace(
-        config_file=[str(config_path)],
-        o=True,
-        v=None,
-        q=None,
-        resume_from=[],
-        member=[],
-        dry=False,
-    )
+    args = build_parser().parse_args(["run", str(config_path), "-o"])
 
     gisrc = os.environ.pop("GISRC")
     try:
