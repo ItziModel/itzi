@@ -2,8 +2,8 @@
 
 ## Common commands
 - Run a single test: `uv run pytest tests/my_test.py`
-- Due to a bug in GRASS<8.5, a change of mapset change cannot occur within the same process. Run each test file independently to prevent this type of failure. Tests that need to run in a separate process are marked with `@pytest.mark.forked`.
-- Enforce code formatting: `uvx ruff format .`
+- Due to a bug in GRASS<8.5, a change of mapset cannot occur within the same process when using the temporal framework. Each test file must therefore be run independently. Tests that need to run in a separate process are marked with `@pytest.mark.forked`.
+- Enforce code formatting: `uv run ruff format .`
 
 ## Code style
 - Use python type annotation. When a function that does not yet use hints is substantially edited, take the opportunity to add type hints.
