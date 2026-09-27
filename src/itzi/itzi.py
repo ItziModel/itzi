@@ -29,15 +29,12 @@ import os
 import sys
 import time
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import timedelta
 from importlib.metadata import version
 from multiprocessing import Process, get_context
 from multiprocessing.connection import wait
 from pathlib import Path
 from queue import Empty
-from typing import cast
-
-import yaml
 
 import itzi.messenger as msgr
 from itzi.cli_parser import build_parser
@@ -47,12 +44,17 @@ from itzi.ensemble_models import (
     EnsembleError,
     ExpandedEnsemble,
     ExpandedSimulation,
-    JsonValue,
     ResolvedSimulation,
     ValidationFailure,
-    render_template,
 )
 from itzi.grass_session import GrassSessionManager
+from itzi.manifest import (
+    _create_manifest,
+    _initial_member_states,
+    _manifest_path,
+    _update_manifest,
+    _validate_manifest_destination,
+)
 from itzi.messenger import VerbosityLevel
 from itzi.resolution import (
     resolve_ensemble,
@@ -305,10 +307,10 @@ def _run_legacy_batch(cli_args) -> None:
     else:
         msgr.message("Simulation(s) complete. Elapsed times:")
     for f, t in times_list:
-        msgr.message("{}: {}".format(f, t))
-    msgr.message("Total: {}".format(total_elapsed_time))
+        msgr.message(f"{f}: {t}")
+    msgr.message(f"Total: {total_elapsed_time}")
     avg_time_s = int(total_elapsed_time.total_seconds() / len(times_list))
-    msgr.message("Average: {}".format(timedelta(seconds=avg_time_s)))
+    msgr.message(f"Average: {timedelta(seconds=avg_time_s)}")
     if failed_files:
         msgr.fatal(f"{len(failed_files)} simulation(s) failed")
 
@@ -316,7 +318,7 @@ def _run_legacy_batch(cli_args) -> None:
 def _run_ensemble_batch(cli_args) -> None:
     """Resolve and execute an ordered YAML/INI batch through spawn boundaries."""
     if getattr(cli_args, "resume_from", []):
-        msgr.fatal("Resume is not available for YAML ensembles until Stage 2")
+        msgr.fatal("Resume is not available for YAML ensembles.")
     ensembles, document_failures = load_batch(cli_args.config_file)
     for failure in document_failures:
         msgr.warning(failure.format())
@@ -524,125 +526,6 @@ def _select_members(
         ensemble_id, _separator, _member = qualified.partition("#")
         selected[ensemble_id].add(simulation_id)
     return selected
-
-
-def _manifest_path(ensemble: ExpandedEnsemble) -> Path:
-    if ensemble.manifest_template is not None:
-        rendered = render_template(
-            ensemble.manifest_template, ensemble=ensemble.ensemble_id, simulation=None
-        )
-        path = Path(rendered).expanduser()
-        return (path if path.is_absolute() else ensemble.source.path.parent / path).resolve()
-    return ensemble.source.path.parent / "results" / f"{ensemble.ensemble_id}.manifest.yaml"
-
-
-def _validate_manifest_destination(
-    manifest_path: Path,
-    ensemble: ExpandedEnsemble,
-    simulations: tuple[ResolvedSimulation, ...],
-) -> None:
-    """Keep the parent-owned manifest away from files required by the run."""
-    protected = {ensemble.source.path.resolve()}
-    for simulation in simulations:
-        if simulation.simulation_config.swmm_inp is not None:
-            protected.add(simulation.simulation_config.swmm_inp.resolve())
-        if simulation.artifacts.statistics_file is not None:
-            protected.add(simulation.artifacts.statistics_file.resolve())
-    if manifest_path in protected:
-        raise EnsembleError(
-            f"manifest <{manifest_path}> aliases a protected input or member artifact"
-        )
-    for path in protected:
-        if manifest_path.exists() and path.exists() and manifest_path.samefile(path):
-            raise EnsembleError(
-                f"manifest <{manifest_path}> aliases a protected input or member artifact"
-            )
-
-
-def _initial_member_states(
-    simulations: tuple[ResolvedSimulation, ...],
-    failures: tuple[ValidationFailure, ...],
-    selected_ids: set[str],
-    has_selectors: bool,
-) -> dict[str, dict]:
-    states: dict[str, dict] = {}
-    for simulation in simulations:
-        selected = simulation.simulation_id in selected_ids
-        states[simulation.simulation_id] = {
-            "simulation_id": simulation.simulation_id,
-            "selected": selected,
-            "status": "planned" if selected else "not_selected",
-            "coordinates": _manifest_coordinates(simulation.coordinates),
-            "artifacts": {
-                "rasters": dict(simulation.artifacts.output_map_names),
-                "drainage": simulation.artifacts.drainage_output,
-                "statistics": str(simulation.artifacts.statistics_file)
-                if simulation.artifacts.statistics_file is not None
-                else None,
-            },
-        }
-    for index, failure in enumerate(failures):
-        key = f"validation-{index}"
-        states[key] = {
-            "simulation_id": None,
-            "selected": not has_selectors,
-            "status": "not_selected" if has_selectors else "validation_failed",
-            "coordinates": _manifest_coordinates(failure.coordinates),
-            "failure": {"phase": failure.phase, "detail": failure.detail},
-        }
-    return states
-
-
-def _manifest_coordinates(
-    coordinates: tuple[tuple[str, JsonValue], ...],
-) -> dict[str, JsonValue | dict[str, JsonValue]]:
-    return {
-        path: dict(cast(tuple[tuple[str, JsonValue], ...], value))
-        if isinstance(value, tuple)
-        else value
-        for path, value in coordinates
-    }
-
-
-def _manifest_document(ensemble: ExpandedEnsemble, states: dict[str, dict]) -> dict:
-    return {
-        "manifest_version": 1,
-        "last_updated_at": datetime.now().astimezone().isoformat(),
-        "ensemble": {"id": ensemble.ensemble_id, "name": ensemble.ensemble_name},
-        "source": {
-            "path": str(ensemble.source.path),
-            "document_index": ensemble.source.document_index,
-            "file_digest": ensemble.source.file_digest,
-            "document_digest": ensemble.source.document_digest,
-        },
-        "members": list(states.values()),
-    }
-
-
-def _create_manifest(
-    path: Path, ensemble: ExpandedEnsemble, states: dict[str, dict], *, overwrite: bool
-) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    mode = "w" if overwrite else "x"
-    with path.open(mode, encoding="utf-8") as file_obj:
-        yaml.safe_dump(_manifest_document(ensemble, states), file_obj, sort_keys=False)
-
-
-def _update_manifest(path: Path, ensemble: ExpandedEnsemble, states: dict[str, dict]) -> None:
-    import tempfile
-
-    with tempfile.NamedTemporaryFile(
-        mode="w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", delete=False
-    ) as file_obj:
-        temporary_path = Path(file_obj.name)
-        yaml.safe_dump(_manifest_document(ensemble, states), file_obj, sort_keys=False)
-        file_obj.flush()
-        os.fsync(file_obj.fileno())
-    try:
-        temporary_path.replace(path)
-    except Exception:
-        temporary_path.unlink(missing_ok=True)
-        raise
 
 
 def _display_dry_plan(
