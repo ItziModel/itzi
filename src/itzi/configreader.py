@@ -28,6 +28,7 @@ from itzi_core import (
     SurfaceFlowParameters,
     TemporalType,
 )
+from itzi_core.const import DefaultValues
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 import itzi.messenger as msgr
@@ -87,22 +88,6 @@ OUTPUT_MAP_KEYS = tuple(
     arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.OUTPUT in arr_def.category
 )
 SURFACE_FLOW_OPTION_KEYS = tuple(SurfaceFlowParameters.model_fields)
-SIMULATION_OPTION_KEYS = ("dtinf",)
-DRAINAGE_STRING_KEYS = ("swmm_inp", "output")
-DRAINAGE_FLOAT_KEYS = ("orifice_coeff", "free_weir_coeff", "submerged_weir_coeff")
-
-type SimulationConfigValue = (
-    datetime
-    | timedelta
-    | TemporalType
-    | HotstartRunConfig
-    | dict[str, str | None]
-    | SurfaceFlowParameters
-    | InfiltrationModelType
-    | float
-    | str
-    | Path
-)
 
 
 def _read_parser(filename: str) -> ConfigParser:
@@ -243,28 +228,6 @@ def _read_surface_flow_parameters(params: ConfigParser) -> SurfaceFlowParameters
         _fatal_validation_error(error)
 
 
-def _read_simulation_option_values(params: ConfigParser) -> dict[str, float]:
-    """Read simulation options that live outside the surface flow model."""
-    return _read_float_options(params, "options", SIMULATION_OPTION_KEYS)
-
-
-def _read_simulation_drainage_values(params: ConfigParser) -> dict[str, str | float]:
-    """Read drainage settings using SimulationConfig field names."""
-    drainage_values: dict[str, str | float] = {}
-
-    for option_name in DRAINAGE_STRING_KEYS:
-        value = params.get("drainage", option_name, fallback=None)
-        if value is None:
-            continue
-        if option_name == "output":
-            drainage_values["drainage_output"] = value
-        else:
-            drainage_values[option_name] = value
-
-    drainage_values.update(_read_float_options(params, "drainage", DRAINAGE_FLOAT_KEYS))
-    return drainage_values
-
-
 def _resolve_swmm_input_path(swmm_inp: str, config_file: str) -> Path:
     """Resolve a SWMM input path, searching cwd first and then the config directory."""
     configured_path = Path(swmm_inp)
@@ -292,14 +255,6 @@ def _resolve_swmm_input_path(swmm_inp: str, config_file: str) -> Path:
 def _read_grass_params(params: ConfigParser) -> GrassParams:
     """Build GRASS session parameters from the config file."""
     return GrassParams(**_read_string_options(params, "grass", GRASS_OPTION_KEYS))
-
-
-def _build_simulation_config(values: dict[str, SimulationConfigValue]) -> SimulationConfig:
-    """Build a validated simulation config from normalized values."""
-    try:
-        return SimulationConfig.model_validate(values)
-    except ValidationError as error:
-        _fatal_validation_error(error)
 
 
 class SimulationTimes(BaseModel):
@@ -416,28 +371,44 @@ class ConfigReader:
         surface_flow_parameters = _read_surface_flow_parameters(params)
         assert self.sim_times.record_step is not None
 
-        simulation_kwargs: dict[str, SimulationConfigValue] = {
-            "start_time": self.sim_times.start,
-            "end_time": self.sim_times.end,
-            "record_step": self.sim_times.record_step,
-            "temporal_type": self.sim_times.temporal_type,
-            "input_map_names": self.input_map_names,
-            "output_map_names": self.output_map_names,
-            "surface_flow_parameters": surface_flow_parameters,
-            "infiltration_model": infiltration_model,
-        }
-
-        if self.hotstart_config is not None:
-            simulation_kwargs["hotstart_config"] = self.hotstart_config
-
-        simulation_kwargs.update(_read_simulation_option_values(params))
-        simulation_kwargs.update(_read_simulation_drainage_values(params))
-        swmm_inp = simulation_kwargs.get("swmm_inp")
+        swmm_inp = params.get("drainage", "swmm_inp", fallback=None)
         if swmm_inp is not None:
-            assert isinstance(swmm_inp, str)
-            simulation_kwargs["swmm_inp"] = _resolve_swmm_input_path(swmm_inp, self.config_file)
+            resolved_swmm_inp = _resolve_swmm_input_path(swmm_inp, self.config_file)
+        else:
+            resolved_swmm_inp = None
 
-        self.sim_config = _build_simulation_config(simulation_kwargs)
+        try:
+            self.sim_config = SimulationConfig(
+                start_time=self.sim_times.start,
+                end_time=self.sim_times.end,
+                record_step=self.sim_times.record_step,
+                temporal_type=self.sim_times.temporal_type,
+                hotstart_config=self.hotstart_config,
+                input_map_names={
+                    key: value for key, value in self.input_map_names.items() if value is not None
+                },
+                output_map_names={
+                    key: value for key, value in self.output_map_names.items() if value is not None
+                },
+                surface_flow_parameters=surface_flow_parameters,
+                dtinf=params.getfloat("options", "dtinf", fallback=DefaultValues.DTINF),
+                infiltration_model=infiltration_model,
+                swmm_inp=resolved_swmm_inp,
+                drainage_output=params.get("drainage", "output", fallback=None),
+                orifice_coeff=params.getfloat(
+                    "drainage", "orifice_coeff", fallback=DefaultValues.ORIFICE_COEFF
+                ),
+                free_weir_coeff=params.getfloat(
+                    "drainage", "free_weir_coeff", fallback=DefaultValues.FREE_WEIR_COEFF
+                ),
+                submerged_weir_coeff=params.getfloat(
+                    "drainage",
+                    "submerged_weir_coeff",
+                    fallback=DefaultValues.SUBMERGED_WEIR_COEFF,
+                ),
+            )
+        except ValidationError as error:
+            _fatal_validation_error(error)
 
     def _check_grass_params(self, grass_params: GrassParams) -> None:
         """Ensure mandatory GRASS settings are provided together."""
