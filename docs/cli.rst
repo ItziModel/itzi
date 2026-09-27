@@ -14,13 +14,13 @@ Run a simulation
 YAML ensembles
 ~~~~~~~~~~~~~~
 
-Each YAML document is one ensemble. Use ``--dry`` to perform parsing,
+Each YAML document is one ensemble. Use ``--dry-run`` (or ``-d``) to perform parsing,
 expansion, GRASS input resolution, member-ID calculation, and artifact
 validation without writing manifests or model outputs:
 
 .. code-block:: bash
 
-   itzi run --dry studies.yaml
+   itzi run --dry-run studies.yaml
 
 Select resolved members with a qualified ensemble and simulation ID. The
 unqualified ID form is accepted only when the batch contains one ensemble.

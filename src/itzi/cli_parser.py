@@ -28,7 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "config_file",
         nargs="+",
-        help=("An Itzï configuration file or YAML stream (several files form one batch)."),
+        help="An Itzï configuration file. ini and yaml are allowed, several files form one batch.",
     )
     run_parser.add_argument("-o", action="store_true", help="Overwrite files if exist.")
     verbosity_parser = run_parser.add_mutually_exclusive_group()
@@ -51,10 +51,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         metavar="[ENSEMBLE#]SIMULATION",
-        help="Run only a resolved ensemble member. Repeat to select multiple members.",
+        help="Run only one ensemble member. Repeat to select multiple members.",
     )
     run_parser.add_argument(
-        "--dry",
+        "-d",
+        "--dry-run",
+        dest="dry",
         action="store_true",
         help="Resolve and validate selected members without writing user artifacts.",
     )

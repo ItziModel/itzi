@@ -42,9 +42,10 @@ def test_run_parser_accepts_resume_from_args():
     assert args.resume_from == [("a.ini", "restart_a.zip"), ("b.ini", "restart_b.zip")]
 
 
-def test_run_parser_accepts_yaml_dry_run_and_member_selection():
+@pytest.mark.parametrize("dry_option", ["--dry-run", "-d"])
+def test_run_parser_accepts_yaml_dry_run_and_member_selection(dry_option):
     args = build_parser().parse_args(
-        ["run", "study.yaml", "--dry", "--member", "study#sim-a", "--member", "study#sim-b"]
+        ["run", "study.yaml", dry_option, "--member", "study#sim-a", "--member", "study#sim-b"]
     )
 
     assert args.dry is True

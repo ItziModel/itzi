@@ -82,7 +82,7 @@ A list of complete alternatives is one sweep dimension.
 ``{ensemble}`` and ``{simulation}`` are the only output-template substitutions.
 Output maps are always bare names in the active execution mapset; qualified
 output names are rejected. YAML filesystem paths are relative to the YAML
-source file. Use ``itzi run --dry study.yaml`` to resolve and validate members
+source file. Use ``itzi run --dry-run study.yaml`` to resolve and validate members
 without creating output artifacts.
 
 Legacy INI reference
