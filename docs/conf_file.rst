@@ -37,8 +37,8 @@ Basic YAML example
      mask: "central_city_mask"
    time:
      start: "2026-09-01T00:00:00"
-     duration: "PT2H"
-     record_step: "PT5M"
+     duration: "02:00:00"
+     record_step: "00:05:00"
    input:
      ground_elevation: "elevation_5m@PERMANENT"
      friction: "manning_n@PERMANENT"
@@ -64,7 +64,8 @@ contain at most 200.
 All simulations in an ensemble use one geographical domain, time form, and
 ``record_step``. Time accepts exactly one of a relative ``duration``, absolute
 ``start`` plus ``duration``, or absolute ``start`` plus ``end``. Durations use
-the supported non-calendar ISO 8601 subset, such as ``"PT5M"`` and ``"P1DT2H"``.
+the legacy ``HH:MM:SS`` form, such as ``"00:05:00"`` and ``"26:00:00"``.
+Hours may exceed 23; minutes and seconds must be between 0 and 59.
 Timezone offsets are retained as source metadata but execute as naive GRASS
 wall-clock times without conversion.
 

@@ -22,7 +22,7 @@ from itzi.ensemble_models import (
     EnsembleError,
     ExpandedSimulation,
     ResolvedSimulation,
-    format_iso_duration,
+    format_duration,
     render_template,
 )
 from itzi.grass_session import GrassParams, GrassSessionManager
@@ -232,8 +232,8 @@ def _simulation_identity(
         "temporal_type": str(expanded.time.temporal_type),
         "start": expanded.time.start.isoformat() if expanded.time.start is not None else None,
         "end": expanded.time.end.isoformat() if expanded.time.end is not None else None,
-        "duration": format_iso_duration(expanded.time.duration),
-        "record_step": format_iso_duration(expanded.time.record_step),
+        "duration": format_duration(expanded.time.duration),
+        "record_step": format_duration(expanded.time.record_step),
     }
     payload = {
         "identity_version": 1,

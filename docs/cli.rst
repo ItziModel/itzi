@@ -9,7 +9,7 @@ Run a simulation
    :func: build_parser
    :prog: itzi
    :path: run
-    :nodefault:
+   :nodefault:
 
 YAML ensembles
 ~~~~~~~~~~~~~~

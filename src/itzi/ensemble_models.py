@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 import math
-import re
 import string
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -67,10 +66,6 @@ SURFACE_FLOW_DEFAULTS = {
 }
 MAX_ENSEMBLE_MEMBERS = 100
 MAX_BATCH_MEMBERS = 200
-DURATION_RE = re.compile(
-    r"P(?:(?P<days>\d+)D)?(?:T(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?"
-    r"(?:(?P<seconds>\d+(?:\.\d+)?)S)?)?\Z"
-)
 ENSEMBLE_ID_START_CHARS = string.ascii_letters + string.digits
 ENSEMBLE_ID_CHARS = ENSEMBLE_ID_START_CHARS + "._-"
 
@@ -243,46 +238,34 @@ class LoadedYamlStream:
     failures: tuple[DocumentFailure, ...]
 
 
-def parse_iso_duration(value: str) -> timedelta:
-    """Parse the supported, non-calendar ISO 8601 duration subset."""
-    match = DURATION_RE.fullmatch(value)
-    if match is None or not any(match.groupdict().values()):
-        raise ValueError("must be an ISO 8601 duration without years or months")
-    groups = match.groupdict(default="0")
-    if "T" in value and not any(groups[key] != "0" for key in ("hours", "minutes", "seconds")):
-        raise ValueError("must include a time component after T")
-    duration = timedelta(
-        days=int(groups["days"]),
-        hours=int(groups["hours"]),
-        minutes=int(groups["minutes"]),
-        seconds=float(groups["seconds"]),
-    )
+def parse_duration(value: str) -> timedelta:
+    """Parse a strictly positive ``HH:MM:SS`` duration."""
+    try:
+        hours_str, minutes_str, seconds_str = value.split(":")
+        hours = int(hours_str)
+        minutes = int(minutes_str)
+        seconds = int(seconds_str)
+    except ValueError as error:
+        raise ValueError("must use HH:MM:SS") from error
+    if hours < 0 or not 0 <= minutes <= 59 or not 0 <= seconds <= 59:
+        raise ValueError("must use HH:MM:SS")
+    duration = timedelta(hours=hours, minutes=minutes, seconds=seconds)
     if duration <= timedelta():
         raise ValueError("must be strictly positive")
     return duration
 
 
-def format_iso_duration(value: timedelta) -> str:
-    """Render a positive duration in a stable ISO 8601 representation."""
-    total_seconds = value.total_seconds()
-    if total_seconds <= 0:
+def format_duration(value: timedelta) -> str:
+    """Render a positive duration for canonical internal data."""
+    if value <= timedelta():
         raise ValueError("duration must be strictly positive")
-    days, remainder = divmod(total_seconds, 86400)
-    hours, remainder = divmod(remainder, 3600)
+    total_seconds = value.days * 86400 + value.seconds
+    hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
-    parts = ["P"]
-    if days:
-        parts.append(f"{int(days)}D")
-    if hours or minutes or seconds or not days:
-        parts.append("T")
-        if hours:
-            parts.append(f"{int(hours)}H")
-        if minutes:
-            parts.append(f"{int(minutes)}M")
-        if seconds or (not hours and not minutes):
-            rendered_seconds = format(seconds, ".6f").rstrip("0").rstrip(".")
-            parts.append(f"{rendered_seconds}S")
-    return "".join(parts)
+    rendered = f"{hours:02}:{minutes:02}:{seconds:02}"
+    if value.microseconds:
+        return f"{rendered}.{value.microseconds:06}".rstrip("0")
+    return rendered
 
 
 def _canonical_json(value: Any) -> str:
@@ -307,7 +290,7 @@ def _canonical_value(value: Any) -> Any:
     if isinstance(value, date):
         return {"$date": value.isoformat()}
     if isinstance(value, timedelta):
-        return {"$duration": format_iso_duration(value)}
+        return {"$duration": format_duration(value)}
     if isinstance(value, float) and not math.isfinite(value):
         raise EnsembleError("NaN and infinity are not supported")
     return value

@@ -44,7 +44,7 @@ from itzi.ensemble_models import (
     SourceDocument,
     _canonical_json,
     _canonical_value,
-    parse_iso_duration,
+    parse_duration,
     render_template,
 )
 from itzi.ensemble_schema import (
@@ -105,8 +105,8 @@ _StrictSafeLoader.add_constructor(
 
 def normalize_time(value: TimeConfig) -> NormalizedTime:
     """Validate a public time form without leaking core's relative sentinels."""
-    duration = parse_iso_duration(value.duration) if value.duration is not None else None
-    record_step = parse_iso_duration(value.record_step)
+    duration = parse_duration(value.duration) if value.duration is not None else None
+    record_step = parse_duration(value.record_step)
     start = _parse_datetime(value.start) if value.start is not None else None
     end = _parse_datetime(value.end) if value.end is not None else None
     aware = [timestamp for timestamp in (start, end) if timestamp is not None and timestamp.tzinfo]

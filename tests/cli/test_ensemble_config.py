@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+import pytest
 from itzi_core import InfiltrationModelType, TemporalType
 
 from itzi.ensemble import load_yaml_stream
 from itzi.ensemble_models import (
     MAX_ENSEMBLE_MEMBERS,
-    format_iso_duration,
-    parse_iso_duration,
+    format_duration,
+    parse_duration,
     render_template,
 )
 
@@ -41,8 +42,8 @@ ensemble:
   id: {ensemble_id}
 domain: {{}}
 time:
-  duration: "PT2H"
-  record_step: "PT5M"
+  duration: "02:00:00"
+  record_step: "00:05:00"
 {body}"""
 
 
@@ -96,8 +97,8 @@ ensemble:
   id: first
 domain: {}
 time:
-  duration: "PT1H"
-  record_step: "PT5M"
+  duration: "01:00:00"
+  record_step: "00:05:00"
 input:
   ground_elevation: elevation
   friction: manning
@@ -140,8 +141,8 @@ ensemble:
   id: invalid-merge
 domain: {}
 time:
-  duration: "PT1H"
-  record_step: "PT5M"
+  duration: "01:00:00"
+  record_step: "00:05:00"
 input:
   ground_elevation: elevation
   friction: manning
@@ -190,7 +191,7 @@ def test_yaml_rejects_unsupported_hotstart(tmp_path):
         document()
         + """\
 hotstart:
-  wallclock_step: "PT1M"
+  wallclock_step: "00:01:00"
   file: "checkpoint.zip"
 """
     )
@@ -203,8 +204,8 @@ hotstart:
 
 def test_absolute_offsets_keep_wall_clock_values(tmp_path):
     content = document().replace(
-        '  duration: "PT2H"\n  record_step: "PT5M"',
-        '  start: "2026-09-01T00:00:00+02:00"\n  duration: "PT2H"\n  record_step: "PT5M"',
+        '  duration: "02:00:00"\n  record_step: "00:05:00"',
+        '  start: "2026-09-01T00:00:00+02:00"\n  duration: "02:00:00"\n  record_step: "00:05:00"',
     )
 
     stream = load_yaml_stream(write_yaml(tmp_path, content))
@@ -237,8 +238,24 @@ outputs: {{}}
 
 
 def test_duration_and_template_helpers_are_strict():
-    assert parse_iso_duration("P1DT2H3M4.5S") == timedelta(days=1, hours=2, minutes=3, seconds=4.5)
-    assert format_iso_duration(timedelta(minutes=5)) == "PT5M"
+    for str_value, expected in (
+        ("25:02:03", timedelta(hours=25, minutes=2, seconds=3)),
+        ("123:55:20", timedelta(hours=123, minutes=55, seconds=20)),
+    ):
+        assert parse_duration(str_value) == expected
+    assert format_duration(timedelta(days=1, hours=2, minutes=3, seconds=4)) == "26:03:04"
+    for value in (
+        "PT1H",
+        "01:00",
+        "01:60:00",
+        "00:00:00",
+        "-01:00:00",
+        "2:31:00:00",
+        "une:heure:trente",
+        "00:90:00",
+    ):
+        with pytest.raises(ValueError):
+            parse_duration(value)
     assert (
         render_template("{{{ensemble}}}-{simulation}", ensemble="study", simulation="sim-a")
         == "{study}-sim-a"

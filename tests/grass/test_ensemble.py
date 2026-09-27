@@ -22,8 +22,8 @@ ensemble:
   id: basic
 domain: {}
 time:
-  duration: "PT1M"
-  record_step: "PT30S"
+  duration: "00:01:00"
+  record_step: "00:00:30"
 input:
   ground_elevation: "z"
   friction: "n"
