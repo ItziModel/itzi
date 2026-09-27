@@ -69,6 +69,10 @@ Hours may exceed 23; minutes and seconds must be between 0 and 59.
 Timezone offsets are retained as source metadata but execute as naive GRASS
 wall-clock times without conversion.
 
+The ensemble manifest is written as YAML to
+``results/<ensemble-id>.manifest.yaml`` relative to the configuration file.
+Set ``outputs.manifest.file`` to override this path.
+
 YAML infiltration alternatives are explicit under ``input.infiltration``:
 ``type: "none"``, ``type: "constant"`` with a ``rate`` map, or
 ``type: "green-ampt"`` with ``effective_porosity``, ``capillary_pressure``,

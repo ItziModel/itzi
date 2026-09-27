@@ -36,6 +36,8 @@ from multiprocessing.connection import wait
 from pathlib import Path
 from queue import Empty
 
+import yaml
+
 import itzi.messenger as msgr
 from itzi.cli_parser import build_parser
 from itzi.configreader import ConfigReader
@@ -522,10 +524,7 @@ def _manifest_path(ensemble: ExpandedEnsemble) -> Path:
         )
         path = Path(rendered).expanduser()
         return (path if path.is_absolute() else ensemble.source.path.parent / path).resolve()
-    return (
-        ensemble.source.path.parent
-        / f"{ensemble.source.path.stem}.{ensemble.ensemble_id}.manifest.json"
-    )
+    return ensemble.source.path.parent / "results" / f"{ensemble.ensemble_id}.manifest.yaml"
 
 
 def _validate_manifest_destination(
@@ -605,34 +604,17 @@ def _create_manifest(
     path.parent.mkdir(parents=True, exist_ok=True)
     mode = "w" if overwrite else "x"
     with path.open(mode, encoding="utf-8") as file_obj:
-        import json
-
-        json.dump(
-            _manifest_document(ensemble, states),
-            file_obj,
-            allow_nan=False,
-            indent=2,
-            sort_keys=True,
-        )
-        file_obj.write("\n")
+        yaml.safe_dump(_manifest_document(ensemble, states), file_obj, sort_keys=True)
 
 
 def _update_manifest(path: Path, ensemble: ExpandedEnsemble, states: dict[str, dict]) -> None:
-    import json
     import tempfile
 
     with tempfile.NamedTemporaryFile(
         mode="w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", delete=False
     ) as file_obj:
         temporary_path = Path(file_obj.name)
-        json.dump(
-            _manifest_document(ensemble, states),
-            file_obj,
-            allow_nan=False,
-            indent=2,
-            sort_keys=True,
-        )
-        file_obj.write("\n")
+        yaml.safe_dump(_manifest_document(ensemble, states), file_obj, sort_keys=True)
         file_obj.flush()
         os.fsync(file_obj.fileno())
     try:

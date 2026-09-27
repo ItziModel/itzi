@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 from pathlib import Path
 
 import grass.script as gscript
 import pytest
+import yaml
 
 from itzi.itzi import itzi_run
 
@@ -16,7 +16,7 @@ from itzi.itzi import itzi_run
 @pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_yaml_ensemble_runs_in_spawned_resolver_and_worker(test_data_temp_path):
-    config_path = Path(test_data_temp_path) / "basic.yaml"
+    config_path = Path(test_data_temp_path) / "source-file-name.yaml"
     config_path.write_text(
         """\
 schema_version: 1
@@ -36,8 +36,6 @@ outputs:
   rasters:
     prefix: "basic_{simulation}"
     variables: [water_depth]
-  manifest:
-    file: "basic.manifest.json"
 """,
         encoding="utf-8",
     )
@@ -53,8 +51,10 @@ outputs:
 
     itzi_run(args)
 
-    manifest_path = Path(test_data_temp_path) / "basic.manifest.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_path = Path(test_data_temp_path) / "results" / "basic.manifest.yaml"
+    manifest_text = manifest_path.read_text(encoding="utf-8")
+    assert not manifest_text.lstrip().startswith("{")
+    manifest = yaml.safe_load(manifest_text)
     assert len(manifest["members"]) == 2
     assert all(member["status"] == "completed" for member in manifest["members"])
     assert all(
@@ -95,7 +95,7 @@ outputs:
     prefix: "explicit_{{simulation}}"
     variables: [water_depth]
   manifest:
-    file: "explicit.manifest.json"
+    file: "explicit-manifest.yaml"
 """,
         encoding="utf-8",
     )
@@ -115,8 +115,8 @@ outputs:
     finally:
         os.environ["GISRC"] = gisrc
 
-    manifest_path = Path(test_data_temp_path) / "explicit.manifest.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_path = Path(test_data_temp_path) / "explicit-manifest.yaml"
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
     assert len(manifest["members"]) == 4
     assert all(member["status"] == "completed" for member in manifest["members"])
     mapset_path = (
