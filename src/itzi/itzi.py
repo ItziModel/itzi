@@ -29,12 +29,11 @@ import os
 import sys
 import time
 from collections.abc import Callable
+from concurrent.futures import ProcessPoolExecutor
 from datetime import timedelta
 from importlib.metadata import version
 from multiprocessing import Process, get_context
-from multiprocessing.connection import wait
 from pathlib import Path
-from queue import Empty
 
 import itzi.messenger as msgr
 from itzi.cli_parser import build_parser
@@ -110,8 +109,8 @@ def sim_runner_worker(conf_file: str, hotstart_file: str | None) -> None:
         raise SystemExit(1) from None
 
 
-def resolved_sim_runner_worker(simulation: ResolvedSimulation, result_queue) -> None:
-    """Run one resolved member and return a small structured worker result."""
+def resolved_sim_runner_worker(simulation: ResolvedSimulation) -> tuple[str, str | None]:
+    """Run one resolved member and return its status."""
     msgr.raise_on_error = True
     msgr._itzi_logger.set_verbosity(msgr.verbosity())
     runner: SimulationRunner | None = None
@@ -129,26 +128,23 @@ def resolved_sim_runner_worker(simulation: ResolvedSimulation, result_queue) -> 
                 exclusive_stats=True,
             )
             runner.run().finalize()
-        result_queue.put(("completed", None))
+        return "completed", None
     except Exception as error:
         if runner is not None:
             try:
                 runner.finalize()
             except Exception:
                 pass
-        result_queue.put(("execution_failed", f"{type(error).__name__}: {error}"))
+        return "execution_failed", f"{type(error).__name__}: {error}"
 
 
-def resolver_worker(expanded: tuple[ExpandedSimulation, ...], result_connection) -> None:
+def resolver_worker(
+    expanded: tuple[ExpandedSimulation, ...],
+) -> tuple[ResolvedSimulation | ValidationFailure, ...]:
     """Resolve one ensemble in a short-lived spawned GRASS process."""
     msgr.raise_on_error = True
     msgr._itzi_logger.set_verbosity(msgr.verbosity())
-    try:
-        result_connection.send(("resolved", resolve_ensemble(expanded)))
-    except Exception as error:
-        result_connection.send(("validation_failed", f"{type(error).__name__}: {error}"))
-    finally:
-        result_connection.close()
+    return resolve_ensemble(expanded)
 
 
 def itzi_run_one(conf_file: str, hotstart_file: str | None) -> bool:
@@ -428,66 +424,27 @@ def _run_ensemble_batch(cli_args) -> None:
 def _resolve_ensemble_in_spawn(
     expanded: tuple[ExpandedSimulation, ...],
 ) -> tuple[ResolvedSimulation | ValidationFailure, ...]:
-    context = get_context("spawn")
-    receiver, sender = context.Pipe(duplex=False)
-    process = context.Process(target=resolver_worker, args=(expanded, sender))
-    process.start()
-    sender.close()
     try:
-        ready = wait((receiver, process.sentinel))
-        if receiver in ready:
-            status, payload = receiver.recv()
-        else:
-            process.join()
-            status, payload = (
-                receiver.recv()
-                if receiver.poll()
-                else (
-                    "validation_failed",
-                    f"resolver exited with status {process.exitcode} without returning a result",
-                )
-            )
-    except EOFError:
-        status = "validation_failed"
-        payload = f"resolver exited with status {process.exitcode} without returning a result"
-    finally:
-        process.join()
-        receiver.close()
-        process.close()
-    if status == "resolved" and isinstance(payload, tuple):
-        return payload
+        with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as executor:
+            return executor.submit(resolver_worker, expanded).result()
+    except Exception as error:
+        detail = f"{type(error).__name__}: {error}"
     return tuple(
         ValidationFailure(
             coordinates=simulation.coordinates,
             phase="input_resolution",
-            detail=str(payload),
+            detail=detail,
         )
         for simulation in expanded
     )
 
 
 def _run_resolved_in_spawn(simulation: ResolvedSimulation) -> tuple[str, str | None]:
-    context = get_context("spawn")
-    result_queue = context.Queue()
-    process = context.Process(target=resolved_sim_runner_worker, args=(simulation, result_queue))
-    process.start()
-    process.join()
     try:
-        status, detail = result_queue.get(timeout=1)
-    except Empty:
-        reason = (
-            f"signal {-process.exitcode}"
-            if process.exitcode and process.exitcode < 0
-            else str(process.exitcode)
-        )
-        status, detail = (
-            "execution_failed",
-            f"worker exited with {reason} without returning a result",
-        )
-    finally:
-        result_queue.close()
-        process.close()
-    return status, detail
+        with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as executor:
+            return executor.submit(resolved_sim_runner_worker, simulation).result()
+    except Exception as error:
+        return "execution_failed", f"{type(error).__name__}: {error}"
 
 
 def _select_members(
