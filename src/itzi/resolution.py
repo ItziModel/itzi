@@ -29,13 +29,6 @@ from itzi.ensemble_models import (
 from itzi.grass_session import GrassParams, GrassSessionManager
 
 
-def resolve_simulation(expanded: ExpandedSimulation) -> ResolvedSimulation:
-    """Resolve one scalar member inside an already selected GRASS context."""
-    requested_params = _requested_grass_params(expanded)
-    with GrassSessionManager(requested_params):
-        return _resolve_in_active_context(expanded, requested_params)
-
-
 def resolve_ensemble(
     simulations: tuple[ExpandedSimulation, ...],
 ) -> tuple[ResolvedSimulation | ValidationFailure, ...]:
@@ -107,35 +100,6 @@ def _requested_grass_params(expanded: ExpandedSimulation) -> GrassParams:
     )
 
 
-def _resolve_in_active_context(
-    expanded: ExpandedSimulation, requested_params: GrassParams
-) -> ResolvedSimulation:
-    """Resolve GRASS sources and create the final core configuration."""
-    import grass.script as gscript
-    from grass.pygrass.gis import Mapset
-    from grass.pygrass.gis.region import Region
-    from grass.pygrass.utils import getenv
-
-    actual_params = _active_grass_params(requested_params, getenv)
-    domain = _read_domain(expanded.domain.region, Region, gscript)
-    effective_mask = _resolve_effective_mask(expanded.domain.mask, getenv)
-    input_names, input_kinds = _resolve_inputs(
-        dict(expanded.input_maps) | dict(expanded.infiltration.input_maps),
-        Mapset,
-    )
-    swmm_path, swmm_digest = _resolve_swmm_input(expanded)
-    return _build_resolved_simulation(
-        expanded,
-        actual_params,
-        domain,
-        effective_mask,
-        input_names,
-        input_kinds,
-        swmm_path,
-        swmm_digest,
-    )
-
-
 def _active_grass_params(requested_params: GrassParams, getenv) -> GrassParams:
     return GrassParams(
         grassdata=str(Path(getenv("GISDBASE")).expanduser().resolve()),
@@ -165,7 +129,7 @@ def _build_resolved_simulation(
         input_names,
         swmm_digest,
     )
-    artifacts = _render_artifacts(expanded, simulation_id, actual_params.mapset)
+    artifacts = _render_artifacts(expanded, simulation_id)
     simulation_config = _build_simulation_config(
         expanded,
         input_names,
@@ -370,7 +334,6 @@ def _simulation_identity(
 def _render_artifacts(
     expanded: ExpandedSimulation,
     simulation_id: str,
-    mapset: str | None,
 ) -> ArtifactSummary:
     output_map_names: dict[str, str] = {}
     if expanded.outputs.raster_prefix is not None:

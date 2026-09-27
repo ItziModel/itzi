@@ -40,7 +40,6 @@ import itzi.messenger as msgr
 from itzi.cli_parser import build_parser
 from itzi.configreader import ConfigReader
 from itzi.ensemble_models import (
-    DocumentFailure,
     EnsembleError,
     ExpandedEnsemble,
     ExpandedSimulation,
@@ -350,7 +349,7 @@ def _run_ensemble_batch(cli_args) -> None:
 
     selected = _select_members(resolved, getattr(cli_args, "member", []))
     if getattr(cli_args, "dry", False):
-        _display_dry_plan(resolved, selected, document_failures)
+        _display_dry_plan(resolved, selected)
         if document_failures or any(failures for _, _, failures in resolved):
             msgr.fatal("YAML batch validation failed")
         return
@@ -403,15 +402,9 @@ def _run_ensemble_batch(cli_args) -> None:
                 break
             started = time.monotonic()
             status, detail = _run_resolved_in_spawn(simulation)
-            states[simulation.simulation_id]["status"] = status
             state = states[simulation.simulation_id]
-            states[simulation.simulation_id] = {
-                "simulation_id": state["simulation_id"],
-                "selected": state["selected"],
-                "status": state["status"],
-                "elapsed_seconds": time.monotonic() - started,
-                **state,
-            }
+            state["status"] = status
+            state["elapsed_seconds"] = format(time.monotonic() - started, ".2f")
             if detail is not None:
                 states[simulation.simulation_id]["failure"] = detail
                 failure_count += 1
@@ -533,7 +526,6 @@ def _display_dry_plan(
         tuple[ExpandedEnsemble, tuple[ResolvedSimulation, ...], tuple[ValidationFailure, ...]]
     ],
     selected: dict[str, set[str]],
-    document_failures: tuple[DocumentFailure, ...],
 ) -> None:
     for ensemble, simulations, failures in resolved:
         msgr.message(f"Ensemble {ensemble.ensemble_id}:")
@@ -546,8 +538,6 @@ def _display_dry_plan(
             msgr.message(f"  {simulation.simulation_id} ({selection})")
         for failure in failures:
             msgr.warning(f"  validation failed: {failure.detail}")
-    for failure in document_failures:
-        msgr.warning(failure.format())
 
 
 def itzi_version(cli_args):

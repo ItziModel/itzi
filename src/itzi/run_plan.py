@@ -101,24 +101,14 @@ def _legacy_ensemble(path: Path) -> ExpandedEnsemble:
             "free_weir_coeff": config.free_weir_coeff,
             "submerged_weir_coeff": config.submerged_weir_coeff,
         }
-    if config.temporal_type == TemporalType.RELATIVE:
-        normalized_time = NormalizedTime(
-            TemporalType.RELATIVE,
-            None,
-            None,
-            config.end_time - config.start_time,
-            config.record_step,
-            False,
-        )
-    else:
-        normalized_time = NormalizedTime(
-            TemporalType.ABSOLUTE,
-            config.start_time,
-            config.end_time,
-            config.end_time - config.start_time,
-            config.record_step,
-            False,
-        )
+    normalized_time = NormalizedTime(
+        config.temporal_type,
+        None if config.temporal_type == TemporalType.RELATIVE else config.start_time,
+        None if config.temporal_type == TemporalType.RELATIVE else config.end_time,
+        config.end_time - config.start_time,
+        config.record_step,
+        False,
+    )
     stats_file = reader.stats_file
     if stats_file is not None:
         # The INI deprecation release preserves cwd-relative destinations.

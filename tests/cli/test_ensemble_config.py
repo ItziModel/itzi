@@ -303,7 +303,7 @@ def test_statistics_file_template_is_rendered(tmp_path, monkeypatch):
     )
     monkeypatch.setattr("itzi.resolution._validate_output_names", lambda *_: None)
 
-    artifacts = _render_artifacts(expanded, "sim-a", None)
+    artifacts = _render_artifacts(expanded, "sim-a")
 
     assert artifacts.statistics_file == tmp_path / "results/sim-a.csv"
 
