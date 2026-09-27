@@ -14,6 +14,7 @@ GNU General Public License for more details.
 
 from collections.abc import Mapping
 from datetime import datetime
+from time import monotonic
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
@@ -136,15 +137,19 @@ class SimulationRunner:
     def run(self):
         """Run a full simulation"""
         sim_start_time = datetime.now()
+        last_progress_update = monotonic() - 0.5
         msgr.verbose("Starting time-stepping...")
         while self.sim.sim_time < self.sim.end_time:
             # display advance of simulation
-            msgr.percent(
-                self.sim.start_time,
-                self.sim.end_time,
-                self.sim.sim_time,
-                sim_start_time,
-            )
+            now = monotonic()
+            if now - last_progress_update >= 0.5:
+                msgr.percent(
+                    self.sim.start_time,
+                    self.sim.end_time,
+                    self.sim.sim_time,
+                    sim_start_time,
+                )
+                last_progress_update = now
             # step models
             self.step()
         return self
