@@ -226,6 +226,16 @@ class ValidationFailure:
 
 
 @dataclass(frozen=True)
+class ResolvedEnsemble:
+    """One expanded ensemble with its resolved members and validation results."""
+
+    ensemble: ExpandedEnsemble
+    simulations: tuple[ResolvedSimulation, ...]
+    failures: tuple[ValidationFailure, ...]
+    artifact_failure: str | None = None
+
+
+@dataclass(frozen=True)
 class LoadedYamlStream:
     """Valid ensembles and document-local failures from one YAML file."""
 

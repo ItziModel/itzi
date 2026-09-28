@@ -10,10 +10,12 @@ import pytest
 
 import itzi.messenger as msgr
 from itzi.cli_parser import build_parser
+from itzi.ensemble_models import ResolvedEnsemble
 from itzi.itzi import (
     VerbosityLevel,
     _preflight_selected,
     _run_ensemble_batch,
+    _run_one_ensemble,
     itzi_run,
     itzi_run_one,
     main,
@@ -100,9 +102,12 @@ def test_preflight_only_checks_selected_members(tmp_path, monkeypatch):
     )
 
     member_failures, manifest_failures = _preflight_selected(
-        [(ensemble, (selected_simulation, selected_with_failure, unselected_simulation), ())],
+        [
+            ResolvedEnsemble(
+                ensemble, (selected_simulation, selected_with_failure, unselected_simulation), ()
+            )
+        ],
         {"study": {"sim-selected", "sim-failed"}},
-        {},
         has_selectors=True,
         overwrite=False,
     )
@@ -112,6 +117,58 @@ def test_preflight_only_checks_selected_members(tmp_path, monkeypatch):
         "study": {"sim-failed": {"phase": "preflight", "detail": "invalid input"}}
     }
     assert manifest_failures == {}
+
+
+def test_one_ensemble_runs_only_planned_members_and_counts_failures(tmp_path, monkeypatch):
+    ensemble = SimpleNamespace(
+        ensemble_id="study",
+        source=SimpleNamespace(path=tmp_path / "study.yaml"),
+        manifest_template=None,
+    )
+    artifacts = SimpleNamespace(output_map_names=(), drainage_output=None, statistics_file=None)
+    simulations = tuple(
+        SimpleNamespace(simulation_id=name, coordinates=(), artifacts=artifacts)
+        for name in ("good", "bad", "preflight", "unselected")
+    )
+    runs = []
+    updates = []
+    monkeypatch.setattr("itzi.itzi._create_manifest", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "itzi.itzi._update_manifest",
+        lambda _path, _ensemble, states: updates.append(
+            {key: value["status"] for key, value in states.items()}
+        ),
+    )
+    monkeypatch.setattr("itzi.itzi._preflight_resolved_in_spawn", lambda _: None)
+    monkeypatch.setattr(
+        "itzi.itzi._run_resolved_in_spawn",
+        lambda simulation: (
+            runs.append(simulation.simulation_id)
+            or (
+                ("execution_failed", "failed")
+                if simulation.simulation_id == "bad"
+                else ("completed", None)
+            )
+        ),
+    )
+
+    count = _run_one_ensemble(
+        ResolvedEnsemble(ensemble, simulations, ()),
+        {"good", "bad", "preflight"},
+        {"preflight": {"phase": "preflight", "detail": "invalid input"}},
+        None,
+        has_selectors=True,
+        overwrite=False,
+    )
+
+    assert count == 2
+    assert runs == ["good", "bad"]
+    assert updates[-1] == {
+        "good": "completed",
+        "bad": "execution_failed",
+        "preflight": "validation_failed",
+        "unselected": "not_selected",
+    }
 
 
 def test_preflight_ensemble_worker_keeps_member_failures(monkeypatch):
