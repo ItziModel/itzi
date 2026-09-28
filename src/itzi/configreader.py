@@ -20,8 +20,8 @@ from pathlib import Path
 from typing import NoReturn
 
 from itzi_core import (
-    ARRAY_DEFINITIONS,
-    ArrayCategory,
+    INPUT_ARRAY_KEYS,
+    OUTPUT_ARRAY_KEYS,
     HotstartRunConfig,
     InfiltrationModelType,
     SimulationConfig,
@@ -81,12 +81,6 @@ GREEN_AMPT_KEYS = (
 )
 GRASS_MANDATORY_KEYS = ("grassdata", "location", "mapset")
 GRASS_OPTION_KEYS = (*GRASS_MANDATORY_KEYS, "region", "mask", "grass_bin")
-INPUT_MAP_KEYS = tuple(
-    arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT in arr_def.category
-)
-OUTPUT_MAP_KEYS = tuple(
-    arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.OUTPUT in arr_def.category
-)
 SURFACE_FLOW_OPTION_KEYS = tuple(SurfaceFlowParameters.model_fields)
 
 
@@ -167,14 +161,14 @@ def _read_hotstart_values(params: ConfigParser) -> HotstartRunConfig | None:
 
 def _read_input_map_names(params: ConfigParser) -> dict[str, str | None]:
     """Read input map names and normalize deprecated aliases."""
-    map_names: dict[str, str | None] = dict.fromkeys(INPUT_MAP_KEYS)
+    map_names: dict[str, str | None] = dict.fromkeys(INPUT_ARRAY_KEYS)
 
     for old_input_name, new_input_name in DEPRECATED_INPUT_ALIASES:
         if params.has_option("input", old_input_name):
             _warn_about_deprecated_alias("Input", old_input_name, new_input_name)
             map_names[new_input_name] = params.get("input", old_input_name)
 
-    for input_name in INPUT_MAP_KEYS:
+    for input_name in INPUT_ARRAY_KEYS:
         if params.has_option("input", input_name):
             map_names[input_name] = params.get("input", input_name)
 
@@ -202,7 +196,7 @@ def _normalize_output_values(raw_values: str | None) -> list[str]:
 
 def _generate_output_map_names(prefix: str, output_values: list[str]) -> dict[str, str | None]:
     """Build the output map dictionary from the selected outputs."""
-    output_map_names: dict[str, str | None] = dict.fromkeys(OUTPUT_MAP_KEYS)
+    output_map_names: dict[str, str | None] = dict.fromkeys(OUTPUT_ARRAY_KEYS)
     for value in output_values:
         if value in output_map_names:
             output_map_names[value] = f"{prefix}_{value}"
