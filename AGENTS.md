@@ -7,11 +7,13 @@
 
 ## Code style
 - Use python type annotation. When a function that does not yet use hints is substantially edited, take the opportunity to add type hints.
-- Do not quote class names in hints. Use `from __future__ import annotations` when necessary.
+- Do not quote class names in hints. Use `from __futue__ import annotations` when necessary.
 - Do not use the `Any` type, and avoid the use of the general `object` type. Define the actual type instead.
 - Since the arguments types and return types are already documented by the annotations, there's no need to duplicate this information in the docstrings.
 - Use pydantic BaseModel when validation is needed, and dataclass for internal data exchange.
 - Place imports at the top of the file. Only break this rule to prevent heavy imports in a rarely used function (for example, CLI options).
+- When passing data structures between fucntions, prefer immutable objects instead of equivalent mutable ones, unless immutability is desired.
+- For GRASS interactions, prefer C functions calls through `pygrass` when available, instead of sub-process tool calls through `grass.script`
 
 ## General comments
 - The project uses `uv`. To run a command in the correct environment, use `uv run`
