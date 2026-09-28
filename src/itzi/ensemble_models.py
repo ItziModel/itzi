@@ -22,8 +22,7 @@ from pathlib import Path
 from typing import Literal
 
 from itzi_core import (
-    ARRAY_DEFINITIONS,
-    ArrayCategory,
+    INPUT_ARRAY_KEYS,
     DomainData,
     InfiltrationModelType,
     SimulationConfig,
@@ -41,16 +40,6 @@ from pydantic import (
 
 from itzi.grass_session import GrassParams
 
-INPUT_KEYS = tuple(
-    definition.key
-    for definition in ARRAY_DEFINITIONS
-    if ArrayCategory.INPUT in definition.category
-)
-OUTPUT_KEYS = tuple(
-    definition.key
-    for definition in ARRAY_DEFINITIONS
-    if ArrayCategory.OUTPUT in definition.category
-)
 GREEN_AMPT_KEYS = (
     "effective_porosity",
     "capillary_pressure",
@@ -58,7 +47,7 @@ GREEN_AMPT_KEYS = (
     "soil_water_content",
 )
 DIRECT_INPUT_KEYS = tuple(
-    key for key in INPUT_KEYS if key not in {"infiltration", *GREEN_AMPT_KEYS}
+    key for key in INPUT_ARRAY_KEYS if key not in {"infiltration", *GREEN_AMPT_KEYS}
 )
 SURFACE_FLOW_DEFAULTS = {
     "hmin": DefaultValues.HFMIN,

@@ -16,17 +16,17 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, cast
 
+from itzi_core import OUTPUT_ARRAY_KEYS
 from pydantic import (
     Field,
-    JsonValue as PydanticJsonValue,
     StrictFloat,
     StrictStr,
     field_validator,
     model_validator,
 )
+from pydantic import JsonValue as PydanticJsonValue
 
 from itzi.ensemble_models import (
-    OUTPUT_KEYS,
     DomainConfig,
     StrictModel,
     _canonical_json,
@@ -174,7 +174,7 @@ class RasterOutputs(StrictModel):
     def validate_variables(cls, value: list[str]) -> list[str]:
         if not value:
             raise ValueError("must not be empty")
-        unknown = sorted(set(value) - set(OUTPUT_KEYS))
+        unknown = sorted(set(value) - set(OUTPUT_ARRAY_KEYS))
         if unknown:
             raise ValueError(f"contains unsupported output variables: {', '.join(unknown)}")
         if len(value) != len(set(value)):
