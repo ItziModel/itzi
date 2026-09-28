@@ -16,7 +16,7 @@ class FakeGrassInterface:
         return f"{name}@test"
 
     @staticmethod
-    def name_is_stds(map_id: str) -> bool:
+    def name_is_stds(map_id: str, *, initialize: bool = True) -> bool:
         return map_id == "series@test"
 
     @staticmethod
@@ -27,13 +27,15 @@ class FakeGrassInterface:
         self.temporal_checks.append(strds_id)
         return True
 
-    @staticmethod
-    def raster_list_from_strds(strds_id: str) -> list[MapData]:
+    def raster_list_from_strds(self, strds_id: str) -> list[MapData]:
+        self.stds_temporal_sanity(strds_id)
         start = datetime(2020, 1, 1)
         return [MapData(strds_id, start, start + timedelta(hours=1))]
 
 
-@pytest.mark.parametrize("input_kinds", [None, {"raster": "raster", "series": "strds"}])
+@pytest.mark.parametrize(
+    "input_kinds", [None, {"ground_elevation": "raster", "rainfall_rate": "strds"}]
+)
 def test_input_kinds_share_raster_and_strds_construction(
     input_kinds: dict[str, Literal["raster", "strds"]] | None,
 ) -> None:
@@ -43,12 +45,12 @@ def test_input_kinds_share_raster_and_strds_construction(
 
     provider = GrassRasterInputProvider(
         interface,
-        {"raster": "raster", "series": "series"},
+        {"ground_elevation": "raster", "rainfall_rate": "series"},
         start,
         end,
         input_kinds,
     )
 
-    assert provider.map_lists["raster"] == [MapData("raster@test", start, end)]
-    assert provider.map_lists["series"] == [MapData("series@test", start, end)]
+    assert provider.map_lists["ground_elevation"] == [MapData("raster@test", start, end)]
+    assert provider.map_lists["rainfall_rate"] == [MapData("series@test", start, end)]
     assert interface.temporal_checks == ["series@test"]

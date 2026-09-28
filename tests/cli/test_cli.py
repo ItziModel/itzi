@@ -2,6 +2,7 @@
 
 import argparse
 import os
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -10,6 +11,7 @@ import itzi.messenger as msgr
 from itzi.cli_parser import build_parser
 from itzi.itzi import (
     VerbosityLevel,
+    _preflight_selected,
     _run_ensemble_batch,
     itzi_run,
     itzi_run_one,
@@ -54,7 +56,12 @@ def test_run_parser_accepts_yaml_dry_run_and_member_selection(dry_option):
 
 def test_ensemble_members_are_resolved_in_one_spawn(monkeypatch):
     simulations = (object(), object())
-    ensemble = SimpleNamespace(ensemble_id="study", simulations=simulations)
+    ensemble = SimpleNamespace(
+        ensemble_id="study",
+        simulations=simulations,
+        source=SimpleNamespace(path=Path("study.yaml")),
+        manifest_template=None,
+    )
     calls = []
 
     monkeypatch.setattr("itzi.itzi.load_batch", lambda _: ((ensemble,), ()))
@@ -62,13 +69,41 @@ def test_ensemble_members_are_resolved_in_one_spawn(monkeypatch):
         "itzi.itzi._resolve_ensemble_in_spawn",
         lambda received: calls.append(received) or (),
     )
-    monkeypatch.setattr("itzi.itzi._display_dry_plan", lambda *_: None)
+    monkeypatch.setattr("itzi.itzi._display_dry_plan", lambda *_, **__: None)
 
     _run_ensemble_batch(
         SimpleNamespace(config_file=["study.yaml"], resume_from=[], member=[], dry=True)
     )
 
     assert calls == [simulations]
+
+
+def test_preflight_only_checks_selected_members(tmp_path, monkeypatch):
+    selected_simulation = SimpleNamespace(simulation_id="sim-selected")
+    unselected_simulation = SimpleNamespace(simulation_id="sim-unselected")
+    ensemble = SimpleNamespace(
+        ensemble_id="study",
+        manifest_template=None,
+        source=SimpleNamespace(path=tmp_path / "study.yaml"),
+    )
+    calls = []
+    monkeypatch.setattr("itzi.itzi._validate_manifest_destination", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "itzi.itzi._preflight_resolved_in_spawn",
+        lambda simulation: calls.append(simulation.simulation_id) or None,
+    )
+
+    member_failures, manifest_failures = _preflight_selected(
+        [(ensemble, (selected_simulation, unselected_simulation), ())],
+        {"study": {"sim-selected"}},
+        {},
+        has_selectors=True,
+        overwrite=False,
+    )
+
+    assert calls == ["sim-selected"]
+    assert member_failures == {}
+    assert manifest_failures == {}
 
 
 def test_run_parser_rejects_v_and_q_together():

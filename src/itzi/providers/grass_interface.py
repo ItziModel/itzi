@@ -70,19 +70,23 @@ for f in colors_rules_dict.values():
     assert Path(f).is_file()
 
 
-def file_exists(name):
+def file_exists(name: str, *, initialize: bool = True) -> bool:
     """Return True if name is an existing map or stds, False otherwise"""
     if not name:
         return False
-    else:
-        _id = GrassInterface.format_id(name)
-        return GrassInterface.name_is_map(_id) or GrassInterface.name_is_stds(_id)
+    _id = GrassInterface.format_id(name)
+    return GrassInterface.name_is_map(_id) or GrassInterface.name_is_stds(
+        _id, initialize=initialize
+    )
 
 
-def check_output_files(file_list) -> None:
+def check_output_files(file_list: list[str]) -> None:
     """Check if the output files exist"""
+    if gscript.overwrite() or not file_list:
+        return
+    _init_temporal()
     for map_name in file_list:
-        if file_exists(map_name) and not gscript.overwrite():
+        if file_exists(map_name, initialize=False):
             msgr.fatal(f"File {map_name} exists and will not be overwritten")
 
 
@@ -348,12 +352,13 @@ class GrassInterface:
         return gutils.getenv("MAPSET")
 
     @staticmethod
-    def name_is_stds(name: str) -> bool:
+    def name_is_stds(name: str, *, initialize: bool = True) -> bool:
         """return True if the name given as input is a registered strds
         False if not
         """
         # make sure temporal module is initialized
-        _init_temporal()
+        if initialize:
+            _init_temporal()
         return bool(tgis.SpaceTimeRasterDataset(name).is_in_db())
 
     @staticmethod
@@ -365,7 +370,8 @@ class GrassInterface:
         """return True if the given name is a map in the grass database
         False if not
         """
-        return bool(gscript.find_file(name=map_id, element="cell").get("file"))
+        name, _, mapset = map_id.partition("@")
+        return bool(gutils.get_mapset_raster(name, mapset))
 
     @staticmethod
     def set_null(map_id: str, threshold: float) -> None:
@@ -398,7 +404,9 @@ class GrassInterface:
             assert False, "unknown temporal type"
         return start_time_in_stds_unit, end_time_in_stds_unit
 
-    def stds_temporal_sanity(self, stds_id: str) -> bool:
+    def stds_temporal_sanity(
+        self, stds_id: str, stds: tgis.SpaceTimeRasterDataset | None = None
+    ) -> bool:
         """Make the following check on the given stds:
         - Topology is valid
         - No gap
@@ -406,19 +414,21 @@ class GrassInterface:
         return True if all the above is True, False otherwise
         """
         out = True
-        stds = tgis.open_stds.open_old_stds(stds_id, "strds")
+        if stds is None:
+            stds = tgis.open_stds.open_old_stds(stds_id, "strds")
         stds_start, stds_end = stds.get_temporal_extent_as_tuple()
         if stds_start is None or stds_end is None:
             msgr.fatal(
                 f"STRDS <{stds_id}> has no temporal extent; "
                 "make sure it contains registered raster maps"
             )
+        maps = stds.get_registered_maps_as_objects(order="start_time")
         # valid topology
-        if not stds.check_temporal_topology():
+        if not stds.check_temporal_topology(maps=maps):
             out = False
             msgr.warning(f"{stds_id}: invalid topology")
         # no gap
-        if stds.count_gaps() != 0:
+        if stds.count_gaps(maps=maps) != 0:
             out = False
             msgr.warning(f"{stds_id}: gaps found")
         # cover all simulation time
@@ -440,6 +450,8 @@ class GrassInterface:
 
         # transform simulation start and end time in strds unit
         strds = tgis.open_stds.open_old_stds(strds_name, "strds")
+        if not self.stds_temporal_sanity(strds_name, strds):
+            msgr.fatal(f"{strds_name}: inadequate temporal format")
         sim_start, sim_end = self.get_sim_extend_in_stds_unit(strds)
 
         # retrieve data from DB

@@ -23,7 +23,12 @@ from itzi.ensemble_schema import (
     OptionSweepConfig,
     StatisticsOutputs,
 )
-from itzi.resolution import _render_artifacts, _resolve_inputs
+from itzi.resolution import (
+    _last_record_index,
+    _render_artifacts,
+    _resolve_inputs,
+    validate_resolved_ensemble,
+)
 
 
 def write_yaml(tmp_path, content: str):
@@ -313,12 +318,62 @@ def test_statistics_file_template_is_rendered(tmp_path, monkeypatch):
             drainage_dataset=None,
         ),
         drainage=None,
+        time=SimpleNamespace(duration=timedelta(hours=1), record_step=timedelta(minutes=5)),
     )
     monkeypatch.setattr("itzi.resolution._validate_output_names", lambda *_: None)
 
     artifacts = _render_artifacts(expanded, "sim-a")
 
     assert artifacts.statistics_file == tmp_path / "results/sim-a.csv"
+
+
+def test_generated_output_inventory_includes_final_partial_record():
+    assert _last_record_index(timedelta(seconds=60), timedelta(seconds=30)) == 2
+    assert _last_record_index(timedelta(seconds=61), timedelta(seconds=30)) == 3
+
+
+def test_later_generated_output_cannot_alias_an_input():
+    start = datetime(2026, 1, 1)  # noqa: DTZ001
+    config = SimpleNamespace(
+        start_time=start,
+        end_time=start + timedelta(minutes=1),
+        record_step=timedelta(seconds=30),
+        input_map_names={},
+        swmm_inp=None,
+    )
+    output = SimpleNamespace(
+        simulation_id="sim-output",
+        normalized_payload="output",
+        grass_params=SimpleNamespace(mapset="PERMANENT"),
+        effective_mask=SimpleNamespace(source=None),
+        simulation_config=config,
+        artifacts=SimpleNamespace(
+            output_map_names=(("water_depth", "result"),),
+            drainage_output=None,
+            statistics_file=None,
+        ),
+    )
+    input_simulation = SimpleNamespace(
+        simulation_id="sim-input",
+        normalized_payload="input",
+        grass_params=SimpleNamespace(mapset="PERMANENT"),
+        effective_mask=SimpleNamespace(source=None),
+        simulation_config=SimpleNamespace(
+            start_time=start,
+            end_time=start + timedelta(minutes=1),
+            record_step=timedelta(seconds=30),
+            input_map_names={"ground_elevation": "result_0002@PERMANENT"},
+            swmm_inp=None,
+        ),
+        artifacts=SimpleNamespace(
+            output_map_names=(),
+            drainage_output=None,
+            statistics_file=None,
+        ),
+    )
+
+    with pytest.raises(ValueError, match="result_0002@PERMANENT.*aliases"):
+        validate_resolved_ensemble((output, input_simulation))
 
 
 def test_input_resolution_cache_reuses_shared_identifiers(monkeypatch):

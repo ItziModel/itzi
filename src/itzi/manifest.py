@@ -42,10 +42,29 @@ def _manifest_path(ensemble: ExpandedEnsemble) -> Path:
     return ensemble.source.path.parent / "results" / f"{ensemble.ensemble_id}.manifest.yaml"
 
 
+def validate_file_destination(path: Path, *, overwrite: bool, description: str) -> None:
+    """Check a filesystem output destination without creating it or its parents."""
+    if path.exists() or path.is_symlink():
+        if not path.is_file():
+            raise EnsembleError(f"{description} <{path}> is not a regular file")
+        if not overwrite:
+            raise EnsembleError(f"{description} <{path}> already exists")
+        if not os.access(path, os.W_OK):
+            raise EnsembleError(f"{description} <{path}> is not writable")
+
+    parent = path.parent
+    while not parent.exists():
+        parent = parent.parent
+    if not parent.is_dir() or not os.access(parent, os.W_OK | os.X_OK):
+        raise EnsembleError(f"parent directory <{parent}> for {description} is not writable")
+
+
 def _validate_manifest_destination(
     manifest_path: Path,
     ensemble: ExpandedEnsemble,
     simulations: tuple[ResolvedSimulation, ...],
+    *,
+    overwrite: bool,
 ) -> None:
     """Keep the parent-owned manifest away from files required by the run."""
     protected = {ensemble.source.path.resolve()}
@@ -63,6 +82,7 @@ def _validate_manifest_destination(
             raise EnsembleError(
                 f"manifest <{manifest_path}> aliases a protected input or member artifact"
             )
+    validate_file_destination(manifest_path, overwrite=overwrite, description="manifest")
 
 
 def _initial_member_states(

@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime
+from collections.abc import Iterable
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Literal
 
@@ -366,8 +367,12 @@ def _render_artifacts(
         if expanded.outputs.statistics_file is not None
         else None
     )
-    _validate_output_names(output_map_names, drainage_output)
-    _validate_protected_file_output(stats_file, expanded.source.path, _drainage_path(expanded))
+    _validate_output_names(
+        output_map_names,
+        drainage_output,
+        _last_record_index(expanded.time.duration, expanded.time.record_step),
+    )
+    _validate_protected_file_output(stats_file, (expanded.source.path, _drainage_path(expanded)))
     return ArtifactSummary(tuple(sorted(output_map_names.items())), drainage_output, stats_file)
 
 
@@ -384,18 +389,25 @@ def _drainage_path(expanded: ExpandedSimulation) -> Path | None:
     )
 
 
-def _validate_protected_file_output(
-    output: Path | None, config_path: Path, swmm_path: Path | None
-) -> None:
+def _validate_protected_file_output(output: Path | None, protected: Iterable[Path | None]) -> None:
     if output is None:
         return
-    protected = (config_path.resolve(), *(path for path in (swmm_path,) if path is not None))
-    for source in protected:
+    for path in protected:
+        if path is None:
+            continue
+        source = path.resolve()
         if output == source or (output.exists() and source.exists() and output.samefile(source)):
             raise EnsembleError(f"output file <{output}> aliases protected input <{source}>")
 
 
-def _validate_output_names(output_map_names: dict[str, str], drainage_output: str | None) -> None:
+def _last_record_index(duration: timedelta, record_step: timedelta) -> int:
+    """Return the final output index, including the initial record at index zero."""
+    return -(-duration // record_step)
+
+
+def _validate_output_names(
+    output_map_names: dict[str, str], drainage_output: str | None, last_record_index: int
+) -> None:
     from grass.pygrass import utils as gutils
 
     from itzi.providers.grass_output import derived_drainage_table_names, derived_record_name
@@ -410,11 +422,11 @@ def _validate_output_names(output_map_names: dict[str, str], drainage_output: st
             raise EnsembleError("MASK cannot be used as an output name")
         if not gutils.is_clean_name(name):
             raise EnsembleError(f"invalid GRASS output name {name!r}")
-        child = derived_record_name(name, 0)
+        child = derived_record_name(name, last_record_index)
         if child == "MASK" or not gutils.is_clean_name(child):
             raise EnsembleError(f"invalid derived GRASS output name {child!r}")
     if drainage_output is not None:
-        child = derived_record_name(drainage_output, 0)
+        child = derived_record_name(drainage_output, last_record_index)
         for table_name in derived_drainage_table_names(child):
             if not gutils.is_clean_name(table_name):
                 raise EnsembleError(f"invalid derived drainage table name {table_name!r}")
@@ -460,15 +472,20 @@ def _build_simulation_config(
         raise EnsembleError(details) from error
 
 
-def validate_resolved_ensemble(simulations: tuple[ResolvedSimulation, ...]) -> None:
+def validate_resolved_ensemble(
+    simulations: tuple[ResolvedSimulation, ...], protected_inputs: tuple[Path, ...] = ()
+) -> None:
     """Reject identity and artifact collisions among resolved ensemble members."""
     identities: dict[str, str] = {}
     artifacts: dict[str, str] = {}
     ensemble_sources: set[str] = set()
+    protected_paths = {path.resolve() for path in protected_inputs}
     for simulation in simulations:
         ensemble_sources.update(simulation.simulation_config.input_map_names.values())
         if simulation.effective_mask.source is not None:
             ensemble_sources.add(simulation.effective_mask.source)
+        if simulation.simulation_config.swmm_inp is not None:
+            protected_paths.add(simulation.simulation_config.swmm_inp.resolve())
     for simulation in simulations:
         existing_payload = identities.get(simulation.simulation_id)
         if existing_payload is not None:
@@ -479,12 +496,17 @@ def validate_resolved_ensemble(simulations: tuple[ResolvedSimulation, ...]) -> N
         mapset = simulation.grass_params.mapset
         from itzi.providers.grass_output import derived_drainage_table_names, derived_record_name
 
+        last_record_index = _last_record_index(
+            simulation.simulation_config.end_time - simulation.simulation_config.start_time,
+            simulation.simulation_config.record_step,
+        )
         for _, name in simulation.artifacts.output_map_names:
             _claim_artifact(artifacts, f"{name}@{mapset}", simulation.simulation_id)
             _reject_output_source_alias(name, mapset, ensemble_sources)
-            child = derived_record_name(name, 0)
-            _claim_artifact(artifacts, f"{child}@{mapset}", simulation.simulation_id)
-            _reject_output_source_alias(child, mapset, ensemble_sources)
+            for index in range(last_record_index + 1):
+                child = derived_record_name(name, index)
+                _claim_artifact(artifacts, f"{child}@{mapset}", simulation.simulation_id)
+                _reject_output_source_alias(child, mapset, ensemble_sources)
         if simulation.artifacts.drainage_output is not None:
             drainage_name = simulation.artifacts.drainage_output
             _claim_artifact(
@@ -493,12 +515,14 @@ def validate_resolved_ensemble(simulations: tuple[ResolvedSimulation, ...]) -> N
                 simulation.simulation_id,
             )
             _reject_output_source_alias(drainage_name, mapset, ensemble_sources)
-            child = derived_record_name(drainage_name, 0)
-            _claim_artifact(artifacts, f"{child}@{mapset}", simulation.simulation_id)
-            _reject_output_source_alias(child, mapset, ensemble_sources)
-            for table_name in derived_drainage_table_names(child):
-                _claim_artifact(artifacts, f"table:{table_name}", simulation.simulation_id)
+            for index in range(last_record_index + 1):
+                child = derived_record_name(drainage_name, index)
+                _claim_artifact(artifacts, f"{child}@{mapset}", simulation.simulation_id)
+                _reject_output_source_alias(child, mapset, ensemble_sources)
+                for table_name in derived_drainage_table_names(child):
+                    _claim_artifact(artifacts, f"table:{table_name}", simulation.simulation_id)
         if simulation.artifacts.statistics_file is not None:
+            _validate_protected_file_output(simulation.artifacts.statistics_file, protected_paths)
             _claim_artifact(
                 artifacts,
                 str(simulation.artifacts.statistics_file),
@@ -507,11 +531,15 @@ def validate_resolved_ensemble(simulations: tuple[ResolvedSimulation, ...]) -> N
 
 
 def _claim_artifact(artifacts: dict[str, str], artifact: str, simulation_id: str) -> None:
-    owner = artifacts.setdefault(artifact, simulation_id)
-    if owner != simulation_id:
-        raise EnsembleError(
-            f"output artifact {artifact!r} is shared by simulations {owner} and {simulation_id}"
-        )
+    owner = artifacts.get(artifact)
+    if owner is None:
+        artifacts[artifact] = simulation_id
+        return
+    if owner == simulation_id:
+        raise EnsembleError(f"output artifact {artifact!r} is used more than once")
+    raise EnsembleError(
+        f"output artifact {artifact!r} is shared by simulations {owner} and {simulation_id}"
+    )
 
 
 def _reject_output_source_alias(name: str, mapset: str | None, sources: set[str]) -> None:
