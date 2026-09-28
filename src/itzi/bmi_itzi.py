@@ -15,14 +15,15 @@ GNU General Public License for more details.
 """
 
 from datetime import timedelta
+from types import MappingProxyType
 
 import numpy as np
 from bmipy import Bmi
+from itzi_core import ARRAY_DEFINITIONS, ArrayCategory
 
-from itzi import SimulationRunner
 from itzi.configreader import ConfigReader
 from itzi.grass_session import GrassSessionManager
-from itzi_core.array_definitions import ARRAY_DEFINITIONS, ArrayCategory
+from itzi.simulation_runner import SimulationRunner
 
 
 class BmiItzi(Bmi):
@@ -30,29 +31,38 @@ class BmiItzi(Bmi):
 
     _name = "Itzï"
     # Mappings of CSDMS name: internal key for input and output arrays
-    _input_var_names = {
-        arr_def.csdms_name: arr_def.key
-        for arr_def in ARRAY_DEFINITIONS
-        if ArrayCategory.INPUT in arr_def.category
-    }
-    _output_var_names = {
-        arr_def.csdms_name: arr_def.key
-        for arr_def in ARRAY_DEFINITIONS
-        if ArrayCategory.OUTPUT in arr_def.category
-    }
-
+    _input_var_names = MappingProxyType(
+        {
+            arr_def.csdms_name: arr_def.key
+            for arr_def in ARRAY_DEFINITIONS
+            if ArrayCategory.INPUT in arr_def.category
+        }
+    )
+    _output_var_names = MappingProxyType(
+        {
+            arr_def.csdms_name: arr_def.key
+            for arr_def in ARRAY_DEFINITIONS
+            if ArrayCategory.OUTPUT in arr_def.category
+        }
+    )
     # A list of array definition for both input and output, without overlaps
-    input_output_array_definition = [
+    input_output_array_definition = (
         arr_def
         for arr_def in ARRAY_DEFINITIONS
         if any(cat in arr_def.category for cat in [ArrayCategory.OUTPUT, ArrayCategory.INPUT])
-    ]
+    )
     # Mapping of csdms_name: internal key for both input and output
-    _var_names = {arr_def.csdms_name: arr_def.key for arr_def in input_output_array_definition}
+    _var_names = MappingProxyType(
+        {arr_def.csdms_name: arr_def.key for arr_def in input_output_array_definition}
+    )
     # Mapping of csdms_name: unit
-    _var_units = {arr_def.csdms_name: arr_def.unit for arr_def in input_output_array_definition}
+    _var_units = MappingProxyType(
+        {arr_def.csdms_name: arr_def.unit for arr_def in input_output_array_definition}
+    )
     # Mapping of csdms_name: var_loc
-    _var_loc = {arr_def.csdms_name: arr_def.var_loc for arr_def in input_output_array_definition}
+    _var_loc = MappingProxyType(
+        {arr_def.csdms_name: arr_def.var_loc for arr_def in input_output_array_definition}
+    )
 
     def __init__(self):
         """Create a BmiItzi model that is ready for initialization."""
