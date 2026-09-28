@@ -20,9 +20,9 @@ from itzi_core import TemporalType
 
 from itzi.cli_parser import build_parser
 from itzi.ensemble_models import EnsembleError
+from itzi.grass_session import GrassSessionManager
 from itzi.itzi import itzi_run
 from itzi.preflight import _validate_grass_outputs
-from itzi.providers.grass_interface import _init_temporal
 
 
 @pytest.fixture
@@ -144,6 +144,39 @@ outputs:
     assert {
         f"{member['artifacts']['rasters']['water_depth']}_0000" for member in manifest["members"]
     } <= {path.name for path in mapset_path.iterdir()}
+
+
+@pytest.mark.forked
+@pytest.mark.usefixtures("grass_5by5")
+def test_dry_run_preflights_multiple_members_in_one_session(tmp_path):
+    prefix = f"dry_multi_{uuid4().hex[:8]}"
+    config_path = tmp_path / "dry-multi.yaml"
+    config_path.write_text(
+        f"""\
+schema_version: 1
+ensemble:
+  id: dry-multi
+domain: {{}}
+time:
+  duration: "00:01:00"
+  record_step: "00:00:30"
+input:
+  ground_elevation: "z"
+  friction: "n"
+options:
+  cfl: [0.2, 0.3]
+outputs:
+  rasters:
+    prefix: "{prefix}_{{simulation}}"
+    variables: [water_depth]
+""",
+        encoding="utf-8",
+    )
+
+    itzi_run(build_parser().parse_args(["run", str(config_path), "--dry-run"]))
+
+    assert not (tmp_path / "results" / "dry-multi.manifest.yaml").exists()
+    assert not gscript.list_strings(type="raster", pattern=f"{prefix}_*")
 
 
 @pytest.mark.forked
@@ -282,7 +315,7 @@ outputs:
 @pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5", "stop_temporal_subprocesses")
 def test_preflight_checks_existing_drainage_tables():
-    _init_temporal()
+    GrassSessionManager.ensure_temporal_initialized()
     mapset = gutils.getenv("MAPSET")
     database = (
         Path(gutils.getenv("GISDBASE"))

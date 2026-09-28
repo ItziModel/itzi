@@ -23,7 +23,7 @@ from itzi_core.providers.csv_mass_balance_output import CSVMassBalanceOutputProv
 
 import itzi.messenger as msgr
 from itzi.ensemble_models import EffectiveMask
-from itzi.grass_session import GrassParams
+from itzi.grass_session import GrassParams, GrassSessionManager
 
 if TYPE_CHECKING:
     from itzi_core import Simulation
@@ -61,6 +61,7 @@ class SimulationRunner:
                 f"Itzi requires at least GRASS {self.grass_required_version}, "
                 f"version {grass_version} detected."
             )
+        GrassSessionManager.ensure_temporal_initialized()
         msgr.debug("GRASS session set")
 
         # return error if output files exist

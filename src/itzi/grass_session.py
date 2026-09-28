@@ -24,6 +24,8 @@ from pydantic import BaseModel, ConfigDict
 
 import itzi.messenger as msgr
 
+_initialized_temporal_session: tuple[int, str, tuple[str, str, str]] | None = None
+
 
 class GrassParams(BaseModel):
     """Parameters for GRASS GIS session."""
@@ -92,10 +94,29 @@ class GrassSessionManager:
                 f"({active_database}/{active[1]}/{active[2]})"
             )
 
-    def open(self):
+    @staticmethod
+    def ensure_temporal_initialized() -> None:
+        """Initialize the temporal framework once for the active GRASS session."""
+        global _initialized_temporal_session
+
+        context = GrassSessionManager.current_context()
+        if context is None:
+            msgr.fatal("No active GRASS session for temporal initialization")
+        import grass.script as gscript
+        import grass.temporal as tgis
+
+        gscript.set_raise_on_error(True)
+        session = (os.getpid(), os.environ["GISRC"], context)
+        if _initialized_temporal_session != session:
+            tgis.init(raise_fatal_error=True)
+            _initialized_temporal_session = session
+        tgis.set_raise_on_error(True)
+
+    def open(self) -> None:
         """Open a GRASS session if needed."""
         if self.current_context() is not None:
             self._validate_requested_context()
+            self.ensure_temporal_initialized()
             return
 
         # Check if mandatory GRASS parameters are present
@@ -137,15 +158,22 @@ class GrassSessionManager:
             session_env = getattr(self.grass_session, "env", None)
             if session_env and session_env.get("GISRC"):
                 os.environ.update(session_env)
-        self._validate_requested_context()
+        try:
+            self._validate_requested_context()
+            self.ensure_temporal_initialized()
+        except Exception:
+            self.close()
+            raise
 
-    def close(self):
+    def close(self) -> None:
         """Stop GRASS session."""
+        global _initialized_temporal_session
         if self.grass_session is not None and self._owns_session:
             try:
                 self.grass_session.finish()
             except Exception as e:
                 print(f"Warning: Error cleaning up GRASS session: {e}")
+            _initialized_temporal_session = None
         self.grass_session = None
         self._owns_session = False
 

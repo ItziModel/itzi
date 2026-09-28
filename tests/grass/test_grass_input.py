@@ -16,7 +16,7 @@ class FakeGrassInterface:
         return f"{name}@test"
 
     @staticmethod
-    def name_is_stds(map_id: str, *, initialize: bool = True) -> bool:
+    def name_is_stds(map_id: str) -> bool:
         return map_id == "series@test"
 
     @staticmethod

@@ -2,7 +2,7 @@ import os
 import sys
 from types import ModuleType, SimpleNamespace
 
-from itzi.grass_session import GrassSessionManager
+from itzi.grass_session import GrassParams, GrassSessionManager
 
 
 class FakeGrassSession:
@@ -23,6 +23,7 @@ def test_manager_activates_and_finishes_created_session(monkeypatch) -> None:
 
     monkeypatch.setattr("itzi.grass_session.importlib.util.find_spec", lambda _: None)
     monkeypatch.setattr("itzi.grass_session.os.access", lambda *_: True)
+    monkeypatch.setattr(GrassSessionManager, "ensure_temporal_initialized", lambda self: None)
     monkeypatch.setattr(
         "itzi.grass_session.subprocess.check_output", lambda *_args, **_kwargs: "/tmp"
     )
@@ -54,3 +55,33 @@ def test_manager_activates_and_finishes_created_session(monkeypatch) -> None:
 
     assert os.environ["GISRC"] == "/tmp/worker-gisrc"
     assert session.finished
+
+
+def test_temporal_initialization_once_per_active_session(monkeypatch) -> None:
+    calls: list[str] = []
+    script = ModuleType("grass.script")
+    script.set_raise_on_error = lambda _: calls.append("script")
+    temporal = ModuleType("grass.temporal")
+    temporal.init = lambda **_: calls.append("init")
+    temporal.set_raise_on_error = lambda _: calls.append("temporal")
+    package = ModuleType("grass")
+    package.script = script
+    package.temporal = temporal
+    monkeypatch.setitem(sys.modules, "grass", package)
+    monkeypatch.setitem(sys.modules, "grass.script", script)
+    monkeypatch.setitem(sys.modules, "grass.temporal", temporal)
+    monkeypatch.setattr("itzi.grass_session._initialized_temporal_session", None)
+    monkeypatch.setattr(
+        GrassSessionManager,
+        "current_context",
+        staticmethod(lambda: ("/grassdata", "location", "mapset")),
+    )
+    monkeypatch.setenv("GISRC", "/tmp/first-gisrc")
+
+    GrassSessionManager(GrassParams()).open()
+    GrassSessionManager.ensure_temporal_initialized()
+    assert calls.count("init") == 1
+
+    monkeypatch.setenv("GISRC", "/tmp/second-gisrc")
+    GrassSessionManager(GrassParams()).open()
+    assert calls.count("init") == 2

@@ -107,12 +107,12 @@ def resolve_input_map_lists(
         map_id = grass_interface.format_id(map_name)
         kind = input_kinds.get(key) if input_kinds is not None else None
         if kind == "strds":
-            if not grass_interface.name_is_stds(map_id, initialize=False):
+            if not grass_interface.name_is_stds(map_id):
                 msgr.fatal(f"STRDS input <{map_id}> is no longer available")
         elif kind == "raster":
             if not grass_interface.name_is_map(map_id):
                 msgr.fatal(f"raster input <{map_id}> is no longer available")
-        elif grass_interface.name_is_stds(map_id, initialize=False):
+        elif grass_interface.name_is_stds(map_id):
             kind = "strds"
         elif grass_interface.name_is_map(map_id):
             kind = "raster"

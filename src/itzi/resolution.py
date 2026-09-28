@@ -51,7 +51,6 @@ def resolve_ensemble(
         actual_params = _active_grass_params(requested_params, getenv)
         domain = _read_domain(simulations[0].domain.region, Region, gscript)
         effective_mask = _resolve_effective_mask(simulations[0].domain.mask, getenv)
-        _initialize_temporal()
         input_cache: dict[str, tuple[str, Literal["raster", "strds"]] | Exception] = {}
         swmm_cache: dict[Path, str] = {}
         results: list[ResolvedSimulation | ValidationFailure] = []
@@ -61,7 +60,6 @@ def resolve_ensemble(
                     dict(expanded.input_maps) | dict(expanded.infiltration.input_maps),
                     Mapset,
                     cache=input_cache,
-                    initialize_temporal=False,
                 )
                 swmm_path, swmm_digest = _resolve_swmm_input(expanded, swmm_cache)
                 results.append(
@@ -188,10 +186,7 @@ def _resolve_inputs(
     mapset_type: type,
     *,
     cache: dict[str, tuple[str, Literal["raster", "strds"]] | Exception] | None = None,
-    initialize_temporal: bool = True,
 ) -> tuple[dict[str, str], dict[str, Literal["raster", "strds"]]]:
-    if initialize_temporal:
-        _initialize_temporal()
     resolved: dict[str, str] = {}
     kinds: dict[str, Literal["raster", "strds"]] = {}
     for key, identifier in inputs.items():
@@ -211,13 +206,6 @@ def _resolve_inputs(
         resolved[key] = source
         kinds[key] = kind
     return resolved, kinds
-
-
-def _initialize_temporal() -> None:
-    import grass.temporal as tgis
-
-    tgis.init(raise_fatal_error=True)
-    tgis.set_raise_on_error(True)
 
 
 def _resolve_input_identifier(

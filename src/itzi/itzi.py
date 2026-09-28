@@ -161,6 +161,22 @@ def preflight_worker(simulation: ResolvedSimulation) -> str | None:
     return None
 
 
+def preflight_ensemble_worker(simulations: tuple[ResolvedSimulation, ...]) -> dict[str, str]:
+    """Preflight selected members in one GRASS session, retaining individual failures."""
+    msgr.raise_on_error = True
+    msgr._itzi_logger.set_verbosity(msgr.verbosity())
+    failures: dict[str, str] = {}
+    with GrassSessionManager(simulations[0].grass_params):
+        from itzi.preflight import preflight_simulation
+
+        for simulation in simulations:
+            try:
+                preflight_simulation(simulation)
+            except Exception as error:
+                failures[simulation.simulation_id] = f"{type(error).__name__}: {error}"
+    return failures
+
+
 def itzi_run_one(conf_file: str, hotstart_file: str | None) -> bool:
     """Run a simulation in a subprocess"""
     worker_args = (conf_file, hotstart_file)
@@ -473,6 +489,15 @@ def _preflight_resolved_in_spawn(simulation: ResolvedSimulation) -> str | None:
         return f"{type(error).__name__}: {error}"
 
 
+def _preflight_ensemble_in_spawn(simulations: tuple[ResolvedSimulation, ...]) -> dict[str, str]:
+    try:
+        with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as executor:
+            return executor.submit(preflight_ensemble_worker, simulations).result()
+    except Exception as error:
+        detail = f"{type(error).__name__}: {error}"
+        return {simulation.simulation_id: detail for simulation in simulations}
+
+
 def _preflight_selected(
     resolved: list[
         tuple[ExpandedEnsemble, tuple[ResolvedSimulation, ...], tuple[ValidationFailure, ...]]
@@ -507,15 +532,15 @@ def _preflight_selected(
             )
         except EnsembleError as error:
             manifest_failures[ensemble.ensemble_id] = str(error)
-        for simulation in simulations:
-            if (
-                simulation.simulation_id not in selected_ids
-                or simulation.simulation_id in failures
-            ):
-                continue
-            detail = _preflight_resolved_in_spawn(simulation)
-            if detail is not None:
-                failures[simulation.simulation_id] = {
+        to_preflight = tuple(
+            simulation
+            for simulation in simulations
+            if simulation.simulation_id in selected_ids
+            and simulation.simulation_id not in failures
+        )
+        if to_preflight:
+            for simulation_id, detail in _preflight_ensemble_in_spawn(to_preflight).items():
+                failures[simulation_id] = {
                     "phase": "preflight",
                     "detail": detail,
                 }

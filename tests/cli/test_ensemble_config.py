@@ -390,13 +390,11 @@ def test_input_resolution_cache_reuses_shared_identifiers(monkeypatch):
         {"ground_elevation": "shared", "rainfall_rate": "first"},
         object,
         cache=cache,
-        initialize_temporal=False,
     )
     resolved, _ = _resolve_inputs(
         {"ground_elevation": "shared", "rainfall_rate": "second"},
         object,
         cache=cache,
-        initialize_temporal=False,
     )
 
     assert calls == ["shared", "first", "second"]

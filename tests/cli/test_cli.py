@@ -2,8 +2,9 @@
 
 import argparse
 import os
+import sys
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -16,6 +17,7 @@ from itzi.itzi import (
     itzi_run,
     itzi_run_one,
     main,
+    preflight_ensemble_worker,
     reconcile_hotstart_commands,
     sim_runner_worker,
 )
@@ -80,6 +82,7 @@ def test_ensemble_members_are_resolved_in_one_spawn(monkeypatch):
 
 def test_preflight_only_checks_selected_members(tmp_path, monkeypatch):
     selected_simulation = SimpleNamespace(simulation_id="sim-selected")
+    selected_with_failure = SimpleNamespace(simulation_id="sim-failed")
     unselected_simulation = SimpleNamespace(simulation_id="sim-unselected")
     ensemble = SimpleNamespace(
         ensemble_id="study",
@@ -89,21 +92,57 @@ def test_preflight_only_checks_selected_members(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr("itzi.itzi._validate_manifest_destination", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
-        "itzi.itzi._preflight_resolved_in_spawn",
-        lambda simulation: calls.append(simulation.simulation_id) or None,
+        "itzi.itzi._preflight_ensemble_in_spawn",
+        lambda simulations: (
+            calls.append(tuple(s.simulation_id for s in simulations))
+            or {"sim-failed": "invalid input"}
+        ),
     )
 
     member_failures, manifest_failures = _preflight_selected(
-        [(ensemble, (selected_simulation, unselected_simulation), ())],
-        {"study": {"sim-selected"}},
+        [(ensemble, (selected_simulation, selected_with_failure, unselected_simulation), ())],
+        {"study": {"sim-selected", "sim-failed"}},
         {},
         has_selectors=True,
         overwrite=False,
     )
 
-    assert calls == ["sim-selected"]
-    assert member_failures == {}
+    assert calls == [("sim-selected", "sim-failed")]
+    assert member_failures == {
+        "study": {"sim-failed": {"phase": "preflight", "detail": "invalid input"}}
+    }
     assert manifest_failures == {}
+
+
+def test_preflight_ensemble_worker_keeps_member_failures(monkeypatch):
+    calls = []
+
+    class FakeGrassSessionManager:
+        def __init__(self, params):
+            assert params == "shared"
+
+        def __enter__(self):
+            calls.append("open")
+
+        def __exit__(self, *_):
+            calls.append("close")
+
+    def preflight(simulation):
+        calls.append(simulation.simulation_id)
+        if simulation.simulation_id == "bad":
+            raise ValueError("invalid input")
+
+    monkeypatch.setattr("itzi.itzi.GrassSessionManager", FakeGrassSessionManager)
+    fake_preflight = ModuleType("itzi.preflight")
+    fake_preflight.preflight_simulation = preflight
+    monkeypatch.setitem(sys.modules, "itzi.preflight", fake_preflight)
+    simulations = tuple(
+        SimpleNamespace(simulation_id=simulation_id, grass_params="shared")
+        for simulation_id in ("good", "bad", "another")
+    )
+
+    assert preflight_ensemble_worker(simulations) == {"bad": "ValueError: invalid input"}
+    assert calls == ["open", "good", "bad", "another", "close"]
 
 
 def test_run_parser_rejects_v_and_q_together():

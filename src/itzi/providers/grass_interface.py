@@ -58,35 +58,25 @@ colors_rules_dict = {
 }
 
 
-def _init_temporal() -> None:
-    """Initialize GRASS temporal APIs without allowing them to exit Itzi."""
-    gscript.set_raise_on_error(True)
-    tgis.init(raise_fatal_error=True)
-    tgis.set_raise_on_error(True)
-
-
 # Check if color rule paths are OK
 for f in colors_rules_dict.values():
     assert Path(f).is_file()
 
 
-def file_exists(name: str, *, initialize: bool = True) -> bool:
+def file_exists(name: str) -> bool:
     """Return True if name is an existing map or stds, False otherwise"""
     if not name:
         return False
     _id = GrassInterface.format_id(name)
-    return GrassInterface.name_is_map(_id) or GrassInterface.name_is_stds(
-        _id, initialize=initialize
-    )
+    return GrassInterface.name_is_map(_id) or GrassInterface.name_is_stds(_id)
 
 
 def check_output_files(file_list: list[str]) -> None:
     """Check if the output files exist"""
     if gscript.overwrite() or not file_list:
         return
-    _init_temporal()
     for map_name in file_list:
-        if file_exists(map_name, initialize=False):
+        if file_exists(map_name):
             msgr.fatal(f"File {map_name} exists and will not be overwritten")
 
 
@@ -222,8 +212,6 @@ class GrassInterface:
         }
         self.mask_mode, self.mask_source = self._select_effective_mask(effective_mask)
         self.overwrite = gscript.overwrite()
-        # init temporal module
-        _init_temporal()
         # Create thread and queue for writing raster maps
         if self.non_blocking_write:
             self.raster_lock = Lock()
@@ -352,13 +340,10 @@ class GrassInterface:
         return gutils.getenv("MAPSET")
 
     @staticmethod
-    def name_is_stds(name: str, *, initialize: bool = True) -> bool:
+    def name_is_stds(name: str) -> bool:
         """return True if the name given as input is a registered strds
         False if not
         """
-        # make sure temporal module is initialized
-        if initialize:
-            _init_temporal()
         return bool(tgis.SpaceTimeRasterDataset(name).is_in_db())
 
     @staticmethod
