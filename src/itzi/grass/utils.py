@@ -40,8 +40,7 @@ if TYPE_CHECKING:
 MIN_GRASS_VERSION = (8, 4)
 
 # color rules
-_ROOT = Path(__file__).parent.parent
-_DIR = _ROOT / "data" / "colortable"
+_DIR = Path(__file__).parent / "colortable"
 RULE_H = _DIR / "depth.txt"
 RULE_V = _DIR / "velocity.txt"
 RULE_VDIR = _DIR / "vdir.txt"
