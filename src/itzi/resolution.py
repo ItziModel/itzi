@@ -1,15 +1,22 @@
-"""GRASS-backed resolution of scalar ensemble members.
+"""
+Copyright (C) 2026 Laurent Courty
 
-Only functions in this module import GRASS, and only after a resolver or
-execution worker has opened a session.  The parent process exchanges the
-immutable payloads defined in :mod:`itzi.ensemble`.
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Literal
@@ -43,14 +50,11 @@ def resolve_ensemble(
         raise EnsembleError("all simulations in an ensemble must use the same GRASS context")
 
     with GrassSessionManager(requested_params):
-        import grass.script as gscript
-        from grass.pygrass.gis import Mapset
-        from grass.pygrass.gis.region import Region
-        from grass.pygrass.utils import getenv
+        from itzi.providers.grass_interface import GrassInterface
 
-        actual_params = _active_grass_params(requested_params, getenv)
-        domain = _read_domain(simulations[0].domain.region, Region, gscript)
-        effective_mask = _resolve_effective_mask(simulations[0].domain.mask, getenv)
+        actual_params = GrassInterface.active_grass_params(requested_params)
+        domain = GrassInterface.read_domain(simulations[0].domain.region)
+        effective_mask = GrassInterface.resolve_effective_mask(simulations[0].domain.mask)
         input_cache: dict[str, tuple[str, Literal["raster", "strds"]] | Exception] = {}
         swmm_cache: dict[Path, str] = {}
         results: list[ResolvedSimulation | ValidationFailure] = []
@@ -58,7 +62,6 @@ def resolve_ensemble(
             try:
                 input_names, input_kinds = _resolve_inputs(
                     dict(expanded.input_maps) | dict(expanded.infiltration.input_maps),
-                    Mapset,
                     cache=input_cache,
                 )
                 swmm_path, swmm_digest = _resolve_swmm_input(expanded, swmm_cache)
@@ -96,17 +99,6 @@ def _requested_grass_params(expanded: ExpandedSimulation) -> GrassParams:
         region=expanded.domain.region,
         mask=expanded.domain.mask,
         grass_bin=context.executable or "grass",
-    )
-
-
-def _active_grass_params(requested_params: GrassParams, getenv) -> GrassParams:
-    return GrassParams(
-        grassdata=str(Path(getenv("GISDBASE")).expanduser().resolve()),
-        location=getenv("LOCATION_NAME"),
-        mapset=getenv("MAPSET"),
-        region=requested_params.region,
-        mask=requested_params.mask,
-        grass_bin=requested_params.grass_bin,
     )
 
 
@@ -148,52 +140,24 @@ def _build_resolved_simulation(
     )
 
 
-def _read_domain(region_id: str | None, region_type: type, gscript) -> DomainData:
-    """Read the selected computational region without leaving it changed."""
-    if gscript.locn_is_latlong():
-        raise EnsembleError("latlong locations are not supported")
-    using_temp_region = region_id is not None
-    if using_temp_region:
-        gscript.use_temp_region()
-        gscript.run_command("g.region", region=region_id)
-    try:
-        region = region_type()
-        if region.cols < 3 or region.rows < 3:
-            raise EnsembleError("GRASS Region should be at least 3 cells by 3 cells")
-        return DomainData(
-            north=region.north,
-            south=region.south,
-            east=region.east,
-            west=region.west,
-            rows=region.rows,
-            cols=region.cols,
-            crs_wkt=gscript.read_command("g.proj", flags="fw"),
-        )
-    finally:
-        if using_temp_region:
-            gscript.del_temp_region()
-
-
-def _split_identifier(identifier: str) -> tuple[str, str | None]:
-    name, separator, mapset = identifier.partition("@")
-    if separator and (not name or not mapset or "@" in mapset):
-        raise EnsembleError(f"invalid GRASS identifier {identifier!r}")
-    return name, mapset if separator else None
-
-
 def _resolve_inputs(
     inputs: dict[str, str],
-    mapset_type: type,
     *,
     cache: dict[str, tuple[str, Literal["raster", "strds"]] | Exception] | None = None,
+    resolve_one: Callable[[str], tuple[str, Literal["raster", "strds"]]] | None = None,
 ) -> tuple[dict[str, str], dict[str, Literal["raster", "strds"]]]:
+    if resolve_one is None:
+        from itzi.providers.grass_interface import GrassInterface
+
+        resolve_one = GrassInterface.resolve_input_identifier
+
     resolved: dict[str, str] = {}
     kinds: dict[str, Literal["raster", "strds"]] = {}
     for key, identifier in inputs.items():
         result = cache.get(identifier) if cache is not None else None
         if result is None:
             try:
-                result = _resolve_input_identifier(identifier, mapset_type)
+                result = resolve_one(identifier)
             except Exception as error:
                 if cache is not None:
                     cache[identifier] = error
@@ -206,57 +170,6 @@ def _resolve_inputs(
         resolved[key] = source
         kinds[key] = kind
     return resolved, kinds
-
-
-def _resolve_input_identifier(
-    identifier: str, mapset_type: type
-) -> tuple[str, Literal["raster", "strds"]]:
-    """Resolve both input namespaces and reject a visible ambiguity."""
-    from grass.pygrass import utils as gutils
-    import grass.temporal as tgis
-
-    name, requested_mapset = _split_identifier(identifier)
-    raster_mapset = gutils.get_mapset_raster(name, requested_mapset or "")
-    raster_id = f"{name}@{raster_mapset}" if raster_mapset else None
-    visible_mapsets = [requested_mapset] if requested_mapset else mapset_type().visible.read()
-    strds_id = None
-    for mapset in visible_mapsets:
-        candidate = f"{name}@{mapset}"
-        try:
-            is_strds = tgis.SpaceTimeRasterDataset(candidate).is_in_db()
-        except BaseException as error:
-            # A visible mapset may have no temporal database or may be
-            # read-inaccessible. It cannot contribute a STRDS candidate.
-            if isinstance(error, (KeyboardInterrupt, GeneratorExit)):
-                raise
-            is_strds = False
-        if is_strds:
-            strds_id = candidate
-            break
-    if raster_id is not None and strds_id is not None:
-        raise EnsembleError(
-            f"input {identifier!r} is ambiguous: raster {raster_id} and STRDS {strds_id} both exist"
-        )
-    if raster_id is not None:
-        return raster_id, "raster"
-    if strds_id is not None:
-        return strds_id, "strds"
-    raise EnsembleError(f"input {identifier!r} was not found as a raster or STRDS")
-
-
-def _resolve_effective_mask(mask: str | None, getenv) -> EffectiveMask:
-    from grass.pygrass import utils as gutils
-
-    current_mapset = getenv("MAPSET")
-    if mask is not None:
-        name, requested_mapset = _split_identifier(mask)
-        mapset = gutils.get_mapset_raster(name, requested_mapset or "")
-        if not mapset:
-            raise EnsembleError(f"explicit mask {mask!r} was not found")
-        return EffectiveMask("explicit", f"{name}@{mapset}")
-    if gutils.get_mapset_raster("MASK", current_mapset):
-        return EffectiveMask("active", f"MASK@{current_mapset}")
-    return EffectiveMask("none", None)
 
 
 def _resolve_swmm_input(
@@ -396,8 +309,7 @@ def _last_record_index(duration: timedelta, record_step: timedelta) -> int:
 def _validate_output_names(
     output_map_names: dict[str, str], drainage_output: str | None, last_record_index: int
 ) -> None:
-    from grass.pygrass import utils as gutils
-
+    from itzi.providers.grass_interface import GrassInterface
     from itzi.providers.grass_output import derived_drainage_table_names, derived_record_name
 
     names = list(output_map_names.values())
@@ -408,15 +320,15 @@ def _validate_output_names(
             raise EnsembleError(f"GRASS output names must be unqualified: {name!r}")
         if name == "MASK":
             raise EnsembleError("MASK cannot be used as an output name")
-        if not gutils.is_clean_name(name):
+        if not GrassInterface.is_clean_name(name):
             raise EnsembleError(f"invalid GRASS output name {name!r}")
         child = derived_record_name(name, last_record_index)
-        if child == "MASK" or not gutils.is_clean_name(child):
+        if child == "MASK" or not GrassInterface.is_clean_name(child):
             raise EnsembleError(f"invalid derived GRASS output name {child!r}")
     if drainage_output is not None:
         child = derived_record_name(drainage_output, last_record_index)
         for table_name in derived_drainage_table_names(child):
-            if not gutils.is_clean_name(table_name):
+            if not GrassInterface.is_clean_name(table_name):
                 raise EnsembleError(f"invalid derived drainage table name {table_name!r}")
 
 
@@ -538,35 +450,23 @@ def _reject_output_source_alias(name: str, mapset: str | None, sources: set[str]
 
 def verify_resolved_simulation(simulation: ResolvedSimulation) -> None:
     """Re-resolve worker facts and reject a changed GRASS environment."""
-    import grass.script as gscript
-    from grass.pygrass.gis import Mapset
-    from grass.pygrass.gis.region import Region
-    from grass.pygrass.utils import getenv
+    from itzi.providers.grass_interface import GrassInterface
 
-    actual = GrassParams(
-        grassdata=str(Path(getenv("GISDBASE")).expanduser().resolve()),
-        location=getenv("LOCATION_NAME"),
-        mapset=getenv("MAPSET"),
-        region=simulation.grass_params.region,
-        mask=simulation.grass_params.mask,
-        grass_bin=simulation.grass_params.grass_bin,
-    )
+    actual = GrassInterface.active_grass_params(simulation.grass_params)
     if actual != simulation.grass_params:
         raise EnsembleError("GRASS context changed after resolution")
-    domain = _read_domain(simulation.grass_params.region, Region, gscript)
+    domain = GrassInterface.read_domain(simulation.grass_params.region)
     if domain != simulation.domain_data:
         raise EnsembleError("GRASS domain changed after resolution")
-    mask = _resolve_effective_mask(simulation.grass_params.mask, getenv)
+    mask = GrassInterface.resolve_effective_mask(simulation.grass_params.mask)
     if mask != simulation.effective_mask:
         raise EnsembleError("effective GRASS mask changed after resolution")
-    _verify_input_kinds(
-        simulation.simulation_config.input_map_names, dict(simulation.input_kinds), Mapset
-    )
+    _verify_input_kinds(simulation.simulation_config.input_map_names, dict(simulation.input_kinds))
 
 
 def _verify_input_kinds(
-    inputs: dict[str, str], expected: dict[str, Literal["raster", "strds"]], mapset_type: type
+    inputs: dict[str, str], expected: dict[str, Literal["raster", "strds"]]
 ) -> None:
-    resolved, kinds = _resolve_inputs(inputs, mapset_type)
+    resolved, kinds = _resolve_inputs(inputs)
     if resolved != inputs or kinds != expected:
         raise EnsembleError("resolved GRASS input sources changed after resolution")

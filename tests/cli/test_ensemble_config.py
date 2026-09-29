@@ -376,25 +376,24 @@ def test_later_generated_output_cannot_alias_an_input():
         validate_resolved_ensemble((output, input_simulation))
 
 
-def test_input_resolution_cache_reuses_shared_identifiers(monkeypatch):
+def test_input_resolution_cache_reuses_shared_identifiers():
     calls = []
 
-    def resolve(identifier, _mapset_type):
+    def resolve(identifier):
         calls.append(identifier)
         return f"{identifier}@PERMANENT", "raster"
 
-    monkeypatch.setattr("itzi.resolution._resolve_input_identifier", resolve)
     cache = {}
 
     _resolve_inputs(
         {"ground_elevation": "shared", "rainfall_rate": "first"},
-        object,
         cache=cache,
+        resolve_one=resolve,
     )
     resolved, _ = _resolve_inputs(
         {"ground_elevation": "shared", "rainfall_rate": "second"},
-        object,
         cache=cache,
+        resolve_one=resolve,
     )
 
     assert calls == ["shared", "first", "second"]

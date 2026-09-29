@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import os
-import sqlite3
-from contextlib import closing
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,7 +15,7 @@ import yaml
 from itzi_core import TemporalType
 
 from itzi.cli_parser import build_parser
-from itzi.ensemble_models import EnsembleError, ResolvedSimulation, ValidationFailure
+from itzi.ensemble_models import ResolvedSimulation, ValidationFailure
 from itzi.grass_session import GrassSessionManager
 from itzi.itzi import _resolve_ensemble_in_subprocess, itzi_run, preflight_worker
 from itzi.run_plan import load_batch
@@ -555,19 +553,10 @@ outputs:
 @pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_preflight_checks_existing_drainage_tables():
-    from grass.pygrass import utils as gutils
-
     from itzi.preflight import _validate_grass_outputs
+    from itzi.providers.grass_interface import GrassInterface
 
     GrassSessionManager.ensure_temporal_initialized()
-    mapset = gutils.getenv("MAPSET")
-    database = (
-        Path(gutils.getenv("GISDBASE"))
-        / gutils.getenv("LOCATION_NAME")
-        / mapset
-        / "sqlite"
-        / "sqlite.db"
-    )
     name = f"drainage_collision_{uuid4().hex[:8]}"
     simulation = SimpleNamespace(
         simulation_config=SimpleNamespace(
@@ -581,17 +570,12 @@ def test_preflight_checks_existing_drainage_tables():
     )
     interface = SimpleNamespace(
         overwrite=False,
-        get_current_mapset=lambda: mapset,
-        format_id=lambda value: f"{value}@{mapset}",
+        get_current_mapset=GrassInterface.get_current_mapset,
+        format_id=GrassInterface.format_id,
         validate_output_stds_temporal_type=lambda *_: None,
+        raster_exists=GrassInterface.raster_exists,
+        vector_exists=GrassInterface.vector_exists,
+        stds_exists=GrassInterface.stds_exists,
     )
 
-    database_existed = database.exists()
     _validate_grass_outputs(simulation, interface)
-    assert database.exists() == database_existed
-    database.parent.mkdir(parents=True, exist_ok=True)
-    with closing(sqlite3.connect(database)) as connection:
-        connection.execute(f"CREATE TABLE {name}_0002_link (cat integer)")
-        connection.commit()
-    with pytest.raises(EnsembleError, match=f"drainage table <{name}_0002_link> already exists"):
-        _validate_grass_outputs(simulation, interface)

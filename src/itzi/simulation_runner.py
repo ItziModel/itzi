@@ -45,7 +45,6 @@ class SimulationRunner:
         input_kinds: Mapping[str, Literal["raster", "strds"]] | None = None,
         exclusive_stats: bool = False,
     ) -> None:
-        self.grass_required_version = "8.4.0"
         self.g_interface: GrassInterface
         self.sim: Simulation
 
@@ -53,20 +52,13 @@ class SimulationRunner:
         msgr.display_sim_param(sim_config)
 
         # Check GRASS version
-        import grass.script as gscript
+        from itzi.providers import grass_interface
 
-        grass_version = gscript.parse_command("g.version", flags="g")["version"]
-        if grass_version < self.grass_required_version:
-            msgr.fatal(
-                f"Itzi requires at least GRASS {self.grass_required_version}, "
-                f"version {grass_version} detected."
-            )
+        grass_interface.GrassInterface.ensure_min_version()
         GrassSessionManager.ensure_temporal_initialized()
         msgr.debug("GRASS session set")
 
         # return error if output files exist
-        from itzi.providers import grass_interface
-
         output_names = list(sim_config.output_map_names.values())
         if sim_config.drainage_output is not None:
             output_names.append(sim_config.drainage_output)

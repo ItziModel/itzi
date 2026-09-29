@@ -15,19 +15,25 @@ GNU General Public License for more details.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, NamedTuple
+from typing import Literal
 
 import numpy as np
 from itzi_core import INPUT_ARRAY_KEYS, DomainData
 from itzi_core.providers import RasterInputProvider
 
 import itzi.messenger as msgr
-from itzi.providers.grass_interface import MapData
 
 if TYPE_CHECKING:
     from datetime import datetime
 
     from itzi.providers.grass_interface import GrassInterface
+
+
+class MapData(NamedTuple):
+    id: str
+    start_time: datetime
+    end_time: datetime
 
 
 class GrassRasterInputProvider(RasterInputProvider):

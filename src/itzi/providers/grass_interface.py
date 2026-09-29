@@ -20,7 +20,7 @@ from pathlib import Path
 from queue import Queue
 from threading import Lock, Thread
 from types import MappingProxyType
-from typing import ClassVar, NamedTuple, Self
+from typing import ClassVar, Literal, NamedTuple, Self
 
 import grass.pygrass.utils as gutils
 import grass.script as gscript
@@ -31,7 +31,7 @@ from grass.pygrass.gis.region import Region
 from grass.pygrass.vector import VectorTopo
 from grass.pygrass.vector.geometry import Line, Point
 from grass.pygrass.vector.table import Link, Table
-from itzi_core import TemporalType
+from itzi_core import DomainData, TemporalType
 from itzi_core.data_containers import (
     DrainageLinkAttributes,
     DrainageNetworkAttributes,
@@ -40,6 +40,9 @@ from itzi_core.data_containers import (
 )
 
 import itzi.messenger as msgr
+from itzi.ensemble_models import EffectiveMask, EnsembleError
+from itzi.grass_session import GrassParams
+from itzi.providers.grass_input import MapData
 
 # color rules
 _ROOT = Path(__file__).parent.parent
@@ -57,6 +60,7 @@ colors_rules_dict = {
     "froude": str(RULE_FR),
 }
 
+MIN_GRASS_VERSION = (8, 4)
 
 # Check if color rule paths are OK
 for f in colors_rules_dict.values():
@@ -115,12 +119,6 @@ def raster_writer(q, lock):
                 GrassInterface.set_null(rast_name, hmin)
         # Signal end of task
         q.task_done()
-
-
-class MapData(NamedTuple):
-    id: str
-    start_time: datetime
-    end_time: datetime
 
 
 class DBLinkDescription(NamedTuple):
@@ -357,6 +355,130 @@ class GrassInterface:
         """
         name, _, mapset = map_id.partition("@")
         return bool(gutils.get_mapset_raster(name, mapset))
+
+    @staticmethod
+    def ensure_min_version() -> None:
+        full = gscript.parse_command("g.version", flags="g")["version"]
+        major, minor = (int(part) for part in full.split(".")[:2])
+        if (major, minor) < MIN_GRASS_VERSION:
+            required = f"{MIN_GRASS_VERSION[0]}.{MIN_GRASS_VERSION[1]}"
+            raise RuntimeError(
+                f"itzi requires at least GRASS {required}, found version {major}.{minor}"
+            )
+
+    @staticmethod
+    def active_grass_params(requested: GrassParams) -> GrassParams:
+        """Return the active session context, retaining requested region/mask/bin."""
+        return GrassParams(
+            grassdata=str(Path(gutils.getenv("GISDBASE")).expanduser().resolve()),
+            location=gutils.getenv("LOCATION_NAME"),
+            mapset=gutils.getenv("MAPSET"),
+            region=requested.region,
+            mask=requested.mask,
+            grass_bin=requested.grass_bin,
+        )
+
+    @staticmethod
+    def read_domain(region_id: str | None) -> DomainData:
+        """Read the selected computational region without leaving it changed."""
+        if gscript.locn_is_latlong():
+            raise EnsembleError("latlong locations are not supported")
+        using_temp_region = region_id is not None
+        if using_temp_region:
+            gscript.use_temp_region()
+            gscript.run_command("g.region", region=region_id)
+        try:
+            region = Region()
+            if region.cols < 3 or region.rows < 3:
+                raise EnsembleError("GRASS Region should be at least 3 cells by 3 cells")
+            return DomainData(
+                north=region.north,
+                south=region.south,
+                east=region.east,
+                west=region.west,
+                rows=region.rows,
+                cols=region.cols,
+                crs_wkt=gscript.read_command("g.proj", flags="fw"),
+            )
+        finally:
+            if using_temp_region:
+                gscript.del_temp_region()
+
+    @staticmethod
+    def _split_identifier(identifier: str) -> tuple[str, str | None]:
+        name, separator, mapset = identifier.partition("@")
+        if separator and (not name or not mapset or "@" in mapset):
+            raise EnsembleError(f"invalid GRASS identifier {identifier!r}")
+        return name, mapset if separator else None
+
+    @staticmethod
+    def resolve_input_identifier(identifier: str) -> tuple[str, Literal["raster", "strds"]]:
+        """Resolve both input namespaces and reject a visible ambiguity."""
+        from grass.pygrass.gis import Mapset
+
+        name, requested_mapset = GrassInterface._split_identifier(identifier)
+        raster_mapset = gutils.get_mapset_raster(name, requested_mapset or "")
+        raster_id = f"{name}@{raster_mapset}" if raster_mapset else None
+        visible_mapsets = [requested_mapset] if requested_mapset else Mapset().visible.read()
+        strds_id = None
+        for mapset in visible_mapsets:
+            candidate = f"{name}@{mapset}"
+            try:
+                is_strds = tgis.SpaceTimeRasterDataset(candidate).is_in_db()
+            except BaseException as error:
+                # A visible mapset may have no temporal database or may be
+                # read-inaccessible. It cannot contribute a STRDS candidate.
+                if isinstance(error, (KeyboardInterrupt, GeneratorExit)):
+                    raise
+                is_strds = False
+            if is_strds:
+                strds_id = candidate
+                break
+        if raster_id is not None and strds_id is not None:
+            raise EnsembleError(
+                f"input {identifier!r} is ambiguous: raster {raster_id} "
+                f"and STRDS {strds_id} both exist"
+            )
+        if raster_id is not None:
+            return raster_id, "raster"
+        if strds_id is not None:
+            return strds_id, "strds"
+        raise EnsembleError(f"input {identifier!r} was not found as a raster or STRDS")
+
+    @staticmethod
+    def resolve_effective_mask(mask: str | None) -> EffectiveMask:
+        """Select the effective mask descriptor without modifying the mapset MASK."""
+        current_mapset = gutils.getenv("MAPSET")
+        if mask is not None:
+            name, requested_mapset = GrassInterface._split_identifier(mask)
+            mapset = gutils.get_mapset_raster(name, requested_mapset or "")
+            if not mapset:
+                raise EnsembleError(f"explicit mask {mask!r} was not found")
+            return EffectiveMask("explicit", f"{name}@{mapset}")
+        if gutils.get_mapset_raster("MASK", current_mapset):
+            return EffectiveMask("active", f"MASK@{current_mapset}")
+        return EffectiveMask("none", None)
+
+    @staticmethod
+    def is_clean_name(name: str) -> bool:
+        """Return True if name is a valid GRASS map name."""
+        return bool(gutils.is_clean_name(name))
+
+    @staticmethod
+    def raster_exists(name: str, mapset: str) -> bool:
+        """Return True if a raster map exists in the given mapset."""
+        return bool(gutils.get_mapset_raster(name, mapset))
+
+    @staticmethod
+    def vector_exists(name: str, mapset: str) -> bool:
+        """Return True if a vector map exists in the given mapset."""
+        return bool(gutils.get_mapset_vector(name, mapset))
+
+    @staticmethod
+    def stds_exists(name: str, stds_type: str) -> bool:
+        """Return True if a space-time dataset is registered in the database."""
+        dataset = tgis.dataset_factory(stds_type, GrassInterface.format_id(name))
+        return dataset is not None and bool(dataset.is_in_db())
 
     @staticmethod
     def set_null(map_id: str, threshold: float) -> None:
