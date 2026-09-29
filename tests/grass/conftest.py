@@ -3,10 +3,11 @@ Define pytest fixture common to GRASS-based test modules.
 """
 
 import os
+import subprocess
 import sys
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
-import subprocess
 
 import pytest
 
@@ -17,10 +18,26 @@ grass_python_path = subprocess.check_output(
 sys.path.append(grass_python_path)
 import grass.script as gscript  # noqa: E402
 
+gscript.setup.setup_runtime_env()
+
 from itzi import SimulationRunner  # noqa: E402
+from itzi import grass_session  # noqa: E402
 from itzi.configreader import ConfigReader  # noqa: E402
 
 TESTS_ROOT = Path.cwd()
+TEST_PROCESS = os.getpid()
+
+
+@pytest.fixture(autouse=True)
+def stop_temporal_subprocesses_after_test() -> Iterator[None]:
+    """Forked tests must stop their own GRASS RPC children before os._exit."""
+    yield
+    if os.getpid() != TEST_PROCESS and grass_session._initialized_temporal_session is not None:
+        session_pid = grass_session._initialized_temporal_session[0]
+        if session_pid == os.getpid():
+            import grass.temporal as tgis
+
+            tgis.stop_subprocesses()
 
 
 @pytest.fixture(scope="session")

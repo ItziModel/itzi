@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
 from configparser import ConfigParser
 import os
 from uuid import uuid4
@@ -12,15 +11,6 @@ from itzi import SimulationRunner
 from itzi.configreader import ConfigReader
 from itzi.grass_session import GrassSessionManager
 from itzi_core.const import TemporalType
-
-
-@pytest.fixture(autouse=True)
-def stop_temporal_subprocesses() -> Iterator[None]:
-    yield
-
-    import grass.temporal as tgis
-
-    tgis.stop_subprocesses()
 
 
 def _build_runner(

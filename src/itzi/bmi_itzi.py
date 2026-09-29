@@ -46,7 +46,7 @@ class BmiItzi(Bmi):
         }
     )
     # A list of array definition for both input and output, without overlaps
-    input_output_array_definition = (
+    input_output_array_definition = tuple(
         arr_def
         for arr_def in ARRAY_DEFINITIONS
         if any(cat in arr_def.category for cat in [ArrayCategory.OUTPUT, ArrayCategory.INPUT])
