@@ -29,16 +29,8 @@ from itzi_core import (
     TemporalType,
 )
 from itzi_core.const import DefaultValues
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    StrictStr,
-    TypeAdapter,
-    model_validator,
-)
-from pydantic import (
-    JsonValue as PydanticJsonValue,
-)
+from pydantic import BaseModel, ConfigDict, StrictStr, model_validator
+from pydantic import JsonValue as PydanticJsonValue
 
 from itzi.grass.session import GrassParams
 
@@ -67,8 +59,6 @@ MAX_BATCH_MEMBERS = 200
 type JsonValue = (
     None | bool | int | float | str | tuple[JsonValue, ...] | tuple[tuple[str, JsonValue], ...]
 )
-
-_JSON_VALUE_ADAPTER = TypeAdapter(PydanticJsonValue)
 
 
 class EnsembleError(ValueError):
@@ -275,10 +265,8 @@ def format_duration(value: timedelta) -> str:
     return rendered
 
 
-def _canonical_json(value: PydanticJsonValue | BaseModel) -> str:
-    """Serialize a JSON-compatible value or model in a stable form."""
-    if isinstance(value, BaseModel):
-        value = _JSON_VALUE_ADAPTER.validate_json(value.model_dump_json())
+def _canonical_json(value: PydanticJsonValue) -> str:
+    """Serialize a JSON-compatible value in a stable form."""
     try:
         return json.dumps(
             value,

@@ -220,10 +220,11 @@ def test_one_ensemble_runs_only_planned_members_and_counts_failures(tmp_path, mo
     artifacts = SimpleNamespace(output_map_names=(), drainage_output=None, statistics_file=None)
     simulations = tuple(
         SimpleNamespace(simulation_id=name, coordinates=(), artifacts=artifacts)
-        for name in ("good", "bad", "preflight", "unselected")
+        for name in ("preflight", "unselected", "good", "bad")
     )
     runs = []
     updates = []
+    preflights = []
     monkeypatch.setattr("itzi.itzi._create_manifest", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         "itzi.itzi._update_manifest",
@@ -231,7 +232,10 @@ def test_one_ensemble_runs_only_planned_members_and_counts_failures(tmp_path, mo
             {key: value["status"] for key, value in states.items()}
         ),
     )
-    monkeypatch.setattr("itzi.itzi._preflight_simulation_in_subprocess", lambda _: None)
+    monkeypatch.setattr(
+        "itzi.itzi._preflight_simulation_in_subprocess",
+        lambda simulation: preflights.append(simulation.simulation_id) or None,
+    )
     monkeypatch.setattr(
         "itzi.itzi._run_simulation_in_subprocess",
         lambda simulation: (
@@ -255,6 +259,7 @@ def test_one_ensemble_runs_only_planned_members_and_counts_failures(tmp_path, mo
 
     assert count == 2
     assert runs == ["good", "bad"]
+    assert preflights == ["bad"]
     assert updates[-1] == {
         "good": "completed",
         "bad": "execution_failed",

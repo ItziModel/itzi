@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, cast
+from typing import Annotated, Literal
 
 from itzi_core import OUTPUT_ARRAY_KEYS
 from pydantic import (
@@ -24,13 +24,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from pydantic import JsonValue as PydanticJsonValue
-
-from itzi.ensemble.models import (
-    DomainConfig,
-    StrictModel,
-    _canonical_json,
-)
+from itzi.ensemble.models import DomainConfig, StrictModel
 
 type SweepString = StrictStr | Annotated[list[StrictStr], Field(min_length=1)]
 type FiniteFloat = Annotated[StrictFloat, Field(allow_inf_nan=False)]
@@ -221,9 +215,6 @@ class YamlEnsembleDocumentV1(StrictModel):
 def _validate_sweep[T](value: T) -> T:
     """Validate one scalar-or-list sweep field after Pydantic's type validation."""
     values = value if isinstance(value, list) else [value]
-    semantic_values = [
-        _canonical_json(cast(PydanticJsonValue | InfiltrationAlternative, item)) for item in values
-    ]
-    if len(semantic_values) != len(set(semantic_values)):
+    if len(values) != len(set(values)):
         raise ValueError("contains duplicate semantic values")
     return value

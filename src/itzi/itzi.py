@@ -46,11 +46,7 @@ from itzi.ensemble.models import (
     ResolvedSimulation,
     ValidationFailure,
 )
-from itzi.ensemble.resolution import (
-    resolve_ensemble,
-    validate_resolved_ensemble,
-    verify_resolved_simulation,
-)
+from itzi.ensemble.resolution import resolve_ensemble, validate_resolved_ensemble
 from itzi.grass.session import GrassSessionManager
 from itzi.manifest import (
     _create_manifest,
@@ -117,7 +113,6 @@ def resolved_sim_runner_worker(simulation: ResolvedSimulation) -> tuple[str, str
     runner: SimulationRunner | None = None
     try:
         with GrassSessionManager(simulation.grass_params):
-            verify_resolved_simulation(simulation)
             runner = SimulationRunner(
                 simulation.simulation_config,
                 simulation.grass_params,
@@ -449,20 +444,22 @@ def _run_one_ensemble(
         return max(1, len(selected_ids))
 
     failure_count = 0
+    member_started = False
     for simulation in resolved.simulations:
         if simulation.simulation_id not in selected_ids:
             continue
         if states[simulation.simulation_id]["status"] != "planned":
             continue
-        detail = _preflight_simulation_in_subprocess(simulation)
-        if detail is not None:
-            states[simulation.simulation_id]["status"] = "validation_failed"
-            states[simulation.simulation_id]["failure"] = {
-                "phase": "preflight",
-                "detail": detail,
-            }
-            _update_manifest(manifest_path, ensemble, states)
-            continue
+        if member_started:
+            detail = _preflight_simulation_in_subprocess(simulation)
+            if detail is not None:
+                states[simulation.simulation_id]["status"] = "validation_failed"
+                states[simulation.simulation_id]["failure"] = {
+                    "phase": "preflight",
+                    "detail": detail,
+                }
+                _update_manifest(manifest_path, ensemble, states)
+                continue
         states[simulation.simulation_id]["status"] = "running"
         try:
             _update_manifest(manifest_path, ensemble, states)
@@ -471,6 +468,7 @@ def _run_one_ensemble(
             failure_count += 1
             break
         started = time.monotonic()
+        member_started = True
         status, detail = _run_simulation_in_subprocess(simulation)
         state = states[simulation.simulation_id]
         state["status"] = status

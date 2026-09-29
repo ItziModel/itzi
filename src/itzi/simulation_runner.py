@@ -22,7 +22,7 @@ from itzi_core import SimulationBuilder, SimulationConfig
 
 import itzi.messenger as msgr
 from itzi.ensemble.models import EffectiveMask
-from itzi.grass.session import GrassParams, GrassSessionManager
+from itzi.grass.session import GrassParams
 from itzi.providers.csv_output import ExclusiveCSVMassBalanceOutputProvider
 from itzi.providers.grass_input import GrassRasterInputProvider
 from itzi.providers.grass_output import GrassRasterOutputProvider, GrassVectorOutputProvider
@@ -59,7 +59,6 @@ class SimulationRunner:
         self.stats_file = stats_file
         self.effective_mask = effective_mask
         ensure_min_version()
-        GrassSessionManager.ensure_temporal_initialized()
         if input_kinds is None:
             resolved_inputs = {
                 key: resolve_input_identifier(name)

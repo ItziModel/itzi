@@ -487,19 +487,6 @@ def _output_templates(document: YamlEnsembleDocumentV1) -> OutputTemplates:
 
 
 def _freeze_json(value: SweepScalar) -> JsonValue:
-    if isinstance(value, (str, float)):
+    if isinstance(value, (str, int, float)):
         return value
-    if isinstance(value, NoInfiltration):
-        return (("type", value.type),)
-    if isinstance(value, ConstantInfiltration):
-        return (("rate", value.rate), ("type", value.type))
-    assert isinstance(value, GreenAmptInfiltration)
-    values: list[tuple[str, JsonValue]] = [
-        ("capillary_pressure", value.capillary_pressure),
-        ("effective_porosity", value.effective_porosity),
-        ("hydraulic_conductivity", value.hydraulic_conductivity),
-        ("type", value.type),
-    ]
-    if value.soil_water_content is not None:
-        values.insert(3, ("soil_water_content", value.soil_water_content))
-    return tuple(values)
+    return tuple(sorted(value.model_dump(exclude_none=True).items()))

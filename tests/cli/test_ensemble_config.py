@@ -231,6 +231,9 @@ outputs: {}
     labelled_stream = load_yaml_stream(write_yaml(tmp_path, labelled))
     assert labelled_stream.failures[0].phase == "schema"
 
+    duplicate = content.replace("    - type: none\n", "    - type: none\n    - type: none\n")
+    assert load_yaml_stream(write_yaml(tmp_path, duplicate)).failures[0].phase == "schema"
+
 
 def test_yaml_rejects_unsupported_hotstart(tmp_path):
     content = (
