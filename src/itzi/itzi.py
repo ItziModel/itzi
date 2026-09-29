@@ -98,7 +98,7 @@ def sim_runner_worker(conf_file: str, hotstart_file: str | None) -> None:
                 hotstart_path=hotstart_file,
                 stats_file=conf_data.stats_file,
             )
-            sim_runner.run().finalize()
+            sim_runner.initialize().run().finalize()
     except msgr.FatalError:
         raise SystemExit(1) from None
     except SystemExit as error:
@@ -126,9 +126,8 @@ def resolved_sim_runner_worker(simulation: ResolvedSimulation) -> tuple[str, str
                 else None,
                 effective_mask=simulation.effective_mask,
                 input_kinds=dict(simulation.input_kinds),
-                exclusive_stats=True,
             )
-            runner.run().finalize()
+            runner.initialize().run().finalize()
         return "completed", None
     except Exception as error:
         if runner is not None:

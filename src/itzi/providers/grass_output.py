@@ -29,16 +29,18 @@ if TYPE_CHECKING:
     from itzi.providers.grass_interface import GrassInterface
 
 
-def derived_record_name(dataset_name: str, record_index: int) -> str:
-    """Return the shared raster/vector child name for one output record."""
+def derived_record_name(dataset_id: str, record_index: int) -> str:
+    """Return the shared raster/vector child ID for one output record."""
     if record_index < 0:
         raise ValueError("record_index must be non-negative")
-    return f"{dataset_name}_{record_index:04d}"
+    name, separator, mapset = dataset_id.partition("@")
+    return f"{name}_{record_index:04d}{separator}{mapset}"
 
 
-def derived_drainage_table_names(vector_name: str) -> tuple[str, str]:
+def derived_drainage_table_names(vector_id: str) -> tuple[str, str]:
     """Return the table names created for a drainage vector child."""
-    return (f"{vector_name}_node", f"{vector_name}_link")
+    name = vector_id.partition("@")[0]
+    return (f"{name}_node", f"{name}_link")
 
 
 class GrassRasterOutputProvider(RasterOutputProvider):
@@ -52,13 +54,13 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         temporal_type: TemporalType,
     ) -> None:
         self.grass_interface = grass_interface
-        # user-selected map names. Keys are user-facing names
+        # Dataset IDs qualified in the current mapset. Keys are output variables.
         self.out_map_names = out_map_names
         self.hmin = hmin
         self.temporal_type = temporal_type
-        for stds_name in self.out_map_names.values():
+        for stds_id in self.out_map_names.values():
             self.grass_interface.validate_output_stds_temporal_type(
-                stds_name=stds_name,
+                stds_id=stds_id,
                 stds_type="strds",
                 expected_temporal_type=self.temporal_type,
             )
@@ -68,14 +70,14 @@ class GrassRasterOutputProvider(RasterOutputProvider):
     def _write_array(
         self, array: np.ndarray, map_key: str, sim_time: datetime | timedelta
     ) -> None:
-        map_name = derived_record_name(self.out_map_names[map_key], self.record_counter[map_key])
+        map_id = derived_record_name(self.out_map_names[map_key], self.record_counter[map_key])
         # write the raster
-        self.grass_interface.write_raster_map(array, map_name, map_key, self.hmin)
+        self.grass_interface.write_raster_map(array, map_id, map_key, self.hmin)
         # Set depth values to null under the given threshold. Temporarily in gis.py
         # if map_key == "water_depth":
         #     self.grass_interface.set_null(map_name, self.hmin)
         # add map name and time to the corresponding list
-        self.output_maplist[map_key].append((map_name, sim_time))
+        self.output_maplist[map_key].append((map_id, sim_time))
         self.record_counter[map_key] += 1
 
     def write_arrays(
@@ -92,11 +94,9 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         self.grass_interface.finalize()
         # register in GRASS temporal framework
         for map_key, lst in self.output_maplist.items():
-            strds_name = self.out_map_names[map_key]
-            if strds_name is None:
-                continue
+            strds_id = self.out_map_names[map_key]
             self.grass_interface.register_maps_in_stds(
-                map_key, strds_name, lst, "strds", self.temporal_type
+                map_key, strds_id, lst, "strds", self.temporal_type
             )
 
 
@@ -106,14 +106,14 @@ class GrassVectorOutputProvider(VectorOutputProvider):
     def __init__(
         self,
         grass_interface: GrassInterface,
-        drainage_map_name: str,
+        drainage_map_id: str,
         temporal_type: TemporalType,
     ) -> None:
         self.grass_interface = grass_interface
-        self.drainage_map_name = drainage_map_name
+        self.drainage_map_id = drainage_map_id
         self.temporal_type = temporal_type
         self.grass_interface.validate_output_stds_temporal_type(
-            stds_name=self.drainage_map_name,
+            stds_id=self.drainage_map_id,
             stds_type="stvds",
             expected_temporal_type=self.temporal_type,
         )
@@ -134,9 +134,9 @@ class GrassVectorOutputProvider(VectorOutputProvider):
         """Write drainage simulation data for current time step."""
         if self.drainage_topology is None:
             raise RuntimeError("Drainage attributes cannot be written before topology.")
-        map_name = derived_record_name(self.drainage_map_name, self.record_counter)
-        self.grass_interface.write_vector_map(self.drainage_topology, attributes, map_name)
-        self.vector_drainage_maplist.append((map_name, sim_time))
+        map_id = derived_record_name(self.drainage_map_id, self.record_counter)
+        self.grass_interface.write_vector_map(self.drainage_topology, attributes, map_id)
+        self.vector_drainage_maplist.append((map_id, sim_time))
         self.record_counter += 1
 
     def finalize(self) -> None:
@@ -144,7 +144,7 @@ class GrassVectorOutputProvider(VectorOutputProvider):
         if self.vector_drainage_maplist:
             self.grass_interface.register_maps_in_stds(
                 stds_title="Itzï drainage results",
-                stds_name=self.drainage_map_name,
+                stds_id=self.drainage_map_id,
                 map_list=self.vector_drainage_maplist,
                 stds_type="stvds",
                 t_type=self.temporal_type,

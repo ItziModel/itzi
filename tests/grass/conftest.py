@@ -18,8 +18,10 @@ grass_python_path = subprocess.check_output(
 sys.path.append(grass_python_path)
 import grass.script as gscript  # noqa: E402
 
-from itzi import SimulationRunner  # noqa: E402
-from itzi import grass_session  # noqa: E402
+from itzi import (  # noqa: E402
+    SimulationRunner,  # noqa: E402
+    grass_session,  # noqa: E402
+)
 from itzi.configreader import ConfigReader  # noqa: E402
 
 TESTS_ROOT = Path.cwd()
@@ -172,14 +174,12 @@ def grass_5by5(grass_xy_session, test_data_path):
 
 @pytest.fixture(scope="class")
 def grass_5by5_sim(grass_5by5, test_data_path):
-    """ """
     config_file = os.path.join(test_data_path, "5by5", "5by5.ini")
     conf_data = ConfigReader(config_file)
     sim_runner = SimulationRunner(
         conf_data.sim_config,
         conf_data.grass_params,
-        stats_file=conf_data.stats_file,
-    )
+    ).initialize()
     assert isinstance(sim_runner, SimulationRunner)
     sim_runner.run().finalize()
     return sim_runner

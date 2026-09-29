@@ -93,7 +93,7 @@ def _build_timed_rain_runner(
         conf_data.sim_config,
         conf_data.grass_params,
         stats_file=conf_data.stats_file,
-    )
+    ).initialize()
 
 
 @pytest.mark.forked
@@ -160,10 +160,9 @@ def test_region_mask(test_data_path):
     sim_runner = SimulationRunner(
         sim_params,
         grass_params,
-        stats_file=conf_data.stats_file,
     )
     # Run simulation
-    sim_runner.run().finalize()
+    sim_runner.initialize().run().finalize()
     # Check temporary mask and region
     assert (
         int(gscript.parse_command("r.univar", map="out_5by5_max_flow_speed_0002", flags="g")["n"])
@@ -219,7 +218,7 @@ def test_fails_when_region_has_no_dem_data(test_data_temp_path):
             conf_data.sim_config,
             conf_data.grass_params,
             stats_file=conf_data.stats_file,
-        )
+        ).initialize()
 
 
 @pytest.mark.forked

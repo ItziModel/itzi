@@ -71,7 +71,7 @@ class BmiItzi(Bmi):
 
     # Model control functions #
 
-    def initialize(self, filename=None) -> None:
+    def initialize(self, config_file=None) -> None:
         """Initialize the Itzï model.
 
         Parameters
@@ -79,7 +79,7 @@ class BmiItzi(Bmi):
         filename : str, optional
             Path to name of input file.
         """
-        conf_data = ConfigReader(filename)
+        conf_data = ConfigReader(config_file)
         sim_params = conf_data.sim_config
         grass_params = conf_data.grass_params
         self.grass_session_manager = GrassSessionManager(grass_params)
@@ -89,7 +89,7 @@ class BmiItzi(Bmi):
             sim_params,
             grass_params,
             stats_file=conf_data.stats_file,
-        )
+        ).initialize()
 
     def update(self):
         """Advance model by one time step."""

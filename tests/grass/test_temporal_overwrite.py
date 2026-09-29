@@ -68,13 +68,13 @@ def test_temporal_fatal_errors_are_raised_as_exceptions() -> None:
     import grass.temporal as tgis
     from grass.exceptions import FatalError
 
-    from itzi.providers.grass_interface import GrassInterface
+    from itzi.grass.utils import name_is_stds
 
     tgis.set_raise_on_error(False)
     GrassSessionManager.ensure_temporal_initialized()
 
     with pytest.raises(FatalError, match="mapset is missing"):
-        GrassInterface.name_is_stds("missing_strds")
+        name_is_stds("missing_strds")
 
     assert gscript.get_raise_on_error() is True
     assert tgis.get_raise_on_error() is True
@@ -99,7 +99,7 @@ def test_runner_creation_fails_when_overwriting_strds_with_different_temporal_ty
 
     prefix = f"out_overwrite_{existing_temporal_type}_{simulation_temporal_type}_{uuid4().hex[:8]}"
     initial_runner = _build_runner(test_data_temp_path, prefix, existing_temporal_type)
-    initial_runner.run().finalize()
+    initial_runner.initialize().run().finalize()
 
     with pytest.raises(RuntimeError, match=r"temporal type"):
-        _build_runner(test_data_temp_path, prefix, simulation_temporal_type)
+        _build_runner(test_data_temp_path, prefix, simulation_temporal_type).initialize()

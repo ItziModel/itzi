@@ -16,22 +16,20 @@ import copy
 import os
 from collections.abc import Mapping
 from datetime import datetime, timedelta
-from pathlib import Path
 from queue import Queue
 from threading import Lock, Thread
 from types import MappingProxyType
-from typing import ClassVar, Literal, NamedTuple, Self
+from typing import ClassVar, NamedTuple
 
 import grass.pygrass.utils as gutils
 import grass.script as gscript
 import grass.temporal as tgis
 import numpy as np
-from grass.pygrass import raster
 from grass.pygrass.gis.region import Region
 from grass.pygrass.vector import VectorTopo
 from grass.pygrass.vector.geometry import Line, Point
 from grass.pygrass.vector.table import Link, Table
-from itzi_core import DomainData, TemporalType
+from itzi_core import TemporalType
 from itzi_core.data_containers import (
     DrainageLinkAttributes,
     DrainageNetworkAttributes,
@@ -40,85 +38,20 @@ from itzi_core.data_containers import (
 )
 
 import itzi.messenger as msgr
-from itzi.ensemble_models import EffectiveMask, EnsembleError
-from itzi.grass_session import GrassParams
+from itzi.grass.utils import (
+    RasterMapType,
+    RasterWriteInstructions,
+    STDSType,
+    format_id,
+    has_mask,
+    name_is_map,
+    output_name,
+    raster_writer,
+    replace_cell_null_sentinel,
+    split_identifier,
+    write_raster_map_blocking,
+)
 from itzi.providers.grass_input import MapData
-
-# color rules
-_ROOT = Path(__file__).parent.parent
-_DIR = _ROOT / "data" / "colortable"
-RULE_H = _DIR / "depth.txt"
-RULE_V = _DIR / "velocity.txt"
-RULE_VDIR = _DIR / "vdir.txt"
-RULE_FR = _DIR / "froude.txt"
-colors_rules_dict = {
-    "water_depth": str(RULE_H),
-    "max_water_depth": str(RULE_H),
-    "flow_speed": str(RULE_V),
-    "max_flow_speed": str(RULE_V),
-    "flow_velocity_direction": str(RULE_VDIR),
-    "froude": str(RULE_FR),
-}
-
-MIN_GRASS_VERSION = (8, 4)
-
-# Check if color rule paths are OK
-for f in colors_rules_dict.values():
-    assert Path(f).is_file()
-
-
-def file_exists(name: str) -> bool:
-    """Return True if name is an existing map or stds, False otherwise"""
-    if not name:
-        return False
-    _id = GrassInterface.format_id(name)
-    return GrassInterface.name_is_map(_id) or GrassInterface.name_is_stds(_id)
-
-
-def check_output_files(file_list: list[str]) -> None:
-    """Check if the output files exist"""
-    if gscript.overwrite() or not file_list:
-        return
-    for map_name in file_list:
-        if file_exists(map_name):
-            msgr.fatal(f"File {map_name} exists and will not be overwritten")
-
-
-def apply_color_table(map_name, mkey) -> None:
-    """Apply a color table determined by mkey to the given map"""
-    try:
-        colors_rules = colors_rules_dict[mkey]
-    except KeyError:
-        # in case no specific color table is given, use GRASS default.
-        pass
-    else:
-        gscript.run_command("r.colors", quiet=True, rules=colors_rules, map=map_name)
-
-
-def raster_writer(q, lock):
-    """Write a raster map in GRASS"""
-    while True:
-        # Get values from the queue
-        next_object = q.get()
-        if next_object is None:
-            break
-        arr, rast_name, mtype, mkey, hmin, overwrite = next_object
-        # Write raster
-        with lock:
-            with raster.RasterRow(
-                rast_name, mode="w", mtype=mtype, overwrite=overwrite
-            ) as newraster:
-                newrow = raster.Buffer((arr.shape[1],), mtype=mtype)
-                for row in arr:
-                    newrow[:] = row[:]
-                    newraster.put_row(newrow)
-            # Apply colour table
-            apply_color_table(rast_name, mkey)
-            # set null values
-            if mkey == "water_depth" and hmin > 0:
-                GrassInterface.set_null(rast_name, hmin)
-        # Signal end of task
-        q.task_done()
 
 
 class DBLinkDescription(NamedTuple):
@@ -213,10 +146,11 @@ class GrassInterface:
         # Create thread and queue for writing raster maps
         if self.non_blocking_write:
             self.raster_lock = Lock()
-            self.raster_writer_queue = Queue(maxsize=15)
-            worker_args = (self.raster_writer_queue, self.raster_lock)
+            self.raster_writer_queue: Queue[RasterWriteInstructions | None] = Queue(maxsize=20)
             self.raster_writer_thread = Thread(
-                name="RasterWriter", target=raster_writer, args=worker_args
+                name="RasterWriter",
+                target=raster_writer,
+                args=(self.raster_writer_queue, self.raster_lock),
             )
             self.raster_writer_thread.start()
 
@@ -247,7 +181,7 @@ class GrassInterface:
             self.raster_writer_queue.put(None)
             self.raster_writer_thread.join()
 
-    def grass_dtype(self, dtype: str) -> str:
+    def grass_dtype(self, dtype: str) -> RasterMapType:
         if dtype in self.dtype_conv["DCELL"]:
             mtype = "DCELL"
         elif dtype in self.dtype_conv["CELL"]:
@@ -276,11 +210,6 @@ class GrassInterface:
         """
         return self.start_time + timedelta(seconds=self.to_s(unit, time))
 
-    @staticmethod
-    def has_mask() -> bool:
-        """Return True if the mapset has a mask, False otherwise."""
-        return bool(gutils.get_mapset_raster("MASK", gutils.getenv("MAPSET")))
-
     def _select_effective_mask(
         self, effective_mask: tuple[str, str | None] | None
     ) -> tuple[str, str | None]:
@@ -293,8 +222,8 @@ class GrassInterface:
                 msgr.fatal(f"Effective {mode} mask has no source")
             return mode, source
         if self.raster_mask_id:
-            return "explicit", self.format_id(self.raster_mask_id)
-        if self.has_mask():
+            return "explicit", format_id(self.raster_mask_id)
+        if has_mask():
             return "active", f"MASK@{gutils.getenv('MAPSET')}"
         return "none", None
 
@@ -309,181 +238,6 @@ class GrassInterface:
             return np.isnan(grass_mask)
         # A mapset MASK uses CELL semantics: zero and NULL are outside.
         return np.isnan(grass_mask) | (grass_mask == 0)
-
-    def coor2pixel(self, coor: tuple[float, float]) -> tuple[int, int]:
-        """convert coordinates easting and northing to pixel row and column"""
-        row, col = gutils.coor2pixel(coor, self.region)
-        return int(row), int(col)
-
-    def is_in_region(self, x: float, y: float) -> bool:
-        """For a given coordinate pair(x, y),
-        return True is inside raster region, False otherwise.
-        """
-        bool_x = self.reg_bbox["w"] < x < self.reg_bbox["e"]
-        bool_y = self.reg_bbox["s"] < y < self.reg_bbox["n"]
-        return bool(bool_x and bool_y)
-
-    @staticmethod
-    def format_id(name: str) -> str:
-        """Take a map or stds name as input
-        and return a fully qualified name, i.e. including mapset
-        """
-        if "@" in name:
-            return name
-        else:
-            return "@".join((name, gutils.getenv("MAPSET")))
-
-    @staticmethod
-    def get_current_mapset() -> str:
-        return gutils.getenv("MAPSET")
-
-    @staticmethod
-    def name_is_stds(name: str) -> bool:
-        """return True if the name given as input is a registered strds
-        False if not
-        """
-        return bool(tgis.SpaceTimeRasterDataset(name).is_in_db())
-
-    @staticmethod
-    def get_crs_wkt() -> str:
-        return gscript.read_command("g.proj", flags="fw")
-
-    @staticmethod
-    def name_is_map(map_id: str) -> bool:
-        """return True if the given name is a map in the grass database
-        False if not
-        """
-        name, _, mapset = map_id.partition("@")
-        return bool(gutils.get_mapset_raster(name, mapset))
-
-    @staticmethod
-    def ensure_min_version() -> None:
-        full = gscript.parse_command("g.version", flags="g")["version"]
-        major, minor = (int(part) for part in full.split(".")[:2])
-        if (major, minor) < MIN_GRASS_VERSION:
-            required = f"{MIN_GRASS_VERSION[0]}.{MIN_GRASS_VERSION[1]}"
-            raise RuntimeError(
-                f"itzi requires at least GRASS {required}, found version {major}.{minor}"
-            )
-
-    @staticmethod
-    def active_grass_params(requested: GrassParams) -> GrassParams:
-        """Return the active session context, retaining requested region/mask/bin."""
-        return GrassParams(
-            grassdata=str(Path(gutils.getenv("GISDBASE")).expanduser().resolve()),
-            location=gutils.getenv("LOCATION_NAME"),
-            mapset=gutils.getenv("MAPSET"),
-            region=requested.region,
-            mask=requested.mask,
-            grass_bin=requested.grass_bin,
-        )
-
-    @staticmethod
-    def read_domain(region_id: str | None) -> DomainData:
-        """Read the selected computational region without leaving it changed."""
-        if gscript.locn_is_latlong():
-            raise EnsembleError("latlong locations are not supported")
-        using_temp_region = region_id is not None
-        if using_temp_region:
-            gscript.use_temp_region()
-            gscript.run_command("g.region", region=region_id)
-        try:
-            region = Region()
-            if region.cols < 3 or region.rows < 3:
-                raise EnsembleError("GRASS Region should be at least 3 cells by 3 cells")
-            return DomainData(
-                north=region.north,
-                south=region.south,
-                east=region.east,
-                west=region.west,
-                rows=region.rows,
-                cols=region.cols,
-                crs_wkt=gscript.read_command("g.proj", flags="fw"),
-            )
-        finally:
-            if using_temp_region:
-                gscript.del_temp_region()
-
-    @staticmethod
-    def _split_identifier(identifier: str) -> tuple[str, str | None]:
-        name, separator, mapset = identifier.partition("@")
-        if separator and (not name or not mapset or "@" in mapset):
-            raise EnsembleError(f"invalid GRASS identifier {identifier!r}")
-        return name, mapset if separator else None
-
-    @staticmethod
-    def resolve_input_identifier(identifier: str) -> tuple[str, Literal["raster", "strds"]]:
-        """Resolve both input namespaces and reject a visible ambiguity."""
-        from grass.pygrass.gis import Mapset
-
-        name, requested_mapset = GrassInterface._split_identifier(identifier)
-        raster_mapset = gutils.get_mapset_raster(name, requested_mapset or "")
-        raster_id = f"{name}@{raster_mapset}" if raster_mapset else None
-        visible_mapsets = [requested_mapset] if requested_mapset else Mapset().visible.read()
-        strds_id = None
-        for mapset in visible_mapsets:
-            candidate = f"{name}@{mapset}"
-            try:
-                is_strds = tgis.SpaceTimeRasterDataset(candidate).is_in_db()
-            except BaseException as error:
-                # A visible mapset may have no temporal database or may be
-                # read-inaccessible. It cannot contribute a STRDS candidate.
-                if isinstance(error, (KeyboardInterrupt, GeneratorExit)):
-                    raise
-                is_strds = False
-            if is_strds:
-                strds_id = candidate
-                break
-        if raster_id is not None and strds_id is not None:
-            raise EnsembleError(
-                f"input {identifier!r} is ambiguous: raster {raster_id} "
-                f"and STRDS {strds_id} both exist"
-            )
-        if raster_id is not None:
-            return raster_id, "raster"
-        if strds_id is not None:
-            return strds_id, "strds"
-        raise EnsembleError(f"input {identifier!r} was not found as a raster or STRDS")
-
-    @staticmethod
-    def resolve_effective_mask(mask: str | None) -> EffectiveMask:
-        """Select the effective mask descriptor without modifying the mapset MASK."""
-        current_mapset = gutils.getenv("MAPSET")
-        if mask is not None:
-            name, requested_mapset = GrassInterface._split_identifier(mask)
-            mapset = gutils.get_mapset_raster(name, requested_mapset or "")
-            if not mapset:
-                raise EnsembleError(f"explicit mask {mask!r} was not found")
-            return EffectiveMask("explicit", f"{name}@{mapset}")
-        if gutils.get_mapset_raster("MASK", current_mapset):
-            return EffectiveMask("active", f"MASK@{current_mapset}")
-        return EffectiveMask("none", None)
-
-    @staticmethod
-    def is_clean_name(name: str) -> bool:
-        """Return True if name is a valid GRASS map name."""
-        return bool(gutils.is_clean_name(name))
-
-    @staticmethod
-    def raster_exists(name: str, mapset: str) -> bool:
-        """Return True if a raster map exists in the given mapset."""
-        return bool(gutils.get_mapset_raster(name, mapset))
-
-    @staticmethod
-    def vector_exists(name: str, mapset: str) -> bool:
-        """Return True if a vector map exists in the given mapset."""
-        return bool(gutils.get_mapset_vector(name, mapset))
-
-    @staticmethod
-    def stds_exists(name: str, stds_type: str) -> bool:
-        """Return True if a space-time dataset is registered in the database."""
-        dataset = tgis.dataset_factory(stds_type, GrassInterface.format_id(name))
-        return dataset is not None and bool(dataset.is_in_db())
-
-    @staticmethod
-    def set_null(map_id: str, threshold: float) -> None:
-        """Set null values under a given threshold"""
-        gscript.run_command("r.null", flags="f", map=map_id, setnull=f"0.0-{threshold}")
 
     def get_sim_extend_in_stds_unit(self, strds) -> tuple[int | datetime, int | datetime]:
         """Take a strds object as input
@@ -567,7 +321,7 @@ class GrassInterface:
             columns=",".join(MapData._fields), where=where, order="start_time"
         )
         # check if every map exist
-        maps_not_found = [m[0] for m in maplist if not self.name_is_map(m[0])]
+        maps_not_found = [m[0] for m in maplist if not name_is_map(m[0])]
         if any(maps_not_found):
             err_msg = "STRDS <{}>: Can't find following maps: {}"
             str_lst = ",".join(maps_not_found)
@@ -587,29 +341,27 @@ class GrassInterface:
 
     def validate_output_stds_temporal_type(
         self,
-        stds_name: str | None,
-        stds_type: str,
+        stds_id: str,
+        stds_type: STDSType,
         expected_temporal_type: TemporalType,
     ) -> None:
         """Fail early when overwriting an STDS with incompatible temporal type."""
-        if not stds_name or not self.overwrite:
+        if not self.overwrite:
             return
 
-        stds_id = self.format_id(stds_name)
-        stds = tgis.dataset_factory(stds_type, stds_id)
-        if stds is None or not stds.is_in_db():
+        output_name(stds_id)
+        if not tgis.dataset_factory(stds_type, stds_id).is_in_db():
             return
-
         existing_stds = tgis.open_stds.open_old_stds(stds_id, stds_type)
         existing_temporal_type = TemporalType(existing_stds.get_temporal_type())
         if existing_temporal_type != expected_temporal_type:
             msgr.fatal(
-                f"Output {stds_type.upper()} <{stds_name}> already exists with "
+                f"Output {stds_type.upper()} <{stds_id}> already exists with "
                 f"{existing_temporal_type} temporal type and cannot be overwritten "
                 f"by a {expected_temporal_type} simulation"
             )
 
-    def read_raster_map(self, rast_name: str) -> np.ndarray:
+    def read_raster_map(self, raster_id: str) -> np.ndarray:
         """Read a raster through GRASS 8.4's no-mask row APIs.
 
         The active mapset MASK must not alter model input values.  The one
@@ -618,20 +370,17 @@ class GrassInterface:
         """
         if self.non_blocking_write:
             with self.raster_lock:
-                return self._read_raster_map_nomask(rast_name)
-        return self._read_raster_map_nomask(rast_name)
+                return self._read_raster_map_nomask(raster_id)
+        return self._read_raster_map_nomask(raster_id)
 
-    def _read_raster_map_nomask(self, rast_name: str) -> np.ndarray:
+    def _read_raster_map_nomask(self, raster_id: str) -> np.ndarray:
         """Read the current computational region while bypassing GRASS MASK."""
         from grass.lib import raster as libraster
 
-        name, separator, mapset = rast_name.partition("@")
-        if separator and (not name or not mapset or "@" in mapset):
-            msgr.fatal(f"Invalid raster identifier <{rast_name}>")
-        if not separator:
-            mapset = gutils.get_mapset_raster(name)
+        name, mapset = split_identifier(raster_id)
         if not mapset:
-            msgr.fatal(f"Raster <{rast_name}> not found")
+            msgr.fatal(f"Raster <{raster_id}> not found")
+
         raster_type = libraster.Rast_map_type(name, mapset)
         reader_data = {
             libraster.CELL_TYPE: (libraster.Rast_allocate_c_buf, libraster.Rast_get_c_row_nomask),
@@ -639,11 +388,11 @@ class GrassInterface:
             libraster.DCELL_TYPE: (libraster.Rast_allocate_d_buf, libraster.Rast_get_d_row_nomask),
         }.get(raster_type)
         if reader_data is None:
-            msgr.fatal(f"Raster <{rast_name}> has an unsupported data type")
+            msgr.fatal(f"Raster <{raster_id}> has an unsupported data type")
         allocate, read_row = reader_data
         file_descriptor = libraster.Rast_open_old(name, mapset)
         if file_descriptor < 0:
-            msgr.fatal(f"Raster <{rast_name}> cannot be opened")
+            msgr.fatal(f"Raster <{raster_id}> cannot be opened")
         buffer = allocate()
         try:
             array = np.empty((self.yr, self.xr), dtype=self.dtype)
@@ -652,7 +401,7 @@ class GrassInterface:
                 array[row_index] = np.ctypeslib.as_array(buffer, shape=(self.xr,))
         finally:
             libraster.Rast_close(file_descriptor)
-        return self._replace_cell_null_sentinel(
+        return replace_cell_null_sentinel(
             {
                 libraster.CELL_TYPE: "CELL",
                 libraster.FCELL_TYPE: "FCELL",
@@ -661,65 +410,21 @@ class GrassInterface:
             array,
         )
 
-    @staticmethod
-    def _replace_cell_null_sentinel(raster_type: str, array: np.ndarray) -> np.ndarray:
-        """Normalize GRASS CELL nulls to NaN.
-
-        FCELL/DCELL nulls are already exposed as NaN by pygrass. CELL nulls are
-        returned as the int32 null sentinel cast to the target dtype.
-        """
-        if raster_type != "CELL" or not np.issubdtype(array.dtype, np.floating):
-            return array
-
-        null_sentinel = array.dtype.type(np.iinfo(np.int32).min)
-        array[array == null_sentinel] = np.nan
-        return array
-
-    def write_raster_map(self, arr: np.ndarray, rast_name: str, mkey: str, hmin: float) -> Self:
+    def write_raster_map(self, arr: np.ndarray, raster_id: str, mkey: str, hmin: float) -> None:
         """Take a numpy array and write it to GRASS DB"""
-        assert isinstance(arr, np.ndarray), "arr not a np array!"
-        assert isinstance(rast_name, str), "not a string!"
-        assert isinstance(mkey, str), "not a string!"
-        if self.non_blocking_write:
-            self.write_raster_map_nonblocking(arr, rast_name, mkey, hmin)
-        else:
-            self.write_raster_map_blocking(arr, rast_name, mkey, hmin)
-        return self
-
-    def write_raster_map_nonblocking(
-        self, arr: np.ndarray, rast_name: str, mkey: str, hmin: float
-    ) -> Self:
         mtype = self.grass_dtype(str(arr.dtype))
-        assert isinstance(mtype, str), "not a string!"
-        q_obj = (
-            arr.copy(),
-            copy.deepcopy(rast_name),
-            copy.deepcopy(mtype),
-            copy.deepcopy(mkey),
-            copy.deepcopy(hmin),
-            self.overwrite,
+        write_instructions = RasterWriteInstructions(
+            array=arr,
+            raster_name=output_name(raster_id),
+            map_type=mtype,
+            map_key=mkey,
+            hmin=hmin,
+            overwrite=self.overwrite,
         )
-        self.raster_writer_queue.put(q_obj)
-        return self
-
-    def write_raster_map_blocking(
-        self, arr: np.ndarray, rast_name: str, mkey: str, hmin: float
-    ) -> Self:
-        mtype = self.grass_dtype(str(arr.dtype))
-        assert isinstance(mtype, str), "not a string!"
-        with raster.RasterRow(
-            rast_name, mode="w", mtype=mtype, overwrite=self.overwrite
-        ) as newraster:
-            newrow = raster.Buffer((arr.shape[1],), mtype=mtype)
-            for row in arr:
-                newrow[:] = row[:]
-                newraster.put_row(newrow)
-        # apply color table
-        apply_color_table(rast_name, mkey)
-        # set null values
-        if mkey == "water_depth" and hmin > 0:
-            GrassInterface.set_null(rast_name, hmin)
-        return self
+        if self.non_blocking_write:
+            self.raster_writer_queue.put(write_instructions)
+        else:
+            write_raster_map_blocking(write_instructions)
 
     def create_db_links(
         self, vect_map: VectorTopo, linking_elem: dict[str, DBLayerDescription]
@@ -747,9 +452,10 @@ class GrassInterface:
         self,
         topology: DrainageNetworkTopology,
         attributes: DrainageNetworkAttributes,
-        map_name: str,
-    ) -> Self:
+        map_id: str,
+    ) -> None:
         """Write a vector map to GRASS GIS"""
+        map_name = output_name(map_id)
         node_attributes = {node.node_id: node for node in attributes.nodes}
         link_attributes = {link.link_id: link for link in attributes.links}
         topology_node_ids = {node.node_id for node in topology.nodes}
@@ -772,7 +478,9 @@ class GrassInterface:
         }
         # set category manually
         cat_num = 1
-        with VectorTopo(map_name, mode="w", overwrite=self.overwrite) as vector_map:
+        with VectorTopo(
+            map_name, mapset=gutils.getenv("MAPSET"), mode="w", overwrite=self.overwrite
+        ) as vector_map:
             # create db links and tables
             dblinks = self.create_db_links(vector_map, linking_elements)
             # dict to keep DB infos to write DB after geometries
@@ -815,21 +523,20 @@ class GrassInterface:
             for attr in attrs:
                 dbtable.insert(attr)
             dbtable.conn.commit()
-        return self
 
     def register_maps_in_stds(
         self,
         stds_title: str,
-        stds_name: str,
+        stds_id: str,
         map_list: list[tuple[str, datetime | timedelta]],
-        stds_type: str,
-        t_type: str,
-    ):
+        stds_type: STDSType,
+        t_type: TemporalType,
+    ) -> None:
         """Create a STDS, create one mapdataset for each map and
         register them in the temporal database
         """
         assert isinstance(stds_title, str), "not a string!"
-        assert isinstance(stds_name, str), "not a string!"
+        output_name(stds_id)
         assert isinstance(t_type, str), "not a string!"
         # Print message in case of decreased GRASS verbosity
         if msgr.verbosity() <= 2:
@@ -839,7 +546,6 @@ class GrassInterface:
         if stds_type == "stvds" and grass_verbosity != "-1":
             os.environ["GRASS_VERBOSE"] = "-1"
         # create stds
-        stds_id = self.format_id(stds_name)
         stds_desc = ""
         stds = tgis.open_new_stds(
             stds_id,
@@ -851,13 +557,11 @@ class GrassInterface:
             overwrite=self.overwrite,
         )
 
-        # create MapDataset objects list
+        dataset_type = {"strds": tgis.RasterDataset, "stvds": tgis.VectorDataset}[stds_type]
         map_dts_lst = []
-        for map_name, map_time in map_list:
-            # create MapDataset
-            map_id = self.format_id(map_name)
-            map_dts_type = {"strds": tgis.RasterDataset, "stvds": tgis.VectorDataset}
-            map_dts = map_dts_type[stds_type](map_id)
+        for map_id, map_time in map_list:
+            output_name(map_id)
+            map_dts = dataset_type(map_id)
             # load spatial data from map
             map_dts.load()
             # set time
@@ -868,9 +572,6 @@ class GrassInterface:
             elif t_type == TemporalType.ABSOLUTE:
                 assert isinstance(map_time, datetime)
                 map_dts.set_absolute_time(start_time=map_time)
-            else:
-                assert False, "unknown temporal type!"
-            # populate the list
             map_dts_lst.append(map_dts)
         # Finally register the maps
         t_unit = {TemporalType.RELATIVE: "seconds", TemporalType.ABSOLUTE: ""}
@@ -886,4 +587,3 @@ class GrassInterface:
         # Restore GRASS verbosity
         if stds_type == "stvds" and grass_verbosity != "-1":
             os.environ["GRASS_VERBOSE"] = grass_verbosity
-        return self

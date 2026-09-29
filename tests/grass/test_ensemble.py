@@ -145,8 +145,8 @@ def test_temporal_preflight_failure_does_not_stop_next_member(tmp_path: Path) ->
         or "inadequate temporal" in failed["failure"]["detail"]
     )
     output = completed["artifacts"]["rasters"]["water_depth"]
-    assert "@" not in output
-    assert gutils.get_mapset_raster(f"{output}_0000", gutils.getenv("MAPSET"))
+    assert output.endswith(f"@{gutils.getenv('MAPSET')}")
+    assert gutils.get_mapset_raster(f"{output.partition('@')[0]}_0000", gutils.getenv("MAPSET"))
 
 
 @pytest.mark.forked
@@ -179,7 +179,9 @@ def test_mask_semantics_and_worker_detects_changed_effective_mask(tmp_path: Path
             explicit = interface.get_npmask()
             assert explicit[:, 0].all()
             assert not explicit[:, 1:].any()  # zero is inside an explicit mask
-            assert np.isfinite(interface.read_raster_map("n")).all()  # bypass active MASK
+            assert np.isfinite(
+                interface.read_raster_map(f"n@{gutils.getenv('MAPSET')}")
+            ).all()  # bypass active MASK
             interface.mask_mode, interface.mask_source = (
                 "active",
                 f"MASK@{gutils.getenv('MAPSET')}",
@@ -324,6 +326,7 @@ outputs:
     ]
     assert all(
         member["artifacts"]["rasters"]["water_depth"].startswith("basic_sim-")
+        and member["artifacts"]["rasters"]["water_depth"].endswith("@5by5")
         for member in manifest["members"]
     )
 
@@ -380,7 +383,8 @@ outputs:
         Path(context["GISDBASE"]) / context["LOCATION_NAME"] / context["MAPSET"] / "cellhd"
     )
     assert {
-        f"{member['artifacts']['rasters']['water_depth']}_0000" for member in manifest["members"]
+        f"{member['artifacts']['rasters']['water_depth'].partition('@')[0]}_0000"
+        for member in manifest["members"]
     } <= {path.name for path in mapset_path.iterdir()}
 
 
@@ -552,9 +556,9 @@ outputs:
 
 @pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
-def test_preflight_checks_existing_drainage_tables():
+def test_preflight_accepts_unoccupied_drainage_id():
+    from itzi.grass.utils import get_current_mapset
     from itzi.preflight import _validate_grass_outputs
-    from itzi.providers.grass_interface import GrassInterface
 
     GrassSessionManager.ensure_temporal_initialized()
     name = f"drainage_collision_{uuid4().hex[:8]}"
@@ -564,18 +568,13 @@ def test_preflight_checks_existing_drainage_tables():
             end_time=datetime(2020, 1, 1) + timedelta(minutes=1),
             record_step=timedelta(seconds=30),
             output_map_names={},
-            drainage_output=name,
+            drainage_output=f"{name}@{get_current_mapset()}",
             temporal_type=TemporalType.RELATIVE,
         )
     )
     interface = SimpleNamespace(
         overwrite=False,
-        get_current_mapset=GrassInterface.get_current_mapset,
-        format_id=GrassInterface.format_id,
         validate_output_stds_temporal_type=lambda *_: None,
-        raster_exists=GrassInterface.raster_exists,
-        vector_exists=GrassInterface.vector_exists,
-        stds_exists=GrassInterface.stds_exists,
     )
 
     _validate_grass_outputs(simulation, interface)

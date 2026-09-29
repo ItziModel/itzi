@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -322,7 +323,7 @@ def test_statistics_file_template_is_rendered(tmp_path, monkeypatch):
     )
     monkeypatch.setattr("itzi.resolution._validate_output_names", lambda *_: None)
 
-    artifacts = _render_artifacts(expanded, "sim-a")
+    artifacts = _render_artifacts(expanded, "sim-a", "PERMANENT")
 
     assert artifacts.statistics_file == tmp_path / "results/sim-a.csv"
 
@@ -348,7 +349,7 @@ def test_later_generated_output_cannot_alias_an_input():
         effective_mask=SimpleNamespace(source=None),
         simulation_config=config,
         artifacts=SimpleNamespace(
-            output_map_names=(("water_depth", "result"),),
+            output_map_names=(("water_depth", "result@PERMANENT"),),
             drainage_output=None,
             statistics_file=None,
         ),
@@ -376,7 +377,7 @@ def test_later_generated_output_cannot_alias_an_input():
         validate_resolved_ensemble((output, input_simulation))
 
 
-def test_input_resolution_cache_reuses_shared_identifiers():
+def test_input_resolution_cache_reuses_shared_identifiers(monkeypatch):
     calls = []
 
     def resolve(identifier):
@@ -384,16 +385,17 @@ def test_input_resolution_cache_reuses_shared_identifiers():
         return f"{identifier}@PERMANENT", "raster"
 
     cache = {}
+    monkeypatch.setitem(
+        sys.modules, "itzi.grass.utils", SimpleNamespace(resolve_input_identifier=resolve)
+    )
 
     _resolve_inputs(
         {"ground_elevation": "shared", "rainfall_rate": "first"},
         cache=cache,
-        resolve_one=resolve,
     )
     resolved, _ = _resolve_inputs(
         {"ground_elevation": "shared", "rainfall_rate": "second"},
         cache=cache,
-        resolve_one=resolve,
     )
 
     assert calls == ["shared", "first", "second"]

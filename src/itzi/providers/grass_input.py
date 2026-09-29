@@ -15,8 +15,7 @@ GNU General Public License for more details.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, NamedTuple
-from typing import Literal
+from typing import TYPE_CHECKING, Literal, NamedTuple
 
 import numpy as np
 from itzi_core import INPUT_ARRAY_KEYS, DomainData
@@ -58,6 +57,8 @@ class GrassRasterInputProvider(RasterInputProvider):
 
     def get_domain_data(self) -> DomainData:
         """Return a DomainData object"""
+        import grass.script as gscript
+
         return DomainData(
             north=self.grass_interface.region.north,
             south=self.grass_interface.region.south,
@@ -65,7 +66,7 @@ class GrassRasterInputProvider(RasterInputProvider):
             west=self.grass_interface.region.west,
             rows=self.grass_interface.region.rows,
             cols=self.grass_interface.region.cols,
-            crs_wkt=self.grass_interface.get_crs_wkt(),
+            crs_wkt=gscript.read_command("g.proj", flags="fw"),
         )
 
     def get_array(
@@ -101,6 +102,7 @@ def resolve_input_map_lists(
     input_kinds: Mapping[str, Literal["raster", "strds"]] | None,
 ) -> Mapping[str, list[MapData] | None]:
     """Resolve provider-ready raster lists without creating an output provider."""
+    from itzi.grass.utils import format_id, name_is_map, name_is_stds, resolve_input_identifier
 
     invalid_input_keys = sorted(set(map_names) - INPUT_ARRAY_KEYS)
     if invalid_input_keys:
@@ -110,20 +112,19 @@ def resolve_input_map_lists(
     for key, map_name in map_names.items():
         if not map_name:
             continue
-        map_id = grass_interface.format_id(map_name)
         kind = input_kinds.get(key) if input_kinds is not None else None
+        if kind is None:
+            map_id, kind = resolve_input_identifier(map_name)
+        elif kind == "raster":
+            map_id = format_id(map_name)
+        else:
+            map_id = map_name if "@" in map_name else resolve_input_identifier(map_name)[0]
         if kind == "strds":
-            if not grass_interface.name_is_stds(map_id):
+            if not name_is_stds(map_id):
                 msgr.fatal(f"STRDS input <{map_id}> is no longer available")
         elif kind == "raster":
-            if not grass_interface.name_is_map(map_id):
+            if not name_is_map(map_id):
                 msgr.fatal(f"raster input <{map_id}> is no longer available")
-        elif grass_interface.name_is_stds(map_id):
-            kind = "strds"
-        elif grass_interface.name_is_map(map_id):
-            kind = "raster"
-        else:
-            msgr.fatal(f"{map_name} not found!")
         if kind == "strds":
             map_list = grass_interface.raster_list_from_strds(map_id)
         else:

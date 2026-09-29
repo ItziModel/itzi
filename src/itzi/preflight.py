@@ -31,10 +31,11 @@ if TYPE_CHECKING:
 
 def preflight_simulation(simulation: ResolvedSimulation) -> None:
     """Validate one resolved simulation without creating user artifacts."""
+    from itzi.grass.utils import ensure_min_version
     from itzi.providers.grass_interface import GrassInterface
 
     verify_resolved_simulation(simulation)
-    GrassInterface.ensure_min_version()
+    ensure_min_version()
     config = simulation.simulation_config
     interface = GrassInterface(
         start_time=config.start_time,
@@ -82,44 +83,54 @@ def _validate_inputs(simulation: ResolvedSimulation, interface: GrassInterface) 
 
 
 def _validate_grass_outputs(simulation: ResolvedSimulation, interface: GrassInterface) -> None:
+    from itzi.grass.utils import (
+        get_current_mapset,
+        output_name,
+        raster_exists,
+        stds_exists,
+        vector_exists,
+    )
+
     config = simulation.simulation_config
     last_index = _last_record_index(
         config.end_time - config.start_time,
         config.record_step,
     )
 
-    mapset = interface.get_current_mapset()
+    mapset = get_current_mapset()
 
     def reject_existing(name: str, exists: bool, kind: str) -> None:
         if exists and not interface.overwrite:
             raise EnsembleError(f"{kind} <{name}> already exists")
 
-    for name in config.output_map_names.values():
+    for map_id in config.output_map_names.values():
+        name = output_name(map_id)
         if not interface.overwrite:
             reject_existing(
-                name,
-                interface.raster_exists(name, mapset) or interface.stds_exists(name, "strds"),
+                map_id,
+                raster_exists(name, mapset) or stds_exists(map_id, "strds"),
                 "raster output",
             )
-        interface.validate_output_stds_temporal_type(name, "strds", config.temporal_type)
+        interface.validate_output_stds_temporal_type(map_id, "strds", config.temporal_type)
         if not interface.overwrite:
             for index in range(last_index + 1):
-                child = derived_record_name(name, index)
-                reject_existing(child, interface.raster_exists(child, mapset), "raster output")
+                child = derived_record_name(map_id, index)
+                reject_existing(child, raster_exists(output_name(child), mapset), "raster output")
 
     if config.drainage_output is None:
         return
-    name = config.drainage_output
+    map_id = config.drainage_output
+    name = output_name(map_id)
     if not interface.overwrite:
         reject_existing(
-            name,
-            interface.vector_exists(name, mapset) or interface.stds_exists(name, "stvds"),
+            map_id,
+            vector_exists(name, mapset) or stds_exists(map_id, "stvds"),
             "drainage output",
         )
-    interface.validate_output_stds_temporal_type(name, "stvds", config.temporal_type)
+    interface.validate_output_stds_temporal_type(map_id, "stvds", config.temporal_type)
     if interface.overwrite:
         return
 
     for index in range(last_index + 1):
-        child = derived_record_name(name, index)
-        reject_existing(child, interface.vector_exists(child, mapset), "drainage output")
+        child = derived_record_name(map_id, index)
+        reject_existing(child, vector_exists(output_name(child), mapset), "drainage output")

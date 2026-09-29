@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Literal
@@ -50,11 +50,11 @@ def resolve_ensemble(
         raise EnsembleError("all simulations in an ensemble must use the same GRASS context")
 
     with GrassSessionManager(requested_params):
-        from itzi.providers.grass_interface import GrassInterface
+        from itzi.grass.utils import active_grass_params, read_domain, resolve_effective_mask
 
-        actual_params = GrassInterface.active_grass_params(requested_params)
-        domain = GrassInterface.read_domain(simulations[0].domain.region)
-        effective_mask = GrassInterface.resolve_effective_mask(simulations[0].domain.mask)
+        actual_params = active_grass_params(requested_params)
+        domain = read_domain(simulations[0].domain.region)
+        effective_mask = resolve_effective_mask(simulations[0].domain.mask)
         input_cache: dict[str, tuple[str, Literal["raster", "strds"]] | Exception] = {}
         swmm_cache: dict[Path, str] = {}
         results: list[ResolvedSimulation | ValidationFailure] = []
@@ -112,6 +112,7 @@ def _build_resolved_simulation(
     swmm_path: Path | None,
     swmm_digest: str | None,
 ) -> ResolvedSimulation:
+    assert actual_params.mapset is not None
     simulation_id, normalized_payload = _simulation_identity(
         expanded,
         actual_params,
@@ -120,7 +121,7 @@ def _build_resolved_simulation(
         input_names,
         swmm_digest,
     )
-    artifacts = _render_artifacts(expanded, simulation_id)
+    artifacts = _render_artifacts(expanded, simulation_id, actual_params.mapset)
     simulation_config = _build_simulation_config(
         expanded,
         input_names,
@@ -144,12 +145,8 @@ def _resolve_inputs(
     inputs: dict[str, str],
     *,
     cache: dict[str, tuple[str, Literal["raster", "strds"]] | Exception] | None = None,
-    resolve_one: Callable[[str], tuple[str, Literal["raster", "strds"]]] | None = None,
 ) -> tuple[dict[str, str], dict[str, Literal["raster", "strds"]]]:
-    if resolve_one is None:
-        from itzi.providers.grass_interface import GrassInterface
-
-        resolve_one = GrassInterface.resolve_input_identifier
+    from itzi.grass.utils import resolve_input_identifier
 
     resolved: dict[str, str] = {}
     kinds: dict[str, Literal["raster", "strds"]] = {}
@@ -157,7 +154,7 @@ def _resolve_inputs(
         result = cache.get(identifier) if cache is not None else None
         if result is None:
             try:
-                result = resolve_one(identifier)
+                result = resolve_input_identifier(identifier)
             except Exception as error:
                 if cache is not None:
                     cache[identifier] = error
@@ -236,6 +233,7 @@ def _simulation_identity(
 def _render_artifacts(
     expanded: ExpandedSimulation,
     simulation_id: str,
+    mapset: str,
 ) -> ArtifactSummary:
     output_map_names: dict[str, str] = {}
     if expanded.outputs.raster_prefix is not None:
@@ -274,7 +272,11 @@ def _render_artifacts(
         _last_record_index(expanded.time.duration, expanded.time.record_step),
     )
     _validate_protected_file_output(stats_file, (expanded.source.path, _drainage_path(expanded)))
-    return ArtifactSummary(tuple(sorted(output_map_names.items())), drainage_output, stats_file)
+    return ArtifactSummary(
+        tuple(sorted((key, f"{name}@{mapset}") for key, name in output_map_names.items())),
+        f"{drainage_output}@{mapset}" if drainage_output is not None else None,
+        stats_file,
+    )
 
 
 def _source_relative_path(value: str, source_dir: Path) -> Path:
@@ -309,7 +311,7 @@ def _last_record_index(duration: timedelta, record_step: timedelta) -> int:
 def _validate_output_names(
     output_map_names: dict[str, str], drainage_output: str | None, last_record_index: int
 ) -> None:
-    from itzi.providers.grass_interface import GrassInterface
+    from itzi.grass.utils import is_clean_name
     from itzi.providers.grass_output import derived_drainage_table_names, derived_record_name
 
     names = list(output_map_names.values())
@@ -320,15 +322,15 @@ def _validate_output_names(
             raise EnsembleError(f"GRASS output names must be unqualified: {name!r}")
         if name == "MASK":
             raise EnsembleError("MASK cannot be used as an output name")
-        if not GrassInterface.is_clean_name(name):
+        if not is_clean_name(name):
             raise EnsembleError(f"invalid GRASS output name {name!r}")
         child = derived_record_name(name, last_record_index)
-        if child == "MASK" or not GrassInterface.is_clean_name(child):
+        if child == "MASK" or not is_clean_name(child):
             raise EnsembleError(f"invalid derived GRASS output name {child!r}")
     if drainage_output is not None:
         child = derived_record_name(drainage_output, last_record_index)
         for table_name in derived_drainage_table_names(child):
-            if not GrassInterface.is_clean_name(table_name):
+            if not is_clean_name(table_name):
                 raise EnsembleError(f"invalid derived drainage table name {table_name!r}")
 
 
@@ -393,7 +395,6 @@ def validate_resolved_ensemble(
                 raise EnsembleError(f"duplicate resolved simulation {simulation.simulation_id}")
             raise EnsembleError(f"simulation ID digest collision {simulation.simulation_id}")
         identities[simulation.simulation_id] = simulation.normalized_payload
-        mapset = simulation.grass_params.mapset
         from itzi.providers.grass_output import derived_drainage_table_names, derived_record_name
 
         last_record_index = _last_record_index(
@@ -401,24 +402,20 @@ def validate_resolved_ensemble(
             simulation.simulation_config.record_step,
         )
         for _, name in simulation.artifacts.output_map_names:
-            _claim_artifact(artifacts, f"{name}@{mapset}", simulation.simulation_id)
-            _reject_output_source_alias(name, mapset, ensemble_sources)
+            _claim_artifact(artifacts, name, simulation.simulation_id)
+            _reject_output_source_alias(name, ensemble_sources)
             for index in range(last_record_index + 1):
                 child = derived_record_name(name, index)
-                _claim_artifact(artifacts, f"{child}@{mapset}", simulation.simulation_id)
-                _reject_output_source_alias(child, mapset, ensemble_sources)
+                _claim_artifact(artifacts, child, simulation.simulation_id)
+                _reject_output_source_alias(child, ensemble_sources)
         if simulation.artifacts.drainage_output is not None:
             drainage_name = simulation.artifacts.drainage_output
-            _claim_artifact(
-                artifacts,
-                f"{drainage_name}@{mapset}",
-                simulation.simulation_id,
-            )
-            _reject_output_source_alias(drainage_name, mapset, ensemble_sources)
+            _claim_artifact(artifacts, drainage_name, simulation.simulation_id)
+            _reject_output_source_alias(drainage_name, ensemble_sources)
             for index in range(last_record_index + 1):
                 child = derived_record_name(drainage_name, index)
-                _claim_artifact(artifacts, f"{child}@{mapset}", simulation.simulation_id)
-                _reject_output_source_alias(child, mapset, ensemble_sources)
+                _claim_artifact(artifacts, child, simulation.simulation_id)
+                _reject_output_source_alias(child, ensemble_sources)
                 for table_name in derived_drainage_table_names(child):
                     _claim_artifact(artifacts, f"table:{table_name}", simulation.simulation_id)
         if simulation.artifacts.statistics_file is not None:
@@ -442,23 +439,22 @@ def _claim_artifact(artifacts: dict[str, str], artifact: str, simulation_id: str
     )
 
 
-def _reject_output_source_alias(name: str, mapset: str | None, sources: set[str]) -> None:
-    qualified = f"{name}@{mapset}"
-    if qualified in sources:
-        raise EnsembleError(f"output {qualified!r} aliases an ensemble input or mask")
+def _reject_output_source_alias(map_id: str, sources: set[str]) -> None:
+    if map_id in sources:
+        raise EnsembleError(f"output {map_id!r} aliases an ensemble input or mask")
 
 
 def verify_resolved_simulation(simulation: ResolvedSimulation) -> None:
     """Re-resolve worker facts and reject a changed GRASS environment."""
-    from itzi.providers.grass_interface import GrassInterface
+    from itzi.grass.utils import active_grass_params, read_domain, resolve_effective_mask
 
-    actual = GrassInterface.active_grass_params(simulation.grass_params)
+    actual = active_grass_params(simulation.grass_params)
     if actual != simulation.grass_params:
         raise EnsembleError("GRASS context changed after resolution")
-    domain = GrassInterface.read_domain(simulation.grass_params.region)
+    domain = read_domain(simulation.grass_params.region)
     if domain != simulation.domain_data:
         raise EnsembleError("GRASS domain changed after resolution")
-    mask = GrassInterface.resolve_effective_mask(simulation.grass_params.mask)
+    mask = resolve_effective_mask(simulation.grass_params.mask)
     if mask != simulation.effective_mask:
         raise EnsembleError("effective GRASS mask changed after resolution")
     _verify_input_kinds(simulation.simulation_config.input_map_names, dict(simulation.input_kinds))
