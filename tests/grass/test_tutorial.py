@@ -5,6 +5,7 @@ import pathlib
 import tempfile
 from configparser import ConfigParser
 from io import StringIO
+from unittest.mock import patch
 
 import grass.script as gscript
 import numpy as np
@@ -30,7 +31,13 @@ def grass_tutorial_session(test_data_temp_path):
     # Keep all generated files in the test_data_temp_path
     os.chdir(test_data_temp_path)
     tmpdir = tempfile.TemporaryDirectory()
-    gscript.create_project(tmpdir.name, name="itzi_tutorial", epsg=DATA_EPSG)
+    # GRASS 8.4 checks the process GISRC while creating a projected project.
+    gisrc, _ = gscript.create_environment(tmpdir.name, "itzi_tutorial", "PERMANENT")
+    try:
+        with patch.dict(os.environ, {"GISRC": gisrc}):
+            gscript.create_project(tmpdir.name, name="itzi_tutorial", epsg=DATA_EPSG)
+    finally:
+        pathlib.Path(gisrc).unlink()
     grass_session = gscript.setup.init(
         path=tmpdir.name, location="itzi_tutorial", mapset="PERMANENT"
     )
