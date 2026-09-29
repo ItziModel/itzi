@@ -10,12 +10,13 @@ import pytest
 
 import itzi.messenger as msgr
 from itzi.cli_parser import build_parser
-from itzi.ensemble_models import ResolvedEnsemble
+from itzi.ensemble_models import ResolvedEnsemble, ResolvedSimulation
 from itzi.itzi import (
     VerbosityLevel,
-    _preflight_selected,
+    _preflight_ensemble,
     _run_ensemble_batch,
     _run_one_ensemble,
+    _select_members,
     itzi_run,
     itzi_run_one,
     main,
@@ -82,6 +83,83 @@ def test_ensemble_members_are_resolved_in_one_spawn(monkeypatch):
     assert calls == [simulations]
 
 
+@pytest.mark.parametrize("dry", [False, True])
+def test_ensembles_are_checked_and_run_in_order_without_cross_ensemble_validation(
+    tmp_path, monkeypatch, dry
+):
+    ensembles = tuple(
+        SimpleNamespace(
+            ensemble_id=name,
+            simulations=(SimpleNamespace(simulation_id=name),),
+            source=SimpleNamespace(path=tmp_path / f"{name}.yaml"),
+            manifest_template=None,
+        )
+        for name in ("first", "second")
+    )
+    members = {
+        name: ResolvedSimulation(
+            simulation_id=name,
+            coordinates=(),
+            grass_params=None,
+            domain_data=None,
+            effective_mask=None,
+            input_kinds=(),
+            simulation_config=SimpleNamespace(
+                input_map_names={"friction": "first_water_depth@PERMANENT"}
+                if name == "second"
+                else {}
+            ),
+            artifacts=SimpleNamespace(
+                output_map_names=(("water_depth", "first_water_depth"),)
+                if name == "first"
+                else (),
+            ),
+            normalized_payload=name,
+        )
+        for name in ("first", "second")
+    }
+    calls = []
+    monkeypatch.setattr("itzi.itzi.load_batch", lambda _: (ensembles, ()))
+
+    def resolve(expanded):
+        name = expanded[0].simulation_id
+        calls.append(("resolve", name))
+        return (members[name],)
+
+    def validate(simulations, _sources):
+        calls.append(("validate", simulations[0].simulation_id))
+        assert len(simulations) == 1
+
+    def preflight(simulations):
+        calls.append(("preflight", simulations[0].simulation_id))
+        return {}
+
+    def run(resolved, selected_ids, *_args, **_kwargs):
+        calls.append(("run", resolved.ensemble.ensemble_id))
+        assert selected_ids == {resolved.ensemble.ensemble_id}
+        return 0
+
+    def display(resolved, *_args, **_kwargs):
+        calls.append(("display", resolved.ensemble.ensemble_id))
+
+    monkeypatch.setattr("itzi.itzi._resolve_ensemble_in_spawn", resolve)
+    monkeypatch.setattr("itzi.itzi.validate_resolved_ensemble", validate)
+    monkeypatch.setattr("itzi.itzi._validate_manifest_destination", lambda *_, **__: None)
+    monkeypatch.setattr("itzi.itzi._preflight_ensemble_in_spawn", preflight)
+    monkeypatch.setattr("itzi.itzi._run_one_ensemble", run)
+    monkeypatch.setattr("itzi.itzi._display_dry_plan", display)
+
+    _run_ensemble_batch(
+        SimpleNamespace(config_file=["first.yaml", "second.yaml"], member=[], dry=dry, o=True)
+    )
+
+    assert calls == [
+        (step, name)
+        for name in ("first", "second")
+        for step in ("resolve", "validate", "preflight", "display" if dry else "run")
+    ]
+
+
 def test_preflight_only_checks_selected_members(tmp_path, monkeypatch):
     selected_simulation = SimpleNamespace(simulation_id="sim-selected")
     selected_with_failure = SimpleNamespace(simulation_id="sim-failed")
@@ -101,22 +179,36 @@ def test_preflight_only_checks_selected_members(tmp_path, monkeypatch):
         ),
     )
 
-    member_failures, manifest_failures = _preflight_selected(
-        [
-            ResolvedEnsemble(
-                ensemble, (selected_simulation, selected_with_failure, unselected_simulation), ()
-            )
-        ],
-        {"study": {"sim-selected", "sim-failed"}},
+    member_failures, manifest_failure = _preflight_ensemble(
+        ResolvedEnsemble(
+            ensemble, (selected_simulation, selected_with_failure, unselected_simulation), ()
+        ),
+        {"sim-selected", "sim-failed"},
         has_selectors=True,
         overwrite=False,
     )
 
     assert calls == [("sim-selected", "sim-failed")]
-    assert member_failures == {
-        "study": {"sim-failed": {"phase": "preflight", "detail": "invalid input"}}
-    }
-    assert manifest_failures == {}
+    assert member_failures == {"sim-failed": {"phase": "preflight", "detail": "invalid input"}}
+    assert manifest_failure is None
+
+
+def test_select_members_only_matches_current_ensemble():
+    resolved = ResolvedEnsemble(
+        SimpleNamespace(ensemble_id="first"), (SimpleNamespace(simulation_id="member"),), ()
+    )
+    assert _select_members(resolved, [("second#member", "second#member")]) == set()
+    assert _select_members(resolved, [("first#member", "first#member")]) == {"member"}
+
+
+def test_unqualified_selector_requires_one_ensemble(monkeypatch):
+    ensembles = tuple(SimpleNamespace(ensemble_id=name) for name in ("first", "second"))
+    monkeypatch.setattr("itzi.itzi.load_batch", lambda _: (ensembles, ()))
+
+    with pytest.raises(RuntimeError, match="Unqualified --member IDs"):
+        _run_ensemble_batch(
+            SimpleNamespace(config_file=["first.yaml", "second.yaml"], member=["member"])
+        )
 
 
 def test_one_ensemble_runs_only_planned_members_and_counts_failures(tmp_path, monkeypatch):

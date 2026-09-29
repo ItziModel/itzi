@@ -28,6 +28,7 @@ from __future__ import annotations
 import os
 import sys
 import time
+from argparse import Namespace
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
 from datetime import timedelta
@@ -340,15 +341,30 @@ def _run_legacy_batch(cli_args) -> None:
         msgr.fatal(f"{len(failed_files)} simulation(s) failed")
 
 
-def _run_ensemble_batch(cli_args) -> None:
-    """Resolve and execute an ordered YAML/INI batch through spawn boundaries."""
+def _run_ensemble_batch(cli_args: Namespace) -> None:
+    """Resolve and execute each ensemble in order through spawn boundaries."""
     if getattr(cli_args, "resume_from", []):
         msgr.fatal("Resume is not available for YAML ensembles.")
     ensembles, document_failures = load_batch(cli_args.config_file)
     for failure in document_failures:
         msgr.warning(failure.format())
 
-    resolved: list[ResolvedEnsemble] = []
+    selectors = getattr(cli_args, "member", [])
+    has_selectors = bool(selectors)
+    if has_selectors and len(ensembles) != 1 and any("#" not in s for s in selectors):
+        msgr.fatal("Unqualified --member IDs require a batch with exactly one ensemble")
+    qualified_selectors = [
+        (selector, selector if "#" in selector else f"{ensembles[0].ensemble_id}#{selector}")
+        for selector in selectors
+    ]
+    ensemble_ids = {ensemble.ensemble_id for ensemble in ensembles}
+    for selector, qualified in qualified_selectors:
+        if qualified.partition("#")[0] not in ensemble_ids:
+            msgr.fatal(f"--member {selector!r} does not match a successfully resolved simulation")
+
+    dry = getattr(cli_args, "dry", False)
+    dry_failed = bool(document_failures)
+    failure_count = len(document_failures)
     for ensemble in ensembles:
         successful: list[ResolvedSimulation] = []
         member_failures: list[ValidationFailure] = []
@@ -362,38 +378,42 @@ def _run_ensemble_batch(cli_args) -> None:
             validate_resolved_ensemble(tuple(successful), (ensemble.source.path,))
         except EnsembleError as error:
             artifact_failure = str(error)
-        resolved.append(
-            ResolvedEnsemble(ensemble, tuple(successful), tuple(member_failures), artifact_failure)
+        resolved = ResolvedEnsemble(
+            ensemble, tuple(successful), tuple(member_failures), artifact_failure
         )
-
-    selectors = getattr(cli_args, "member", [])
-    has_selectors = bool(selectors)
-    selected = _select_members(resolved, selectors)
-    preflight_failures, manifest_failures = _preflight_selected(
-        resolved,
-        selected,
-        has_selectors=has_selectors,
-        overwrite=bool(getattr(cli_args, "o", False)),
-    )
-    if getattr(cli_args, "dry", False):
-        _display_dry_plan(
-            resolved, selected, preflight_failures, manifest_failures, has_selectors=has_selectors
+        selected_ids = _select_members(resolved, qualified_selectors)
+        preflight_failures, manifest_failure = _preflight_ensemble(
+            resolved,
+            selected_ids,
+            has_selectors=has_selectors,
+            overwrite=bool(getattr(cli_args, "o", False)),
         )
-        unresolved_selected = not has_selectors and any(item.failures for item in resolved)
-        if document_failures or unresolved_selected or preflight_failures or manifest_failures:
-            msgr.fatal("YAML batch validation failed")
-        return
+        if dry:
+            _display_dry_plan(
+                resolved,
+                selected_ids,
+                preflight_failures,
+                manifest_failure,
+                has_selectors=has_selectors,
+            )
+            dry_failed |= bool(
+                (resolved.failures and not has_selectors) or preflight_failures or manifest_failure
+            )
+            continue
 
-    failure_count = len(document_failures)
-    for item in resolved:
         failure_count += _run_one_ensemble(
-            item,
-            selected.get(item.ensemble.ensemble_id, set()),
-            preflight_failures.get(item.ensemble.ensemble_id, {}),
-            manifest_failures.get(item.ensemble.ensemble_id),
+            resolved,
+            selected_ids,
+            preflight_failures,
+            manifest_failure,
             has_selectors=has_selectors,
             overwrite=bool(cli_args.o),
         )
+
+    if dry:
+        if dry_failed:
+            msgr.fatal("YAML batch validation failed")
+        return
 
     if failure_count:
         msgr.fatal(f"{failure_count} ensemble simulation(s) failed validation or execution")
@@ -519,121 +539,89 @@ def _preflight_ensemble_in_spawn(simulations: tuple[ResolvedSimulation, ...]) ->
         return {simulation.simulation_id: detail for simulation in simulations}
 
 
-def _preflight_selected(
-    resolved: list[ResolvedEnsemble],
-    selected: dict[str, set[str]],
+def _preflight_ensemble(
+    resolved: ResolvedEnsemble,
+    selected_ids: set[str],
     *,
     has_selectors: bool,
     overwrite: bool,
-) -> tuple[dict[str, dict[str, dict[str, str]]], dict[str, str]]:
-    """Collect selected-member and manifest failures before creating artifacts."""
-    member_failures: dict[str, dict[str, dict[str, str]]] = {}
-    manifest_failures: dict[str, str] = {}
-    for item in resolved:
-        ensemble = item.ensemble
-        simulations = item.simulations
-        selected_ids = selected[ensemble.ensemble_id]
-        if not selected_ids and has_selectors:
-            continue
-        failures = member_failures.setdefault(ensemble.ensemble_id, {})
-        artifact_detail = item.artifact_failure
-        if artifact_detail is not None:
-            for simulation_id in selected_ids:
-                failures[simulation_id] = {
-                    "phase": "artifact_validation",
-                    "detail": artifact_detail,
-                }
-        try:
-            _validate_manifest_destination(
-                _manifest_path(ensemble),
-                ensemble,
-                simulations,
-                overwrite=overwrite,
-            )
-        except EnsembleError as error:
-            manifest_failures[ensemble.ensemble_id] = str(error)
-        to_preflight = tuple(
-            simulation
-            for simulation in simulations
-            if simulation.simulation_id in selected_ids
-            and simulation.simulation_id not in failures
+) -> tuple[dict[str, dict[str, str]], str | None]:
+    """Collect one ensemble's selected-member and manifest failures."""
+    if not selected_ids and has_selectors:
+        return {}, None
+    ensemble = resolved.ensemble
+    simulations = resolved.simulations
+    failures: dict[str, dict[str, str]] = {}
+    if resolved.artifact_failure is not None:
+        for simulation_id in selected_ids:
+            failures[simulation_id] = {
+                "phase": "artifact_validation",
+                "detail": resolved.artifact_failure,
+            }
+    manifest_failure = None
+    try:
+        _validate_manifest_destination(
+            _manifest_path(ensemble), ensemble, simulations, overwrite=overwrite
         )
-        if to_preflight:
-            for simulation_id, detail in _preflight_ensemble_in_spawn(to_preflight).items():
-                failures[simulation_id] = {
-                    "phase": "preflight",
-                    "detail": detail,
-                }
-        if not failures:
-            member_failures.pop(ensemble.ensemble_id)
-    return member_failures, manifest_failures
+    except EnsembleError as error:
+        manifest_failure = str(error)
+    to_preflight = tuple(
+        simulation
+        for simulation in simulations
+        if simulation.simulation_id in selected_ids and simulation.simulation_id not in failures
+    )
+    if to_preflight:
+        for simulation_id, detail in _preflight_ensemble_in_spawn(to_preflight).items():
+            failures[simulation_id] = {"phase": "preflight", "detail": detail}
+    return failures, manifest_failure
 
 
 def _select_members(
-    resolved: list[ResolvedEnsemble],
-    selectors: list[str],
-) -> dict[str, set[str]]:
-    """Resolve member selectors only against successfully resolved members."""
-    selected = {item.ensemble.ensemble_id: set() for item in resolved}
-    all_members = {
-        f"{item.ensemble.ensemble_id}#{simulation.simulation_id}": simulation.simulation_id
-        for item in resolved
-        for simulation in item.simulations
-    }
+    resolved: ResolvedEnsemble,
+    selectors: list[tuple[str, str]],
+) -> set[str]:
+    """Select successfully resolved members of one ensemble."""
+    all_members = {simulation.simulation_id for simulation in resolved.simulations}
     if not selectors:
-        for item in resolved:
-            selected[item.ensemble.ensemble_id] = {
-                simulation.simulation_id for simulation in item.simulations
-            }
-        return selected
-    if any("#" not in selector for selector in selectors) and len(resolved) != 1:
-        msgr.fatal("Unqualified --member IDs require a batch with exactly one ensemble")
-    for selector in selectors:
-        qualified = (
-            selector if "#" in selector else f"{resolved[0].ensemble.ensemble_id}#{selector}"
-        )
-        simulation_id = all_members.get(qualified)
-        if simulation_id is None:
+        return all_members
+    selected: set[str] = set()
+    for selector, qualified in selectors:
+        ensemble_id, _, simulation_id = qualified.partition("#")
+        if ensemble_id != resolved.ensemble.ensemble_id:
+            continue
+        if simulation_id not in all_members:
             msgr.fatal(f"--member {selector!r} does not match a successfully resolved simulation")
-        ensemble_id, _separator, _member = qualified.partition("#")
-        selected[ensemble_id].add(simulation_id)
+        selected.add(simulation_id)
     return selected
 
 
 def _display_dry_plan(
-    resolved: list[ResolvedEnsemble],
-    selected: dict[str, set[str]],
-    preflight_failures: dict[str, dict[str, dict[str, str]]],
-    manifest_failures: dict[str, str],
+    resolved: ResolvedEnsemble,
+    selected_ids: set[str],
+    preflight_failures: dict[str, dict[str, str]],
+    manifest_failure: str | None,
     *,
     has_selectors: bool,
 ) -> None:
-    for item in resolved:
-        ensemble = item.ensemble
-        msgr.message(f"Ensemble {ensemble.ensemble_id}:")
-        for simulation in item.simulations:
-            selection = (
-                "selected"
-                if simulation.simulation_id in selected[ensemble.ensemble_id]
-                else "not selected"
-            )
-            msgr.message(f"  {simulation.simulation_id} ({selection})")
-            if simulation.simulation_id in preflight_failures.get(ensemble.ensemble_id, {}):
-                failure = preflight_failures[ensemble.ensemble_id][simulation.simulation_id]
-                msgr.warning(f"    {failure['phase']} failed: {failure['detail']}")
-            for variable, name in simulation.artifacts.output_map_names:
-                msgr.message(f"    raster {variable}: {name}")
-            if simulation.artifacts.drainage_output is not None:
-                msgr.message(f"    drainage: {simulation.artifacts.drainage_output}")
-            if simulation.artifacts.statistics_file is not None:
-                msgr.message(f"    statistics: {simulation.artifacts.statistics_file}")
-        for failure in item.failures:
-            status = "not selected" if has_selectors else "validation failed"
-            msgr.warning(f"  {status}: {failure.detail}")
-        if ensemble.ensemble_id in manifest_failures:
-            msgr.warning(
-                f"  manifest validation failed: {manifest_failures[ensemble.ensemble_id]}"
-            )
+    ensemble = resolved.ensemble
+    msgr.message(f"Ensemble {ensemble.ensemble_id}:")
+    for simulation in resolved.simulations:
+        selection = "selected" if simulation.simulation_id in selected_ids else "not selected"
+        msgr.message(f"  {simulation.simulation_id} ({selection})")
+        if simulation.simulation_id in preflight_failures:
+            failure = preflight_failures[simulation.simulation_id]
+            msgr.warning(f"    {failure['phase']} failed: {failure['detail']}")
+        for variable, name in simulation.artifacts.output_map_names:
+            msgr.message(f"    raster {variable}: {name}")
+        if simulation.artifacts.drainage_output is not None:
+            msgr.message(f"    drainage: {simulation.artifacts.drainage_output}")
+        if simulation.artifacts.statistics_file is not None:
+            msgr.message(f"    statistics: {simulation.artifacts.statistics_file}")
+    for failure in resolved.failures:
+        status = "not selected" if has_selectors else "validation failed"
+        msgr.warning(f"  {status}: {failure.detail}")
+    if manifest_failure is not None:
+        msgr.warning(f"  manifest validation failed: {manifest_failure}")
 
 
 def itzi_version(cli_args):

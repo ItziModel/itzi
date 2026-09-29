@@ -140,7 +140,7 @@ def percent(start_time, end_time, sim_time, sim_start_time):
     advance_perc = sim_time_s / duration_s
 
     if verbosity() == VerbosityLevel.QUIET:
-        print(f"{advance_perc:.1%}", file=sys.stderr, end="\r")
+        print(f"{advance_perc:.2%}", file=sys.stderr, end="\r")
 
     elif verbosity() >= VerbosityLevel.MESSAGE:
         elapsed_s = (datetime.now() - sim_start_time).total_seconds()
@@ -150,7 +150,7 @@ def percent(start_time, end_time, sim_time, sim_start_time):
             rate = 0
         remaining = (end_time - sim_time).total_seconds()
         eta = timedelta(seconds=int(remaining * rate))
-        txt = "Time: {sim} Advance: {perc:.1%} ETA: {eta}{pad}"
+        txt = "Time: {sim} Advance: {perc:.2%} ETA: {eta}{pad}"
         disp = txt.format(
             sim=sim_time.isoformat(" ").split(".")[0],
             perc=advance_perc,
