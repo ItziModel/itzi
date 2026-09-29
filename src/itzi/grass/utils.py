@@ -327,7 +327,7 @@ def replace_cell_null_sentinel(raster_type: str, array: np.ndarray) -> np.ndarra
 
 def resolve_input_map_lists(
     grass_interface: GrassInterface,
-    map_names: Mapping[str, str | None],
+    map_names: Mapping[str, str],
     start_time: datetime,
     end_time: datetime,
     input_kinds: Mapping[str, Literal["raster", "strds"]] | None,

@@ -31,7 +31,7 @@ class GrassRasterInputProvider(RasterInputProvider):
     def __init__(
         self,
         grass_interface: GrassInterface,
-        input_map_names: Mapping[str, str | None],
+        input_map_names: Mapping[str, str],
         default_start_time: datetime,
         default_end_time: datetime,
         input_kinds: Mapping[str, Literal["raster", "strds"]] | None,
