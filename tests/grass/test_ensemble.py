@@ -14,15 +14,12 @@ import grass.script as gscript
 import numpy as np
 import pytest
 import yaml
-from grass.pygrass import utils as gutils
 from itzi_core import TemporalType
 
 from itzi.cli_parser import build_parser
 from itzi.ensemble_models import EnsembleError, ResolvedSimulation, ValidationFailure
 from itzi.grass_session import GrassSessionManager
 from itzi.itzi import _resolve_ensemble_in_subprocess, itzi_run, preflight_worker
-from itzi.preflight import _validate_grass_outputs
-from itzi.providers.grass_interface import GrassInterface
 from itzi.run_plan import load_batch
 
 
@@ -55,6 +52,8 @@ def read_manifest(tmp_path: Path) -> dict:
 def test_input_resolution_qualifies_rasters_and_strds_and_rejects_ambiguity(
     tmp_path: Path,
 ) -> None:
+    from grass.pygrass import utils as gutils
+
     GrassSessionManager.ensure_temporal_initialized()
     mapset = gutils.getenv("MAPSET")
     gscript.mapcalc("stage_rain=1")
@@ -107,6 +106,8 @@ def test_input_resolution_qualifies_rasters_and_strds_and_rejects_ambiguity(
 @pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_temporal_preflight_failure_does_not_stop_next_member(tmp_path: Path) -> None:
+    from grass.pygrass import utils as gutils
+
     GrassSessionManager.ensure_temporal_initialized()
     gscript.mapcalc("stage_short_rain=1")
     gscript.run_command(
@@ -153,6 +154,10 @@ def test_temporal_preflight_failure_does_not_stop_next_member(tmp_path: Path) ->
 @pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_mask_semantics_and_worker_detects_changed_effective_mask(tmp_path: Path) -> None:
+    from grass.pygrass import utils as gutils
+
+    from itzi.providers.grass_interface import GrassInterface
+
     gscript.mapcalc("stage_mask_values=if(col()==1, null(), if(col()==2, 0, 1))")
     gscript.run_command("g.copy", raster="stage_mask_values,MASK")
     try:
@@ -223,6 +228,8 @@ def test_worker_rejects_region_and_input_changes_after_resolution(tmp_path: Path
 @pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_dry_run_rejects_raster_outside_domain_without_writing(tmp_path: Path) -> None:
+    from grass.pygrass import utils as gutils
+
     gscript.use_temp_region()
     try:
         gscript.run_command("g.region", n=150, s=100, e=150, w=100, res=10)
@@ -247,6 +254,8 @@ def test_dry_run_rejects_raster_outside_domain_without_writing(tmp_path: Path) -
 @pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_ensemble_output_collision_with_input_rejects_all_members(tmp_path: Path) -> None:
+    from grass.pygrass import utils as gutils
+
     gscript.mapcalc("stage_alias_water_depth_0002=1")
     path = write_study(
         tmp_path,
@@ -546,6 +555,10 @@ outputs:
 @pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_preflight_checks_existing_drainage_tables():
+    from grass.pygrass import utils as gutils
+
+    from itzi.preflight import _validate_grass_outputs
+
     GrassSessionManager.ensure_temporal_initialized()
     mapset = gutils.getenv("MAPSET")
     database = (

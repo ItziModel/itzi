@@ -1,10 +1,19 @@
+from __future__ import annotations
+
 from datetime import datetime, timedelta
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import pytest
 
-from itzi.providers.grass_input import GrassRasterInputProvider
-from itzi.providers.grass_interface import MapData
+if TYPE_CHECKING:
+    from itzi.providers.grass_interface import MapData
+
+
+@pytest.fixture(scope="module", autouse=True)
+def grass_runtime_env() -> None:
+    import grass.script as gscript
+
+    gscript.setup.setup_runtime_env()
 
 
 class FakeGrassInterface:
@@ -28,6 +37,8 @@ class FakeGrassInterface:
         return True
 
     def raster_list_from_strds(self, strds_id: str) -> list[MapData]:
+        from itzi.providers.grass_interface import MapData
+
         self.stds_temporal_sanity(strds_id)
         start = datetime(2020, 1, 1)
         return [MapData(strds_id, start, start + timedelta(hours=1))]
@@ -39,6 +50,9 @@ class FakeGrassInterface:
 def test_input_kinds_share_raster_and_strds_construction(
     input_kinds: dict[str, Literal["raster", "strds"]] | None,
 ) -> None:
+    from itzi.providers.grass_input import GrassRasterInputProvider
+    from itzi.providers.grass_interface import MapData
+
     start = datetime(2020, 1, 1)
     end = start + timedelta(hours=1)
     interface = FakeGrassInterface()

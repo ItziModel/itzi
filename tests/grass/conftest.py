@@ -18,8 +18,6 @@ grass_python_path = subprocess.check_output(
 sys.path.append(grass_python_path)
 import grass.script as gscript  # noqa: E402
 
-gscript.setup.setup_runtime_env()
-
 from itzi import SimulationRunner  # noqa: E402
 from itzi import grass_session  # noqa: E402
 from itzi.configreader import ConfigReader  # noqa: E402
