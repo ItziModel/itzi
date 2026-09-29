@@ -24,7 +24,7 @@ from typing import Literal
 from itzi_core import DomainData, SimulationConfig, SurfaceFlowParameters
 from pydantic import ValidationError
 
-from itzi.ensemble_models import (
+from itzi.ensemble.models import (
     ArtifactSummary,
     EffectiveMask,
     EnsembleError,
@@ -34,7 +34,8 @@ from itzi.ensemble_models import (
     format_duration,
     render_template,
 )
-from itzi.grass_session import GrassParams, GrassSessionManager
+from itzi.grass.session import GrassParams, GrassSessionManager
+from itzi.grass.names import derived_drainage_table_names, derived_record_name
 
 
 def resolve_ensemble(
@@ -312,7 +313,6 @@ def _validate_output_names(
     output_map_names: dict[str, str], drainage_output: str | None, last_record_index: int
 ) -> None:
     from itzi.grass.utils import is_clean_name
-    from itzi.providers.grass_output import derived_drainage_table_names, derived_record_name
 
     names = list(output_map_names.values())
     if drainage_output is not None:
@@ -395,7 +395,6 @@ def validate_resolved_ensemble(
                 raise EnsembleError(f"duplicate resolved simulation {simulation.simulation_id}")
             raise EnsembleError(f"simulation ID digest collision {simulation.simulation_id}")
         identities[simulation.simulation_id] = simulation.normalized_payload
-        from itzi.providers.grass_output import derived_drainage_table_names, derived_record_name
 
         last_record_index = _last_record_index(
             simulation.simulation_config.end_time - simulation.simulation_config.start_time,

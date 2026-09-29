@@ -26,7 +26,7 @@ from pydantic import (
 )
 from pydantic import JsonValue as PydanticJsonValue
 
-from itzi.ensemble_models import (
+from itzi.ensemble.models import (
     DomainConfig,
     StrictModel,
     _canonical_json,

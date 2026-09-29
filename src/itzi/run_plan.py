@@ -22,7 +22,7 @@ from itzi_core import TemporalType
 import itzi.messenger as msgr
 from itzi.configreader import ConfigReader
 from itzi.ensemble import load_yaml_stream
-from itzi.ensemble_models import (
+from itzi.ensemble.models import (
     DIRECT_INPUT_KEYS,
     GREEN_AMPT_KEYS,
     DocumentFailure,

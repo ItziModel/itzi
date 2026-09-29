@@ -1,5 +1,5 @@
 """
-Copyright (C) 2015-2026 Laurent Courty
+Copyright (C) 2026 Laurent Courty
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -12,10 +12,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
+from __future__ import annotations
+
+from collections.abc import Mapping
+from datetime import datetime
 from pathlib import Path
 from queue import Queue
 from threading import Lock
-from typing import Literal, NamedTuple
+from typing import TYPE_CHECKING, Literal, NamedTuple
 
 import grass.pygrass.utils as gutils
 import grass.script as gscript
@@ -24,11 +28,14 @@ import numpy as np
 from grass.pygrass import raster
 from grass.pygrass.gis import Mapset
 from grass.pygrass.gis.region import Region
-from itzi_core import DomainData
+from itzi_core import INPUT_ARRAY_KEYS, DomainData
 
 import itzi.messenger as msgr
-from itzi.ensemble_models import EffectiveMask, EnsembleError
-from itzi.grass_session import GrassParams
+from itzi.ensemble.models import EffectiveMask, EnsembleError
+from itzi.grass.session import GrassParams
+
+if TYPE_CHECKING:
+    from itzi.grass.interface import GrassInterface
 
 MIN_GRASS_VERSION = (8, 4)
 
@@ -62,6 +69,12 @@ class RasterWriteInstructions(NamedTuple):
     map_key: str
     hmin: float
     overwrite: bool
+
+
+class MapData(NamedTuple):
+    id: str
+    start_time: datetime
+    end_time: datetime
 
 
 def file_exists(name: str) -> bool:
@@ -175,6 +188,10 @@ def name_is_stds(stds_id: str) -> bool:
     return bool(tgis.SpaceTimeRasterDataset(stds_id).is_in_db())
 
 
+def get_crs_wkt() -> str:
+    return gscript.read_command("g.proj", flags="fw")
+
+
 def name_is_map(map_id: str) -> bool:
     """return True if the given name is a map in the grass database
     False if not
@@ -224,7 +241,7 @@ def read_domain(region_id: str | None) -> DomainData:
             west=region.west,
             rows=region.rows,
             cols=region.cols,
-            crs_wkt=gscript.read_command("g.proj", flags="fw"),
+            crs_wkt=get_crs_wkt(),
         )
     finally:
         if using_temp_region:
@@ -307,3 +324,39 @@ def replace_cell_null_sentinel(raster_type: str, array: np.ndarray) -> np.ndarra
     null_sentinel = array.dtype.type(np.iinfo(np.int32).min)
     array[array == null_sentinel] = np.nan
     return array
+
+
+def resolve_input_map_lists(
+    grass_interface: GrassInterface,
+    map_names: Mapping[str, str | None],
+    start_time: datetime,
+    end_time: datetime,
+    input_kinds: Mapping[str, Literal["raster", "strds"]] | None,
+) -> dict[str, list[MapData] | None]:
+    """Resolve provider-ready raster lists without creating an output provider."""
+    invalid_input_keys = sorted(set(map_names) - INPUT_ARRAY_KEYS)
+    if invalid_input_keys:
+        raise ValueError(f"Invalid input keys found: {', '.join(invalid_input_keys)}")
+
+    map_lists: dict[str, list[MapData] | None] = {arr_key: None for arr_key in INPUT_ARRAY_KEYS}
+    for key, map_name in map_names.items():
+        if not map_name:
+            continue
+        kind = input_kinds.get(key) if input_kinds is not None else None
+        if kind is None:
+            map_id, kind = resolve_input_identifier(map_name)
+        elif kind == "raster":
+            map_id = format_id(map_name)
+        else:
+            map_id = map_name if "@" in map_name else resolve_input_identifier(map_name)[0]
+        if kind == "strds":
+            if not name_is_stds(map_id):
+                msgr.fatal(f"STRDS input <{map_id}> is no longer available")
+        elif kind == "raster" and not name_is_map(map_id):
+            msgr.fatal(f"raster input <{map_id}> is no longer available")
+        if kind == "strds":
+            map_list = grass_interface.raster_list_from_strds(map_id)
+        else:
+            map_list = [MapData(id=map_id, start_time=start_time, end_time=end_time)]
+        map_lists[key] = map_list
+    return map_lists

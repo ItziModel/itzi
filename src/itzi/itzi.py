@@ -39,14 +39,14 @@ from pathlib import Path
 import itzi.messenger as msgr
 from itzi.cli_parser import build_parser
 from itzi.configreader import ConfigReader
-from itzi.ensemble_models import (
+from itzi.ensemble.models import (
     EnsembleError,
     ExpandedSimulation,
     ResolvedEnsemble,
     ResolvedSimulation,
     ValidationFailure,
 )
-from itzi.grass_session import GrassSessionManager
+from itzi.grass.session import GrassSessionManager
 from itzi.manifest import (
     _create_manifest,
     _initial_member_states,
@@ -55,7 +55,7 @@ from itzi.manifest import (
     _validate_manifest_destination,
 )
 from itzi.messenger import VerbosityLevel
-from itzi.resolution import (
+from itzi.ensemble.resolution import (
     resolve_ensemble,
     validate_resolved_ensemble,
     verify_resolved_simulation,
@@ -153,7 +153,7 @@ def preflight_worker(simulation: ResolvedSimulation) -> str | None:
     msgr._itzi_logger.set_verbosity(msgr.verbosity())
     try:
         with GrassSessionManager(simulation.grass_params):
-            from itzi.preflight import preflight_simulation
+            from itzi.ensemble.preflight import preflight_simulation
 
             preflight_simulation(simulation)
     except Exception as error:
@@ -167,7 +167,7 @@ def preflight_ensemble_worker(simulations: tuple[ResolvedSimulation, ...]) -> di
     msgr._itzi_logger.set_verbosity(msgr.verbosity())
     failures: dict[str, str] = {}
     with GrassSessionManager(simulations[0].grass_params):
-        from itzi.preflight import preflight_simulation
+        from itzi.ensemble.preflight import preflight_simulation
 
         for simulation in simulations:
             try:

@@ -15,24 +15,16 @@ GNU General Public License for more details.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Literal, NamedTuple
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
-from itzi_core import INPUT_ARRAY_KEYS, DomainData
+from itzi_core import DomainData
 from itzi_core.providers import RasterInputProvider
-
-import itzi.messenger as msgr
 
 if TYPE_CHECKING:
     from datetime import datetime
 
-    from itzi.providers.grass_interface import GrassInterface
-
-
-class MapData(NamedTuple):
-    id: str
-    start_time: datetime
-    end_time: datetime
+    from itzi.grass.interface import GrassInterface
 
 
 class GrassRasterInputProvider(RasterInputProvider):
@@ -44,6 +36,8 @@ class GrassRasterInputProvider(RasterInputProvider):
         default_end_time: datetime,
         input_kinds: Mapping[str, Literal["raster", "strds"]] | None,
     ) -> None:
+        from itzi.grass.utils import resolve_input_map_lists
+
         self.grass_interface = grass_interface
         self.start_time = default_start_time
         self.end_time = default_end_time
@@ -56,18 +50,7 @@ class GrassRasterInputProvider(RasterInputProvider):
         )
 
     def get_domain_data(self) -> DomainData:
-        """Return a DomainData object"""
-        import grass.script as gscript
-
-        return DomainData(
-            north=self.grass_interface.region.north,
-            south=self.grass_interface.region.south,
-            east=self.grass_interface.region.east,
-            west=self.grass_interface.region.west,
-            rows=self.grass_interface.region.rows,
-            cols=self.grass_interface.region.cols,
-            crs_wkt=gscript.read_command("g.proj", flags="fw"),
-        )
+        return self.grass_interface.get_domain_data()
 
     def get_array(
         self, map_key: str, current_time: datetime
@@ -92,42 +75,3 @@ class GrassRasterInputProvider(RasterInputProvider):
         # No gap is expected here: GRASS temporal sanity is checked at init.
         # An in-range lookup should always hit one map.
         raise ValueError(f"No map found for {map_key} at time {current_time}")
-
-
-def resolve_input_map_lists(
-    grass_interface: GrassInterface,
-    map_names: Mapping[str, str | None],
-    start_time: datetime,
-    end_time: datetime,
-    input_kinds: Mapping[str, Literal["raster", "strds"]] | None,
-) -> Mapping[str, list[MapData] | None]:
-    """Resolve provider-ready raster lists without creating an output provider."""
-    from itzi.grass.utils import format_id, name_is_map, name_is_stds, resolve_input_identifier
-
-    invalid_input_keys = sorted(set(map_names) - INPUT_ARRAY_KEYS)
-    if invalid_input_keys:
-        raise ValueError(f"Invalid input keys found: {', '.join(invalid_input_keys)}")
-
-    map_lists: dict[str, list[MapData] | None] = {arr_key: None for arr_key in INPUT_ARRAY_KEYS}
-    for key, map_name in map_names.items():
-        if not map_name:
-            continue
-        kind = input_kinds.get(key) if input_kinds is not None else None
-        if kind is None:
-            map_id, kind = resolve_input_identifier(map_name)
-        elif kind == "raster":
-            map_id = format_id(map_name)
-        else:
-            map_id = map_name if "@" in map_name else resolve_input_identifier(map_name)[0]
-        if kind == "strds":
-            if not name_is_stds(map_id):
-                msgr.fatal(f"STRDS input <{map_id}> is no longer available")
-        elif kind == "raster":
-            if not name_is_map(map_id):
-                msgr.fatal(f"raster input <{map_id}> is no longer available")
-        if kind == "strds":
-            map_list = grass_interface.raster_list_from_strds(map_id)
-        else:
-            map_list = [MapData(id=map_id, start_time=start_time, end_time=end_time)]
-        map_lists[key] = map_list
-    return map_lists

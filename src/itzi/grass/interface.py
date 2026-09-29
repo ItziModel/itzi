@@ -29,7 +29,7 @@ from grass.pygrass.gis.region import Region
 from grass.pygrass.vector import VectorTopo
 from grass.pygrass.vector.geometry import Line, Point
 from grass.pygrass.vector.table import Link, Table
-from itzi_core import TemporalType
+from itzi_core import DomainData, TemporalType
 from itzi_core.data_containers import (
     DrainageLinkAttributes,
     DrainageNetworkAttributes,
@@ -39,10 +39,12 @@ from itzi_core.data_containers import (
 
 import itzi.messenger as msgr
 from itzi.grass.utils import (
+    MapData,
     RasterMapType,
     RasterWriteInstructions,
     STDSType,
     format_id,
+    get_crs_wkt,
     has_mask,
     name_is_map,
     output_name,
@@ -51,7 +53,6 @@ from itzi.grass.utils import (
     split_identifier,
     write_raster_map_blocking,
 )
-from itzi.providers.grass_input import MapData
 
 
 class DBLinkDescription(NamedTuple):
@@ -226,6 +227,17 @@ class GrassInterface:
         if has_mask():
             return "active", f"MASK@{gutils.getenv('MAPSET')}"
         return "none", None
+
+    def get_domain_data(self) -> DomainData:
+        return DomainData(
+            north=self.region.north,
+            south=self.region.south,
+            east=self.region.east,
+            west=self.region.west,
+            rows=self.region.rows,
+            cols=self.region.cols,
+            crs_wkt=get_crs_wkt(),
+        )
 
     def get_npmask(self) -> np.ndarray:
         """Return a boolean numpy ndarray where True is outside the domain."""

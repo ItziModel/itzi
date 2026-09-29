@@ -30,7 +30,7 @@ from yaml.constructor import ConstructorError
 from yaml.resolver import BaseResolver
 
 import itzi.messenger as msgr
-from itzi.ensemble_models import (
+from itzi.ensemble.models import (
     DIRECT_INPUT_KEYS,
     MAX_ENSEMBLE_MEMBERS,
     SURFACE_FLOW_DEFAULTS,
@@ -48,7 +48,7 @@ from itzi.ensemble_models import (
     parse_duration,
     render_template,
 )
-from itzi.ensemble_schema import (
+from itzi.ensemble.schema import (
     ConstantInfiltration,
     DrainageSweepConfig,
     GreenAmptInfiltration,

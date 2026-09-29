@@ -22,7 +22,7 @@ from typing import cast
 
 import yaml
 
-from itzi.ensemble_models import (
+from itzi.ensemble.models import (
     EnsembleError,
     ExpandedEnsemble,
     JsonValue,

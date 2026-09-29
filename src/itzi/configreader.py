@@ -32,7 +32,7 @@ from itzi_core.const import DefaultValues
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 import itzi.messenger as msgr
-from itzi.grass_session import GrassParams
+from itzi.grass.session import GrassParams
 
 DEPRECATED_INPUT_ALIASES: list[tuple[str, str]] = [
     # (old, new)

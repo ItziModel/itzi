@@ -11,20 +11,20 @@ from itzi_core import InfiltrationModelType, TemporalType
 from pydantic import ValidationError
 
 from itzi.ensemble import load_yaml_stream
-from itzi.ensemble_models import (
+from itzi.ensemble.models import (
     MAX_ENSEMBLE_MEMBERS,
     format_duration,
     parse_duration,
     render_template,
 )
-from itzi.ensemble_schema import (
+from itzi.ensemble.schema import (
     EnsembleMetadata,
     InputSweepConfig,
     ManifestOutputs,
     OptionSweepConfig,
     StatisticsOutputs,
 )
-from itzi.resolution import (
+from itzi.ensemble.resolution import (
     _last_record_index,
     _render_artifacts,
     _resolve_inputs,
@@ -321,7 +321,7 @@ def test_statistics_file_template_is_rendered(tmp_path, monkeypatch):
         drainage=None,
         time=SimpleNamespace(duration=timedelta(hours=1), record_step=timedelta(minutes=5)),
     )
-    monkeypatch.setattr("itzi.resolution._validate_output_names", lambda *_: None)
+    monkeypatch.setattr("itzi.ensemble.resolution._validate_output_names", lambda *_: None)
 
     artifacts = _render_artifacts(expanded, "sim-a", "PERMANENT")
 

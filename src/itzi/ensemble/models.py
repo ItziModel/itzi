@@ -40,7 +40,7 @@ from pydantic import (
     JsonValue as PydanticJsonValue,
 )
 
-from itzi.grass_session import GrassParams
+from itzi.grass.session import GrassParams
 
 GREEN_AMPT_KEYS = (
     "effective_porosity",

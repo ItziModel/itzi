@@ -15,8 +15,8 @@ import yaml
 from itzi_core import TemporalType
 
 from itzi.cli_parser import build_parser
-from itzi.ensemble_models import ResolvedSimulation, ValidationFailure
-from itzi.grass_session import GrassSessionManager
+from itzi.ensemble.models import ResolvedSimulation, ValidationFailure
+from itzi.grass.session import GrassSessionManager
 from itzi.itzi import _resolve_ensemble_in_subprocess, itzi_run, preflight_worker
 from itzi.run_plan import load_batch
 
@@ -154,7 +154,7 @@ def test_temporal_preflight_failure_does_not_stop_next_member(tmp_path: Path) ->
 def test_mask_semantics_and_worker_detects_changed_effective_mask(tmp_path: Path) -> None:
     from grass.pygrass import utils as gutils
 
-    from itzi.providers.grass_interface import GrassInterface
+    from itzi.grass.interface import GrassInterface
 
     gscript.mapcalc("stage_mask_values=if(col()==1, null(), if(col()==2, 0, 1))")
     gscript.run_command("g.copy", raster="stage_mask_values,MASK")
@@ -558,7 +558,7 @@ outputs:
 @pytest.mark.usefixtures("grass_5by5")
 def test_preflight_accepts_unoccupied_drainage_id():
     from itzi.grass.utils import get_current_mapset
-    from itzi.preflight import _validate_grass_outputs
+    from itzi.ensemble.preflight import _validate_grass_outputs
 
     GrassSessionManager.ensure_temporal_initialized()
     name = f"drainage_collision_{uuid4().hex[:8]}"

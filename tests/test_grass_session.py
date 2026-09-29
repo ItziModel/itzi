@@ -2,7 +2,7 @@ import os
 import sys
 from types import ModuleType, SimpleNamespace
 
-from itzi.grass_session import GrassParams, GrassSessionManager
+from itzi.grass.session import GrassParams, GrassSessionManager
 
 
 class FakeGrassSession:
@@ -21,11 +21,11 @@ def test_manager_activates_and_finishes_created_session(monkeypatch) -> None:
     grass_package = ModuleType("grass")
     grass_package.script = grass_script
 
-    monkeypatch.setattr("itzi.grass_session.importlib.util.find_spec", lambda _: None)
-    monkeypatch.setattr("itzi.grass_session.os.access", lambda *_: True)
+    monkeypatch.setattr("itzi.grass.session.importlib.util.find_spec", lambda _: None)
+    monkeypatch.setattr("itzi.grass.session.os.access", lambda *_: True)
     monkeypatch.setattr(GrassSessionManager, "ensure_temporal_initialized", lambda self: None)
     monkeypatch.setattr(
-        "itzi.grass_session.subprocess.check_output", lambda *_args, **_kwargs: "/tmp"
+        "itzi.grass.session.subprocess.check_output", lambda *_args, **_kwargs: "/tmp"
     )
     monkeypatch.delenv("GISRC", raising=False)
     monkeypatch.setattr(
@@ -70,7 +70,7 @@ def test_temporal_initialization_once_per_active_session(monkeypatch) -> None:
     monkeypatch.setitem(sys.modules, "grass", package)
     monkeypatch.setitem(sys.modules, "grass.script", script)
     monkeypatch.setitem(sys.modules, "grass.temporal", temporal)
-    monkeypatch.setattr("itzi.grass_session._initialized_temporal_session", None)
+    monkeypatch.setattr("itzi.grass.session._initialized_temporal_session", None)
     monkeypatch.setattr(
         GrassSessionManager,
         "current_context",

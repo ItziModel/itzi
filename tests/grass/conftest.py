@@ -20,9 +20,9 @@ import grass.script as gscript  # noqa: E402
 
 from itzi import (  # noqa: E402
     SimulationRunner,  # noqa: E402
-    grass_session,  # noqa: E402
 )
 from itzi.configreader import ConfigReader  # noqa: E402
+from itzi.grass import session  # noqa: E402
 
 TESTS_ROOT = Path.cwd()
 TEST_PROCESS = os.getpid()
@@ -32,8 +32,8 @@ TEST_PROCESS = os.getpid()
 def stop_temporal_subprocesses_after_test() -> Iterator[None]:
     """Forked tests must stop their own GRASS RPC children before os._exit."""
     yield
-    if os.getpid() != TEST_PROCESS and grass_session._initialized_temporal_session is not None:
-        session_pid = grass_session._initialized_temporal_session[0]
+    if os.getpid() != TEST_PROCESS and session._initialized_temporal_session is not None:
+        session_pid = session._initialized_temporal_session[0]
         if session_pid == os.getpid():
             import grass.temporal as tgis
 

@@ -10,7 +10,7 @@ import pytest
 
 import itzi.messenger as msgr
 from itzi.cli_parser import build_parser
-from itzi.ensemble_models import ResolvedEnsemble, ResolvedSimulation
+from itzi.ensemble.models import ResolvedEnsemble, ResolvedSimulation
 from itzi.itzi import (
     VerbosityLevel,
     _preflight_ensemble,
@@ -282,9 +282,9 @@ def test_preflight_ensemble_worker_keeps_member_failures(monkeypatch):
             raise ValueError("invalid input")
 
     monkeypatch.setattr("itzi.itzi.GrassSessionManager", FakeGrassSessionManager)
-    fake_preflight = ModuleType("itzi.preflight")
+    fake_preflight = ModuleType("itzi.ensemble.preflight")
     fake_preflight.preflight_simulation = preflight
-    monkeypatch.setitem(sys.modules, "itzi.preflight", fake_preflight)
+    monkeypatch.setitem(sys.modules, "itzi.ensemble.preflight", fake_preflight)
     simulations = tuple(
         SimpleNamespace(simulation_id=simulation_id, grass_params="shared")
         for simulation_id in ("good", "bad", "another")
@@ -414,6 +414,9 @@ def test_worker_passes_statistics_file_to_simulation_runner(monkeypatch):
         def __init__(self, *args, **kwargs):
             runner_arguments["args"] = args
             runner_arguments["kwargs"] = kwargs
+
+        def initialize(self):
+            return self
 
         def run(self):
             return self

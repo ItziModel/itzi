@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 if TYPE_CHECKING:
-    from itzi.providers.grass_interface import MapData
+    from itzi.grass.utils import MapData
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -26,7 +26,7 @@ class FakeGrassInterface:
         return True
 
     def raster_list_from_strds(self, strds_id: str) -> list[MapData]:
-        from itzi.providers.grass_interface import MapData
+        from itzi.grass.utils import MapData
 
         self.stds_temporal_sanity(strds_id)
         start = datetime(2020, 1, 1)
@@ -42,7 +42,7 @@ def test_input_kinds_share_raster_and_strds_construction(
 ) -> None:
     from itzi.grass import utils
     from itzi.providers.grass_input import GrassRasterInputProvider
-    from itzi.providers.grass_interface import MapData
+    from itzi.grass.utils import MapData
 
     monkeypatch.setattr(
         utils,
@@ -129,7 +129,7 @@ def test_vector_writer_uses_bare_name_from_qualified_output_id() -> None:
     from grass.pygrass.utils import get_mapset_vector
     from itzi_core.data_containers import DrainageNetworkAttributes, DrainageNetworkTopology
 
-    from itzi.providers.grass_interface import GrassInterface
+    from itzi.grass.interface import GrassInterface
 
     start = datetime(2020, 1, 1)
     with GrassInterface(

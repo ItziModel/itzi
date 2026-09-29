@@ -22,7 +22,7 @@ from bmipy import Bmi
 from itzi_core import ARRAY_DEFINITIONS, ArrayCategory
 
 from itzi.configreader import ConfigReader
-from itzi.grass_session import GrassSessionManager
+from itzi.grass.session import GrassSessionManager
 from itzi.simulation_runner import SimulationRunner
 
 

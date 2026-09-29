@@ -9,7 +9,7 @@ import pytest
 
 from itzi import SimulationRunner
 from itzi.configreader import ConfigReader
-from itzi.grass_session import GrassSessionManager
+from itzi.grass.session import GrassSessionManager
 from itzi_core.const import TemporalType
 
 

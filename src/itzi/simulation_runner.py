@@ -21,8 +21,8 @@ import numpy as np
 from itzi_core import SimulationBuilder, SimulationConfig
 
 import itzi.messenger as msgr
-from itzi.ensemble_models import EffectiveMask
-from itzi.grass_session import GrassParams, GrassSessionManager
+from itzi.ensemble.models import EffectiveMask
+from itzi.grass.session import GrassParams, GrassSessionManager
 from itzi.providers.csv_output import ExclusiveCSVMassBalanceOutputProvider
 from itzi.providers.grass_input import GrassRasterInputProvider
 from itzi.providers.grass_output import GrassRasterOutputProvider, GrassVectorOutputProvider
@@ -30,7 +30,7 @@ from itzi.providers.grass_output import GrassRasterOutputProvider, GrassVectorOu
 if TYPE_CHECKING:
     from itzi_core import Simulation
 
-    from itzi.providers.grass_interface import GrassInterface
+    from itzi.grass.interface import GrassInterface
 
 
 class SimulationRunner:
@@ -95,7 +95,7 @@ class SimulationRunner:
         msgr.debug("Output files OK")
 
     def initialize(self) -> Self:
-        from itzi.providers.grass_interface import GrassInterface
+        from itzi.grass.interface import GrassInterface
 
         data_type = np.float32
         self.g_interface = GrassInterface(
