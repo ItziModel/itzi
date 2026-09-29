@@ -19,9 +19,9 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from itzi.ensemble.models import EnsembleError
-from itzi.manifest import validate_file_destination
-from itzi.grass.names import derived_record_name
 from itzi.ensemble.resolution import _last_record_index, verify_resolved_simulation
+from itzi.grass.names import derived_record_name
+from itzi.manifest import validate_file_destination
 
 if TYPE_CHECKING:
     from itzi.ensemble.models import ResolvedSimulation
@@ -30,8 +30,8 @@ if TYPE_CHECKING:
 
 def preflight_simulation(simulation: ResolvedSimulation) -> None:
     """Validate one resolved simulation without creating user artifacts."""
-    from itzi.grass.utils import ensure_min_version
     from itzi.grass.interface import GrassInterface
+    from itzi.grass.utils import ensure_min_version
 
     verify_resolved_simulation(simulation)
     ensure_min_version()

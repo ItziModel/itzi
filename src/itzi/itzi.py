@@ -46,6 +46,11 @@ from itzi.ensemble.models import (
     ResolvedSimulation,
     ValidationFailure,
 )
+from itzi.ensemble.resolution import (
+    resolve_ensemble,
+    validate_resolved_ensemble,
+    verify_resolved_simulation,
+)
 from itzi.grass.session import GrassSessionManager
 from itzi.manifest import (
     _create_manifest,
@@ -55,11 +60,6 @@ from itzi.manifest import (
     _validate_manifest_destination,
 )
 from itzi.messenger import VerbosityLevel
-from itzi.ensemble.resolution import (
-    resolve_ensemble,
-    validate_resolved_ensemble,
-    verify_resolved_simulation,
-)
 from itzi.run_plan import load_batch
 from itzi.simulation_runner import SimulationRunner
 
