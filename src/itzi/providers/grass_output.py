@@ -25,7 +25,7 @@ from itzi.grass.names import derived_record_name
 if TYPE_CHECKING:
     from datetime import datetime, timedelta
 
-    from itzi_core import TemporalType
+    from itzi_core import OUTPUT_ARRAY_KEYS, TemporalType
     from itzi_core.data_containers import DrainageNetworkAttributes, DrainageNetworkTopology
 
     from itzi.grass.interface import GrassInterface
@@ -41,6 +41,12 @@ class GrassRasterOutputProvider(RasterOutputProvider):
         hmin: float,
         temporal_type: TemporalType,
     ) -> None:
+        invalid_output_keys = sorted(set(out_map_names) - OUTPUT_ARRAY_KEYS)
+        if invalid_output_keys:
+            raise ValueError(
+                f"out_map_names contains invalid input keys: {', '.join(invalid_output_keys)}"
+            )
+
         self.grass_interface = grass_interface
         # Dataset IDs qualified in the current mapset. Keys are output variables.
         self.out_map_names = out_map_names

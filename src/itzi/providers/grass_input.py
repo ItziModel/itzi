@@ -18,7 +18,7 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
-from itzi_core import DomainData
+from itzi_core import INPUT_ARRAY_KEYS, DomainData
 from itzi_core.providers import RasterInputProvider
 
 if TYPE_CHECKING:
@@ -37,6 +37,12 @@ class GrassRasterInputProvider(RasterInputProvider):
         input_kinds: Mapping[str, Literal["raster", "strds"]] | None,
     ) -> None:
         from itzi.grass.utils import resolve_input_map_lists
+
+        invalid_input_keys = sorted(set(input_map_names) - INPUT_ARRAY_KEYS)
+        if invalid_input_keys:
+            raise ValueError(
+                f"input_map_names contains invalid input keys: {', '.join(invalid_input_keys)}"
+            )
 
         self.grass_interface = grass_interface
         self.start_time = default_start_time
