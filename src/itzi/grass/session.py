@@ -73,18 +73,18 @@ class GrassSessionManager:
         active = self.current_context()
         if active is None:
             msgr.fatal("Unable to determine the active GRASS context")
-        requested = (
+        gisdb, location, mapset = (
             self.grass_params.grassdata,
             self.grass_params.location,
             self.grass_params.mapset,
         )
-        if not any(requested):
+        if not any((gisdb, location, mapset)):
             return
-        if not all(requested):
+        if not gisdb or not location or not mapset:
             msgr.fatal("GRASS database, location, and mapset must be supplied together")
-        requested_database = str(Path(requested[0]).expanduser().resolve())
+        requested_database = str(Path(gisdb).expanduser().resolve())
         active_database = str(Path(active[0]).expanduser().resolve())
-        if (requested_database, requested[1], requested[2]) != (
+        if (requested_database, location, mapset) != (
             active_database,
             active[1],
             active[2],
@@ -119,15 +119,12 @@ class GrassSessionManager:
             self.ensure_temporal_initialized()
             return
 
-        # Check if mandatory GRASS parameters are present
-        if not all(
-            [self.grass_params.grassdata, self.grass_params.location, self.grass_params.mapset]
-        ):
-            msgr.fatal("No GRASS parameters to create a session.")
-
         gisdb = self.grass_params.grassdata
         location = self.grass_params.location
         mapset = self.grass_params.mapset
+        # Check if mandatory GRASS parameters are present
+        if not gisdb or not location or not mapset:
+            msgr.fatal("No GRASS parameters to create a session.")
 
         # Check if the given parameters exist and can be accessed
         error_msg = "'{}' does not exist or does not have adequate permissions"
