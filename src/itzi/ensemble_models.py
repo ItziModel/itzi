@@ -32,10 +32,12 @@ from itzi_core.const import DefaultValues
 from pydantic import (
     BaseModel,
     ConfigDict,
-    JsonValue as PydanticJsonValue,
     StrictStr,
     TypeAdapter,
     model_validator,
+)
+from pydantic import (
+    JsonValue as PydanticJsonValue,
 )
 
 from itzi.grass_session import GrassParams
