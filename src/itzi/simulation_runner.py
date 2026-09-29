@@ -143,7 +143,7 @@ class SimulationRunner:
         while self.sim.sim_time < self.sim.end_time:
             # display advance of simulation
             now = monotonic()
-            if now - last_progress_update >= 0.5:
+            if now - last_progress_update >= 0.2:
                 msgr.percent(
                     self.sim.start_time,
                     self.sim.end_time,

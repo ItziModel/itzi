@@ -71,7 +71,7 @@ def test_ensemble_members_are_resolved_in_one_spawn(monkeypatch):
 
     monkeypatch.setattr("itzi.itzi.load_batch", lambda _: ((ensemble,), ()))
     monkeypatch.setattr(
-        "itzi.itzi._resolve_ensemble_in_spawn",
+        "itzi.itzi._resolve_ensemble_in_subprocess",
         lambda received: calls.append(received) or (),
     )
     monkeypatch.setattr("itzi.itzi._display_dry_plan", lambda *_, **__: None)
@@ -142,10 +142,10 @@ def test_ensembles_are_checked_and_run_in_order_without_cross_ensemble_validatio
     def display(resolved, *_args, **_kwargs):
         calls.append(("display", resolved.ensemble.ensemble_id))
 
-    monkeypatch.setattr("itzi.itzi._resolve_ensemble_in_spawn", resolve)
+    monkeypatch.setattr("itzi.itzi._resolve_ensemble_in_subprocess", resolve)
     monkeypatch.setattr("itzi.itzi.validate_resolved_ensemble", validate)
     monkeypatch.setattr("itzi.itzi._validate_manifest_destination", lambda *_, **__: None)
-    monkeypatch.setattr("itzi.itzi._preflight_ensemble_in_spawn", preflight)
+    monkeypatch.setattr("itzi.itzi._preflight_ensemble_in_subprocess", preflight)
     monkeypatch.setattr("itzi.itzi._run_one_ensemble", run)
     monkeypatch.setattr("itzi.itzi._display_dry_plan", display)
 
@@ -172,7 +172,7 @@ def test_preflight_only_checks_selected_members(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr("itzi.itzi._validate_manifest_destination", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
-        "itzi.itzi._preflight_ensemble_in_spawn",
+        "itzi.itzi._preflight_ensemble_in_subprocess",
         lambda simulations: (
             calls.append(tuple(s.simulation_id for s in simulations))
             or {"sim-failed": "invalid input"}
@@ -231,9 +231,9 @@ def test_one_ensemble_runs_only_planned_members_and_counts_failures(tmp_path, mo
             {key: value["status"] for key, value in states.items()}
         ),
     )
-    monkeypatch.setattr("itzi.itzi._preflight_resolved_in_spawn", lambda _: None)
+    monkeypatch.setattr("itzi.itzi._preflight_simulation_in_subprocess", lambda _: None)
     monkeypatch.setattr(
-        "itzi.itzi._run_resolved_in_spawn",
+        "itzi.itzi._run_simulation_in_subprocess",
         lambda simulation: (
             runs.append(simulation.simulation_id)
             or (

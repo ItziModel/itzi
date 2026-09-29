@@ -368,7 +368,7 @@ def _run_ensemble_batch(cli_args: Namespace) -> None:
     for ensemble in ensembles:
         successful: list[ResolvedSimulation] = []
         member_failures: list[ValidationFailure] = []
-        for result in _resolve_ensemble_in_spawn(ensemble.simulations):
+        for result in _resolve_ensemble_in_subprocess(ensemble.simulations):
             if isinstance(result, ResolvedSimulation):
                 successful.append(result)
             else:
@@ -455,7 +455,7 @@ def _run_one_ensemble(
             continue
         if states[simulation.simulation_id]["status"] != "planned":
             continue
-        detail = _preflight_resolved_in_spawn(simulation)
+        detail = _preflight_simulation_in_subprocess(simulation)
         if detail is not None:
             states[simulation.simulation_id]["status"] = "validation_failed"
             states[simulation.simulation_id]["failure"] = {
@@ -472,7 +472,7 @@ def _run_one_ensemble(
             failure_count += 1
             break
         started = time.monotonic()
-        status, detail = _run_resolved_in_spawn(simulation)
+        status, detail = _run_simulation_in_subprocess(simulation)
         state = states[simulation.simulation_id]
         state["status"] = status
         state["elapsed_seconds"] = format(time.monotonic() - started, ".2f")
@@ -496,7 +496,7 @@ def _run_one_ensemble(
     return failure_count
 
 
-def _resolve_ensemble_in_spawn(
+def _resolve_ensemble_in_subprocess(
     expanded: tuple[ExpandedSimulation, ...],
 ) -> tuple[ResolvedSimulation | ValidationFailure, ...]:
     try:
@@ -514,7 +514,7 @@ def _resolve_ensemble_in_spawn(
     )
 
 
-def _run_resolved_in_spawn(simulation: ResolvedSimulation) -> tuple[str, str | None]:
+def _run_simulation_in_subprocess(simulation: ResolvedSimulation) -> tuple[str, str | None]:
     try:
         with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as executor:
             return executor.submit(resolved_sim_runner_worker, simulation).result()
@@ -522,7 +522,7 @@ def _run_resolved_in_spawn(simulation: ResolvedSimulation) -> tuple[str, str | N
         return "execution_failed", f"{type(error).__name__}: {error}"
 
 
-def _preflight_resolved_in_spawn(simulation: ResolvedSimulation) -> str | None:
+def _preflight_simulation_in_subprocess(simulation: ResolvedSimulation) -> str | None:
     try:
         with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as executor:
             return executor.submit(preflight_worker, simulation).result()
@@ -530,7 +530,9 @@ def _preflight_resolved_in_spawn(simulation: ResolvedSimulation) -> str | None:
         return f"{type(error).__name__}: {error}"
 
 
-def _preflight_ensemble_in_spawn(simulations: tuple[ResolvedSimulation, ...]) -> dict[str, str]:
+def _preflight_ensemble_in_subprocess(
+    simulations: tuple[ResolvedSimulation, ...],
+) -> dict[str, str]:
     try:
         with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as executor:
             return executor.submit(preflight_ensemble_worker, simulations).result()
@@ -571,7 +573,7 @@ def _preflight_ensemble(
         if simulation.simulation_id in selected_ids and simulation.simulation_id not in failures
     )
     if to_preflight:
-        for simulation_id, detail in _preflight_ensemble_in_spawn(to_preflight).items():
+        for simulation_id, detail in _preflight_ensemble_in_subprocess(to_preflight).items():
             failures[simulation_id] = {"phase": "preflight", "detail": detail}
     return failures, manifest_failure
 
