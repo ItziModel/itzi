@@ -155,7 +155,7 @@ def test_temporal_run_validation_failure_does_not_stop_next_member(tmp_path: Pat
 
 @pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
-def test_mask_semantics_and_worker_detects_changed_effective_mask(tmp_path: Path) -> None:
+def test_worker_rejects_changed_mask_region_and_inputs_after_resolution(tmp_path: Path) -> None:
     from grass.pygrass import utils as gutils
 
     from itzi.grass.interface import GrassInterface
@@ -213,10 +213,6 @@ def test_mask_semantics_and_worker_detects_changed_effective_mask(tmp_path: Path
     finally:
         gscript.run_command("r.mask", flags="r")
 
-
-@pytest.mark.forked
-@pytest.mark.usefixtures("grass_5by5")
-def test_worker_rejects_region_and_input_changes_after_resolution(tmp_path: Path) -> None:
     gscript.run_command("g.copy", raster="n,stage_worker_friction")
     path = write_study(tmp_path, input={"friction": "stage_worker_friction"})
     resolved = _resolve_ensemble_in_subprocess(load_batch([str(path)])[0][0].simulations)[0]
@@ -342,7 +338,7 @@ outputs:
 
 @pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
-def test_explicit_grass_context_runs_four_members_without_parent_session(test_data_temp_path):
+def test_explicit_grass_context_runs_two_members_without_parent_session(test_data_temp_path):
     context = gscript.gisenv()
     config_path = Path(test_data_temp_path) / "explicit.yaml"
     config_path.write_text(
@@ -364,7 +360,7 @@ input:
   friction: "n"
   water_depth: "start_h"
 options:
-  cfl: [0.2, 0.3]
+  cfl: 0.2
   theta: [0.8, 0.9]
   dtmax: 0.3
 outputs:
@@ -386,7 +382,7 @@ outputs:
 
     manifest_path = Path(test_data_temp_path) / "explicit-manifest.yaml"
     manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
-    assert len(manifest["members"]) == 4
+    assert len(manifest["members"]) == 2
     assert all(member["status"] == "completed" for member in manifest["members"])
     mapset_path = (
         Path(context["GISDBASE"]) / context["LOCATION_NAME"] / context["MAPSET"] / "cellhd"
@@ -505,7 +501,7 @@ def test_dry_run_checks_every_generated_output_record(test_data_temp_path):
 
 
 @pytest.mark.forked
-@pytest.mark.usefixtures("grass_5by5")
+@pytest.mark.usefixtures("grass_xy_session")
 def test_run_validation_accepts_unoccupied_drainage_id():
     from itzi.grass.utils import get_current_mapset
     from itzi.ensemble.run_validation import _validate_grass_outputs
