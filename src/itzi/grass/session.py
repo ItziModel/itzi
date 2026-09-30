@@ -45,7 +45,6 @@ class GrassSessionManager:
     def __init__(self, grass_params: GrassParams):
         self.grass_params = grass_params
         self.grass_session = None
-        self._owns_session = False
 
     @staticmethod
     def current_context() -> tuple[str, str, str] | None:
@@ -147,7 +146,6 @@ class GrassSessionManager:
         self.grass_session = gscript.setup.init(
             path=gisdb, location=location, mapset=mapset, grass_path=grassbin
         )
-        self._owns_session = True
         if not os.environ.get("GISRC"):
             session_env = getattr(self.grass_session, "env", None)
             if session_env and session_env.get("GISRC"):
@@ -162,14 +160,13 @@ class GrassSessionManager:
     def close(self) -> None:
         """Stop GRASS session."""
         global _initialized_temporal_session
-        if self.grass_session is not None and self._owns_session:
+        if self.grass_session is not None:
             try:
                 self.grass_session.finish()
             except Exception as e:
                 print(f"Warning: Error cleaning up GRASS session: {e}")
             _initialized_temporal_session = None
         self.grass_session = None
-        self._owns_session = False
 
     def __enter__(self):
         self.open()

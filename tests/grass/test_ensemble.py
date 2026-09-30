@@ -32,6 +32,7 @@ def write_study(tmp_path: Path, **changes: dict) -> Path:
         "options": {"dtmax": 0.3},
         "outputs": {},
     }
+    document["options"] = changes.pop("options", document["options"])
     for section, fields in changes.items():
         document[section].update(fields)
     path = tmp_path / "study.yaml"
@@ -397,27 +398,11 @@ outputs:
 @pytest.mark.usefixtures("grass_5by5")
 def test_dry_run_preflights_multiple_members_in_one_session(tmp_path):
     prefix = f"dry_multi_{uuid4().hex[:8]}"
-    config_path = tmp_path / "dry-multi.yaml"
-    config_path.write_text(
-        f"""\
-schema_version: 1
-ensemble:
-  id: dry-multi
-domain: {{}}
-time:
-  duration: "00:01:00"
-  record_step: "00:00:30"
-input:
-  ground_elevation: "z"
-  friction: "n"
-options:
-  cfl: [0.2, 0.3]
-outputs:
-  rasters:
-    prefix: "{prefix}_{{simulation}}"
-    variables: [water_depth]
-""",
-        encoding="utf-8",
+    config_path = write_study(
+        tmp_path,
+        ensemble={"id": "dry-multi"},
+        options={"cfl": [0.2, 0.3]},
+        outputs={"rasters": {"prefix": f"{prefix}_{{simulation}}", "variables": ["water_depth"]}},
     )
 
     itzi_run(build_parser().parse_args(["run", str(config_path), "--dry-run"]))
@@ -430,28 +415,15 @@ outputs:
 @pytest.mark.usefixtures("grass_5by5")
 def test_dry_run_rejects_null_elevation_without_creating_outputs(tmp_path):
     gscript.mapcalc("dry_null_dem=null()")
-    config_path = tmp_path / "dry.yaml"
-    config_path.write_text(
-        """\
-schema_version: 1
-ensemble:
-  id: dry
-domain: {}
-time:
-  duration: "00:01:00"
-  record_step: "00:00:30"
-input:
-  ground_elevation: "dry_null_dem"
-  friction: "n"
-options: {}
-outputs:
-  rasters:
-    prefix: "dry_output"
-    variables: [water_depth]
-  statistics:
-    file: "dry-results/statistics.csv"
-""",
-        encoding="utf-8",
+    config_path = write_study(
+        tmp_path,
+        ensemble={"id": "dry"},
+        input={"ground_elevation": "dry_null_dem"},
+        options={},
+        outputs={
+            "rasters": {"prefix": "dry_output", "variables": ["water_depth"]},
+            "statistics": {"file": "dry-results/statistics.csv"},
+        },
     )
 
     with pytest.raises(RuntimeError, match="YAML batch validation failed"):
@@ -497,27 +469,12 @@ def test_dry_run_does_not_read_rainfall_cells(tmp_path):
         increment="30",
         unit="seconds",
     )
-    config_path = tmp_path / "dry-rain.yaml"
-    config_path.write_text(
-        """\
-schema_version: 1
-ensemble:
-  id: dry-rain
-domain: {}
-time:
-  duration: "00:01:00"
-  record_step: "00:00:30"
-input:
-  ground_elevation: "z"
-  friction: "n"
-  rainfall_rate: "dry_rain_series"
-options: {}
-outputs:
-  rasters:
-    prefix: "dry_rain_output"
-    variables: [water_depth]
-""",
-        encoding="utf-8",
+    config_path = write_study(
+        tmp_path,
+        ensemble={"id": "dry-rain"},
+        input={"rainfall_rate": "dry_rain_series"},
+        options={},
+        outputs={"rasters": {"prefix": "dry_rain_output", "variables": ["water_depth"]}},
     )
 
     itzi_run(build_parser().parse_args(["run", str(config_path), "--dry-run"]))
@@ -528,26 +485,11 @@ outputs:
 @pytest.mark.usefixtures("grass_5by5")
 def test_dry_run_checks_every_generated_output_record(test_data_temp_path):
     gscript.mapcalc("existing_output_water_depth_0002=1")
-    config_path = Path(test_data_temp_path) / "existing-output.yaml"
-    config_path.write_text(
-        """\
-schema_version: 1
-ensemble:
-  id: existing-output
-domain: {}
-time:
-  duration: "00:01:00"
-  record_step: "00:00:30"
-input:
-  ground_elevation: "z"
-  friction: "n"
-options: {}
-outputs:
-  rasters:
-    prefix: "existing_output"
-    variables: [water_depth]
-""",
-        encoding="utf-8",
+    config_path = write_study(
+        Path(test_data_temp_path),
+        ensemble={"id": "existing-output"},
+        options={},
+        outputs={"rasters": {"prefix": "existing_output", "variables": ["water_depth"]}},
     )
 
     with pytest.raises(RuntimeError, match="YAML batch validation failed"):

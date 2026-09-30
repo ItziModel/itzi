@@ -167,7 +167,7 @@ def _resolve_inputs(
 
 
 def _resolve_swmm_input(
-    expanded: ExpandedSimulation, cache: dict[Path, str] | None = None
+    expanded: ExpandedSimulation, cache: dict[Path, str]
 ) -> tuple[Path | None, str | None]:
     if expanded.drainage is None:
         return None, None
@@ -177,11 +177,10 @@ def _resolve_swmm_input(
     path = path.resolve()
     if not path.is_file():
         raise EnsembleError(f"SWMM input file <{path}> not found")
-    if cache is not None and path in cache:
+    if path in cache:
         return path, cache[path]
     digest = f"blake2b:{hashlib.blake2b(path.read_bytes(), digest_size=32).hexdigest()}"
-    if cache is not None:
-        cache[path] = digest
+    cache[path] = digest
     return path, digest
 
 

@@ -40,12 +40,11 @@ from itzi.grass.utils import (
     MapData,
     RasterMapType,
     STDSType,
-    format_id,
-    get_crs_wkt,
-    has_mask,
     name_is_map,
     output_name,
+    read_domain,
     replace_cell_null_sentinel,
+    resolve_effective_mask,
     split_identifier,
     write_raster_map_blocking,
 )
@@ -194,22 +193,11 @@ class GrassInterface:
             if source is None:
                 msgr.fatal(f"Effective {mode} mask has no source")
             return mode, source
-        if self.raster_mask_id:
-            return "explicit", format_id(self.raster_mask_id)
-        if has_mask():
-            return "active", f"MASK@{gutils.getenv('MAPSET')}"
-        return "none", None
+        selected = resolve_effective_mask(self.raster_mask_id)
+        return selected.mode, selected.source
 
     def get_domain_data(self) -> DomainData:
-        return DomainData(
-            north=self.region.north,
-            south=self.region.south,
-            east=self.region.east,
-            west=self.region.west,
-            rows=self.region.rows,
-            cols=self.region.cols,
-            crs_wkt=get_crs_wkt(),
-        )
+        return read_domain(None)
 
     def get_npmask(self) -> np.ndarray:
         """Return a boolean numpy ndarray where True is outside the domain."""
