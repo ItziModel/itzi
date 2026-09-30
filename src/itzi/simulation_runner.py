@@ -103,9 +103,7 @@ class SimulationRunner:
             dtype=data_type,
             region_id=self.grass_params.region,
             raster_mask_id=self.grass_params.mask,
-            effective_mask=(self.effective_mask.mode, self.effective_mask.source)
-            if self.effective_mask is not None
-            else None,
+            effective_mask=self.effective_mask,
         )
         msgr.verbose("Setting up GRASS simulation...")
 

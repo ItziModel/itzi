@@ -176,7 +176,7 @@ def test_mask_semantics_and_worker_detects_changed_effective_mask(tmp_path: Path
             np.float32,
             None,
             "stage_mask_values",
-            ("explicit", resolved.effective_mask.source),
+            resolved.effective_mask,
         )
         try:
             explicit = interface.get_npmask()

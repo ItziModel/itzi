@@ -66,7 +66,6 @@ def test_visible_input_and_current_output_with_same_name(grass_xy_session) -> No
     import grass.script as gscript
 
     from itzi.grass.utils import (
-        format_id,
         output_name,
         qualify_output_id,
         write_raster_map_blocking,
@@ -76,9 +75,6 @@ def test_visible_input_and_current_output_with_same_name(grass_xy_session) -> No
     gscript.run_command("g.region", n=3, s=0, e=3, w=0, res=1)
     gscript.mapcalc("visible_output=1")
     gscript.run_command("g.mapset", mapset="child", flags="c")
-    assert format_id("visible_output") == "visible_output@PERMANENT"
-    assert format_id("visible_output@PERMANENT") == "visible_output@PERMANENT"
-
     output_id = qualify_output_id("visible_output", "child")
     assert output_id == "visible_output@child"
     assert derived_record_name(output_id, 0) == "visible_output_0000@child"
@@ -90,7 +86,6 @@ def test_visible_input_and_current_output_with_same_name(grass_xy_session) -> No
     write_raster_map_blocking(
         np.ones((3, 3), dtype=np.int32), "visible_output", "CELL", "ground_elevation", 0, False
     )
-    assert format_id("visible_output") == "visible_output@child"
 
 
 @pytest.mark.forked

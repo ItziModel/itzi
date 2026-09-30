@@ -36,6 +36,7 @@ from itzi_core.data_containers import (
 )
 
 import itzi.messenger as msgr
+from itzi.ensemble.models import EffectiveMask
 from itzi.grass.utils import (
     MapData,
     RasterMapType,
@@ -102,14 +103,13 @@ class GrassInterface:
         dtype,
         region_id: str | None,
         raster_mask_id: str | None,
-        effective_mask: tuple[str, str | None] | None = None,
+        effective_mask: EffectiveMask | None = None,
     ) -> None:
         assert isinstance(start_time, datetime), "start_time not a datetime object!"
         assert isinstance(end_time, datetime), "end_time not a datetime object!"
         assert start_time <= end_time, "start_time > end_time!"
 
         self.region_id = region_id
-        self.raster_mask_id = raster_mask_id
         self.start_time = start_time
         self.end_time = end_time
         self.dtype = dtype
@@ -127,15 +127,11 @@ class GrassInterface:
         # Check if region is at least 3x3
         if self.xr < 3 or self.yr < 3:
             msgr.fatal("GRASS Region should be at least 3 cells by 3 cells")
-        self.dx = self.region.ewres
-        self.dy = self.region.nsres
-        self.reg_bbox = {
-            "e": self.region.east,
-            "w": self.region.west,
-            "n": self.region.north,
-            "s": self.region.south,
-        }
-        self.mask_mode, self.mask_source = self._select_effective_mask(effective_mask)
+        selected_mask = effective_mask or resolve_effective_mask(raster_mask_id)
+        if selected_mask.mode != "none" and selected_mask.source is None:
+            msgr.fatal(f"Effective {selected_mask.mode} mask has no source")
+        self.mask_mode = selected_mask.mode
+        self.mask_source = selected_mask.source if selected_mask.mode != "none" else None
         self.overwrite = gscript.overwrite()
 
     def __enter__(self):
@@ -181,20 +177,6 @@ class GrassInterface:
         to maps from relative stds
         """
         return self.start_time + timedelta(seconds=self.to_s(unit, time))
-
-    def _select_effective_mask(
-        self, effective_mask: tuple[str, str | None] | None
-    ) -> tuple[str, str | None]:
-        """Select a mask descriptor without modifying the mapset-wide MASK."""
-        if effective_mask is not None:
-            mode, source = effective_mask
-            if mode == "none":
-                return mode, None
-            if source is None:
-                msgr.fatal(f"Effective {mode} mask has no source")
-            return mode, source
-        selected = resolve_effective_mask(self.raster_mask_id)
-        return selected.mode, selected.source
 
     def get_domain_data(self) -> DomainData:
         return read_domain(None)

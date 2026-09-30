@@ -42,7 +42,7 @@ def preflight_simulation(simulation: ResolvedSimulation) -> None:
         dtype=np.float32,
         region_id=simulation.grass_params.region,
         raster_mask_id=simulation.grass_params.mask,
-        effective_mask=(simulation.effective_mask.mode, simulation.effective_mask.source),
+        effective_mask=simulation.effective_mask,
     )
     try:
         _validate_inputs(simulation, interface)

@@ -130,13 +130,6 @@ def resolve_effective_mask(mask: str | None) -> EffectiveMask:
     return EffectiveMask("none", None)
 
 
-def format_id(name: str) -> str:
-    """Qualify a raster name using the GRASS search path if it exists."""
-    if "@" in name:
-        return name
-    return f"{name}@{gutils.get_mapset_raster(name) or gutils.getenv('MAPSET')}"
-
-
 def qualify_output_id(name: str, mapset: str) -> str:
     """Give a new output its destination mapset, never a searched mapset."""
     map_name, requested_mapset = split_identifier(name)
