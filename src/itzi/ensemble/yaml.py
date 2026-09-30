@@ -54,7 +54,7 @@ from itzi.ensemble.schema import (
     InfiltrationAlternative,
     InputSweepConfig,
     NoInfiltration,
-    OptionSweepConfig,
+    ParameterSweepConfig,
     SweepFloat,
     SweepString,
     TimeConfig,
@@ -353,7 +353,7 @@ def expand_yaml_document(
             (NoInfiltration, ConstantInfiltration, GreenAmptInfiltration),
         )
         infiltration = _normalize_infiltration(infiltration_value)
-        options = _selected_options(document.options, selected)
+        parameters = _selected_parameters(document.parameters, selected)
         drainage = _selected_drainage(document.drainage, selected)
         outputs = _output_templates(document)
         simulations.append(
@@ -365,7 +365,7 @@ def expand_yaml_document(
                 time=normalized_time,
                 input_maps=tuple(sorted(input_maps.items())),
                 infiltration=infiltration,
-                options=tuple(sorted(options.items())),
+                parameters=tuple(sorted(parameters.items())),
                 drainage=tuple(sorted(drainage.items())) if drainage is not None else None,
                 outputs=outputs,
             )
@@ -397,10 +397,10 @@ def _collect_dimensions(
                 cast(tuple[SweepScalar, ...], tuple(document.input.infiltration)),
             )
         )
-    for key in type(document.options).model_fields:
-        value = cast(SweepFloat | None, getattr(document.options, key))
+    for key in type(document.parameters).model_fields:
+        value = cast(SweepFloat | None, getattr(document.parameters, key))
         if isinstance(value, list):
-            dimensions.append((f"options.{key}", cast(tuple[SweepScalar, ...], tuple(value))))
+            dimensions.append((f"parameters.{key}", cast(tuple[SweepScalar, ...], tuple(value))))
     if document.drainage is not None:
         for key in type(document.drainage).model_fields:
             value = cast(SweepString | SweepFloat, getattr(document.drainage, key))
@@ -439,13 +439,15 @@ def _normalize_infiltration(value: InfiltrationAlternative) -> NormalizedInfiltr
     return NormalizedInfiltration(InfiltrationModelType.GREEN_AMPT, tuple(sorted(maps.items())))
 
 
-def _selected_options(
-    options: OptionSweepConfig, selected: dict[str, SweepScalar]
+def _selected_parameters(
+    parameters: ParameterSweepConfig, selected: dict[str, SweepScalar]
 ) -> dict[str, float]:
     values: dict[str, float] = SurfaceFlowParameters().model_dump()
     values["dtinf"] = DefaultValues.DTINF
-    for key in type(options).model_fields:
-        value = selected.get(f"options.{key}", cast(SweepFloat | None, getattr(options, key)))
+    for key in type(parameters).model_fields:
+        value = selected.get(
+            f"parameters.{key}", cast(SweepFloat | None, getattr(parameters, key))
+        )
         if value is not None:
             assert isinstance(value, float)
             values[key] = value

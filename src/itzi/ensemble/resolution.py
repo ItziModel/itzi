@@ -211,7 +211,7 @@ def _simulation_identity(
         "time": time_payload,
         "inputs": input_names,
         "infiltration": {"model": str(expanded.infiltration.model)},
-        "options": dict(expanded.options),
+        "parameters": dict(expanded.parameters),
         "drainage": drainage,
     }
     canonical = json.dumps(payload, allow_nan=False, separators=(",", ":"), sort_keys=True)
@@ -334,8 +334,8 @@ def _build_simulation_config(
         start = datetime.min  # noqa: DTZ901  # Core's established relative-time adapter.
         end = start + expanded.time.duration
     assert end is not None
-    options = dict(expanded.options)
-    surface_options = {key: value for key, value in options.items() if key != "dtinf"}
+    parameters = dict(expanded.parameters)
+    surface_parameters = {key: value for key, value in parameters.items() if key != "dtinf"}
     # Create the dict first to satisfy the type checker
     config_data = {
         "start_time": start,
@@ -345,8 +345,8 @@ def _build_simulation_config(
         "hotstart_config": None,
         "input_map_names": input_names,
         "output_map_names": dict(artifacts.output_map_names),
-        "surface_flow_parameters": SurfaceFlowParameters(**surface_options),
-        "dtinf": options["dtinf"],
+        "surface_flow_parameters": SurfaceFlowParameters(**surface_parameters),
+        "dtinf": parameters["dtinf"],
         "infiltration_model": expanded.infiltration.model,
         "swmm_inp": swmm_path,
         "drainage_output": artifacts.drainage_output,

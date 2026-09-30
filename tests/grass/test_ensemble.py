@@ -30,10 +30,10 @@ def write_study(tmp_path: Path, **changes: dict) -> Path:
         "domain": {},
         "time": {"duration": "00:01:00", "record_step": "00:00:30"},
         "input": {"ground_elevation": "z", "friction": "n"},
-        "options": {"dtmax": 0.3},
+        "parameters": {"dtmax": 0.3},
         "outputs": {},
     }
-    document["options"] = changes.pop("options", document["options"])
+    document["parameters"] = changes.pop("parameters", document["parameters"])
     for section, fields in changes.items():
         values = document[section]
         assert isinstance(values, dict)
@@ -295,7 +295,7 @@ input:
   infiltration:
     - type: "constant"
       rate: "infiltration_rate"
-options:
+parameters:
   cfl: [0.2, 0.3]
   dtmax: 0.3
 outputs:
@@ -322,11 +322,11 @@ outputs:
     assert [member["coordinates"] for member in manifest["members"]] == [
         {
             "input.infiltration": {"rate": "infiltration_rate", "type": "constant"},
-            "options.cfl": 0.2,
+            "parameters.cfl": 0.2,
         },
         {
             "input.infiltration": {"rate": "infiltration_rate", "type": "constant"},
-            "options.cfl": 0.3,
+            "parameters.cfl": 0.3,
         },
     ]
     assert all(
@@ -359,7 +359,7 @@ input:
   ground_elevation: "z"
   friction: "n"
   water_depth: "start_h"
-options:
+parameters:
   cfl: 0.2
   theta: [0.8, 0.9]
   dtmax: 0.3
@@ -400,7 +400,7 @@ def test_dry_run_validates_multiple_members_in_one_session(tmp_path):
     config_path = write_study(
         tmp_path,
         ensemble={"id": "dry-multi"},
-        options={"cfl": [0.2, 0.3]},
+        parameters={"cfl": [0.2, 0.3]},
         outputs={"rasters": {"prefix": f"{prefix}_{{simulation}}", "variables": ["water_depth"]}},
     )
 
@@ -418,7 +418,7 @@ def test_dry_run_rejects_null_elevation_without_creating_outputs(tmp_path):
         tmp_path,
         ensemble={"id": "dry"},
         input={"ground_elevation": "dry_null_dem"},
-        options={},
+        parameters={},
         outputs={
             "rasters": {"prefix": "dry_output", "variables": ["water_depth"]},
             "statistics": {"file": "dry-results/statistics.csv"},
@@ -472,7 +472,7 @@ def test_dry_run_does_not_read_rainfall_cells(tmp_path):
         tmp_path,
         ensemble={"id": "dry-rain"},
         input={"rainfall_rate": "dry_rain_series"},
-        options={},
+        parameters={},
         outputs={"rasters": {"prefix": "dry_rain_output", "variables": ["water_depth"]}},
     )
 
@@ -487,7 +487,7 @@ def test_dry_run_checks_every_generated_output_record(test_data_temp_path):
     config_path = write_study(
         Path(test_data_temp_path),
         ensemble={"id": "existing-output"},
-        options={},
+        parameters={},
         outputs={"rasters": {"prefix": "existing_output", "variables": ["water_depth"]}},
     )
 

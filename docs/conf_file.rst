@@ -45,7 +45,7 @@ Basic YAML example
      rainfall_rate: ["rain_10yr@PERMANENT", "rain_100yr@PERMANENT"]
      infiltration:
        type: "none"
-   options:
+   parameters:
      cfl: [0.5, 0.7]
    outputs:
      rasters:
@@ -56,7 +56,7 @@ Basic YAML example
 
 The example expands to four simulations: two rainfall maps multiplied by two
 ``cfl`` values. Scalars are fixed across an ensemble, while non-empty lists in
-``input``, ``options``, or ``drainage`` are sweep dimensions. ``domain`` and
+``input``, ``parameters``, or ``drainage`` are sweep dimensions. ``domain`` and
 ``time`` are always scalar. Output variable lists are selections, not sweeps.
 An ensemble may contain at most 100 candidate simulations; a full command may
 contain at most 200.

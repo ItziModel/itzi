@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YAML ensembles | Itzï branch report</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; color: #172c3c; background: #f4f7f7; }
+    * { box-sizing: border-box; }
+    body { margin: 0; line-height: 1.6; }
+    header { background: #102c3a; color: #f7fbf8; padding: 3.5rem clamp(1rem, 3vw, 3rem); }
+    header p { max-width: 48rem; color: #d1e4e6; }
+    .eyebrow { color: #79d8c1; text-transform: uppercase; letter-spacing: .14em; font-size: .8rem; font-weight: 700; }
+    h1 { font-size: clamp(2.25rem, 5vw, 3.5rem); line-height: 1.12; margin: .6rem 0; }
+    h2 { font-size: 1.55rem; margin: 0 0 .8rem; line-height: 1.25; }
+    h3 { font-size: 1.08rem; margin: 1.5rem 0 .4rem; }
+    p { margin: .5rem 0 1rem; }
+    main { width: 100%; padding: 2rem clamp(1rem, 3vw, 3rem) 4rem; }
+    section { background: #fff; border: 1px solid #dbe6e5; border-radius: 12px; padding: clamp(1.2rem, 3vw, 2rem); margin: 0 0 1.2rem; }
+    section > p, section > ol, section > ul, .two p { max-width: 80ch; }
+    .lead { font-size: 1.12rem; }
+    .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; }
+    @media (max-width: 700px) { .two { grid-template-columns: 1fr; } }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    code { font-size: .92em; background: #e9f3f1; padding: .12em .35em; border-radius: 4px; overflow-wrap: anywhere; }
+    pre { background: #112b38; color: #effaf7; border-radius: 8px; padding: 1.25rem; overflow-x: auto; line-height: 1.5; }
+    pre code { color: inherit; background: none; padding: 0; font-size: .9rem; overflow-wrap: normal; }
+    a { color: #086c63; }
+    a:focus-visible { outline: 3px solid #e2a443; outline-offset: 3px; }
+    .callout { border-left: 4px solid #138779; padding: .5rem 1rem; background: #edf8f5; }
+    .table-wrap { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; min-width: 580px; }
+    th, td { border-bottom: 1px solid #dbe6e5; padding: .6rem .7rem; text-align: left; vertical-align: top; }
+    th { background: #edf4f3; }
+    ul, ol { padding-left: 1.4rem; }
+    li { margin: .4rem 0; }
+    .diagram { background: #f1f6f6; border-radius: 10px; padding: 1rem; }
+    .flow-node { position: relative; min-width: 0; padding: .7rem 1rem; background: #fff; border: 2px solid #a9cfca; border-radius: 10px; }
+    .flow-node code { display: block; padding: 0; background: none; font: 600 1.05rem/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+    .flow-node span { display: block; margin-top: .25rem; color: #415c67; font-size: 1rem; overflow-wrap: anywhere; }
+    .flow-fork { text-align: center; color: #277c72; font-weight: 700; margin: .5rem 0 1rem; }
+    .flow-paths, .flow-outcomes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    .flow-path, .flow-choice { min-width: 0; }
+    .flow-path h3, .flow-choice h4 { text-align: center; margin: 0 0 .8rem; }
+    .flow-stack { display: grid; gap: 2rem; }
+    .flow-stack > .flow-node:not(:last-child)::after { content: "↓"; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); color: #277c72; font: 700 1.5rem system-ui, sans-serif; }
+    .flow-path.legacy .flow-node { background: #f2ebf8; border-color: #9670af; }
+    .flow-node.worker { background: #e3f2f0; border-color: #299489; }
+    .flow-choice.dry .flow-node { background: #fff8e7; border-color: #c89a43; }
+    .flow-choice.run .flow-node { background: #e8f1fa; border-color: #5a91bc; }
+    .flow-choice.run .flow-node.worker { background: #e3f2f0; border-color: #299489; }
+    .flow-outcomes { margin-top: 1rem; grid-template-columns: minmax(0, 1fr); }
+    @media (max-width: 1100px) { .flow-paths { grid-template-columns: minmax(0, 1fr); } }
+    footer { padding: 0 clamp(1rem, 3vw, 3rem) 3rem; color: #526b74; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="eyebrow">Itzï · branch comparison: ensemble vs main</div>
+    <h1>YAML configuration &amp; ensemble runs</h1>
+    <p class="lead">One YAML document now describes a study rather than just one run. Lists of inputs or settings turn it into several simulations, which Itzï checks and runs one at a time.</p>
+  </header>
+  <main>
+    <section aria-labelledby="change">
+      <h2 id="change">What changed</h2>
+      <div class="two">
+        <div><h3>Before</h3><p>Each INI file described one simulation. A batch ran several INI files, with the legacy hotstart and resume workflow.</p></div>
+        <div><h3>On this branch</h3><p><code>.yaml</code> files contain one or more documents separated by <code>---</code>. Each document defines an ensemble: a shared domain and clock, plus one or more combinations of input maps and numerical parameters. A command can process several YAML files and legacy INI files in order.</p></div>
+      </div>
+      <p class="callout">The <code>.yaml</code> suffix selects YAML parsing. Other suffixes use the deprecated INI reader; invalid YAML is never silently treated as INI.</p>
+    </section>
+
+    <section aria-labelledby="example">
+      <h2 id="example">A four-member study</h2>
+      <p>This example assumes the GRASS session can see the named rasters. Save it as <code>study.yaml</code>:</p>
+      <pre><code>schema_version: 1
+ensemble:
+  id: "study"
+domain: {}
+time:
+  duration: "02:00:00"
+  record_step: "00:05:00"
+input:
+  ground_elevation: "terrain"
+  friction: "manning"
+  rainfall_rate: ["rain_10yr", "rain_100yr"]
+parameters:
+  cfl: [0.5, 0.7]
+outputs:
+  rasters:
+    prefix: "study_{simulation}"
+    variables: [water_depth, flow_speed]
+  statistics:
+    file: "results/{simulation}.csv"</code></pre>
+      <p>Two rainfall choices × two <code>cfl</code> choices = <strong>four simulations</strong>. Each has the same terrain, friction, region, duration and recording interval. <code>variables</code> chooses what to save; it does not multiply the number of simulations.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th scope="col">YAML field</th><th scope="col">Plain-English meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>schema_version</code>, <code>ensemble</code></td><td>Format version <code>1</code> and a unique study ID. An optional <code>name</code> is descriptive.</td></tr>
+          <tr><td><code>domain</code></td><td>One GRASS context for the ensemble. Leave <code>grass</code> out to use the active session; optionally specify <code>grass.database</code>, <code>project</code>, <code>mapset</code> together, and <code>executable</code>. An optional <code>region</code> and <code>mask</code> apply to all members.</td></tr>
+          <tr><td><code>time</code></td><td>One clock for every member: <code>duration</code> alone, <code>start</code> + <code>duration</code>, or <code>start</code> + <code>end</code>, always with <code>record_step</code>. Durations are positive <code>HH:MM:SS</code>, including hours over 23.</td></tr>
+          <tr><td><code>input</code></td><td>Terrain (<code>ground_elevation</code>) and friction are required. Other raster/space-time raster inputs are optional. A scalar fixes a value; a nonempty list sweeps it.</td></tr>
+          <tr><td><code>parameters</code>, <code>drainage</code></td><td>Numerical settings use core defaults unless supplied; <code>drainage</code> is optional and requires the SWMM input and three exchange coefficients. Their lists can also be swept.</td></tr>
+          <tr><td><code>outputs</code></td><td>Optional raster, CSV statistics, drainage-vector and manifest destinations. The section itself is required, even if empty (<code>outputs: {}</code>).</td></tr>
+        </tbody>
+      </table></div>
+      <p><code>input.infiltration</code> is either <code>{type: "none"}</code> (the default), <code>{type: "constant", rate: "map"}</code>, or <code>type: "green-ampt"</code> with maps for effective porosity, capillary pressure and hydraulic conductivity (optionally soil water content). A list of complete infiltration alternatives counts as <em>one</em> sweep dimension.</p>
+    </section>
+
+    <section aria-labelledby="behavior">
+      <h2 id="behavior">From choices to runnable members</h2>
+      <ol>
+        <li><strong>Read and expand.</strong> YAML is safely parsed, checked against a strict versioned schema, and every combination of list values is produced. Unknown fields, duplicate or merge keys, custom tags, empty documents and duplicate sweep values are rejected. An explicitly separated later document can still load after an earlier document fails.</li>
+        <li><strong>Resolve against GRASS.</strong> A fresh process opens the requested or active GRASS context, finds the region and mask, resolves each input as a raster or space-time raster dataset, and builds a simulation configuration. Ambiguous or missing inputs fail for that member. Optional SWMM files are resolved relative to the YAML file.</li>
+        <li><strong>Name and check outputs.</strong> Each successfully resolved member gets a <code>sim-xxxxxxxx</code> ID from a digest of its normalized domain, time, inputs, settings, mask and drainage information. This ID is based on the resolved run, not its position in the sweep. Itzï renders output templates, then checks for duplicate IDs, collisions between members, and output names that would overwrite inputs or the mask.</li>
+        <li><strong>Validate run requirements and run.</strong> Selected members are checked for usable input data, temporal coverage, existing destinations and a still-matching GRASS environment. The real run writes a manifest, then runs eligible members sequentially in separate processes. After the first member, each next member's run requirements are validated again because earlier output may have changed what exists.</li>
+      </ol>
+      <p class="callout">The limits apply <em>before</em> member selection: at most 100 candidate simulations per document and 200 across the batch.</p>
+    </section>
+
+    <section aria-labelledby="flow">
+      <h2 id="flow">Execution flow</h2>
+      <p>The CLI branches into the purple legacy INI path or the YAML path. Teal YAML cards run in spawned GRASS processes; YAML then branches into dry-run and real-run outcomes. Labels use Python module and function or class method names.</p>
+      <div class="diagram" role="group" aria-label="Legacy INI and YAML ensemble execution flows">
+        <div class="flow-node"><code>itzi.itzi.main() → itzi.itzi.itzi_run()</code><span>Parse “itzi run” and choose a route</span></div>
+        <div class="flow-fork">↓ choose a route ↓</div>
+        <div class="flow-paths">
+          <div class="flow-path legacy">
+            <h3>Legacy INI-only</h3>
+            <div class="flow-stack">
+              <div class="flow-node"><code>itzi.itzi._uses_legacy_execution_path()</code><span>Only INI files; no --member or --dry-run</span></div>
+              <div class="flow-node"><code>itzi.itzi._run_legacy_batch()</code><span>Warn that INI is deprecated; process files in order</span></div>
+              <div class="flow-node"><code>itzi.itzi.reconcile_hotstart_commands()</code><span>Map optional --resume-from checkpoints, or start fresh</span></div>
+              <div class="flow-node"><code>itzi.itzi.itzi_run_one()</code><span>Launch one subprocess for each INI file</span></div>
+              <div class="flow-node"><code>itzi.itzi.sim_runner_worker()</code><span>ConfigReader.__init__() reads this INI file</span></div>
+              <div class="flow-node"><code>GrassSessionManager.open()</code><span>Enter the requested or active GRASS session</span></div>
+              <div class="flow-node"><code>SimulationRunner.initialize()</code><span>Set up providers; optionally load a hotstart</span></div>
+              <div class="flow-node"><code>SimulationRunner.run() → SimulationRunner.step()</code><span>Advance the model until the end time</span></div>
+              <div class="flow-node"><code>SimulationRunner.finalize()</code><span>Clean up; the worker exits with a status</span></div>
+              <div class="flow-node"><code>itzi.itzi._run_legacy_batch()</code><span>Repeat for the next INI; report times and failures</span></div>
+            </div>
+          </div>
+          <div class="flow-path">
+            <h3>YAML ensemble</h3>
+            <div class="flow-stack">
+              <div class="flow-node"><code>itzi.itzi._run_ensemble_batch()</code><span>Coordinate ordered documents and collect errors</span></div>
+              <div class="flow-node"><code>itzi.run_plan.load_batch() → itzi.ensemble.yaml.load_yaml_stream()</code><span>Read each .yaml stream (or adapt an INI file)</span></div>
+              <div class="flow-node"><code>itzi.ensemble.schema.YamlEnsembleDocumentV1.model_validate()</code><span>itzi.ensemble.yaml.expand_yaml_document() builds the Cartesian members</span></div>
+              <div class="flow-node worker"><code>itzi.itzi._resolve_ensemble_in_subprocess()</code><span>itzi.itzi.resolver_worker() · one spawned GRASS process per ensemble</span></div>
+              <div class="flow-node worker"><code>itzi.ensemble.resolution.resolve_ensemble()</code><span>itzi.ensemble.resolution._build_resolved_simulation() creates member IDs</span></div>
+              <div class="flow-node"><code>itzi.ensemble.resolution.validate_resolved_ensemble()</code><span>Reject artifact collisions; itzi.itzi._select_members() applies --member</span></div>
+               <div class="flow-node"><code>itzi.itzi._validate_ensemble_run_requirements()</code><span>itzi.itzi._validate_run_requirements_in_subprocess() · one process per ensemble</span></div>
+               <div class="flow-node worker"><code>itzi.itzi.run_validation_worker()</code><span>itzi.ensemble.run_validation.validate_run_requirements() checks each selected member</span></div>
+            </div>
+            <div class="flow-fork">↓ choose an outcome ↓</div>
+            <div class="flow-outcomes">
+              <div class="flow-choice dry">
+                <h4>--dry-run</h4>
+                <div class="flow-node"><code>itzi.itzi._display_dry_plan()</code><span>Print IDs, destinations and errors; write nothing</span></div>
+              </div>
+              <div class="flow-choice run">
+                <h4>Real run</h4>
+                <div class="flow-stack">
+                  <div class="flow-node"><code>itzi.itzi._run_one_ensemble()</code><span>itzi.manifest._create_manifest() records all members</span></div>
+                   <div class="flow-node"><code>itzi.itzi._run_one_ensemble()</code><span>Later members: itzi.itzi._validate_run_requirements_in_subprocess(); itzi.manifest._update_manifest() marks members running</span></div>
+                  <div class="flow-node worker"><code>itzi.itzi._run_simulation_in_subprocess() → itzi.itzi.resolved_sim_runner_worker()</code><span>New GRASS process for this member</span></div>
+                  <div class="flow-node worker"><code>SimulationRunner.initialize() → SimulationRunner.run() → SimulationRunner.step() → SimulationRunner.finalize()</code><span>Build providers, advance the model, clean up</span></div>
+                  <div class="flow-node"><code>itzi.manifest._update_manifest()</code><span>Record completion or execution failure</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+       <p>The INI path runs each file in a separate subprocess and supports mapped <code>--resume-from</code> checkpoints. The YAML real-run loop repeats the per-member run-requirements validation and execution boxes for each selected, eligible member. Each worker opens a GRASS session with <code>GrassSessionManager.open()</code>; separate processes prevent GRASS temporal state leaking across mapsets.</p>
+    </section>
+
+    <section aria-labelledby="using">
+      <h2 id="using">Using and reading the results</h2>
+      <pre><code>itzi run study.yaml --dry-run
+itzi run study.yaml --member 'study#sim-xxxxxxxx'
+itzi run study.yaml</code></pre>
+      <p>First inspect the dry-run output for the actual <code>sim-…</code> ID; replace <code>xxxxxxxx</code> above with those eight hex digits. Repeat <code>--member</code> to choose several. If the command contains exactly one ensemble, the simulation ID may be unqualified. <code>-o</code> permits overwriting existing destinations.</p>
+      <ul>
+        <li>Raster variables become GRASS space-time raster outputs named from the prefix plus <code>_variable</code>; each record has its own map. Statistics go to CSV, and optional SWMM drainage results can go to a space-time vector dataset.</li>
+        <li><code>{ensemble}</code> and <code>{simulation}</code> are the only template placeholders. The manifest path may use <code>{ensemble}</code>, but not <code>{simulation}</code>. Filesystem paths in YAML are relative to its file; output GRASS map names must be unqualified names in the execution mapset.</li>
+        <li>A real run writes <code>results/study.manifest.yaml</code> beside this example file by default. <code>outputs.manifest.file</code> overrides that path. The YAML manifest records source digests, member choices, destinations, statuses (<code>planned</code>, <code>running</code>, <code>completed</code>, <code>validation_failed</code>, <code>execution_failed</code>, <code>not_selected</code>) and failures/elapsed time when applicable.</li>
+        <li>Dry runs perform validation without creating manifests or model outputs. Document and member failures are reported; valid members in other documents can still be processed. The command ends with an error status when relevant validation or execution fails.</li>
+      </ul>
+      <p><strong>Compatibility:</strong> A plain INI-only run keeps its old execution and hotstart-resume path. INI files in the new batch planner (for example, mixed with YAML or using <code>--dry-run</code>) are adapted as single-member ensembles. YAML resume and checkpoint creation are not yet supported; <code>--resume-from</code> cannot be combined with the new ensemble path.</p>
+    </section>
+  </main>
+  <footer>Based on the branch diff against <code>main</code>. Source: <a href="../src/itzi/ensemble/schema.py">YAML schema</a>, <a href="../src/itzi/ensemble/yaml.py">loader and expansion</a>, <a href="../src/itzi/ensemble/resolution.py">resolution</a>, <a href="../src/itzi/itzi.py">orchestration</a>, <a href="../src/itzi/manifest.py">manifest</a>.</footer>
+</body>
+</html>

@@ -113,7 +113,7 @@ class InputSweepConfig(StrictModel):
         return self
 
 
-class OptionSweepConfig(StrictModel):
+class ParameterSweepConfig(StrictModel):
     hmin: SweepFloat | None = None
     cfl: SweepFloat | None = None
     theta: SweepFloat | None = None
@@ -172,7 +172,7 @@ class YamlEnsembleDocumentV1(StrictModel):
     domain: DomainConfig
     time: TimeConfig
     input: InputSweepConfig
-    options: OptionSweepConfig
+    parameters: ParameterSweepConfig
     drainage: DrainageSweepConfig | None = None
     outputs: OutputConfig
 

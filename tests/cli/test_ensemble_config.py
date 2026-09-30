@@ -27,7 +27,7 @@ from itzi.ensemble.schema import (
     EnsembleMetadata,
     InputSweepConfig,
     ManifestOutputs,
-    OptionSweepConfig,
+    ParameterSweepConfig,
     StatisticsOutputs,
     TimeConfig,
 )
@@ -53,7 +53,7 @@ def document(*, ensemble_id: str = "study", extra: str = "") -> str:
 input:
   ground_elevation: "elevation"
   friction: "manning"
-options: {}
+parameters: {}
 outputs:
   rasters:
     prefix: "results_{ensemble}_{simulation}"
@@ -82,7 +82,7 @@ def test_scalar_document_expands_to_one_member(tmp_path):
     assert simulation.time.start is None
     assert simulation.time.end is None
     assert simulation.time.duration == timedelta(hours=2)
-    assert dict(simulation.options) == SurfaceFlowParameters().model_dump() | {
+    assert dict(simulation.parameters) == SurfaceFlowParameters().model_dump() | {
         "dtinf": DefaultValues.DTINF
     }
 
@@ -138,8 +138,8 @@ def test_time_config_accepts_only_supported_combinations():
         (EnsembleMetadata, {"id": "invalid!"}),
         (InputSweepConfig, {"ground_elevation": [], "friction": "manning"}),
         (InputSweepConfig, {"ground_elevation": ["elevation"], "friction": [["manning"]]}),
-        (OptionSweepConfig, {"cfl": [float("nan")]}),
-        (OptionSweepConfig, {"cfl": [0.5, 0.5]}),
+        (ParameterSweepConfig, {"cfl": [float("nan")]}),
+        (ParameterSweepConfig, {"cfl": [0.5, 0.5]}),
         (StatisticsOutputs, {"file": ""}),
         (ManifestOutputs, {"file": ""}),
     ),
@@ -161,7 +161,7 @@ input:
   ground_elevation: ["elevation_a", "elevation_b"]
   friction: "manning"
   rainfall_rate: ["rain_a", "rain_b"]
-options:
+parameters:
   cfl: [0.5, 0.7]
 outputs:
   rasters:
@@ -178,10 +178,10 @@ outputs:
     assert tuple(path for path, _ in simulations[0].coordinates) == (
         "input.ground_elevation",
         "input.rainfall_rate",
-        "options.cfl",
+        "parameters.cfl",
     )
-    assert dict(simulations[0].coordinates)["options.cfl"] == 0.5
-    assert dict(simulations[-1].coordinates)["options.cfl"] == 0.7
+    assert dict(simulations[0].coordinates)["parameters.cfl"] == 0.5
+    assert dict(simulations[-1].coordinates)["parameters.cfl"] == 0.7
 
 
 def test_loader_continues_after_failed_explicit_document(tmp_path):
@@ -196,7 +196,7 @@ time:
 input:
   ground_elevation: elevation
   friction: manning
-options:
+parameters:
   cfl: "0.7"
 outputs: {}
 ---
@@ -240,7 +240,7 @@ time:
 input:
   ground_elevation: elevation
   friction: manning
-options:
+parameters:
   <<: *defaults
 outputs: {}
 ---
@@ -275,7 +275,7 @@ input:
     - type: none
     - type: constant
       rate: infiltration_rate
-options: {}
+parameters: {}
 outputs: {}
 """
     )
@@ -334,7 +334,7 @@ def test_expansion_limit_is_checked_before_materialization(tmp_path):
 input:
   ground_elevation: elevation
   friction: manning
-options:
+parameters:
   cfl: [{values}]
 outputs: {{}}
 """

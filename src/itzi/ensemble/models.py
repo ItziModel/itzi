@@ -149,7 +149,7 @@ class ExpandedSimulation:
     time: NormalizedTime
     input_maps: tuple[tuple[str, str], ...]
     infiltration: NormalizedInfiltration
-    options: tuple[tuple[str, float], ...]
+    parameters: tuple[tuple[str, float], ...]
     drainage: tuple[tuple[str, str | float], ...] | None
     outputs: OutputTemplates
 
