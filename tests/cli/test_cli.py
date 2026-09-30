@@ -349,6 +349,38 @@ def test_main_returns_error_status_for_fatal_error(monkeypatch, itzi_stderr):
     assert "Traceback" not in stderr
 
 
+@pytest.mark.parametrize("same_file", [True, False])
+def test_main_reports_duplicate_ensemble_ids(tmp_path, itzi_stderr, same_file):
+    document = """\
+schema_version: 1
+ensemble:
+  id: repeated
+domain: {}
+time:
+  duration: "01:00:00"
+  record_step: "00:05:00"
+input:
+  ground_elevation: elevation
+  friction: manning
+parameters: {}
+outputs: {}
+"""
+    first = tmp_path / "first.yaml"
+    second = tmp_path / "second.yaml"
+    if same_file:
+        first.write_text(f"{document}---\n{document}", encoding="utf-8")
+        paths = [str(first)]
+    else:
+        first.write_text(document, encoding="utf-8")
+        second.write_text(document, encoding="utf-8")
+        paths = [str(first), str(second)]
+
+    assert main(["run", *paths]) == 1
+    stderr = itzi_stderr.getvalue()
+    assert stderr.count("ERROR: duplicate ensemble ID 'repeated'") == 1
+    assert "Traceback" not in stderr
+
+
 def test_main_propagates_unexpected_error(monkeypatch):
     def fail(_):
         raise ValueError("unexpected")

@@ -325,7 +325,10 @@ def _run_ensemble_batch(cli_args: Namespace) -> None:
     """Resolve and execute each ensemble in order through spawn boundaries."""
     if getattr(cli_args, "resume_from", []):
         msgr.fatal("Resume is not available for YAML ensembles.")
-    ensembles, document_failures = load_batch(cli_args.config_file)
+    try:
+        ensembles, document_failures = load_batch(cli_args.config_file)
+    except EnsembleError as error:
+        msgr.fatal(str(error))
     for failure in document_failures:
         msgr.warning(failure.format())
 
