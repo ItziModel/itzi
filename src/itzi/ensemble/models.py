@@ -33,12 +33,16 @@ from pydantic import JsonValue as PydanticJsonValue
 
 from itzi.grass.session import GrassParams
 
-GREEN_AMPT_KEYS = (
-    "effective_porosity",
-    "capillary_pressure",
-    "hydraulic_conductivity",
-    "soil_water_content",
+GREEN_AMPT_KEYS = frozenset(
+    {
+        "effective_porosity",
+        "capillary_pressure",
+        "hydraulic_conductivity",
+        "soil_water_content",
+    }
 )
+assert GREEN_AMPT_KEYS <= INPUT_ARRAY_KEYS
+
 DIRECT_INPUT_KEYS = tuple(
     key for key in INPUT_ARRAY_KEYS if key not in {"infiltration", *GREEN_AMPT_KEYS}
 )
