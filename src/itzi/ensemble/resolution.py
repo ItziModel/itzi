@@ -45,10 +45,6 @@ def resolve_ensemble(
     if not simulations:
         return ()
     requested_params = _requested_grass_params(simulations[0])
-    if any(
-        _requested_grass_params(simulation) != requested_params for simulation in simulations[1:]
-    ):
-        raise EnsembleError("all simulations in an ensemble must use the same GRASS context")
 
     with GrassSessionManager(requested_params):
         from itzi.grass.utils import active_grass_params, read_domain, resolve_effective_mask

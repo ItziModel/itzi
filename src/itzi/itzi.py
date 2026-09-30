@@ -144,16 +144,10 @@ def resolver_worker(
 
 def preflight_worker(simulation: ResolvedSimulation) -> str | None:
     """Validate one resolved member in a read-only spawned GRASS process."""
-    msgr.raise_on_error = True
-    msgr._itzi_logger.set_verbosity(msgr.verbosity())
     try:
-        with GrassSessionManager(simulation.grass_params):
-            from itzi.ensemble.preflight import preflight_simulation
-
-            preflight_simulation(simulation)
+        return preflight_ensemble_worker((simulation,)).get(simulation.simulation_id)
     except Exception as error:
         return f"{type(error).__name__}: {error}"
-    return None
 
 
 def preflight_ensemble_worker(simulations: tuple[ResolvedSimulation, ...]) -> dict[str, str]:

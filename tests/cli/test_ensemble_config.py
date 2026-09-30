@@ -7,7 +7,8 @@ import sys
 from types import SimpleNamespace
 
 import pytest
-from itzi_core import InfiltrationModelType, TemporalType
+from itzi_core import InfiltrationModelType, SurfaceFlowParameters, TemporalType
+from itzi_core.const import DefaultValues
 from pydantic import ValidationError
 
 from itzi.ensemble import load_yaml_stream
@@ -74,6 +75,9 @@ def test_scalar_document_expands_to_one_member(tmp_path):
     assert simulation.time.start is None
     assert simulation.time.end is None
     assert simulation.time.duration == timedelta(hours=2)
+    assert dict(simulation.options) == SurfaceFlowParameters().model_dump() | {
+        "dtinf": DefaultValues.DTINF
+    }
 
 
 @pytest.mark.parametrize(

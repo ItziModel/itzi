@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import cast
 
 import yaml
-from itzi_core import InfiltrationModelType, TemporalType
+from itzi_core import InfiltrationModelType, SurfaceFlowParameters, TemporalType
 from itzi_core.const import DefaultValues
 from pydantic import JsonValue as PydanticJsonValue
 from pydantic import TypeAdapter, ValidationError
@@ -33,7 +33,6 @@ import itzi.messenger as msgr
 from itzi.ensemble.models import (
     DIRECT_INPUT_KEYS,
     MAX_ENSEMBLE_MEMBERS,
-    SURFACE_FLOW_DEFAULTS,
     DocumentFailure,
     EnsembleError,
     ExpandedEnsemble,
@@ -443,7 +442,7 @@ def _normalize_infiltration(value: InfiltrationAlternative) -> NormalizedInfiltr
 def _selected_options(
     options: OptionSweepConfig, selected: dict[str, SweepScalar]
 ) -> dict[str, float]:
-    values = dict(SURFACE_FLOW_DEFAULTS)
+    values: dict[str, float] = SurfaceFlowParameters().model_dump()
     values["dtinf"] = DefaultValues.DTINF
     for key in type(options).model_fields:
         value = selected.get(f"options.{key}", cast(SweepFloat | None, getattr(options, key)))

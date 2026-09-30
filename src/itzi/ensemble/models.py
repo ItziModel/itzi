@@ -28,7 +28,6 @@ from itzi_core import (
     SimulationConfig,
     TemporalType,
 )
-from itzi_core.const import DefaultValues
 from pydantic import BaseModel, ConfigDict, StrictStr, model_validator
 from pydantic import JsonValue as PydanticJsonValue
 
@@ -43,16 +42,6 @@ GREEN_AMPT_KEYS = (
 DIRECT_INPUT_KEYS = tuple(
     key for key in INPUT_ARRAY_KEYS if key not in {"infiltration", *GREEN_AMPT_KEYS}
 )
-SURFACE_FLOW_DEFAULTS = {
-    "hmin": DefaultValues.HFMIN,
-    "cfl": DefaultValues.CFL,
-    "theta": DefaultValues.THETA,
-    "g": DefaultValues.G,
-    "dtmax": DefaultValues.DTMAX,
-    "slope_threshold": DefaultValues.SLOPE_THRESHOLD,
-    "max_slope": DefaultValues.MAX_SLOPE,
-    "max_error": DefaultValues.MAX_ERROR,
-}
 MAX_ENSEMBLE_MEMBERS = 100
 MAX_BATCH_MEMBERS = 200
 

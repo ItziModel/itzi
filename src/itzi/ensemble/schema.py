@@ -18,6 +18,7 @@ from typing import Annotated, Literal
 
 from itzi_core import OUTPUT_ARRAY_KEYS
 from pydantic import (
+    AfterValidator,
     Field,
     StrictFloat,
     StrictStr,
@@ -26,9 +27,22 @@ from pydantic import (
 )
 from itzi.ensemble.models import DomainConfig, StrictModel
 
-type SweepString = StrictStr | Annotated[list[StrictStr], Field(min_length=1)]
+
+def _validate_sweep[T](values: list[T]) -> list[T]:
+    """Reject duplicate values in a sweep after type validation."""
+    if len(values) != len(set(values)):
+        raise ValueError("contains duplicate semantic values")
+    return values
+
+
+type SweepString = (
+    StrictStr | Annotated[list[StrictStr], Field(min_length=1), AfterValidator(_validate_sweep)]
+)
 type FiniteFloat = Annotated[StrictFloat, Field(allow_inf_nan=False)]
-type SweepFloat = FiniteFloat | Annotated[list[FiniteFloat], Field(min_length=1)]
+type SweepFloat = (
+    FiniteFloat
+    | Annotated[list[FiniteFloat], Field(min_length=1), AfterValidator(_validate_sweep)]
+)
 
 
 class EnsembleMetadata(StrictModel):
@@ -82,7 +96,10 @@ type InfiltrationAlternative = Annotated[
     Field(discriminator="type"),
 ]
 type SweepInfiltration = (
-    InfiltrationAlternative | Annotated[list[InfiltrationAlternative], Field(min_length=1)]
+    InfiltrationAlternative
+    | Annotated[
+        list[InfiltrationAlternative], Field(min_length=1), AfterValidator(_validate_sweep)
+    ]
 )
 
 
@@ -97,26 +114,6 @@ class InputSweepConfig(StrictModel):
     boundary_value: SweepString | None = None
     boundary_type: SweepString | None = None
     infiltration: SweepInfiltration = NoInfiltration(type="none")
-
-    @field_validator(
-        "ground_elevation",
-        "friction",
-        "water_depth",
-        "water_surface_elevation",
-        "losses",
-        "rainfall_rate",
-        "inflow",
-        "boundary_value",
-        "boundary_type",
-    )
-    @classmethod
-    def validate_string_sweep(cls, value: SweepString | None) -> SweepString | None:
-        return _validate_sweep(value)
-
-    @field_validator("infiltration")
-    @classmethod
-    def validate_infiltration_sweep(cls, value: SweepInfiltration) -> SweepInfiltration:
-        return _validate_sweep(value)
 
     @model_validator(mode="after")
     def validate_initial_conditions(self) -> InputSweepConfig:
@@ -136,27 +133,12 @@ class OptionSweepConfig(StrictModel):
     max_error: SweepFloat | None = None
     dtinf: SweepFloat | None = None
 
-    @field_validator("*")
-    @classmethod
-    def validate_numeric_sweep(cls, value: SweepFloat | None) -> SweepFloat | None:
-        return _validate_sweep(value)
-
 
 class DrainageSweepConfig(StrictModel):
     swmm_input: SweepString
     orifice_coeff: SweepFloat
     free_weir_coeff: SweepFloat
     submerged_weir_coeff: SweepFloat
-
-    @field_validator("swmm_input")
-    @classmethod
-    def validate_input_sweep(cls, value: SweepString) -> SweepString:
-        return _validate_sweep(value)
-
-    @field_validator("orifice_coeff", "free_weir_coeff", "submerged_weir_coeff")
-    @classmethod
-    def validate_coeff_sweep(cls, value: SweepFloat) -> SweepFloat:
-        return _validate_sweep(value)
 
 
 class RasterOutputs(StrictModel):
@@ -210,11 +192,3 @@ class YamlEnsembleDocumentV1(StrictModel):
         if self.outputs.drainage is not None and self.drainage is None:
             raise ValueError("outputs.drainage requires a complete drainage configuration")
         return self
-
-
-def _validate_sweep[T](value: T) -> T:
-    """Validate one scalar-or-list sweep field after Pydantic's type validation."""
-    values = value if isinstance(value, list) else [value]
-    if len(values) != len(set(values)):
-        raise ValueError("contains duplicate semantic values")
-    return value
