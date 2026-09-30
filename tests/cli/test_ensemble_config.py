@@ -17,7 +17,7 @@ from itzi.ensemble import load_yaml_stream
 from itzi.ensemble.models import (
     MAX_ENSEMBLE_MEMBERS,
     ArtifactSummary,
-    GrassContextConfig,
+    GrassConfig,
     ResolvedSimulation,
     format_duration,
     parse_duration,
@@ -28,6 +28,7 @@ from itzi.ensemble.resolution import (
     _build_simulation_config,
     _last_record_index,
     _render_artifacts,
+    _requested_grass_params,
     _resolve_inputs,
     validate_resolved_ensemble,
 )
@@ -58,7 +59,7 @@ outputs:
 schema_version: 1
 ensemble:
   id: {ensemble_id}
-domain: {{}}
+grass: {{}}
 time:
   duration: "02:00:00"
   record_step: "00:05:00"
@@ -140,7 +141,16 @@ def test_time_config_accepts_only_supported_combinations():
 
 def test_grass_context_requires_complete_context():
     with pytest.raises(ValidationError, match="mapset must be supplied together"):
-        GrassContextConfig(database="/grassdata", project="project")
+        GrassConfig(database="/grassdata", project="project")
+
+
+def test_grass_region_and_mask_work_with_active_session(tmp_path):
+    content = document().replace("grass: {}", "grass:\n  region: local_region\n  mask: mask_map")
+    stream = load_yaml_stream(write_yaml(tmp_path, content))
+
+    assert stream.failures == ()
+    params = _requested_grass_params(stream.ensembles[0].simulations[0])
+    assert (params.grassdata, params.region, params.mask) == (None, "local_region", "mask_map")
 
 
 def test_cartesian_sweeps_use_canonical_coordinate_order(tmp_path):
@@ -178,7 +188,7 @@ def test_loader_continues_after_failed_explicit_document(tmp_path):
 schema_version: 1
 ensemble:
   id: first
-domain: {}
+grass: {}
 time:
   duration: "01:00:00"
   record_step: "00:05:00"
@@ -222,7 +232,7 @@ defaults: &defaults
 schema_version: 1
 ensemble:
   id: invalid-merge
-domain: {}
+grass: {}
 time:
   duration: "01:00:00"
   record_step: "00:05:00"

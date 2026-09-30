@@ -361,7 +361,7 @@ def expand_yaml_document(
                 source=source,
                 ensemble_id=document.ensemble.id,
                 coordinates=coordinates,
-                domain=document.domain,
+                grass=document.grass,
                 time=normalized_time,
                 input_maps=tuple(sorted(input_maps.items())),
                 infiltration=infiltration,

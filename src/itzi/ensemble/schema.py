@@ -25,7 +25,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from itzi.ensemble.models import DomainConfig, StrictModel
+from itzi.ensemble.models import GrassConfig, StrictModel
 
 
 def _validate_sweep[T](values: list[T]) -> list[T]:
@@ -169,7 +169,7 @@ class OutputConfig(StrictModel):
 class YamlEnsembleDocumentV1(StrictModel):
     schema_version: Literal[1]
     ensemble: EnsembleMetadata
-    domain: DomainConfig
+    grass: GrassConfig
     time: TimeConfig
     input: InputSweepConfig
     parameters: ParameterSweepConfig

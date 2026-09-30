@@ -26,11 +26,10 @@ from itzi.ensemble.models import (
     DIRECT_INPUT_KEYS,
     GREEN_AMPT_KEYS,
     DocumentFailure,
-    DomainConfig,
     EnsembleError,
     ExpandedEnsemble,
     ExpandedSimulation,
-    GrassContextConfig,
+    GrassConfig,
     NormalizedInfiltration,
     NormalizedTime,
     OutputTemplates,
@@ -88,14 +87,14 @@ def _legacy_ensemble(path: Path) -> ExpandedEnsemble:
         document_digest=hashlib.blake2b(b"legacy-v1\0" + source_bytes, digest_size=32).hexdigest(),
     )
     ensemble_id = f"legacy-{hashlib.blake2b(str(source_path).encode(), digest_size=8).hexdigest()}"
-    context = None
-    if grass.grassdata is not None:
-        context = GrassContextConfig(
-            database=grass.grassdata,
-            project=grass.location,
-            mapset=grass.mapset,
-            executable=grass.grass_bin,
-        )
+    grass_config = GrassConfig(
+        database=grass.grassdata,
+        project=grass.location,
+        mapset=grass.mapset,
+        executable=grass.grass_bin if grass.grassdata is not None else None,
+        region=grass.region,
+        mask=grass.mask,
+    )
     input_names = config.input_map_names
     infiltration_maps = {
         key: input_names[key] for key in ("infiltration", *GREEN_AMPT_KEYS) if key in input_names
@@ -129,7 +128,7 @@ def _legacy_ensemble(path: Path) -> ExpandedEnsemble:
         source=source,
         ensemble_id=ensemble_id,
         coordinates=(),
-        domain=DomainConfig(grass=context, region=grass.region, mask=grass.mask),
+        grass=grass_config,
         time=normalized_time,
         input_maps=tuple(sorted(direct_inputs.items())),
         infiltration=NormalizedInfiltration(

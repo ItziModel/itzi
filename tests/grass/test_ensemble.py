@@ -27,7 +27,7 @@ def write_study(tmp_path: Path, **changes: dict) -> Path:
     document = {
         "schema_version": 1,
         "ensemble": {"id": "stage-one"},
-        "domain": {},
+        "grass": {},
         "time": {"duration": "00:01:00", "record_step": "00:00:30"},
         "input": {"ground_elevation": "z", "friction": "n"},
         "parameters": {"dtmax": 0.3},
@@ -163,7 +163,7 @@ def test_worker_rejects_changed_mask_region_and_inputs_after_resolution(tmp_path
     gscript.mapcalc("stage_mask_values=if(col()==1, null(), if(col()==2, 0, 1))")
     gscript.run_command("g.copy", raster="stage_mask_values,MASK")
     try:
-        path = write_study(tmp_path, domain={"mask": "stage_mask_values"})
+        path = write_study(tmp_path, grass={"mask": "stage_mask_values"})
         expanded = load_batch([str(path)])[0][0].simulations
         resolved = _resolve_ensemble_in_subprocess(expanded)[0]
         assert isinstance(resolved, ResolvedSimulation)
@@ -199,7 +199,7 @@ def test_worker_rejects_changed_mask_region_and_inputs_after_resolution(tmp_path
         gscript.run_command("r.mask", flags="r")
         assert run_validation_worker((resolved,)).get(resolved.simulation_id) is None
 
-        active_path = write_study(tmp_path, domain={})
+        active_path = write_study(tmp_path, grass={})
         active_resolved = _resolve_ensemble_in_subprocess(
             load_batch([str(active_path)])[0][0].simulations
         )[0]
@@ -285,7 +285,7 @@ def test_yaml_ensemble_runs_in_spawned_resolver_and_worker(test_data_temp_path):
 schema_version: 1
 ensemble:
   id: basic
-domain: {}
+grass: {}
 time:
   duration: "00:01:00"
   record_step: "00:00:30"
@@ -346,12 +346,11 @@ def test_explicit_grass_context_runs_two_members_without_parent_session(test_dat
 schema_version: 1
 ensemble:
   id: explicit
-domain:
-  grass:
-    database: "{context["GISDBASE"]}"
-    project: "{context["LOCATION_NAME"]}"
-    mapset: "{context["MAPSET"]}"
-    executable: "grass"
+grass:
+  database: "{context["GISDBASE"]}"
+  project: "{context["LOCATION_NAME"]}"
+  mapset: "{context["MAPSET"]}"
+  executable: "grass"
 time:
   duration: "00:01:00"
   record_step: "00:00:30"

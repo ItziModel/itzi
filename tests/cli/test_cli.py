@@ -355,7 +355,7 @@ def test_main_reports_duplicate_ensemble_ids(tmp_path, itzi_stderr, same_file):
 schema_version: 1
 ensemble:
   id: repeated
-domain: {}
+grass: {}
 time:
   duration: "01:00:00"
   record_step: "00:05:00"

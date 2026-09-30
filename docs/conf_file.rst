@@ -27,12 +27,11 @@ Basic YAML example
    ensemble:
      id: "central-city"
      description: "Central city rainfall study"
-   domain:
-     grass:
-       database: "/srv/grassdata"
-       project: "central_city"
-       mapset: "itzi"
-       executable: "grass"
+   grass:
+     database: "/srv/grassdata"
+     project: "central_city"
+     mapset: "itzi"
+     executable: "grass"
      region: "central_city_5m"
      mask: "central_city_mask"
    time:
@@ -56,7 +55,7 @@ Basic YAML example
 
 The example expands to four simulations: two rainfall maps multiplied by two
 ``cfl`` values. Scalars are fixed across an ensemble, while non-empty lists in
-``input``, ``parameters``, or ``drainage`` are sweep dimensions. ``domain`` and
+``input``, ``parameters``, or ``drainage`` are sweep dimensions. ``grass`` and
 ``time`` are always scalar. Output variable lists are selections, not sweeps.
 The optional ``ensemble.description`` is limited to 256 characters.
 An ensemble may contain at most 100 candidate simulations; a full command may
@@ -69,6 +68,12 @@ the legacy ``HH:MM:SS`` form, such as ``"00:05:00"`` and ``"26:00:00"``.
 Hours may exceed 23; minutes and seconds must be between 0 and 59.
 Timezone offsets are retained as source metadata but execute as naive GRASS
 wall-clock times without conversion.
+
+Use ``grass: {}`` to select the active GRASS session and its current region and
+mask. Set ``grass.region`` to a named region or ``grass.mask`` to a raster map
+to override either one. To open a GRASS session explicitly, provide
+``grass.database``, ``grass.project``, and ``grass.mapset`` together;
+``grass.executable`` may be set with them.
 
 The ensemble manifest is written as YAML to
 ``results/<ensemble-id>.manifest.yaml`` relative to the configuration file.

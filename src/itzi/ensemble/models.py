@@ -92,24 +92,20 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
 
-class GrassContextConfig(StrictModel):
+class GrassConfig(StrictModel):
     database: StrictStr | None = None
     project: StrictStr | None = None
     mapset: StrictStr | None = None
     executable: StrictStr | None = None
+    region: StrictStr | None = None
+    mask: StrictStr | None = None
 
     @model_validator(mode="after")
-    def validate_context(self) -> GrassContextConfig:
+    def validate_context(self) -> GrassConfig:
         GrassParams(grassdata=self.database, location=self.project, mapset=self.mapset)
         if self.executable is not None and self.database is None:
             raise ValueError("executable requires database, project, and mapset")
         return self
-
-
-class DomainConfig(StrictModel):
-    grass: GrassContextConfig | None = None
-    region: StrictStr | None = None
-    mask: StrictStr | None = None
 
 
 @dataclass(frozen=True)
@@ -145,7 +141,7 @@ class ExpandedSimulation:
     source: SourceDocument
     ensemble_id: str
     coordinates: tuple[tuple[str, JsonValue], ...]
-    domain: DomainConfig
+    grass: GrassConfig
     time: NormalizedTime
     input_maps: tuple[tuple[str, str], ...]
     infiltration: NormalizedInfiltration

@@ -50,8 +50,8 @@ def resolve_ensemble(
         from itzi.grass.utils import active_grass_params, read_domain, resolve_effective_mask
 
         actual_params = active_grass_params(requested_params)
-        domain = read_domain(simulations[0].domain.region)
-        effective_mask = resolve_effective_mask(simulations[0].domain.mask)
+        domain = read_domain(simulations[0].grass.region)
+        effective_mask = resolve_effective_mask(simulations[0].grass.mask)
         input_cache: dict[str, tuple[str, Literal["raster", "strds"]]] = {}
         swmm_cache: dict[Path, str] = {}
         results: list[ResolvedSimulation | ValidationFailure] = []
@@ -86,16 +86,16 @@ def resolve_ensemble(
 
 
 def _requested_grass_params(expanded: ExpandedSimulation) -> GrassParams:
-    context = expanded.domain.grass
-    if context is None or context.database is None:
-        return GrassParams(region=expanded.domain.region, mask=expanded.domain.mask)
+    config = expanded.grass
+    if config.database is None:
+        return GrassParams(region=config.region, mask=config.mask)
     return GrassParams(
-        grassdata=str(Path(context.database).expanduser().resolve()),
-        location=context.project,
-        mapset=context.mapset,
-        region=expanded.domain.region,
-        mask=expanded.domain.mask,
-        grass_bin=context.executable or "grass",
+        grassdata=str(Path(config.database).expanduser().resolve()),
+        location=config.project,
+        mapset=config.mapset,
+        region=config.region,
+        mask=config.mask,
+        grass_bin=config.executable or "grass",
     )
 
 

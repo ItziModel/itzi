@@ -76,7 +76,7 @@
       <pre><code>schema_version: 1
 ensemble:
   id: "study"
-domain: {}
+grass: {}
 time:
   duration: "02:00:00"
   record_step: "00:05:00"
@@ -97,7 +97,7 @@ outputs:
         <thead><tr><th scope="col">YAML field</th><th scope="col">Plain-English meaning</th></tr></thead>
         <tbody>
           <tr><td><code>schema_version</code>, <code>ensemble</code></td><td>Format version <code>1</code> and a unique study ID. An optional <code>name</code> is descriptive.</td></tr>
-          <tr><td><code>domain</code></td><td>One GRASS context for the ensemble. Leave <code>grass</code> out to use the active session; optionally specify <code>grass.database</code>, <code>project</code>, <code>mapset</code> together, and <code>executable</code>. An optional <code>region</code> and <code>mask</code> apply to all members.</td></tr>
+          <tr><td><code>grass</code></td><td>One GRASS configuration for the ensemble. Use <code>grass: {}</code> for the active session; optionally specify <code>database</code>, <code>project</code>, and <code>mapset</code> together, plus <code>executable</code>. Optional <code>region</code> and <code>mask</code> names apply to all members.</td></tr>
           <tr><td><code>time</code></td><td>One clock for every member: <code>duration</code> alone, <code>start</code> + <code>duration</code>, or <code>start</code> + <code>end</code>, always with <code>record_step</code>. Durations are positive <code>HH:MM:SS</code>, including hours over 23.</td></tr>
           <tr><td><code>input</code></td><td>Terrain (<code>ground_elevation</code>) and friction are required. Other raster/space-time raster inputs are optional. A scalar fixes a value; a nonempty list sweeps it.</td></tr>
           <tr><td><code>parameters</code>, <code>drainage</code></td><td>Numerical settings use core defaults unless supplied; <code>drainage</code> is optional and requires the SWMM input and three exchange coefficients. Their lists can also be swept.</td></tr>
