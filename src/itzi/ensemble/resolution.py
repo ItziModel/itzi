@@ -110,7 +110,7 @@ def _build_resolved_simulation(
     swmm_digest: str | None,
 ) -> ResolvedSimulation:
     assert actual_params.mapset is not None
-    simulation_id, normalized_payload = _simulation_identity(
+    simulation_id = _simulation_identity(
         expanded,
         actual_params,
         domain,
@@ -134,7 +134,6 @@ def _build_resolved_simulation(
         input_kinds=tuple(sorted(input_kinds.items())),
         simulation_config=simulation_config,
         artifacts=artifacts,
-        normalized_payload=normalized_payload,
     )
 
 
@@ -183,7 +182,7 @@ def _simulation_identity(
     effective_mask: EffectiveMask,
     input_names: dict[str, str],
     swmm_digest: str | None,
-) -> tuple[str, str]:
+) -> str:
     """Build the versioned identity payload after all source normalization."""
     drainage = dict(expanded.drainage) if expanded.drainage is not None else None
     if drainage is not None:
@@ -216,7 +215,7 @@ def _simulation_identity(
     }
     canonical = json.dumps(payload, allow_nan=False, separators=(",", ":"), sort_keys=True)
     digest = hashlib.blake2b(canonical.encode(), digest_size=4).hexdigest()
-    return f"sim-{digest}", canonical
+    return f"sim-{digest}"
 
 
 def _render_artifacts(
@@ -364,7 +363,7 @@ def validate_resolved_ensemble(
     simulations: tuple[ResolvedSimulation, ...], protected_inputs: tuple[Path, ...] = ()
 ) -> None:
     """Reject identity and artifact collisions among resolved ensemble members."""
-    identities: dict[str, str] = {}
+    identities: set[str] = set()
     artifacts: dict[str, str] = {}
     ensemble_sources: set[str] = set()
     protected_paths = {path.resolve() for path in protected_inputs}
@@ -375,12 +374,9 @@ def validate_resolved_ensemble(
         if simulation.simulation_config.swmm_inp is not None:
             protected_paths.add(simulation.simulation_config.swmm_inp.resolve())
     for simulation in simulations:
-        existing_payload = identities.get(simulation.simulation_id)
-        if existing_payload is not None:
-            if existing_payload == simulation.normalized_payload:
-                raise EnsembleError(f"duplicate resolved simulation {simulation.simulation_id}")
-            raise EnsembleError(f"simulation ID digest collision {simulation.simulation_id}")
-        identities[simulation.simulation_id] = simulation.normalized_payload
+        if simulation.simulation_id in identities:
+            raise EnsembleError(f"duplicate resolved simulation {simulation.simulation_id}")
+        identities.add(simulation.simulation_id)
 
         last_record_index = _last_record_index(
             simulation.simulation_config.end_time - simulation.simulation_config.start_time,

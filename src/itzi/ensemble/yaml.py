@@ -14,7 +14,6 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 
-import hashlib
 import itertools
 import math
 from datetime import date, datetime, timedelta
@@ -43,7 +42,6 @@ from itzi.ensemble.models import (
     NormalizedTime,
     OutputTemplates,
     SourceDocument,
-    _canonical_json,
     parse_duration,
     render_template,
 )
@@ -175,14 +173,6 @@ def _parse_datetime(value: str) -> datetime:
         raise EnsembleError(f"invalid ISO 8601 timestamp {value!r}") from error
 
 
-def _document_digest(document: YamlDocument) -> str:
-    payload: dict[str, PydanticJsonValue] = {
-        "schema": "itzi-yaml-document-v1",
-        "document": document,
-    }
-    return hashlib.blake2b(_canonical_json(payload).encode(), digest_size=32).hexdigest()
-
-
 def _is_document_marker(line: str, *, terminated: bool) -> bool:
     """Return whether a physical line is a supported YAML document marker."""
     if terminated and line.endswith("\r"):
@@ -244,13 +234,11 @@ def load_yaml_stream(path: str | Path) -> LoadedYamlStream:
     except UnicodeDecodeError as error:
         raise EnsembleError(f"{source_path}: YAML must be UTF-8") from error
 
-    file_digest = hashlib.blake2b(content, digest_size=32).hexdigest()
     ensembles: list[ExpandedEnsemble] = []
     failures: list[DocumentFailure] = []
     for document_index, (start_line, _offset, segment) in enumerate(_segments(text)):
         try:
             raw_document = _parse_segment(segment)
-            document_digest = _document_digest(raw_document)
         except yaml.YAMLError as error:
             marker = getattr(error, "problem_mark", None)
             failures.append(
@@ -280,8 +268,6 @@ def load_yaml_stream(path: str | Path) -> LoadedYamlStream:
         source = SourceDocument(
             path=source_path,
             document_index=document_index,
-            file_digest=file_digest,
-            document_digest=document_digest,
         )
         try:
             document = YamlEnsembleDocumentV1.model_validate(raw_document)

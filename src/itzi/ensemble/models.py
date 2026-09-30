@@ -14,7 +14,6 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 
-import json
 import string
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -29,7 +28,6 @@ from itzi_core import (
     TemporalType,
 )
 from pydantic import BaseModel, ConfigDict, StrictStr, model_validator
-from pydantic import JsonValue as PydanticJsonValue
 
 from itzi.grass.session import GrassParams
 
@@ -64,8 +62,6 @@ class SourceDocument:
 
     path: Path
     document_index: int
-    file_digest: str
-    document_digest: str
 
 
 @dataclass(frozen=True)
@@ -190,7 +186,7 @@ class ResolvedSimulation:
     input_kinds: tuple[tuple[str, Literal["raster", "strds"]], ...]
     simulation_config: SimulationConfig
     artifacts: ArtifactSummary
-    normalized_payload: str
+    normalized_payload: str = ""
 
 
 @dataclass(frozen=True)
@@ -250,29 +246,12 @@ def format_duration(value: timedelta) -> str:
     return rendered
 
 
-def _canonical_json(value: PydanticJsonValue) -> str:
-    """Serialize a JSON-compatible value in a stable form."""
-    try:
-        return json.dumps(
-            value,
-            allow_nan=False,
-            ensure_ascii=True,
-            separators=(",", ":"),
-            sort_keys=True,
-        )
-    except ValueError as error:
-        raise EnsembleError("NaN and infinity are not supported") from error
-
-
 def render_template(template: str, *, ensemble: str, simulation: str | None) -> str:
     """Render the intentionally small output-template language."""
     formatter = string.Formatter()
     values = {"ensemble": ensemble, "simulation": simulation}
     try:
-        fragments = formatter.parse(template)
-        rendered: list[str] = []
-        for literal, field_name, format_spec, conversion in fragments:
-            rendered.append(literal)
+        for _, field_name, format_spec, conversion in formatter.parse(template):
             if field_name is None:
                 continue
             if field_name not in values:
@@ -283,10 +262,9 @@ def render_template(template: str, *, ensemble: str, simulation: str | None) -> 
                 raise EnsembleError(
                     "template format specifications and conversions are not supported"
                 )
-            rendered.append(str(values[field_name]))
+        return template.format_map(values)
     except ValueError as error:
         raise EnsembleError(f"invalid output template: {error}") from error
-    return "".join(rendered)
 
 
 def check_batch_limits(ensembles: tuple[ExpandedEnsemble, ...]) -> None:

@@ -79,12 +79,9 @@ def _legacy_ensemble(path: Path) -> ExpandedEnsemble:
         raise EnsembleError("hotstart output requires Stage 2 checkpoint support in mixed batches")
     grass = reader.grass_params
     source_path = path.expanduser().resolve()
-    source_bytes = source_path.read_bytes()
     source = SourceDocument(
         path=source_path,
         document_index=0,
-        file_digest=hashlib.blake2b(source_bytes, digest_size=32).hexdigest(),
-        document_digest=hashlib.blake2b(b"legacy-v1\0" + source_bytes, digest_size=32).hexdigest(),
     )
     ensemble_id = f"legacy-{hashlib.blake2b(str(source_path).encode(), digest_size=8).hexdigest()}"
     grass_config = GrassConfig(
