@@ -46,8 +46,8 @@ type SweepFloat = (
 
 
 class EnsembleMetadata(StrictModel):
-    id: StrictStr = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
-    name: StrictStr | None = None
+    id: StrictStr = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$", max_length=80)
+    description: StrictStr | None = Field(default=None, max_length=256)
 
 
 class TimeConfig(StrictModel):

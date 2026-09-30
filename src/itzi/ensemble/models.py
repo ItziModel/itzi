@@ -160,7 +160,7 @@ class ExpandedEnsemble:
 
     source: SourceDocument
     ensemble_id: str
-    ensemble_name: str | None
+    ensemble_description: str | None
     manifest_template: str | None
     simulations: tuple[ExpandedSimulation, ...]
 

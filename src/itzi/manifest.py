@@ -127,7 +127,7 @@ def _manifest_document(ensemble: ExpandedEnsemble, states: dict[str, dict]) -> d
     return {
         "manifest_version": 1,
         "last_updated_at": datetime.now().astimezone().isoformat(),
-        "ensemble": {"id": ensemble.ensemble_id, "name": ensemble.ensemble_name},
+        "ensemble": {"id": ensemble.ensemble_id, "description": ensemble.ensemble_description},
         "source": {
             "path": str(ensemble.source.path),
             "document_index": ensemble.source.document_index,

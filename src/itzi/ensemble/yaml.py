@@ -376,7 +376,7 @@ def expand_yaml_document(
     return ExpandedEnsemble(
         source=source,
         ensemble_id=document.ensemble.id,
-        ensemble_name=document.ensemble.name,
+        ensemble_description=document.ensemble.description,
         manifest_template=manifest_template,
         simulations=tuple(simulations),
     )

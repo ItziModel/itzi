@@ -26,7 +26,7 @@ Basic YAML example
    schema_version: 1
    ensemble:
      id: "central-city"
-     name: "Central city rainfall study"
+     description: "Central city rainfall study"
    domain:
      grass:
        database: "/srv/grassdata"
@@ -58,6 +58,7 @@ The example expands to four simulations: two rainfall maps multiplied by two
 ``cfl`` values. Scalars are fixed across an ensemble, while non-empty lists in
 ``input``, ``parameters``, or ``drainage`` are sweep dimensions. ``domain`` and
 ``time`` are always scalar. Output variable lists are selections, not sweeps.
+The optional ``ensemble.description`` is limited to 256 characters.
 An ensemble may contain at most 100 candidate simulations; a full command may
 contain at most 200.
 

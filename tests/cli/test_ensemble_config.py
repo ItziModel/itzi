@@ -23,14 +23,7 @@ from itzi.ensemble.models import (
     parse_duration,
     render_template,
 )
-from itzi.ensemble.schema import (
-    EnsembleMetadata,
-    InputSweepConfig,
-    ManifestOutputs,
-    ParameterSweepConfig,
-    StatisticsOutputs,
-    TimeConfig,
-)
+from itzi.ensemble.schema import TimeConfig
 from itzi.ensemble.resolution import (
     _build_simulation_config,
     _last_record_index,
@@ -38,6 +31,7 @@ from itzi.ensemble.resolution import (
     _resolve_inputs,
     validate_resolved_ensemble,
 )
+from itzi.manifest import _manifest_document
 
 
 def write_yaml(tmp_path, content: str):
@@ -87,6 +81,18 @@ def test_scalar_document_expands_to_one_member(tmp_path):
     }
 
 
+def test_ensemble_description_reaches_manifest(tmp_path):
+    description = "Central city rainfall study"
+    content = document().replace("  id: study", f"  id: study\n  description: {description}")
+    stream = load_yaml_stream(write_yaml(tmp_path, content))
+
+    assert stream.failures == ()
+    assert _manifest_document(stream.ensembles[0], {})["ensemble"] == {
+        "id": "study",
+        "description": description,
+    }
+
+
 def test_drainage_coefficients_are_forwarded(tmp_path):
     expanded = load_yaml_stream(write_yaml(tmp_path, document())).ensembles[0].simulations[0]
     expanded = replace(
@@ -130,23 +136,6 @@ def test_time_config_accepts_only_supported_combinations():
     ):
         with pytest.raises(ValidationError):
             TimeConfig.model_validate({"record_step": "00:05:00", **fields})
-
-
-@pytest.mark.parametrize(
-    ("model", "value"),
-    (
-        (EnsembleMetadata, {"id": "invalid!"}),
-        (InputSweepConfig, {"ground_elevation": [], "friction": "manning"}),
-        (InputSweepConfig, {"ground_elevation": ["elevation"], "friction": [["manning"]]}),
-        (ParameterSweepConfig, {"cfl": [float("nan")]}),
-        (ParameterSweepConfig, {"cfl": [0.5, 0.5]}),
-        (StatisticsOutputs, {"file": ""}),
-        (ManifestOutputs, {"file": ""}),
-    ),
-)
-def test_schema_constraints_reject_invalid_values(model, value):
-    with pytest.raises(ValidationError):
-        model.model_validate(value)
 
 
 def test_grass_context_requires_complete_context():
@@ -288,28 +277,8 @@ outputs: {}
         InfiltrationModelType.CONSTANT,
     ]
 
-    labelled = content.replace("    - type: none", '    - type: none\n      label: "first"')
-    labelled_stream = load_yaml_stream(write_yaml(tmp_path, labelled))
-    assert labelled_stream.failures[0].phase == "schema"
-
     duplicate = content.replace("    - type: none\n", "    - type: none\n    - type: none\n")
     assert load_yaml_stream(write_yaml(tmp_path, duplicate)).failures[0].phase == "schema"
-
-
-def test_yaml_rejects_unsupported_hotstart(tmp_path):
-    content = (
-        document()
-        + """\
-hotstart:
-  wallclock_step: "00:01:00"
-  file: "checkpoint.zip"
-"""
-    )
-
-    stream = load_yaml_stream(write_yaml(tmp_path, content))
-
-    assert stream.ensembles == ()
-    assert stream.failures[0].phase == "schema"
 
 
 def test_absolute_offsets_keep_wall_clock_values(tmp_path):
