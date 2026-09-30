@@ -196,6 +196,7 @@ def _simulation_identity(
     """Build the versioned identity payload after all source normalization."""
     drainage = dict(expanded.drainage) if expanded.drainage is not None else None
     if drainage is not None:
+        assert swmm_digest is not None
         drainage["swmm_digest"] = swmm_digest
         drainage["swmm_input"] = str(
             (expanded.source.path.parent / str(drainage["swmm_input"])).resolve()
@@ -344,27 +345,25 @@ def _build_simulation_config(
     assert end is not None
     options = dict(expanded.options)
     surface_options = {key: value for key, value in options.items() if key != "dtinf"}
-    drainage = dict(expanded.drainage) if expanded.drainage is not None else {}
+    # Create the dict first to satisfy the type checker
+    config_data = {
+        "start_time": start,
+        "end_time": end,
+        "record_step": expanded.time.record_step,
+        "temporal_type": expanded.time.temporal_type,
+        "hotstart_config": None,
+        "input_map_names": input_names,
+        "output_map_names": dict(artifacts.output_map_names),
+        "surface_flow_parameters": SurfaceFlowParameters(**surface_options),
+        "dtinf": options["dtinf"],
+        "infiltration_model": expanded.infiltration.model,
+        "swmm_inp": swmm_path,
+        "drainage_output": artifacts.drainage_output,
+    }
+    if expanded.drainage is not None:
+        config_data.update((key, value) for key, value in expanded.drainage if key != "swmm_input")
     try:
-        return SimulationConfig(
-            start_time=start,
-            end_time=end,
-            record_step=expanded.time.record_step,
-            temporal_type=expanded.time.temporal_type,
-            hotstart_config=None,
-            input_map_names=input_names,
-            output_map_names=dict(artifacts.output_map_names),
-            surface_flow_parameters=SurfaceFlowParameters(**surface_options),
-            dtinf=options["dtinf"],
-            infiltration_model=expanded.infiltration.model,
-            swmm_inp=swmm_path,
-            drainage_output=artifacts.drainage_output,
-            **{
-                key: drainage[key]
-                for key in ("orifice_coeff", "free_weir_coeff", "submerged_weir_coeff")
-                if key in drainage
-            },
-        )
+        return SimulationConfig.model_validate(config_data)
     except ValidationError as error:
         details = "; ".join(item["msg"] for item in error.errors(include_url=False))
         raise EnsembleError(details) from error

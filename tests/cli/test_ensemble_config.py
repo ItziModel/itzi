@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta
 import sys
 from types import SimpleNamespace
@@ -14,6 +15,7 @@ from pydantic import ValidationError
 from itzi.ensemble import load_yaml_stream
 from itzi.ensemble.models import (
     MAX_ENSEMBLE_MEMBERS,
+    ArtifactSummary,
     format_duration,
     parse_duration,
     render_template,
@@ -27,6 +29,7 @@ from itzi.ensemble.schema import (
     TimeConfig,
 )
 from itzi.ensemble.resolution import (
+    _build_simulation_config,
     _last_record_index,
     _render_artifacts,
     _resolve_inputs,
@@ -79,6 +82,30 @@ def test_scalar_document_expands_to_one_member(tmp_path):
     assert dict(simulation.options) == SurfaceFlowParameters().model_dump() | {
         "dtinf": DefaultValues.DTINF
     }
+
+
+def test_drainage_coefficients_are_forwarded(tmp_path):
+    expanded = load_yaml_stream(write_yaml(tmp_path, document())).ensembles[0].simulations[0]
+    expanded = replace(
+        expanded,
+        drainage=(
+            ("swmm_input", "network.inp"),
+            ("orifice_coeff", 0.2),
+            ("free_weir_coeff", 0.3),
+            ("submerged_weir_coeff", 0.4),
+        ),
+    )
+    config = _build_simulation_config(
+        expanded,
+        dict(expanded.input_maps),
+        ArtifactSummary((), None, None),
+        tmp_path / "network.inp",
+    )
+    assert (
+        config.orifice_coeff,
+        config.free_weir_coeff,
+        config.submerged_weir_coeff,
+    ) == (0.2, 0.3, 0.4)
 
 
 def test_time_config_accepts_only_supported_combinations():
