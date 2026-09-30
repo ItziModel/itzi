@@ -52,7 +52,7 @@ def resolve_ensemble(
         actual_params = active_grass_params(requested_params)
         domain = read_domain(simulations[0].domain.region)
         effective_mask = resolve_effective_mask(simulations[0].domain.mask)
-        input_cache: dict[str, tuple[str, Literal["raster", "strds"]] | Exception] = {}
+        input_cache: dict[str, tuple[str, Literal["raster", "strds"]]] = {}
         swmm_cache: dict[Path, str] = {}
         results: list[ResolvedSimulation | ValidationFailure] = []
         for expanded in simulations:
@@ -141,7 +141,7 @@ def _build_resolved_simulation(
 def _resolve_inputs(
     inputs: dict[str, str],
     *,
-    cache: dict[str, tuple[str, Literal["raster", "strds"]] | Exception] | None = None,
+    cache: dict[str, tuple[str, Literal["raster", "strds"]]] | None = None,
 ) -> tuple[dict[str, str], dict[str, Literal["raster", "strds"]]]:
     from itzi.grass.utils import resolve_input_identifier
 
@@ -150,16 +150,9 @@ def _resolve_inputs(
     for key, identifier in inputs.items():
         result = cache.get(identifier) if cache is not None else None
         if result is None:
-            try:
-                result = resolve_input_identifier(identifier)
-            except Exception as error:
-                if cache is not None:
-                    cache[identifier] = error
-                raise
+            result = resolve_input_identifier(identifier)
             if cache is not None:
                 cache[identifier] = result
-        if isinstance(result, Exception):
-            raise result
         source, kind = result
         resolved[key] = source
         kinds[key] = kind

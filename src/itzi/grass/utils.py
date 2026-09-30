@@ -125,14 +125,9 @@ def resolve_effective_mask(mask: str | None) -> EffectiveMask:
         if not mapset:
             raise EnsembleError(f"explicit mask {mask!r} was not found")
         return EffectiveMask("explicit", f"{name}@{mapset}")
-    if has_mask():
+    if gutils.get_mapset_raster("MASK", current_mapset):
         return EffectiveMask("active", f"MASK@{current_mapset}")
     return EffectiveMask("none", None)
-
-
-def has_mask() -> bool:
-    """Return True if the mapset has a mask, False otherwise."""
-    return bool(gutils.get_mapset_raster("MASK", gutils.getenv("MAPSET")))
 
 
 def format_id(name: str) -> str:
