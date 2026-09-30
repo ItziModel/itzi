@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from itzi.grass.interface import GrassInterface
 
 
-def preflight_simulation(simulation: ResolvedSimulation) -> None:
+def validate_run_requirements(simulation: ResolvedSimulation) -> None:
     """Validate one resolved simulation without creating user artifacts."""
     from itzi.grass.interface import GrassInterface
     from itzi.grass.utils import ensure_min_version

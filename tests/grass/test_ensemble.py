@@ -18,7 +18,7 @@ from itzi_core import TemporalType
 from itzi.cli_parser import build_parser
 from itzi.ensemble.models import ResolvedSimulation, ValidationFailure
 from itzi.grass.session import GrassSessionManager
-from itzi.itzi import _resolve_ensemble_in_subprocess, itzi_run, preflight_worker
+from itzi.itzi import _resolve_ensemble_in_subprocess, itzi_run, run_validation_worker
 from itzi.run_plan import load_batch
 
 
@@ -91,7 +91,7 @@ def test_input_resolution_qualifies_rasters_and_strds_and_rejects_ambiguity(
         "rainfall_rate": f"stage_series@{mapset}",
     }
     assert dict(resolved.input_kinds)["rainfall_rate"] == "strds"
-    assert preflight_worker((resolved,)).get(resolved.simulation_id) is None
+    assert run_validation_worker((resolved,)).get(resolved.simulation_id) is None
 
     path = write_study(tmp_path, input={"rainfall_rate": f"stage_series@{mapset}"})
     qualified = _resolve_ensemble_in_subprocess(load_batch([str(path)])[0][0].simulations)[0]
@@ -107,7 +107,7 @@ def test_input_resolution_qualifies_rasters_and_strds_and_rejects_ambiguity(
 
 @pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
-def test_temporal_preflight_failure_does_not_stop_next_member(tmp_path: Path) -> None:
+def test_temporal_run_validation_failure_does_not_stop_next_member(tmp_path: Path) -> None:
     from grass.pygrass import utils as gutils
 
     GrassSessionManager.ensure_temporal_initialized()
@@ -143,7 +143,7 @@ def test_temporal_preflight_failure_does_not_stop_next_member(tmp_path: Path) ->
     assert sorted(member["status"] for member in members) == ["completed", "validation_failed"]
     failed = next(member for member in members if member["status"] == "validation_failed")
     completed = next(member for member in members if member["status"] == "completed")
-    assert failed["failure"]["phase"] == "preflight"
+    assert failed["failure"]["phase"] == "run_validation"
     assert (
         "ends before simulation" in failed["failure"]["detail"]
         or "inadequate temporal" in failed["failure"]["detail"]
@@ -195,9 +195,9 @@ def test_mask_semantics_and_worker_detects_changed_effective_mask(tmp_path: Path
         finally:
             interface.cleanup()
 
-        assert preflight_worker((resolved,)).get(resolved.simulation_id) is None
+        assert run_validation_worker((resolved,)).get(resolved.simulation_id) is None
         gscript.run_command("r.mask", flags="r")
-        assert preflight_worker((resolved,)).get(resolved.simulation_id) is None
+        assert run_validation_worker((resolved,)).get(resolved.simulation_id) is None
 
         active_path = write_study(tmp_path, domain={})
         active_resolved = _resolve_ensemble_in_subprocess(
@@ -207,7 +207,7 @@ def test_mask_semantics_and_worker_detects_changed_effective_mask(tmp_path: Path
         assert active_resolved.effective_mask.mode == "none"
         gscript.run_command("g.copy", raster="stage_mask_values,MASK")
         assert "effective GRASS mask changed" in (
-            preflight_worker((active_resolved,)).get(active_resolved.simulation_id) or ""
+            run_validation_worker((active_resolved,)).get(active_resolved.simulation_id) or ""
         )
         assert gutils.get_mapset_raster("MASK", gutils.getenv("MAPSET"))
     finally:
@@ -224,12 +224,12 @@ def test_worker_rejects_region_and_input_changes_after_resolution(tmp_path: Path
 
     gscript.run_command("g.region", n=60)
     assert "GRASS domain changed" in (
-        preflight_worker((resolved,)).get(resolved.simulation_id) or ""
+        run_validation_worker((resolved,)).get(resolved.simulation_id) or ""
     )
     gscript.run_command("g.region", n=50)
     gscript.run_command("g.remove", flags="f", type="raster", name="stage_worker_friction")
     assert "stage_worker_friction" in (
-        preflight_worker((resolved,)).get(resolved.simulation_id) or ""
+        run_validation_worker((resolved,)).get(resolved.simulation_id) or ""
     )
     assert not (tmp_path / "results").exists()
 
@@ -399,7 +399,7 @@ outputs:
 
 @pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
-def test_dry_run_preflights_multiple_members_in_one_session(tmp_path):
+def test_dry_run_validates_multiple_members_in_one_session(tmp_path):
     prefix = f"dry_multi_{uuid4().hex[:8]}"
     config_path = write_study(
         tmp_path,
@@ -443,7 +443,7 @@ def test_dry_run_rejects_null_elevation_without_creating_outputs(tmp_path):
         (tmp_path / "results" / "dry.manifest.yaml").read_text(encoding="utf-8")
     )
     assert manifest["members"][0]["status"] == "validation_failed"
-    assert manifest["members"][0]["failure"]["phase"] == "preflight"
+    assert manifest["members"][0]["failure"]["phase"] == "run_validation"
     assert not (tmp_path / "dry-results").exists()
     assert not gscript.find_file(name="dry_output_water_depth_0000", element="cell").get("file")
 
@@ -506,9 +506,9 @@ def test_dry_run_checks_every_generated_output_record(test_data_temp_path):
 
 @pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
-def test_preflight_accepts_unoccupied_drainage_id():
+def test_run_validation_accepts_unoccupied_drainage_id():
     from itzi.grass.utils import get_current_mapset
-    from itzi.ensemble.preflight import _validate_grass_outputs
+    from itzi.ensemble.run_validation import _validate_grass_outputs
     from itzi.grass.interface import GrassInterface
 
     GrassSessionManager.ensure_temporal_initialized()

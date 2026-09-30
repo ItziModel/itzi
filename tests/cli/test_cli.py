@@ -22,14 +22,14 @@ from itzi.ensemble.models import (
 from itzi.grass.session import GrassParams
 from itzi.itzi import (
     VerbosityLevel,
-    _preflight_ensemble,
+    _validate_ensemble_run_requirements,
     _run_ensemble_batch,
     _run_one_ensemble,
     _select_members,
     itzi_run,
     itzi_run_one,
     main,
-    preflight_worker,
+    run_validation_worker,
     reconcile_hotstart_commands,
     sim_runner_worker,
 )
@@ -144,8 +144,8 @@ def test_ensembles_are_checked_and_run_in_order_without_cross_ensemble_validatio
         calls.append(("validate", simulations[0].simulation_id))
         assert len(simulations) == 1
 
-    def preflight(simulations):
-        calls.append(("preflight", simulations[0].simulation_id))
+    def validate_run(simulations):
+        calls.append(("run_validation", simulations[0].simulation_id))
         return {}
 
     def run(resolved, selected_ids, *_args, **_kwargs):
@@ -159,7 +159,7 @@ def test_ensembles_are_checked_and_run_in_order_without_cross_ensemble_validatio
     monkeypatch.setattr("itzi.itzi._resolve_ensemble_in_subprocess", resolve)
     monkeypatch.setattr("itzi.itzi.validate_resolved_ensemble", validate)
     monkeypatch.setattr("itzi.itzi._validate_manifest_destination", lambda *_, **__: None)
-    monkeypatch.setattr("itzi.itzi._preflight_in_subprocess", preflight)
+    monkeypatch.setattr("itzi.itzi._validate_run_requirements_in_subprocess", validate_run)
     monkeypatch.setattr("itzi.itzi._run_one_ensemble", run)
     monkeypatch.setattr("itzi.itzi._display_dry_plan", display)
 
@@ -170,11 +170,11 @@ def test_ensembles_are_checked_and_run_in_order_without_cross_ensemble_validatio
     assert calls == [
         (step, name)
         for name in ("first", "second")
-        for step in ("resolve", "validate", "preflight", "display" if dry else "run")
+        for step in ("resolve", "validate", "run_validation", "display" if dry else "run")
     ]
 
 
-def test_preflight_only_checks_selected_members(tmp_path, monkeypatch):
+def test_run_validation_only_checks_selected_members(tmp_path, monkeypatch):
     selected_simulation = SimpleNamespace(simulation_id="sim-selected")
     selected_with_failure = SimpleNamespace(simulation_id="sim-failed")
     unselected_simulation = SimpleNamespace(simulation_id="sim-unselected")
@@ -186,14 +186,14 @@ def test_preflight_only_checks_selected_members(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr("itzi.itzi._validate_manifest_destination", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
-        "itzi.itzi._preflight_in_subprocess",
+        "itzi.itzi._validate_run_requirements_in_subprocess",
         lambda simulations: (
             calls.append(tuple(s.simulation_id for s in simulations))
             or {"sim-failed": "invalid input"}
         ),
     )
 
-    member_failures, manifest_failure = _preflight_ensemble(
+    member_failures, manifest_failure = _validate_ensemble_run_requirements(
         ResolvedEnsemble(
             cast(ExpandedEnsemble, ensemble),
             cast(
@@ -208,7 +208,9 @@ def test_preflight_only_checks_selected_members(tmp_path, monkeypatch):
     )
 
     assert calls == [("sim-selected", "sim-failed")]
-    assert member_failures == {"sim-failed": {"phase": "preflight", "detail": "invalid input"}}
+    assert member_failures == {
+        "sim-failed": {"phase": "run_validation", "detail": "invalid input"}
+    }
     assert manifest_failure is None
 
 
@@ -241,11 +243,11 @@ def test_one_ensemble_runs_only_planned_members_and_counts_failures(tmp_path, mo
     artifacts = SimpleNamespace(output_map_names=(), drainage_output=None, statistics_file=None)
     simulations = tuple(
         SimpleNamespace(simulation_id=name, coordinates=(), artifacts=artifacts)
-        for name in ("preflight", "unselected", "good", "bad")
+        for name in ("invalid", "unselected", "good", "bad")
     )
     runs = []
     updates = []
-    preflights = []
+    run_validations = []
     monkeypatch.setattr("itzi.itzi._create_manifest", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         "itzi.itzi._update_manifest",
@@ -254,8 +256,8 @@ def test_one_ensemble_runs_only_planned_members_and_counts_failures(tmp_path, mo
         ),
     )
     monkeypatch.setattr(
-        "itzi.itzi._preflight_in_subprocess",
-        lambda simulations: preflights.append(simulations[0].simulation_id) or {},
+        "itzi.itzi._validate_run_requirements_in_subprocess",
+        lambda simulations: run_validations.append(simulations[0].simulation_id) or {},
     )
     monkeypatch.setattr(
         "itzi.itzi._run_simulation_in_subprocess",
@@ -273,8 +275,8 @@ def test_one_ensemble_runs_only_planned_members_and_counts_failures(tmp_path, mo
         ResolvedEnsemble(
             cast(ExpandedEnsemble, ensemble), cast(tuple[ResolvedSimulation, ...], simulations), ()
         ),
-        {"good", "bad", "preflight"},
-        {"preflight": {"phase": "preflight", "detail": "invalid input"}},
+        {"good", "bad", "invalid"},
+        {"invalid": {"phase": "run_validation", "detail": "invalid input"}},
         None,
         has_selectors=True,
         overwrite=False,
@@ -282,16 +284,16 @@ def test_one_ensemble_runs_only_planned_members_and_counts_failures(tmp_path, mo
 
     assert count == 2
     assert runs == ["good", "bad"]
-    assert preflights == ["bad"]
+    assert run_validations == ["bad"]
     assert updates[-1] == {
         "good": "completed",
         "bad": "execution_failed",
-        "preflight": "validation_failed",
+        "invalid": "validation_failed",
         "unselected": "not_selected",
     }
 
 
-def test_preflight_worker_keeps_member_failures(monkeypatch):
+def test_run_validation_worker_keeps_member_failures(monkeypatch):
     calls = []
 
     class FakeGrassSessionManager:
@@ -304,21 +306,21 @@ def test_preflight_worker_keeps_member_failures(monkeypatch):
         def __exit__(self, *_):
             calls.append("close")
 
-    def preflight(simulation):
+    def validate_run_requirements(simulation):
         calls.append(simulation.simulation_id)
         if simulation.simulation_id == "bad":
             raise ValueError("invalid input")
 
     monkeypatch.setattr("itzi.itzi.GrassSessionManager", FakeGrassSessionManager)
-    fake_preflight = ModuleType("itzi.ensemble.preflight")
-    setattr(fake_preflight, "preflight_simulation", preflight)
-    monkeypatch.setitem(sys.modules, "itzi.ensemble.preflight", fake_preflight)
+    fake_run_validation = ModuleType("itzi.ensemble.run_validation")
+    setattr(fake_run_validation, "validate_run_requirements", validate_run_requirements)
+    monkeypatch.setitem(sys.modules, "itzi.ensemble.run_validation", fake_run_validation)
     simulations = tuple(
         SimpleNamespace(simulation_id=simulation_id, grass_params="shared")
         for simulation_id in ("good", "bad", "another")
     )
 
-    assert preflight_worker(cast(tuple[ResolvedSimulation, ...], simulations)) == {
+    assert run_validation_worker(cast(tuple[ResolvedSimulation, ...], simulations)) == {
         "bad": "ValueError: invalid input"
     }
     assert calls == ["open", "good", "bad", "another", "close"]

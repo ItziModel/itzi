@@ -142,17 +142,17 @@ def resolver_worker(
     return resolve_ensemble(expanded)
 
 
-def preflight_worker(simulations: tuple[ResolvedSimulation, ...]) -> dict[str, str]:
-    """Preflight selected members in one GRASS session, retaining individual failures."""
+def run_validation_worker(simulations: tuple[ResolvedSimulation, ...]) -> dict[str, str]:
+    """Validate selected members in one GRASS session, retaining individual failures."""
     msgr.raise_on_error = True
     msgr._itzi_logger.set_verbosity(msgr.verbosity())
     failures: dict[str, str] = {}
     with GrassSessionManager(simulations[0].grass_params):
-        from itzi.ensemble.preflight import preflight_simulation
+        from itzi.ensemble.run_validation import validate_run_requirements
 
         for simulation in simulations:
             try:
-                preflight_simulation(simulation)
+                validate_run_requirements(simulation)
             except Exception as error:
                 failures[simulation.simulation_id] = f"{type(error).__name__}: {error}"
     return failures
@@ -362,7 +362,7 @@ def _run_ensemble_batch(cli_args: Namespace) -> None:
             ensemble, tuple(successful), tuple(member_failures), artifact_failure
         )
         selected_ids = _select_members(resolved, qualified_selectors)
-        preflight_failures, manifest_failure = _preflight_ensemble(
+        run_validation_failures, manifest_failure = _validate_ensemble_run_requirements(
             resolved,
             selected_ids,
             has_selectors=has_selectors,
@@ -372,19 +372,21 @@ def _run_ensemble_batch(cli_args: Namespace) -> None:
             _display_dry_plan(
                 resolved,
                 selected_ids,
-                preflight_failures,
+                run_validation_failures,
                 manifest_failure,
                 has_selectors=has_selectors,
             )
             dry_failed |= bool(
-                (resolved.failures and not has_selectors) or preflight_failures or manifest_failure
+                (resolved.failures and not has_selectors)
+                or run_validation_failures
+                or manifest_failure
             )
             continue
 
         failure_count += _run_one_ensemble(
             resolved,
             selected_ids,
-            preflight_failures,
+            run_validation_failures,
             manifest_failure,
             has_selectors=has_selectors,
             overwrite=bool(cli_args.o),
@@ -403,7 +405,7 @@ def _run_ensemble_batch(cli_args: Namespace) -> None:
 def _run_one_ensemble(
     resolved: ResolvedEnsemble,
     selected_ids: set[str],
-    preflight_failures: dict[str, dict[str, str]],
+    run_validation_failures: dict[str, dict[str, str]],
     manifest_failure: str | None,
     *,
     has_selectors: bool,
@@ -417,7 +419,7 @@ def _run_one_ensemble(
     states = _initial_member_states(
         resolved.simulations, resolved.failures, selected_ids, has_selectors
     )
-    for simulation_id, failure in preflight_failures.items():
+    for simulation_id, failure in run_validation_failures.items():
         states[simulation_id]["status"] = "validation_failed"
         states[simulation_id]["failure"] = failure
     if manifest_failure is not None:
@@ -437,11 +439,13 @@ def _run_one_ensemble(
         if states[simulation.simulation_id]["status"] != "planned":
             continue
         if member_started:
-            detail = _preflight_in_subprocess((simulation,)).get(simulation.simulation_id)
+            detail = _validate_run_requirements_in_subprocess((simulation,)).get(
+                simulation.simulation_id
+            )
             if detail is not None:
                 states[simulation.simulation_id]["status"] = "validation_failed"
                 states[simulation.simulation_id]["failure"] = {
-                    "phase": "preflight",
+                    "phase": "run_validation",
                     "detail": detail,
                 }
                 _update_manifest(manifest_path, ensemble, states)
@@ -505,18 +509,18 @@ def _run_simulation_in_subprocess(simulation: ResolvedSimulation) -> tuple[str, 
         return "execution_failed", f"{type(error).__name__}: {error}"
 
 
-def _preflight_in_subprocess(
+def _validate_run_requirements_in_subprocess(
     simulations: tuple[ResolvedSimulation, ...],
 ) -> dict[str, str]:
     try:
         with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as executor:
-            return executor.submit(preflight_worker, simulations).result()
+            return executor.submit(run_validation_worker, simulations).result()
     except Exception as error:
         detail = f"{type(error).__name__}: {error}"
         return {simulation.simulation_id: detail for simulation in simulations}
 
 
-def _preflight_ensemble(
+def _validate_ensemble_run_requirements(
     resolved: ResolvedEnsemble,
     selected_ids: set[str],
     *,
@@ -542,14 +546,14 @@ def _preflight_ensemble(
         )
     except EnsembleError as error:
         manifest_failure = str(error)
-    to_preflight = tuple(
+    to_validate = tuple(
         simulation
         for simulation in simulations
         if simulation.simulation_id in selected_ids and simulation.simulation_id not in failures
     )
-    if to_preflight:
-        for simulation_id, detail in _preflight_in_subprocess(to_preflight).items():
-            failures[simulation_id] = {"phase": "preflight", "detail": detail}
+    if to_validate:
+        for simulation_id, detail in _validate_run_requirements_in_subprocess(to_validate).items():
+            failures[simulation_id] = {"phase": "run_validation", "detail": detail}
     return failures, manifest_failure
 
 
@@ -575,7 +579,7 @@ def _select_members(
 def _display_dry_plan(
     resolved: ResolvedEnsemble,
     selected_ids: set[str],
-    preflight_failures: dict[str, dict[str, str]],
+    run_validation_failures: dict[str, dict[str, str]],
     manifest_failure: str | None,
     *,
     has_selectors: bool,
@@ -585,8 +589,8 @@ def _display_dry_plan(
     for simulation in resolved.simulations:
         selection = "selected" if simulation.simulation_id in selected_ids else "not selected"
         msgr.message(f"  {simulation.simulation_id} ({selection})")
-        if simulation.simulation_id in preflight_failures:
-            failure = preflight_failures[simulation.simulation_id]
+        if simulation.simulation_id in run_validation_failures:
+            failure = run_validation_failures[simulation.simulation_id]
             msgr.warning(f"    {failure['phase']} failed: {failure['detail']}")
         for variable, name in simulation.artifacts.output_map_names:
             msgr.message(f"    raster {variable}: {name}")
