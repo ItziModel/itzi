@@ -18,6 +18,7 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 import numpy as np
+from itzi_core import OUTPUT_ARRAY_KEYS
 from itzi_core.providers import RasterOutputProvider, VectorOutputProvider
 
 from itzi.grass.names import derived_record_name
@@ -25,7 +26,7 @@ from itzi.grass.names import derived_record_name
 if TYPE_CHECKING:
     from datetime import datetime, timedelta
 
-    from itzi_core import OUTPUT_ARRAY_KEYS, TemporalType
+    from itzi_core import TemporalType
     from itzi_core.data_containers import DrainageNetworkAttributes, DrainageNetworkTopology
 
     from itzi.grass.interface import GrassInterface
