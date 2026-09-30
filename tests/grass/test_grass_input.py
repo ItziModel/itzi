@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import pytest
@@ -33,11 +33,7 @@ class FakeGrassInterface:
         return [MapData(strds_id, start, start + timedelta(hours=1))]
 
 
-@pytest.mark.parametrize(
-    "input_kinds", [None, {"ground_elevation": "raster", "rainfall_rate": "strds"}]
-)
-def test_input_kinds_share_raster_and_strds_construction(
-    input_kinds: dict[str, Literal["raster", "strds"]] | None,
+def test_resolved_input_kinds_share_raster_and_strds_construction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from itzi.grass import utils
@@ -45,12 +41,6 @@ def test_input_kinds_share_raster_and_strds_construction(
     from itzi.providers.grass_input import GrassRasterInputProvider
     from itzi.grass.utils import MapData
 
-    monkeypatch.setattr(
-        utils,
-        "resolve_input_identifier",
-        lambda name: (f"{name}@test", "strds" if name == "series" else "raster"),
-    )
-    monkeypatch.setattr(utils, "format_id", lambda name: f"{name}@test")
     monkeypatch.setattr(utils, "name_is_stds", lambda map_id: map_id == "series@test")
     monkeypatch.setattr(utils, "name_is_map", lambda map_id: map_id == "raster@test")
 
@@ -60,10 +50,10 @@ def test_input_kinds_share_raster_and_strds_construction(
 
     provider = GrassRasterInputProvider(
         cast(GrassInterface, interface),
-        {"ground_elevation": "raster", "rainfall_rate": "series"},
+        {"ground_elevation": "raster@test", "rainfall_rate": "series@test"},
         start,
         end,
-        input_kinds,
+        {"ground_elevation": "raster", "rainfall_rate": "strds"},
     )
 
     assert provider.map_lists["ground_elevation"] == [MapData("raster@test", start, end)]

@@ -305,7 +305,7 @@ def resolve_input_map_lists(
     map_names: Mapping[str, str],
     start_time: datetime,
     end_time: datetime,
-    input_kinds: Mapping[str, Literal["raster", "strds"]] | None,
+    input_kinds: Mapping[str, Literal["raster", "strds"]],
 ) -> dict[str, list[MapData] | None]:
     """Resolve provider-ready raster lists without creating an output provider."""
     invalid_input_keys = sorted(set(map_names) - INPUT_ARRAY_KEYS)
@@ -316,21 +316,15 @@ def resolve_input_map_lists(
     for key, map_name in map_names.items():
         if not map_name:
             continue
-        kind = input_kinds.get(key) if input_kinds is not None else None
-        if kind is None:
-            map_id, kind = resolve_input_identifier(map_name)
-        elif kind == "raster":
-            map_id = format_id(map_name)
-        else:
-            map_id = map_name if "@" in map_name else resolve_input_identifier(map_name)[0]
+        kind = input_kinds[key]
         if kind == "strds":
-            if not name_is_stds(map_id):
-                msgr.fatal(f"STRDS input <{map_id}> is no longer available")
-        elif kind == "raster" and not name_is_map(map_id):
-            msgr.fatal(f"raster input <{map_id}> is no longer available")
+            if not name_is_stds(map_name):
+                msgr.fatal(f"STRDS input <{map_name}> is no longer available")
+        elif kind == "raster" and not name_is_map(map_name):
+            msgr.fatal(f"raster input <{map_name}> is no longer available")
         if kind == "strds":
-            map_list = grass_interface.raster_list_from_strds(map_id)
+            map_list = grass_interface.raster_list_from_strds(map_name)
         else:
-            map_list = [MapData(id=map_id, start_time=start_time, end_time=end_time)]
+            map_list = [MapData(id=map_name, start_time=start_time, end_time=end_time)]
         map_lists[key] = map_list
     return map_lists

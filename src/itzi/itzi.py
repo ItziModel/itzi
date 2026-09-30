@@ -458,7 +458,7 @@ def _run_one_ensemble(
         status, detail = _run_simulation_in_subprocess(simulation)
         state = states[simulation.simulation_id]
         state["status"] = status
-        state["elapsed_seconds"] = format(time.monotonic() - started, ".2f")
+        state["elapsed_seconds"] = time.monotonic() - started
         if detail is not None:
             states[simulation.simulation_id]["failure"] = {
                 "phase": "execution",

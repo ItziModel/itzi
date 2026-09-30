@@ -145,15 +145,14 @@ def _resolve_inputs(
 ) -> tuple[dict[str, str], dict[str, Literal["raster", "strds"]]]:
     from itzi.grass.utils import resolve_input_identifier
 
+    if cache is None:
+        cache = {}
     resolved: dict[str, str] = {}
     kinds: dict[str, Literal["raster", "strds"]] = {}
     for key, identifier in inputs.items():
-        result = cache.get(identifier) if cache is not None else None
-        if result is None:
-            result = resolve_input_identifier(identifier)
-            if cache is not None:
-                cache[identifier] = result
-        source, kind = result
+        if identifier not in cache:
+            cache[identifier] = resolve_input_identifier(identifier)
+        source, kind = cache[identifier]
         resolved[key] = source
         kinds[key] = kind
     return resolved, kinds

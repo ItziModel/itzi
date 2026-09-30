@@ -134,13 +134,11 @@ class DrainageSweepConfig(StrictModel):
 
 class RasterOutputs(StrictModel):
     prefix: StrictStr
-    variables: list[StrictStr]
+    variables: list[StrictStr] = Field(min_length=1)
 
     @field_validator("variables")
     @classmethod
     def validate_variables(cls, value: list[str]) -> list[str]:
-        if not value:
-            raise ValueError("must not be empty")
         unknown = sorted(set(value) - set(OUTPUT_ARRAY_KEYS))
         if unknown:
             raise ValueError(f"contains unsupported output variables: {', '.join(unknown)}")

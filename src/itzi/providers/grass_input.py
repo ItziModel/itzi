@@ -34,7 +34,7 @@ class GrassRasterInputProvider(RasterInputProvider):
         input_map_names: Mapping[str, str],
         default_start_time: datetime,
         default_end_time: datetime,
-        input_kinds: Mapping[str, Literal["raster", "strds"]] | None,
+        input_kinds: Mapping[str, Literal["raster", "strds"]],
     ) -> None:
         from itzi.grass.utils import resolve_input_map_lists
 
