@@ -2,6 +2,7 @@
 
 import logging
 from configparser import ConfigParser
+from dataclasses import asdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -72,7 +73,7 @@ def test_reader_uses_defaults_when_optional_sections_are_missing(tmp_path):
     assert sim_config.submerged_weir_coeff == DefaultValues.SUBMERGED_WEIR_COEFF
     assert sim_config.input_map_names == {"ground_elevation": "z", "friction": "n"}
     assert sim_config.output_map_names == {"water_depth": "out_water_depth"}
-    assert grass_params.model_dump() == {
+    assert asdict(grass_params) == {
         "grassdata": None,
         "location": None,
         "mapset": None,
@@ -80,6 +81,17 @@ def test_reader_uses_defaults_when_optional_sections_are_missing(tmp_path):
         "mask": None,
         "grass_bin": None,
     }
+
+
+def test_reader_rejects_partial_grass_context(tmp_path):
+    config_file = write_config_file(
+        tmp_path, make_config_dict(grass={"grassdata": "/grassdata", "location": "project"})
+    )
+
+    with pytest.raises(
+        RuntimeError, match="GRASS database, location, and mapset must be supplied together"
+    ):
+        ConfigReader(config_file)
 
 
 @pytest.mark.parametrize(

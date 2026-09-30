@@ -2,7 +2,27 @@ import os
 import sys
 from types import ModuleType, SimpleNamespace
 
+import pytest
+
 from itzi.grass.session import GrassParams, GrassSessionManager
+
+
+@pytest.mark.parametrize(
+    "values",
+    (
+        {"grassdata": "/grassdata"},
+        {"grassdata": "/grassdata", "location": "project"},
+        {"mapset": "PERMANENT"},
+    ),
+)
+def test_grass_params_requires_complete_context(values: dict[str, str]) -> None:
+    with pytest.raises(
+        ValueError, match="GRASS database, location, and mapset must be supplied together"
+    ):
+        GrassParams(**values)
+
+    assert GrassParams(region="region").grassdata is None
+    assert GrassParams("/grassdata", "project", "PERMANENT").mapset == "PERMANENT"
 
 
 class FakeGrassSession:

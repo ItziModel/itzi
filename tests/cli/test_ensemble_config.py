@@ -17,6 +17,7 @@ from itzi.ensemble import load_yaml_stream
 from itzi.ensemble.models import (
     MAX_ENSEMBLE_MEMBERS,
     ArtifactSummary,
+    GrassContextConfig,
     ResolvedSimulation,
     format_duration,
     parse_duration,
@@ -146,6 +147,11 @@ def test_time_config_accepts_only_supported_combinations():
 def test_schema_constraints_reject_invalid_values(model, value):
     with pytest.raises(ValidationError):
         model.model_validate(value)
+
+
+def test_grass_context_requires_complete_context():
+    with pytest.raises(ValidationError, match="mapset must be supplied together"):
+        GrassContextConfig(database="/grassdata", project="project")
 
 
 def test_cartesian_sweeps_use_canonical_coordinate_order(tmp_path):

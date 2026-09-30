@@ -96,11 +96,7 @@ class GrassContextConfig(StrictModel):
 
     @model_validator(mode="after")
     def validate_context(self) -> GrassContextConfig:
-        values = (self.database, self.project, self.mapset)
-        if any(value is not None for value in values) and not all(
-            value is not None for value in values
-        ):
-            raise ValueError("database, project, and mapset must be supplied together")
+        GrassParams(grassdata=self.database, location=self.project, mapset=self.mapset)
         if self.executable is not None and self.database is None:
             raise ValueError("executable requires database, project, and mapset")
         return self

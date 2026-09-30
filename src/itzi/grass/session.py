@@ -17,19 +17,17 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
-
-from pydantic import BaseModel, ConfigDict
 
 import itzi.messenger as msgr
 
 _initialized_temporal_session: tuple[int, str, tuple[str, str, str]] | None = None
 
 
-class GrassParams(BaseModel):
+@dataclass(frozen=True)
+class GrassParams:
     """Parameters for GRASS GIS session."""
-
-    model_config = ConfigDict(frozen=True)
 
     grassdata: str | None = None
     location: str | None = None
@@ -37,6 +35,13 @@ class GrassParams(BaseModel):
     region: str | None = None
     mask: str | None = None
     grass_bin: str | None = None
+
+    def __post_init__(self) -> None:
+        context = (self.grassdata, self.location, self.mapset)
+        if any(value is not None for value in context) and not all(
+            value is not None for value in context
+        ):
+            raise ValueError("GRASS database, location, and mapset must be supplied together")
 
 
 class GrassSessionManager:
@@ -74,10 +79,8 @@ class GrassSessionManager:
             self.grass_params.location,
             self.grass_params.mapset,
         )
-        if not any((gisdb, location, mapset)):
+        if gisdb is None:
             return
-        if not gisdb or not location or not mapset:
-            msgr.fatal("GRASS database, location, and mapset must be supplied together")
         requested_database = str(Path(gisdb).expanduser().resolve())
         active_database = str(Path(active[0]).expanduser().resolve())
         if (requested_database, location, mapset) != (

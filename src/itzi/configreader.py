@@ -79,8 +79,7 @@ GREEN_AMPT_KEYS = (
     "capillary_pressure",
     "hydraulic_conductivity",
 )
-GRASS_MANDATORY_KEYS = ("grassdata", "location", "mapset")
-GRASS_OPTION_KEYS = (*GRASS_MANDATORY_KEYS, "region", "mask", "grass_bin")
+GRASS_OPTION_KEYS = ("grassdata", "location", "mapset", "region", "mask", "grass_bin")
 SURFACE_FLOW_OPTION_KEYS = tuple(SurfaceFlowParameters.model_fields)
 
 
@@ -248,7 +247,11 @@ def _resolve_swmm_input_path(swmm_inp: str, config_file: str) -> Path:
 
 def _read_grass_params(params: ConfigParser) -> GrassParams:
     """Build GRASS session parameters from the config file."""
-    return GrassParams(**_read_string_options(params, "grass", GRASS_OPTION_KEYS))
+    try:
+        return GrassParams(**_read_string_options(params, "grass", GRASS_OPTION_KEYS))
+    except ValueError as error:
+        msgr.fatal(str(error))
+        raise AssertionError("unreachable") from error
 
 
 class SimulationTimes(BaseModel):
@@ -358,7 +361,6 @@ class ConfigReader:
         infiltration_model = self._resolve_infiltration_model(self.input_map_names)
 
         self.grass_params = _read_grass_params(params)
-        self._check_grass_params(self.grass_params)
 
         surface_flow_parameters = _read_surface_flow_parameters(params)
         assert self.sim_times.record_step is not None
@@ -401,14 +403,6 @@ class ConfigReader:
             )
         except ValidationError as error:
             _fatal_validation_error(error)
-
-    def _check_grass_params(self, grass_params: GrassParams) -> None:
-        """Ensure mandatory GRASS settings are provided together."""
-        grass_values = grass_params.model_dump()
-        grass_any = any(grass_values[key] for key in GRASS_MANDATORY_KEYS)
-        grass_all = all(grass_values[key] for key in GRASS_MANDATORY_KEYS)
-        if grass_any and not grass_all:
-            msgr.fatal(f"{GRASS_MANDATORY_KEYS} are mutualy inclusive")
 
     def _resolve_infiltration_model(
         self, input_map_names: dict[str, str | None]
