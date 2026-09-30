@@ -91,6 +91,7 @@ def _initial_member_states(
             "simulation_id": simulation.simulation_id,
             "selected": selected,
             "status": "planned" if selected else "not_selected",
+            "elapsed_seconds": None,
             "coordinates": _manifest_coordinates(simulation.coordinates),
             "artifacts": {
                 "rasters": dict(simulation.artifacts.output_map_names),
@@ -106,6 +107,7 @@ def _initial_member_states(
             "simulation_id": None,
             "selected": not has_selectors,
             "status": "not_selected" if has_selectors else "validation_failed",
+            "elapsed_seconds": None,
             "coordinates": _manifest_coordinates(failure.coordinates),
             "failure": {"phase": failure.phase, "detail": failure.detail},
         }
@@ -131,8 +133,6 @@ def _manifest_document(ensemble: ExpandedEnsemble, states: dict[str, dict]) -> d
         "source": {
             "path": str(ensemble.source.path),
             "document_index": ensemble.source.document_index,
-            "file_digest": ensemble.source.file_digest,
-            "document_digest": ensemble.source.document_digest,
         },
         "members": list(states.values()),
     }
