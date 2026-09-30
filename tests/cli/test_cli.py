@@ -20,7 +20,7 @@ from itzi.itzi import (
     itzi_run,
     itzi_run_one,
     main,
-    preflight_ensemble_worker,
+    preflight_worker,
     reconcile_hotstart_commands,
     sim_runner_worker,
 )
@@ -145,7 +145,7 @@ def test_ensembles_are_checked_and_run_in_order_without_cross_ensemble_validatio
     monkeypatch.setattr("itzi.itzi._resolve_ensemble_in_subprocess", resolve)
     monkeypatch.setattr("itzi.itzi.validate_resolved_ensemble", validate)
     monkeypatch.setattr("itzi.itzi._validate_manifest_destination", lambda *_, **__: None)
-    monkeypatch.setattr("itzi.itzi._preflight_ensemble_in_subprocess", preflight)
+    monkeypatch.setattr("itzi.itzi._preflight_in_subprocess", preflight)
     monkeypatch.setattr("itzi.itzi._run_one_ensemble", run)
     monkeypatch.setattr("itzi.itzi._display_dry_plan", display)
 
@@ -172,7 +172,7 @@ def test_preflight_only_checks_selected_members(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr("itzi.itzi._validate_manifest_destination", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
-        "itzi.itzi._preflight_ensemble_in_subprocess",
+        "itzi.itzi._preflight_in_subprocess",
         lambda simulations: (
             calls.append(tuple(s.simulation_id for s in simulations))
             or {"sim-failed": "invalid input"}
@@ -268,7 +268,7 @@ def test_one_ensemble_runs_only_planned_members_and_counts_failures(tmp_path, mo
     }
 
 
-def test_preflight_ensemble_worker_keeps_member_failures(monkeypatch):
+def test_preflight_worker_keeps_member_failures(monkeypatch):
     calls = []
 
     class FakeGrassSessionManager:
@@ -295,7 +295,7 @@ def test_preflight_ensemble_worker_keeps_member_failures(monkeypatch):
         for simulation_id in ("good", "bad", "another")
     )
 
-    assert preflight_ensemble_worker(simulations) == {"bad": "ValueError: invalid input"}
+    assert preflight_worker((simulations)) == {"bad": "ValueError: invalid input"}
     assert calls == ["open", "good", "bad", "another", "close"]
 
 
