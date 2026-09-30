@@ -9,6 +9,7 @@ import pytest
 
 from itzi import SimulationRunner
 from itzi.configreader import ConfigReader
+from itzi.grass.session import GrassSessionManager
 
 
 def _create_timed_rain_inputs(name_prefix: str) -> dict[str, str]:
@@ -89,6 +90,7 @@ def _build_timed_rain_runner(
         parser.write(file_handle)
 
     conf_data = ConfigReader(config_file)
+    GrassSessionManager.ensure_temporal_initialized()
     return SimulationRunner(
         conf_data.sim_config,
         conf_data.grass_params,
@@ -339,7 +341,6 @@ def test_timed_grass_rain_switches_cleanly_around_boundary(
             seconds=expected_input_deadline_seconds
         )
     finally:
-        sim_runner.g_interface.finalize()
         sim_runner.g_interface.cleanup()
 
 
@@ -370,5 +371,4 @@ def test_timed_grass_rain_is_applied_before_a_step_crosses_its_boundary(test_dat
             360.0 / (1000 * 3600),
         )
     finally:
-        sim_runner.g_interface.finalize()
         sim_runner.g_interface.cleanup()

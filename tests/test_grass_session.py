@@ -21,7 +21,6 @@ def test_manager_activates_and_finishes_created_session(monkeypatch) -> None:
     grass_package = ModuleType("grass")
     grass_package.script = grass_script
 
-    monkeypatch.setattr("itzi.grass.session.importlib.util.find_spec", lambda _: None)
     monkeypatch.setattr("itzi.grass.session.os.access", lambda *_: True)
     monkeypatch.setattr(GrassSessionManager, "ensure_temporal_initialized", lambda self: None)
     monkeypatch.setattr(

@@ -75,7 +75,6 @@ def test_visible_input_and_current_output_with_same_name(grass_xy_session) -> No
     import grass.script as gscript
 
     from itzi.grass.utils import (
-        RasterWriteInstructions,
         format_id,
         output_name,
         qualify_output_id,
@@ -98,9 +97,7 @@ def test_visible_input_and_current_output_with_same_name(grass_xy_session) -> No
 
     gscript.run_command("g.region", n=3, s=0, e=3, w=0, res=1)
     write_raster_map_blocking(
-        RasterWriteInstructions(
-            np.ones((3, 3), dtype=np.int32), "visible_output", "CELL", "ground_elevation", 0, False
-        )
+        np.ones((3, 3), dtype=np.int32), "visible_output", "CELL", "ground_elevation", 0, False
     )
     assert format_id("visible_output") == "visible_output@child"
 
@@ -111,8 +108,10 @@ def test_direct_runner_qualifies_ids_before_creating_providers(test_data_path: s
     from pathlib import Path
 
     from itzi.configreader import ConfigReader
+    from itzi.grass.session import GrassSessionManager
     from itzi.simulation_runner import SimulationRunner
 
+    GrassSessionManager.ensure_temporal_initialized()
     reader = ConfigReader(str(Path(test_data_path) / "5by5" / "5by5.ini"))
     config = reader.sim_config.model_copy(
         update={"output_map_names": {"water_depth": "direct_id_check"}}
@@ -132,9 +131,7 @@ def test_vector_writer_uses_bare_name_from_qualified_output_id() -> None:
     from itzi.grass.interface import GrassInterface
 
     start = datetime(2020, 1, 1)
-    with GrassInterface(
-        start, start + timedelta(seconds=1), np.float32, None, None, non_blocking_write=False
-    ) as interface:
+    with GrassInterface(start, start + timedelta(seconds=1), np.float32, None, None) as interface:
         interface.write_vector_map(
             DrainageNetworkTopology(nodes=(), links=()),
             DrainageNetworkAttributes(nodes=(), links=()),

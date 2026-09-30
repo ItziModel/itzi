@@ -30,6 +30,7 @@ from itzi.ensemble.models import (
     ValidationFailure,
     render_template,
 )
+from itzi.ensemble.resolution import _validate_protected_file_output
 
 
 def _manifest_path(ensemble: ExpandedEnsemble) -> Path:
@@ -73,15 +74,7 @@ def _validate_manifest_destination(
             protected.add(simulation.simulation_config.swmm_inp.resolve())
         if simulation.artifacts.statistics_file is not None:
             protected.add(simulation.artifacts.statistics_file.resolve())
-    if manifest_path in protected:
-        raise EnsembleError(
-            f"manifest <{manifest_path}> aliases a protected input or member artifact"
-        )
-    for path in protected:
-        if manifest_path.exists() and path.exists() and manifest_path.samefile(path):
-            raise EnsembleError(
-                f"manifest <{manifest_path}> aliases a protected input or member artifact"
-            )
+    _validate_protected_file_output(manifest_path, protected)
     validate_file_destination(manifest_path, overwrite=overwrite, description="manifest")
 
 

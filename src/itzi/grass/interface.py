@@ -16,8 +16,6 @@ import copy
 import os
 from collections.abc import Mapping
 from datetime import datetime, timedelta
-from queue import Queue
-from threading import Lock, Thread
 from types import MappingProxyType
 from typing import ClassVar, NamedTuple
 
@@ -41,14 +39,12 @@ import itzi.messenger as msgr
 from itzi.grass.utils import (
     MapData,
     RasterMapType,
-    RasterWriteInstructions,
     STDSType,
     format_id,
     get_crs_wkt,
     has_mask,
     name_is_map,
     output_name,
-    raster_writer,
     replace_cell_null_sentinel,
     split_identifier,
     write_raster_map_blocking,
@@ -108,7 +104,6 @@ class GrassInterface:
         region_id: str | None,
         raster_mask_id: str | None,
         effective_mask: tuple[str, str | None] | None = None,
-        non_blocking_write=True,
     ) -> None:
         assert isinstance(start_time, datetime), "start_time not a datetime object!"
         assert isinstance(end_time, datetime), "end_time not a datetime object!"
@@ -119,7 +114,6 @@ class GrassInterface:
         self.start_time = start_time
         self.end_time = end_time
         self.dtype = dtype
-        self.non_blocking_write = non_blocking_write
 
         # LatLon is not supported
         if gscript.locn_is_latlong():
@@ -144,43 +138,21 @@ class GrassInterface:
         }
         self.mask_mode, self.mask_source = self._select_effective_mask(effective_mask)
         self.overwrite = gscript.overwrite()
-        # Create thread and queue for writing raster maps
-        if self.non_blocking_write:
-            self.raster_lock = Lock()
-            self.raster_writer_queue: Queue[RasterWriteInstructions | None] = Queue(maxsize=20)
-            self.raster_writer_thread = Thread(
-                name="RasterWriter",
-                target=raster_writer,
-                args=(self.raster_writer_queue, self.raster_lock),
-            )
-            self.raster_writer_thread.start()
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.finalize()
         self.cleanup()
 
     def __del__(self):
-        self.finalize()
         self.cleanup()
 
-    def finalize(self) -> None:
-        """Make sure that all maps are written."""
-        if self.non_blocking_write:
-            msgr.debug("Writing last maps...")
-            self.raster_writer_queue.join()
-
     def cleanup(self) -> None:
-        """Remove the temporary region and stop the raster writer."""
+        """Remove the temporary region."""
         if self.region_id:
             msgr.debug("Remove temp region...")
             gscript.del_temp_region()
-        # Thread killswitch
-        if self.non_blocking_write:
-            self.raster_writer_queue.put(None)
-            self.raster_writer_thread.join()
 
     def grass_dtype(self, dtype: str) -> RasterMapType:
         if dtype in self.dtype_conv["DCELL"]:
@@ -380,13 +352,6 @@ class GrassInterface:
         effective mask selected for the simulation is applied separately by
         :meth:`get_npmask` and passed to itzi-core.
         """
-        if self.non_blocking_write:
-            with self.raster_lock:
-                return self._read_raster_map_nomask(raster_id)
-        return self._read_raster_map_nomask(raster_id)
-
-    def _read_raster_map_nomask(self, raster_id: str) -> np.ndarray:
-        """Read the current computational region while bypassing GRASS MASK."""
         from grass.lib import raster as libraster
 
         name, mapset = split_identifier(raster_id)
@@ -424,19 +389,14 @@ class GrassInterface:
 
     def write_raster_map(self, arr: np.ndarray, raster_id: str, mkey: str, hmin: float) -> None:
         """Take a numpy array and write it to GRASS DB"""
-        mtype = self.grass_dtype(str(arr.dtype))
-        write_instructions = RasterWriteInstructions(
-            array=arr,
-            raster_name=output_name(raster_id),
-            map_type=mtype,
-            map_key=mkey,
-            hmin=hmin,
-            overwrite=self.overwrite,
+        write_raster_map_blocking(
+            arr,
+            output_name(raster_id),
+            self.grass_dtype(str(arr.dtype)),
+            mkey,
+            hmin,
+            self.overwrite,
         )
-        if self.non_blocking_write:
-            self.raster_writer_queue.put(write_instructions)
-        else:
-            write_raster_map_blocking(write_instructions)
 
     def create_db_links(
         self, vect_map: VectorTopo, linking_elem: dict[str, DBLayerDescription]

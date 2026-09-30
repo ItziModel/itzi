@@ -14,7 +14,6 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 
-import importlib.util
 import os
 import subprocess
 import sys
@@ -55,8 +54,6 @@ class GrassSessionManager:
         # The environment guard keeps configuration parsing and external launches
         # independent from GRASS imports.
         if not os.environ.get("GISRC"):
-            return None
-        if importlib.util.find_spec("grass") is None and "grass" not in sys.modules:
             return None
         try:
             from grass.pygrass.utils import getenv

@@ -50,28 +50,19 @@ class EnsembleMetadata(StrictModel):
     name: StrictStr | None = None
 
 
-class RelativeTimeConfig(StrictModel):
-    duration: StrictStr
+class TimeConfig(StrictModel):
+    start: StrictStr | None = None
+    end: StrictStr | None = None
     record_step: StrictStr
-    start: None = None
-    end: None = None
+    duration: StrictStr | None = None
 
-
-class AbsoluteDurationTimeConfig(StrictModel):
-    start: StrictStr
-    duration: StrictStr
-    record_step: StrictStr
-    end: None = None
-
-
-class AbsoluteEndTimeConfig(StrictModel):
-    start: StrictStr
-    end: StrictStr
-    record_step: StrictStr
-    duration: None = None
-
-
-type TimeConfig = RelativeTimeConfig | AbsoluteDurationTimeConfig | AbsoluteEndTimeConfig
+    @model_validator(mode="after")
+    def validate_combination(self) -> TimeConfig:
+        if (self.start is None and self.end is None and self.duration is not None) or (
+            self.start is not None and (self.end is None) != (self.duration is None)
+        ):
+            return self
+        raise ValueError("time requires duration alone, start and duration, or start and end")
 
 
 class NoInfiltration(StrictModel):

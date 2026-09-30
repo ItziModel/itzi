@@ -142,15 +142,7 @@ def resolver_worker(
     return resolve_ensemble(expanded)
 
 
-def preflight_worker(simulation: ResolvedSimulation) -> str | None:
-    """Validate one resolved member in a read-only spawned GRASS process."""
-    try:
-        return preflight_ensemble_worker((simulation,)).get(simulation.simulation_id)
-    except Exception as error:
-        return f"{type(error).__name__}: {error}"
-
-
-def preflight_ensemble_worker(simulations: tuple[ResolvedSimulation, ...]) -> dict[str, str]:
+def preflight_worker(simulations: tuple[ResolvedSimulation, ...]) -> dict[str, str]:
     """Preflight selected members in one GRASS session, retaining individual failures."""
     msgr.raise_on_error = True
     msgr._itzi_logger.set_verbosity(msgr.verbosity())
@@ -445,7 +437,7 @@ def _run_one_ensemble(
         if states[simulation.simulation_id]["status"] != "planned":
             continue
         if member_started:
-            detail = _preflight_simulation_in_subprocess(simulation)
+            detail = _preflight_in_subprocess((simulation,)).get(simulation.simulation_id)
             if detail is not None:
                 states[simulation.simulation_id]["status"] = "validation_failed"
                 states[simulation.simulation_id]["failure"] = {
@@ -513,20 +505,12 @@ def _run_simulation_in_subprocess(simulation: ResolvedSimulation) -> tuple[str, 
         return "execution_failed", f"{type(error).__name__}: {error}"
 
 
-def _preflight_simulation_in_subprocess(simulation: ResolvedSimulation) -> str | None:
-    try:
-        with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as executor:
-            return executor.submit(preflight_worker, simulation).result()
-    except Exception as error:
-        return f"{type(error).__name__}: {error}"
-
-
-def _preflight_ensemble_in_subprocess(
+def _preflight_in_subprocess(
     simulations: tuple[ResolvedSimulation, ...],
 ) -> dict[str, str]:
     try:
         with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as executor:
-            return executor.submit(preflight_ensemble_worker, simulations).result()
+            return executor.submit(preflight_worker, simulations).result()
     except Exception as error:
         detail = f"{type(error).__name__}: {error}"
         return {simulation.simulation_id: detail for simulation in simulations}
@@ -564,7 +548,7 @@ def _preflight_ensemble(
         if simulation.simulation_id in selected_ids and simulation.simulation_id not in failures
     )
     if to_preflight:
-        for simulation_id, detail in _preflight_ensemble_in_subprocess(to_preflight).items():
+        for simulation_id, detail in _preflight_in_subprocess(to_preflight).items():
             failures[simulation_id] = {"phase": "preflight", "detail": detail}
     return failures, manifest_failure
 

@@ -24,6 +24,7 @@ from itzi.ensemble.schema import (
     ManifestOutputs,
     OptionSweepConfig,
     StatisticsOutputs,
+    TimeConfig,
 )
 from itzi.ensemble.resolution import (
     _last_record_index,
@@ -78,6 +79,27 @@ def test_scalar_document_expands_to_one_member(tmp_path):
     assert dict(simulation.options) == SurfaceFlowParameters().model_dump() | {
         "dtinf": DefaultValues.DTINF
     }
+
+
+def test_time_config_accepts_only_supported_combinations():
+    start = "2026-09-01T00:00:00"
+    end = "2026-09-01T02:00:00"
+    duration = "02:00:00"
+    for fields in (
+        {"duration": duration},
+        {"start": start, "duration": duration},
+        {"start": start, "end": end},
+    ):
+        TimeConfig.model_validate({"record_step": "00:05:00", **fields})
+    for fields in (
+        {},
+        {"start": start},
+        {"end": end},
+        {"end": end, "duration": duration},
+        {"start": start, "end": end, "duration": duration},
+    ):
+        with pytest.raises(ValidationError):
+            TimeConfig.model_validate({"record_step": "00:05:00", **fields})
 
 
 @pytest.mark.parametrize(

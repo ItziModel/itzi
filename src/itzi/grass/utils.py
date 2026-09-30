@@ -17,8 +17,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
-from queue import Queue
-from threading import Lock
 from typing import TYPE_CHECKING, Literal, NamedTuple
 
 import grass.pygrass.utils as gutils
@@ -61,15 +59,6 @@ type STDSType = Literal["strds", "stvds"]
 type RasterMapType = Literal["CELL", "FCELL", "DCELL"]
 
 
-class RasterWriteInstructions(NamedTuple):
-    array: np.ndarray
-    raster_name: str
-    map_type: RasterMapType
-    map_key: str
-    hmin: float
-    overwrite: bool
-
-
 class MapData(NamedTuple):
     id: str
     start_time: datetime
@@ -99,29 +88,20 @@ def check_output_files(file_list: list[str]) -> None:
             msgr.fatal(f"File {map_name} exists and will not be overwritten")
 
 
-def raster_writer(q: Queue[RasterWriteInstructions | None], lock: Lock):
-    """Write a raster map in GRASS"""
-    while True:
-        write_instructions = q.get()
-        if write_instructions is None:
-            break
-        with lock:
-            write_raster_map_blocking(write_instructions)
-        q.task_done()
-
-
-def write_raster_map_blocking(writer_instructions: RasterWriteInstructions) -> None:
-    raster_name = writer_instructions.raster_name
-    array = writer_instructions.array
-    map_key = writer_instructions.map_key
-    map_type = writer_instructions.map_type
-    hmin = writer_instructions.hmin
+def write_raster_map_blocking(
+    array: np.ndarray,
+    raster_name: str,
+    map_type: RasterMapType,
+    map_key: str,
+    hmin: float,
+    overwrite: bool,
+) -> None:
     with raster.RasterRow(
         raster_name,
         mapset=get_current_mapset(),
         mode="w",
         mtype=map_type,
-        overwrite=writer_instructions.overwrite,
+        overwrite=overwrite,
     ) as newraster:
         newrow = raster.Buffer((array.shape[1],), mtype=map_type)
         for row in array:

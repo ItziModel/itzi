@@ -85,8 +85,6 @@ class GrassRasterOutputProvider(RasterOutputProvider):
     def finalize(self) -> None:
         """Finalize outputs and cleanup."""
 
-        # Write the final raster maps
-        self.grass_interface.finalize()
         # register in GRASS temporal framework
         for map_key, lst in self.output_maplist.items():
             strds_id = self.out_map_names[map_key]

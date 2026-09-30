@@ -106,7 +106,6 @@ class SimulationRunner:
             effective_mask=(self.effective_mask.mode, self.effective_mask.source)
             if self.effective_mask is not None
             else None,
-            non_blocking_write=False,
         )
         msgr.verbose("Setting up GRASS simulation...")
 
@@ -171,7 +170,6 @@ class SimulationRunner:
         self.sim.finalize()
         # Cleanup the grass interface object
         if hasattr(self, "g_interface"):
-            self.g_interface.finalize()
             self.g_interface.cleanup()
         return self
 
@@ -187,5 +185,4 @@ class SimulationRunner:
     def __del__(self):
         # Cleanup the grass interface object
         if hasattr(self, "g_interface"):
-            self.g_interface.finalize()
             self.g_interface.cleanup()

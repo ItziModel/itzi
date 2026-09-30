@@ -87,7 +87,7 @@ def test_input_resolution_qualifies_rasters_and_strds_and_rejects_ambiguity(
         "rainfall_rate": f"stage_series@{mapset}",
     }
     assert dict(resolved.input_kinds)["rainfall_rate"] == "strds"
-    assert preflight_worker(resolved) is None
+    assert preflight_worker((resolved,)).get(resolved.simulation_id) is None
 
     path = write_study(tmp_path, input={"rainfall_rate": f"stage_series@{mapset}"})
     qualified = _resolve_ensemble_in_subprocess(load_batch([str(path)])[0][0].simulations)[0]
@@ -173,7 +173,6 @@ def test_mask_semantics_and_worker_detects_changed_effective_mask(tmp_path: Path
             None,
             "stage_mask_values",
             ("explicit", resolved.effective_mask.source),
-            non_blocking_write=False,
         )
         try:
             explicit = interface.get_npmask()
@@ -192,9 +191,9 @@ def test_mask_semantics_and_worker_detects_changed_effective_mask(tmp_path: Path
         finally:
             interface.cleanup()
 
-        assert preflight_worker(resolved) is None
+        assert preflight_worker((resolved,)).get(resolved.simulation_id) is None
         gscript.run_command("r.mask", flags="r")
-        assert preflight_worker(resolved) is None
+        assert preflight_worker((resolved,)).get(resolved.simulation_id) is None
 
         active_path = write_study(tmp_path, domain={})
         active_resolved = _resolve_ensemble_in_subprocess(
@@ -203,7 +202,9 @@ def test_mask_semantics_and_worker_detects_changed_effective_mask(tmp_path: Path
         assert isinstance(active_resolved, ResolvedSimulation)
         assert active_resolved.effective_mask.mode == "none"
         gscript.run_command("g.copy", raster="stage_mask_values,MASK")
-        assert "effective GRASS mask changed" in (preflight_worker(active_resolved) or "")
+        assert "effective GRASS mask changed" in (
+            preflight_worker((active_resolved,)).get(active_resolved.simulation_id) or ""
+        )
         assert gutils.get_mapset_raster("MASK", gutils.getenv("MAPSET"))
     finally:
         gscript.run_command("r.mask", flags="r")
@@ -218,10 +219,14 @@ def test_worker_rejects_region_and_input_changes_after_resolution(tmp_path: Path
     assert isinstance(resolved, ResolvedSimulation)
 
     gscript.run_command("g.region", n=60)
-    assert "GRASS domain changed" in (preflight_worker(resolved) or "")
+    assert "GRASS domain changed" in (
+        preflight_worker((resolved,)).get(resolved.simulation_id) or ""
+    )
     gscript.run_command("g.region", n=50)
     gscript.run_command("g.remove", flags="f", type="raster", name="stage_worker_friction")
-    assert "stage_worker_friction" in (preflight_worker(resolved) or "")
+    assert "stage_worker_friction" in (
+        preflight_worker((resolved,)).get(resolved.simulation_id) or ""
+    )
     assert not (tmp_path / "results").exists()
 
 

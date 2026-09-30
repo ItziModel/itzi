@@ -233,8 +233,8 @@ def test_one_ensemble_runs_only_planned_members_and_counts_failures(tmp_path, mo
         ),
     )
     monkeypatch.setattr(
-        "itzi.itzi._preflight_simulation_in_subprocess",
-        lambda simulation: preflights.append(simulation.simulation_id) or None,
+        "itzi.itzi._preflight_in_subprocess",
+        lambda simulations: preflights.append(simulations[0].simulation_id) or {},
     )
     monkeypatch.setattr(
         "itzi.itzi._run_simulation_in_subprocess",
