@@ -17,6 +17,7 @@ from itzi_core import TemporalType
 
 from itzi.cli_parser import build_parser
 from itzi.ensemble.models import ResolvedSimulation, ValidationFailure
+from itzi.grass.names import derived_record_name
 from itzi.grass.session import GrassSessionManager
 from itzi.itzi import _resolve_ensemble_in_subprocess, itzi_run, run_validation_worker
 from itzi.run_plan import load_batch
@@ -334,6 +335,49 @@ outputs:
         and member["artifacts"]["rasters"]["water_depth"].endswith("@5by5")
         for member in manifest["members"]
     )
+
+
+@pytest.mark.forked
+@pytest.mark.usefixtures("grass_5by5")
+def test_failed_ensemble_member_registers_partial_maps(tmp_path: Path) -> None:
+    import grass.temporal as tgis
+
+    context = gscript.gisenv()
+    depth_map = f"stage_unstable_{uuid4().hex[:8]}"
+    gscript.mapcalc(f"{depth_map}=1000000000000000.0")
+    path = write_study(
+        tmp_path,
+        grass={
+            "database": context["GISDBASE"],
+            "project": context["LOCATION_NAME"],
+            "mapset": context["MAPSET"],
+            "executable": "grass",
+        },
+        input={"water_depth": depth_map},
+        outputs={
+            "rasters": {
+                "prefix": "stage_partial_{simulation}",
+                "variables": ["max_water_depth"],
+            }
+        },
+    )
+
+    gisrc = os.environ.pop("GISRC")
+    try:
+        with pytest.raises(RuntimeError, match="failed validation or execution"):
+            itzi_run(build_parser().parse_args(["run", str(path), "-o"]))
+    finally:
+        os.environ["GISRC"] = gisrc
+
+    member = read_manifest(tmp_path)["members"][0]
+    assert member["status"] == "execution_failed"
+    assert member["failure"]["detail"].startswith("DtError:")
+    stds_id = member["artifacts"]["rasters"]["max_water_depth"]
+    record_id = derived_record_name(stds_id, 0)
+    assert gscript.find_file(name=record_id, element="cell").get("file")
+    GrassSessionManager.ensure_temporal_initialized()
+    stds = tgis.open_stds.open_old_stds(stds_id, "strds")
+    assert [row["id"] for row in stds.get_registered_maps(columns="id")] == [record_id]
 
 
 @pytest.mark.forked

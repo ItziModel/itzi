@@ -29,6 +29,7 @@ from itzi.itzi import (
     itzi_run,
     itzi_run_one,
     main,
+    resolved_sim_runner_worker,
     run_validation_worker,
     reconcile_hotstart_commands,
     sim_runner_worker,
@@ -324,6 +325,64 @@ def test_run_validation_worker_keeps_member_failures(monkeypatch):
         "bad": "ValueError: invalid input"
     }
     assert calls == ["open", "good", "bad", "another", "close"]
+
+
+@pytest.mark.parametrize("finalize_fails", [False, True])
+def test_failed_ensemble_member_finalizes_in_session_and_reports_error(
+    monkeypatch, itzi_stderr, finalize_fails: bool
+) -> None:
+    calls = []
+
+    class FakeGrassSessionManager:
+        def __init__(self, _params):
+            pass
+
+        def __enter__(self):
+            calls.append("open")
+
+        def __exit__(self, *_):
+            calls.append("close")
+
+    class FakeSimulationRunner:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def initialize(self):
+            return self
+
+        def run(self):
+            calls.append("run")
+            raise ValueError("tiny computed dt")
+
+        def finalize(self):
+            calls.append("finalize")
+            if finalize_fails:
+                raise RuntimeError("registration failed")
+
+    monkeypatch.setattr("itzi.itzi.GrassSessionManager", FakeGrassSessionManager)
+    monkeypatch.setattr("itzi.itzi.SimulationRunner", FakeSimulationRunner)
+    simulation = cast(
+        ResolvedSimulation,
+        SimpleNamespace(
+            grass_params=None,
+            simulation_config=None,
+            artifacts=SimpleNamespace(statistics_file=None),
+            effective_mask=None,
+            input_kinds=(),
+        ),
+    )
+
+    assert resolved_sim_runner_worker(simulation) == (
+        "execution_failed",
+        "ValueError: tiny computed dt",
+    )
+    assert calls == ["open", "run", "finalize", "close"]
+    stderr = itzi_stderr.getvalue()
+    assert stderr.count("WARNING: Simulation failed: ValueError: tiny computed dt") == 1
+    assert ("Could not finalize partial outputs: RuntimeError: registration failed" in stderr) == (
+        finalize_fails
+    )
+    assert "Traceback" not in stderr
 
 
 def test_run_parser_rejects_v_and_q_together():

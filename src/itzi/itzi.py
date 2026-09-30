@@ -110,7 +110,6 @@ def resolved_sim_runner_worker(simulation: ResolvedSimulation) -> tuple[str, str
     """Run one resolved member and return its status."""
     msgr.raise_on_error = True
     msgr._itzi_logger.set_verbosity(msgr.verbosity())
-    runner: SimulationRunner | None = None
     try:
         with GrassSessionManager(simulation.grass_params):
             runner = SimulationRunner(
@@ -122,15 +121,24 @@ def resolved_sim_runner_worker(simulation: ResolvedSimulation) -> tuple[str, str
                 effective_mask=simulation.effective_mask,
                 input_kinds=dict(simulation.input_kinds),
             )
-            runner.initialize().run().finalize()
+            runner.initialize()
+            try:
+                runner.run()
+            except Exception:
+                try:
+                    runner.finalize()
+                except Exception as finalize_error:
+                    msgr.warning(
+                        f"Could not finalize partial outputs: "
+                        f"{type(finalize_error).__name__}: {finalize_error}"
+                    )
+                raise
+            runner.finalize()
         return "completed", None
     except Exception as error:
-        if runner is not None:
-            try:
-                runner.finalize()
-            except Exception:
-                pass
-        return "execution_failed", f"{type(error).__name__}: {error}"
+        detail = f"{type(error).__name__}: {error}"
+        msgr.warning(f"Simulation failed: {detail}")
+        return "execution_failed", detail
 
 
 def resolver_worker(
