@@ -5,12 +5,21 @@ import os
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from typing import cast
 
 import pytest
+from itzi_core import DomainData, SimulationConfig
 
 import itzi.messenger as msgr
 from itzi.cli_parser import build_parser
-from itzi.ensemble.models import ResolvedEnsemble, ResolvedSimulation
+from itzi.ensemble.models import (
+    ArtifactSummary,
+    EffectiveMask,
+    ExpandedEnsemble,
+    ResolvedEnsemble,
+    ResolvedSimulation,
+)
+from itzi.grass.session import GrassParams
 from itzi.itzi import (
     VerbosityLevel,
     _preflight_ensemble,
@@ -77,7 +86,7 @@ def test_ensemble_members_are_resolved_in_one_spawn(monkeypatch):
     monkeypatch.setattr("itzi.itzi._display_dry_plan", lambda *_, **__: None)
 
     _run_ensemble_batch(
-        SimpleNamespace(config_file=["study.yaml"], resume_from=[], member=[], dry=True)
+        argparse.Namespace(config_file=["study.yaml"], resume_from=[], member=[], dry=True)
     )
 
     assert calls == [simulations]
@@ -100,19 +109,24 @@ def test_ensembles_are_checked_and_run_in_order_without_cross_ensemble_validatio
         name: ResolvedSimulation(
             simulation_id=name,
             coordinates=(),
-            grass_params=None,
-            domain_data=None,
-            effective_mask=None,
+            grass_params=cast(GrassParams, None),
+            domain_data=cast(DomainData, None),
+            effective_mask=cast(EffectiveMask, None),
             input_kinds=(),
-            simulation_config=SimpleNamespace(
-                input_map_names={"friction": "first_water_depth@PERMANENT"}
-                if name == "second"
-                else {}
+            simulation_config=cast(
+                SimulationConfig,
+                SimpleNamespace(
+                    input_map_names={"friction": "first_water_depth@PERMANENT"}
+                    if name == "second"
+                    else {}
+                ),
             ),
-            artifacts=SimpleNamespace(
+            artifacts=ArtifactSummary(
                 output_map_names=(("water_depth", "first_water_depth"),)
                 if name == "first"
                 else (),
+                drainage_output=None,
+                statistics_file=None,
             ),
             normalized_payload=name,
         )
@@ -150,7 +164,7 @@ def test_ensembles_are_checked_and_run_in_order_without_cross_ensemble_validatio
     monkeypatch.setattr("itzi.itzi._display_dry_plan", display)
 
     _run_ensemble_batch(
-        SimpleNamespace(config_file=["first.yaml", "second.yaml"], member=[], dry=dry, o=True)
+        argparse.Namespace(config_file=["first.yaml", "second.yaml"], member=[], dry=dry, o=True)
     )
 
     assert calls == [
@@ -181,7 +195,12 @@ def test_preflight_only_checks_selected_members(tmp_path, monkeypatch):
 
     member_failures, manifest_failure = _preflight_ensemble(
         ResolvedEnsemble(
-            ensemble, (selected_simulation, selected_with_failure, unselected_simulation), ()
+            cast(ExpandedEnsemble, ensemble),
+            cast(
+                tuple[ResolvedSimulation, ...],
+                (selected_simulation, selected_with_failure, unselected_simulation),
+            ),
+            (),
         ),
         {"sim-selected", "sim-failed"},
         has_selectors=True,
@@ -195,7 +214,9 @@ def test_preflight_only_checks_selected_members(tmp_path, monkeypatch):
 
 def test_select_members_only_matches_current_ensemble():
     resolved = ResolvedEnsemble(
-        SimpleNamespace(ensemble_id="first"), (SimpleNamespace(simulation_id="member"),), ()
+        cast(ExpandedEnsemble, SimpleNamespace(ensemble_id="first")),
+        cast(tuple[ResolvedSimulation, ...], (SimpleNamespace(simulation_id="member"),)),
+        (),
     )
     assert _select_members(resolved, [("second#member", "second#member")]) == set()
     assert _select_members(resolved, [("first#member", "first#member")]) == {"member"}
@@ -207,7 +228,7 @@ def test_unqualified_selector_requires_one_ensemble(monkeypatch):
 
     with pytest.raises(RuntimeError, match="Unqualified --member IDs"):
         _run_ensemble_batch(
-            SimpleNamespace(config_file=["first.yaml", "second.yaml"], member=["member"])
+            argparse.Namespace(config_file=["first.yaml", "second.yaml"], member=["member"])
         )
 
 
@@ -249,7 +270,9 @@ def test_one_ensemble_runs_only_planned_members_and_counts_failures(tmp_path, mo
     )
 
     count = _run_one_ensemble(
-        ResolvedEnsemble(ensemble, simulations, ()),
+        ResolvedEnsemble(
+            cast(ExpandedEnsemble, ensemble), cast(tuple[ResolvedSimulation, ...], simulations), ()
+        ),
         {"good", "bad", "preflight"},
         {"preflight": {"phase": "preflight", "detail": "invalid input"}},
         None,
@@ -288,14 +311,16 @@ def test_preflight_worker_keeps_member_failures(monkeypatch):
 
     monkeypatch.setattr("itzi.itzi.GrassSessionManager", FakeGrassSessionManager)
     fake_preflight = ModuleType("itzi.ensemble.preflight")
-    fake_preflight.preflight_simulation = preflight
+    setattr(fake_preflight, "preflight_simulation", preflight)
     monkeypatch.setitem(sys.modules, "itzi.ensemble.preflight", fake_preflight)
     simulations = tuple(
         SimpleNamespace(simulation_id=simulation_id, grass_params="shared")
         for simulation_id in ("good", "bad", "another")
     )
 
-    assert preflight_worker((simulations)) == {"bad": "ValueError: invalid input"}
+    assert preflight_worker(cast(tuple[ResolvedSimulation, ...], simulations)) == {
+        "bad": "ValueError: invalid input"
+    }
     assert calls == ["open", "good", "bad", "another", "close"]
 
 
@@ -473,7 +498,10 @@ def test_reconcile_hotstart_commands_accepts_single_resume_for_single_config():
 
 def test_reconcile_hotstart_commands_matches_multiple_named_values():
     config_file_list = ["/tmp/a.ini", "/tmp/b.ini", "/tmp/c.ini"]
-    resume_from_list = [("c.ini", "restart_c.zip"), ("a.ini", "restart_a.zip")]
+    resume_from_list: list[tuple[str | None, str]] = [
+        ("c.ini", "restart_c.zip"),
+        ("a.ini", "restart_a.zip"),
+    ]
 
     assert reconcile_hotstart_commands(config_file_list, resume_from_list) == [
         ("/tmp/a.ini", "restart_a.zip"),
@@ -484,7 +512,7 @@ def test_reconcile_hotstart_commands_matches_multiple_named_values():
 
 def test_reconcile_hotstart_commands_accepts_duplicate_basenames_with_paths():
     config_file_list = ["./sim1/config.ini", "sim2/config.ini"]
-    resume_from_list = [
+    resume_from_list: list[tuple[str | None, str]] = [
         ("./sim1/config.ini", "sim1/hotstart.zip"),
         ("sim2/config.ini", "sim2/hotstart.zip"),
     ]

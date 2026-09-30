@@ -6,6 +6,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 from uuid import uuid4
 
 import grass.script as gscript
@@ -34,7 +35,9 @@ def write_study(tmp_path: Path, **changes: dict) -> Path:
     }
     document["options"] = changes.pop("options", document["options"])
     for section, fields in changes.items():
-        document[section].update(fields)
+        values = document[section]
+        assert isinstance(values, dict)
+        values.update(fields)
     path = tmp_path / "study.yaml"
     path.write_text(yaml.safe_dump(document), encoding="utf-8")
     return path
@@ -506,6 +509,7 @@ def test_dry_run_checks_every_generated_output_record(test_data_temp_path):
 def test_preflight_accepts_unoccupied_drainage_id():
     from itzi.grass.utils import get_current_mapset
     from itzi.ensemble.preflight import _validate_grass_outputs
+    from itzi.grass.interface import GrassInterface
 
     GrassSessionManager.ensure_temporal_initialized()
     name = f"drainage_collision_{uuid4().hex[:8]}"
@@ -524,4 +528,4 @@ def test_preflight_accepts_unoccupied_drainage_id():
         validate_output_stds_temporal_type=lambda *_: None,
     )
 
-    _validate_grass_outputs(simulation, interface)
+    _validate_grass_outputs(cast(ResolvedSimulation, simulation), cast(GrassInterface, interface))

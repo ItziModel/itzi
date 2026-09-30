@@ -169,7 +169,8 @@ def grass_5by5(grass_xy_session, test_data_path):
     gscript.mapcalc("infiltration_rate=2")
     gscript.mapcalc("loss_rate=1.5")
     gscript.mapcalc("inflow_rate=0.1")
-    return None
+    with session.GrassSessionManager(session.GrassParams()):
+        yield
 
 
 @pytest.fixture(scope="class")

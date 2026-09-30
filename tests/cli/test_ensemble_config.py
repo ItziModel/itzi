@@ -6,6 +6,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta
 import sys
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from itzi_core import InfiltrationModelType, SurfaceFlowParameters, TemporalType
@@ -16,6 +17,7 @@ from itzi.ensemble import load_yaml_stream
 from itzi.ensemble.models import (
     MAX_ENSEMBLE_MEMBERS,
     ArtifactSummary,
+    ResolvedSimulation,
     format_duration,
     parse_duration,
     render_template,
@@ -365,17 +367,15 @@ def test_duration_and_template_helpers_are_strict():
 
 
 def test_statistics_file_template_is_rendered(tmp_path, monkeypatch):
-    expanded = SimpleNamespace(
-        ensemble_id="study",
-        source=SimpleNamespace(path=tmp_path / "study.yaml"),
-        outputs=SimpleNamespace(
+    expanded = load_yaml_stream(write_yaml(tmp_path, document())).ensembles[0].simulations[0]
+    expanded = replace(
+        expanded,
+        outputs=replace(
+            expanded.outputs,
             raster_prefix=None,
             raster_variables=(),
             statistics_file="results/{simulation}.csv",
-            drainage_dataset=None,
         ),
-        drainage=None,
-        time=SimpleNamespace(duration=timedelta(hours=1), record_step=timedelta(minutes=5)),
     )
     monkeypatch.setattr("itzi.ensemble.resolution._validate_output_names", lambda *_: None)
 
@@ -430,7 +430,9 @@ def test_later_generated_output_cannot_alias_an_input():
     )
 
     with pytest.raises(ValueError, match="result_0002@PERMANENT.*aliases"):
-        validate_resolved_ensemble((output, input_simulation))
+        validate_resolved_ensemble(
+            (cast(ResolvedSimulation, output), cast(ResolvedSimulation, input_simulation))
+        )
 
 
 def test_input_resolution_cache_reuses_shared_identifiers(monkeypatch):

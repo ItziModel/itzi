@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
 import pytest
@@ -41,6 +41,7 @@ def test_input_kinds_share_raster_and_strds_construction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from itzi.grass import utils
+    from itzi.grass.interface import GrassInterface
     from itzi.providers.grass_input import GrassRasterInputProvider
     from itzi.grass.utils import MapData
 
@@ -58,7 +59,7 @@ def test_input_kinds_share_raster_and_strds_construction(
     interface = FakeGrassInterface()
 
     provider = GrassRasterInputProvider(
-        interface,
+        cast(GrassInterface, interface),
         {"ground_elevation": "raster", "rainfall_rate": "series"},
         start,
         end,

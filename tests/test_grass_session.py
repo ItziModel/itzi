@@ -17,9 +17,9 @@ class FakeGrassSession:
 def test_manager_activates_and_finishes_created_session(monkeypatch) -> None:
     session = FakeGrassSession({"GISRC": "/tmp/worker-gisrc"})
     grass_script = ModuleType("grass.script")
-    grass_script.setup = SimpleNamespace(init=lambda **_: session)
+    grass_script.__dict__["setup"] = SimpleNamespace(init=lambda **_: session)
     grass_package = ModuleType("grass")
-    grass_package.script = grass_script
+    grass_package.__dict__["script"] = grass_script
 
     monkeypatch.setattr("itzi.grass.session.os.access", lambda *_: True)
     monkeypatch.setattr(GrassSessionManager, "ensure_temporal_initialized", lambda self: None)
@@ -41,7 +41,7 @@ def test_manager_activates_and_finishes_created_session(monkeypatch) -> None:
     monkeypatch.setitem(sys.modules, "grass", grass_package)
     monkeypatch.setitem(sys.modules, "grass.script", grass_script)
 
-    grass_params = SimpleNamespace(
+    grass_params = GrassParams(
         grassdata="/grassdata",
         location="location",
         mapset="mapset",
@@ -59,13 +59,13 @@ def test_manager_activates_and_finishes_created_session(monkeypatch) -> None:
 def test_temporal_initialization_once_per_active_session(monkeypatch) -> None:
     calls: list[str] = []
     script = ModuleType("grass.script")
-    script.set_raise_on_error = lambda _: calls.append("script")
+    script.__dict__["set_raise_on_error"] = lambda _: calls.append("script")
     temporal = ModuleType("grass.temporal")
-    temporal.init = lambda **_: calls.append("init")
-    temporal.set_raise_on_error = lambda _: calls.append("temporal")
+    temporal.__dict__["init"] = lambda **_: calls.append("init")
+    temporal.__dict__["set_raise_on_error"] = lambda _: calls.append("temporal")
     package = ModuleType("grass")
-    package.script = script
-    package.temporal = temporal
+    package.__dict__["script"] = script
+    package.__dict__["temporal"] = temporal
     monkeypatch.setitem(sys.modules, "grass", package)
     monkeypatch.setitem(sys.modules, "grass.script", script)
     monkeypatch.setitem(sys.modules, "grass.temporal", temporal)
