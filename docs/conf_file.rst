@@ -1,6 +1,6 @@
 
-Configuration file
-==================
+INI configuration file
+======================
 
 The parameters of a simulation are given through a configuration file in
 a format similar to Microsoft Windows INI files.

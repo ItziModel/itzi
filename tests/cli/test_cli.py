@@ -2,17 +2,36 @@
 
 import argparse
 import os
+import sys
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
+from typing import cast
 
 import pytest
+from itzi_core import DomainData, SimulationConfig
 
 import itzi.messenger as msgr
 from itzi.cli_parser import build_parser
+from itzi.ensemble.models import (
+    ArtifactSummary,
+    EffectiveMask,
+    ExpandedEnsemble,
+    ResolvedEnsemble,
+    ResolvedSimulation,
+)
+from itzi.grass.session import GrassParams
 from itzi.itzi import (
     VerbosityLevel,
+    _run_ensemble_batch,
+    _run_one_ensemble,
+    _select_members,
+    _validate_ensemble_run_requirements,
     itzi_run,
     itzi_run_one,
     main,
     reconcile_hotstart_commands,
+    resolved_sim_runner_worker,
+    run_validation_worker,
     sim_runner_worker,
 )
 
@@ -40,6 +59,332 @@ def test_run_parser_accepts_resume_from_args():
     assert args.resume_from == [("a.ini", "restart_a.zip"), ("b.ini", "restart_b.zip")]
 
 
+@pytest.mark.parametrize("dry_option", ["--dry-run", "-d"])
+def test_run_parser_accepts_yaml_dry_run_and_member_selection(dry_option):
+    args = build_parser().parse_args(
+        ["run", "study.yaml", dry_option, "--member", "study#sim-a", "--member", "study#sim-b"]
+    )
+
+    assert args.dry is True
+    assert args.member == ["study#sim-a", "study#sim-b"]
+
+
+def test_ensemble_members_are_resolved_in_one_spawn(monkeypatch):
+    simulations = (object(), object())
+    ensemble = SimpleNamespace(
+        ensemble_id="study",
+        simulations=simulations,
+        source=SimpleNamespace(path=Path("study.yaml")),
+        manifest_template=None,
+    )
+    calls = []
+
+    monkeypatch.setattr("itzi.itzi.load_batch", lambda _: ((ensemble,), ()))
+    monkeypatch.setattr(
+        "itzi.itzi._resolve_ensemble_in_subprocess",
+        lambda received: calls.append(received) or (),
+    )
+    monkeypatch.setattr("itzi.itzi._display_dry_plan", lambda *_, **__: None)
+
+    _run_ensemble_batch(
+        argparse.Namespace(config_file=["study.yaml"], resume_from=[], member=[], dry=True)
+    )
+
+    assert calls == [simulations]
+
+
+@pytest.mark.parametrize("dry", [False, True])
+def test_ensembles_are_checked_and_run_in_order_without_cross_ensemble_validation(
+    tmp_path, monkeypatch, dry
+):
+    ensembles = tuple(
+        SimpleNamespace(
+            ensemble_id=name,
+            simulations=(SimpleNamespace(simulation_id=name),),
+            source=SimpleNamespace(path=tmp_path / f"{name}.yaml"),
+            manifest_template=None,
+        )
+        for name in ("first", "second")
+    )
+    members = {
+        name: ResolvedSimulation(
+            simulation_id=name,
+            coordinates=(),
+            grass_params=cast(GrassParams, None),
+            domain_data=cast(DomainData, None),
+            effective_mask=cast(EffectiveMask, None),
+            input_kinds=(),
+            simulation_config=cast(
+                SimulationConfig,
+                SimpleNamespace(
+                    input_map_names={"friction": "first_water_depth@PERMANENT"}
+                    if name == "second"
+                    else {}
+                ),
+            ),
+            artifacts=ArtifactSummary(
+                output_map_names=(("water_depth", "first_water_depth"),)
+                if name == "first"
+                else (),
+                drainage_output=None,
+                statistics_file=None,
+            ),
+            normalized_payload=name,
+        )
+        for name in ("first", "second")
+    }
+    calls = []
+    monkeypatch.setattr("itzi.itzi.load_batch", lambda _: (ensembles, ()))
+
+    def resolve(expanded):
+        name = expanded[0].simulation_id
+        calls.append(("resolve", name))
+        return (members[name],)
+
+    def validate(simulations, _sources):
+        calls.append(("validate", simulations[0].simulation_id))
+        assert len(simulations) == 1
+
+    def validate_run(simulations):
+        calls.append(("run_validation", simulations[0].simulation_id))
+        return {}
+
+    def run(resolved, selected_ids, *_args, **_kwargs):
+        calls.append(("run", resolved.ensemble.ensemble_id))
+        assert selected_ids == {resolved.ensemble.ensemble_id}
+        return 0
+
+    def display(resolved, *_args, **_kwargs):
+        calls.append(("display", resolved.ensemble.ensemble_id))
+
+    monkeypatch.setattr("itzi.itzi._resolve_ensemble_in_subprocess", resolve)
+    monkeypatch.setattr("itzi.itzi.validate_resolved_ensemble", validate)
+    monkeypatch.setattr("itzi.itzi._validate_manifest_destination", lambda *_, **__: None)
+    monkeypatch.setattr("itzi.itzi._validate_run_requirements_in_subprocess", validate_run)
+    monkeypatch.setattr("itzi.itzi._run_one_ensemble", run)
+    monkeypatch.setattr("itzi.itzi._display_dry_plan", display)
+
+    _run_ensemble_batch(
+        argparse.Namespace(config_file=["first.yaml", "second.yaml"], member=[], dry=dry, o=True)
+    )
+
+    assert calls == [
+        (step, name)
+        for name in ("first", "second")
+        for step in ("resolve", "validate", "run_validation", "display" if dry else "run")
+    ]
+
+
+def test_run_validation_only_checks_selected_members(tmp_path, monkeypatch):
+    selected_simulation = SimpleNamespace(simulation_id="sim-selected")
+    selected_with_failure = SimpleNamespace(simulation_id="sim-failed")
+    unselected_simulation = SimpleNamespace(simulation_id="sim-unselected")
+    ensemble = SimpleNamespace(
+        ensemble_id="study",
+        manifest_template=None,
+        source=SimpleNamespace(path=tmp_path / "study.yaml"),
+    )
+    calls = []
+    monkeypatch.setattr("itzi.itzi._validate_manifest_destination", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "itzi.itzi._validate_run_requirements_in_subprocess",
+        lambda simulations: (
+            calls.append(tuple(s.simulation_id for s in simulations))
+            or {"sim-failed": "invalid input"}
+        ),
+    )
+
+    member_failures, manifest_failure = _validate_ensemble_run_requirements(
+        ResolvedEnsemble(
+            cast(ExpandedEnsemble, ensemble),
+            cast(
+                tuple[ResolvedSimulation, ...],
+                (selected_simulation, selected_with_failure, unselected_simulation),
+            ),
+            (),
+        ),
+        {"sim-selected", "sim-failed"},
+        has_selectors=True,
+        overwrite=False,
+    )
+
+    assert calls == [("sim-selected", "sim-failed")]
+    assert member_failures == {
+        "sim-failed": {"phase": "run_validation", "detail": "invalid input"}
+    }
+    assert manifest_failure is None
+
+
+def test_select_members_only_matches_current_ensemble():
+    resolved = ResolvedEnsemble(
+        cast(ExpandedEnsemble, SimpleNamespace(ensemble_id="first")),
+        cast(tuple[ResolvedSimulation, ...], (SimpleNamespace(simulation_id="member"),)),
+        (),
+    )
+    assert _select_members(resolved, [("second#member", "second#member")]) == set()
+    assert _select_members(resolved, [("first#member", "first#member")]) == {"member"}
+
+
+def test_unqualified_selector_requires_one_ensemble(monkeypatch):
+    ensembles = tuple(SimpleNamespace(ensemble_id=name) for name in ("first", "second"))
+    monkeypatch.setattr("itzi.itzi.load_batch", lambda _: (ensembles, ()))
+
+    with pytest.raises(RuntimeError, match="Unqualified --member IDs"):
+        _run_ensemble_batch(
+            argparse.Namespace(config_file=["first.yaml", "second.yaml"], member=["member"])
+        )
+
+
+def test_one_ensemble_runs_only_planned_members_and_counts_failures(tmp_path, monkeypatch):
+    ensemble = SimpleNamespace(
+        ensemble_id="study",
+        source=SimpleNamespace(path=tmp_path / "study.yaml"),
+        manifest_template=None,
+    )
+    artifacts = SimpleNamespace(output_map_names=(), drainage_output=None, statistics_file=None)
+    simulations = tuple(
+        SimpleNamespace(simulation_id=name, coordinates=(), artifacts=artifacts)
+        for name in ("invalid", "unselected", "good", "bad")
+    )
+    runs = []
+    updates = []
+    run_validations = []
+    monkeypatch.setattr("itzi.itzi._create_manifest", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "itzi.itzi._update_manifest",
+        lambda _path, _ensemble, states: updates.append(
+            {key: value["status"] for key, value in states.items()}
+        ),
+    )
+    monkeypatch.setattr(
+        "itzi.itzi._validate_run_requirements_in_subprocess",
+        lambda simulations: run_validations.append(simulations[0].simulation_id) or {},
+    )
+    monkeypatch.setattr(
+        "itzi.itzi._run_simulation_in_subprocess",
+        lambda simulation: (
+            runs.append(simulation.simulation_id)
+            or (
+                ("execution_failed", "failed")
+                if simulation.simulation_id == "bad"
+                else ("completed", None)
+            )
+        ),
+    )
+
+    count = _run_one_ensemble(
+        ResolvedEnsemble(
+            cast(ExpandedEnsemble, ensemble), cast(tuple[ResolvedSimulation, ...], simulations), ()
+        ),
+        {"good", "bad", "invalid"},
+        {"invalid": {"phase": "run_validation", "detail": "invalid input"}},
+        None,
+        has_selectors=True,
+        overwrite=False,
+    )
+
+    assert count == 2
+    assert runs == ["good", "bad"]
+    assert run_validations == ["bad"]
+    assert updates[-1] == {
+        "good": "completed",
+        "bad": "execution_failed",
+        "invalid": "validation_failed",
+        "unselected": "not_selected",
+    }
+
+
+def test_run_validation_worker_keeps_member_failures(monkeypatch):
+    calls = []
+
+    class FakeGrassSessionManager:
+        def __init__(self, params):
+            assert params == "shared"
+
+        def __enter__(self):
+            calls.append("open")
+
+        def __exit__(self, *_):
+            calls.append("close")
+
+    def validate_run_requirements(simulation):
+        calls.append(simulation.simulation_id)
+        if simulation.simulation_id == "bad":
+            raise ValueError("invalid input")
+
+    monkeypatch.setattr("itzi.itzi.GrassSessionManager", FakeGrassSessionManager)
+    fake_run_validation = ModuleType("itzi.ensemble.run_validation")
+    setattr(fake_run_validation, "validate_run_requirements", validate_run_requirements)
+    monkeypatch.setitem(sys.modules, "itzi.ensemble.run_validation", fake_run_validation)
+    simulations = tuple(
+        SimpleNamespace(simulation_id=simulation_id, grass_params="shared")
+        for simulation_id in ("good", "bad", "another")
+    )
+
+    assert run_validation_worker(cast(tuple[ResolvedSimulation, ...], simulations)) == {
+        "bad": "ValueError: invalid input"
+    }
+    assert calls == ["open", "good", "bad", "another", "close"]
+
+
+@pytest.mark.parametrize("finalize_fails", [False, True])
+def test_failed_ensemble_member_finalizes_in_session_and_reports_error(
+    monkeypatch, itzi_stderr, finalize_fails: bool
+) -> None:
+    calls = []
+
+    class FakeGrassSessionManager:
+        def __init__(self, _params):
+            pass
+
+        def __enter__(self):
+            calls.append("open")
+
+        def __exit__(self, *_):
+            calls.append("close")
+
+    class FakeSimulationRunner:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def initialize(self):
+            return self
+
+        def run(self):
+            calls.append("run")
+            raise ValueError("tiny computed dt")
+
+        def finalize(self):
+            calls.append("finalize")
+            if finalize_fails:
+                raise RuntimeError("registration failed")
+
+    monkeypatch.setattr("itzi.itzi.GrassSessionManager", FakeGrassSessionManager)
+    monkeypatch.setattr("itzi.itzi.SimulationRunner", FakeSimulationRunner)
+    simulation = cast(
+        ResolvedSimulation,
+        SimpleNamespace(
+            grass_params=None,
+            simulation_config=None,
+            artifacts=SimpleNamespace(statistics_file=None),
+            effective_mask=None,
+            input_kinds=(),
+        ),
+    )
+
+    assert resolved_sim_runner_worker(simulation) == (
+        "execution_failed",
+        "ValueError: tiny computed dt",
+    )
+    assert calls == ["open", "run", "finalize", "close"]
+    stderr = itzi_stderr.getvalue()
+    assert stderr.count("WARNING: Simulation failed: ValueError: tiny computed dt") == 1
+    assert ("Could not finalize partial outputs: RuntimeError: registration failed" in stderr) == (
+        finalize_fails
+    )
+    assert "Traceback" not in stderr
+
+
 def test_run_parser_rejects_v_and_q_together():
     with pytest.raises(SystemExit):
         build_parser().parse_args(["run", "a.ini", "-v", "-q"])
@@ -60,6 +405,38 @@ def test_main_returns_error_status_for_fatal_error(monkeypatch, itzi_stderr):
     assert main(["run", "a.ini"]) == 1
     stderr = itzi_stderr.getvalue()
     assert stderr.count("ERROR: expected failure") == 1
+    assert "Traceback" not in stderr
+
+
+@pytest.mark.parametrize("same_file", [True, False])
+def test_main_reports_duplicate_ensemble_ids(tmp_path, itzi_stderr, same_file):
+    document = """\
+schema_version: 1
+ensemble:
+  id: repeated
+grass: {}
+time:
+  duration: "01:00:00"
+  record_step: "00:05:00"
+input:
+  ground_elevation: elevation
+  friction: manning
+parameters: {}
+outputs: {}
+"""
+    first = tmp_path / "first.yaml"
+    second = tmp_path / "second.yaml"
+    if same_file:
+        first.write_text(f"{document}---\n{document}", encoding="utf-8")
+        paths = [str(first)]
+    else:
+        first.write_text(document, encoding="utf-8")
+        second.write_text(document, encoding="utf-8")
+        paths = [str(first), str(second)]
+
+    assert main(["run", *paths]) == 1
+    stderr = itzi_stderr.getvalue()
+    assert stderr.count("ERROR: duplicate ensemble ID 'repeated'") == 1
     assert "Traceback" not in stderr
 
 
@@ -142,16 +519,9 @@ def test_worker_passes_statistics_file_to_simulation_runner(monkeypatch):
 
     class FakeConfigReader:
         def __init__(self, _):
-            pass
-
-        def get_sim_params(self):
-            return sim_params
-
-        def get_grass_params(self):
-            return grass_params
-
-        def get_stats_file(self):
-            return "statistics.csv"
+            self.sim_config = sim_params
+            self.grass_params = grass_params
+            self.stats_file = "statistics.csv"
 
     class FakeGrassSessionManager:
         def __init__(self, received_grass_params):
@@ -167,6 +537,9 @@ def test_worker_passes_statistics_file_to_simulation_runner(monkeypatch):
         def __init__(self, *args, **kwargs):
             runner_arguments["args"] = args
             runner_arguments["kwargs"] = kwargs
+
+        def initialize(self):
+            return self
 
         def run(self):
             return self
@@ -218,7 +591,10 @@ def test_reconcile_hotstart_commands_accepts_single_resume_for_single_config():
 
 def test_reconcile_hotstart_commands_matches_multiple_named_values():
     config_file_list = ["/tmp/a.ini", "/tmp/b.ini", "/tmp/c.ini"]
-    resume_from_list = [("c.ini", "restart_c.zip"), ("a.ini", "restart_a.zip")]
+    resume_from_list: list[tuple[str | None, str]] = [
+        ("c.ini", "restart_c.zip"),
+        ("a.ini", "restart_a.zip"),
+    ]
 
     assert reconcile_hotstart_commands(config_file_list, resume_from_list) == [
         ("/tmp/a.ini", "restart_a.zip"),
@@ -229,7 +605,7 @@ def test_reconcile_hotstart_commands_matches_multiple_named_values():
 
 def test_reconcile_hotstart_commands_accepts_duplicate_basenames_with_paths():
     config_file_list = ["./sim1/config.ini", "sim2/config.ini"]
-    resume_from_list = [
+    resume_from_list: list[tuple[str | None, str]] = [
         ("./sim1/config.ini", "sim1/hotstart.zip"),
         ("sim2/config.ini", "sim2/hotstart.zip"),
     ]

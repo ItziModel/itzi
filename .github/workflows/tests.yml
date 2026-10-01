@@ -10,7 +10,7 @@ jobs:
   test:
     strategy:
       matrix:
-        python-version: ["3.12", "3.13"]
+        python-version: ["3.12", "3.13", "3.14"]
 
     runs-on: ubuntu-latest
     container: osgeo/grass-gis:releasebranch_8_4-ubuntu
@@ -31,11 +31,12 @@ jobs:
 
     - name: Pytest
       run: |
-        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-cli-results.xml --cov-report=xml --cov-report=html tests/cli tests/test_grass_session.py
-        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-itzi-results.xml --cov-report=xml --cov-report=html tests/grass/test_itzi.py
-        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-bmi-results.xml --cov-report=xml --cov-report=html tests/grass/test_bmi.py
-        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-tutorial-results.xml --cov-report=xml --cov-report=html tests/grass/test_tutorial.py
-        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --junitxml=junit/test-temporal-overwrite-results.xml --cov-report=xml --cov-report=html tests/grass/test_temporal_overwrite.py
+        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --cov-report= --junitxml=junit/test-cli-results.xml tests/cli tests/test_grass_session.py
+        for test_file in tests/grass/test_*.py; do
+          $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --cov-append --cov-report= --junitxml="junit/$(basename "$test_file" .py)-results.xml" "$test_file"
+        done
+        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} coverage xml
+        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} coverage html
 
     - name: Upload coverage
       uses: actions/upload-artifact@v7

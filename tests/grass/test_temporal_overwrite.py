@@ -1,25 +1,16 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
-from configparser import ConfigParser
 import os
+from configparser import ConfigParser
 from uuid import uuid4
 
 import grass.script as gscript
 import pytest
+from itzi_core.const import TemporalType
 
 from itzi import SimulationRunner
 from itzi.configreader import ConfigReader
-from itzi_core.const import TemporalType
-
-
-@pytest.fixture(autouse=True)
-def stop_temporal_subprocesses() -> Iterator[None]:
-    yield
-
-    import grass.temporal as tgis
-
-    tgis.stop_subprocesses()
+from itzi.grass.session import GrassSessionManager
 
 
 def _build_runner(
@@ -65,9 +56,9 @@ def _build_runner(
 
     conf_data = ConfigReader(config_file)
     return SimulationRunner(
-        conf_data.get_sim_params(),
-        conf_data.get_grass_params(),
-        stats_file=conf_data.get_stats_file(),
+        conf_data.sim_config,
+        conf_data.grass_params,
+        stats_file=conf_data.stats_file,
     )
 
 
@@ -77,12 +68,13 @@ def test_temporal_fatal_errors_are_raised_as_exceptions() -> None:
     import grass.temporal as tgis
     from grass.exceptions import FatalError
 
-    from itzi.providers.grass_interface import GrassInterface
+    from itzi.grass.utils import name_is_stds
 
     tgis.set_raise_on_error(False)
+    GrassSessionManager.ensure_temporal_initialized()
 
     with pytest.raises(FatalError, match="mapset is missing"):
-        GrassInterface.name_is_stds("missing_strds")
+        name_is_stds("missing_strds")
 
     assert gscript.get_raise_on_error() is True
     assert tgis.get_raise_on_error() is True
@@ -107,7 +99,7 @@ def test_runner_creation_fails_when_overwriting_strds_with_different_temporal_ty
 
     prefix = f"out_overwrite_{existing_temporal_type}_{simulation_temporal_type}_{uuid4().hex[:8]}"
     initial_runner = _build_runner(test_data_temp_path, prefix, existing_temporal_type)
-    initial_runner.run().finalize()
+    initial_runner.initialize().run().finalize()
 
     with pytest.raises(RuntimeError, match=r"temporal type"):
-        _build_runner(test_data_temp_path, prefix, simulation_temporal_type)
+        _build_runner(test_data_temp_path, prefix, simulation_temporal_type).initialize()

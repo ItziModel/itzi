@@ -3,10 +3,11 @@ Define pytest fixture common to GRASS-based test modules.
 """
 
 import os
+import subprocess
 import sys
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
-import subprocess
 
 import pytest
 
@@ -17,10 +18,26 @@ grass_python_path = subprocess.check_output(
 sys.path.append(grass_python_path)
 import grass.script as gscript  # noqa: E402
 
-from itzi import SimulationRunner  # noqa: E402
+from itzi import (  # noqa: E402
+    SimulationRunner,  # noqa: E402
+)
 from itzi.configreader import ConfigReader  # noqa: E402
+from itzi.grass import session  # noqa: E402
 
 TESTS_ROOT = Path.cwd()
+TEST_PROCESS = os.getpid()
+
+
+@pytest.fixture(autouse=True)
+def stop_temporal_subprocesses_after_test() -> Iterator[None]:
+    """Forked tests must stop their own GRASS RPC children before os._exit."""
+    yield
+    if os.getpid() != TEST_PROCESS and session._initialized_temporal_session is not None:
+        session_pid = session._initialized_temporal_session[0]
+        if session_pid == os.getpid():
+            import grass.temporal as tgis
+
+            tgis.stop_subprocesses()
 
 
 @pytest.fixture(scope="session")
@@ -152,19 +169,18 @@ def grass_5by5(grass_xy_session, test_data_path):
     gscript.mapcalc("infiltration_rate=2")
     gscript.mapcalc("loss_rate=1.5")
     gscript.mapcalc("inflow_rate=0.1")
-    return None
+    with session.GrassSessionManager(session.GrassParams()):
+        yield
 
 
 @pytest.fixture(scope="class")
 def grass_5by5_sim(grass_5by5, test_data_path):
-    """ """
     config_file = os.path.join(test_data_path, "5by5", "5by5.ini")
     conf_data = ConfigReader(config_file)
     sim_runner = SimulationRunner(
-        conf_data.get_sim_params(),
-        conf_data.get_grass_params(),
-        stats_file=conf_data.get_stats_file(),
-    )
+        conf_data.sim_config,
+        conf_data.grass_params,
+    ).initialize()
     assert isinstance(sim_runner, SimulationRunner)
     sim_runner.run().finalize()
     return sim_runner

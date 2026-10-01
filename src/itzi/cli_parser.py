@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 
-
 DESCR = "A dynamic, fully distributed hydraulic and hydrologic model."
 
 
@@ -25,11 +24,11 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = arg_parser.add_subparsers(dest="command", required=True)
 
     # run a simulation
-    run_parser = subparsers.add_parser("run", help="Run a simulation.")
+    run_parser = subparsers.add_parser("run", help="Run a configuration file or YAML stream.")
     run_parser.add_argument(
         "config_file",
         nargs="+",
-        help=("An Itzï configuration file (if several given, run in batch mode.)"),
+        help="An Itzï configuration file. ini and yaml are allowed, several files form one batch.",
     )
     run_parser.add_argument("-o", action="store_true", help="Overwrite files if exist.")
     verbosity_parser = run_parser.add_mutually_exclusive_group()
@@ -44,8 +43,22 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Resume a simulation from a hotstart file. "
             "If only the path to a hotstart file is given, batch is not allowed. "
-            "For batch processing, use the 'CONFIG_PATH=HOTSTART_PATH' construct."
+            "For batch processing, use CONFIG_PATH=HOTSTART_PATH."
         ),
+    )
+    run_parser.add_argument(
+        "--member",
+        action="append",
+        default=[],
+        metavar="[ENSEMBLE#]SIMULATION",
+        help="Run only one ensemble member. Repeat to select multiple members.",
+    )
+    run_parser.add_argument(
+        "-d",
+        "--dry-run",
+        dest="dry",
+        action="store_true",
+        help="Resolve and validate selected members without writing user artifacts.",
     )
 
     # display version

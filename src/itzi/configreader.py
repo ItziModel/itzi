@@ -14,25 +14,25 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from configparser import ConfigParser
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import NoReturn
 
 from itzi_core import (
-    ARRAY_DEFINITIONS,
-    ArrayCategory,
+    INPUT_ARRAY_KEYS,
+    OUTPUT_ARRAY_KEYS,
     HotstartRunConfig,
     InfiltrationModelType,
     SimulationConfig,
     SurfaceFlowParameters,
     TemporalType,
 )
+from itzi_core.const import DefaultValues
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 import itzi.messenger as msgr
-from itzi.grass_session import GrassParams
+from itzi.grass.session import GrassParams
 
 DEPRECATED_INPUT_ALIASES: list[tuple[str, str]] = [
     # (old, new)
@@ -74,24 +74,13 @@ TIME_COMBINATION_ERROR = (
 )
 
 TIME_OPTION_KEYS = ("start_time", "end_time", "duration", "record_step")
-HOTSTART_OPTION_KEYS = ("wallclock_step", "save_file")
 GREEN_AMPT_KEYS = (
     "effective_porosity",
     "capillary_pressure",
     "hydraulic_conductivity",
 )
-GRASS_MANDATORY_KEYS = ("grassdata", "location", "mapset")
-GRASS_OPTION_KEYS = (*GRASS_MANDATORY_KEYS, "region", "mask", "grass_bin")
-INPUT_MAP_KEYS = tuple(
-    arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.INPUT in arr_def.category
-)
-OUTPUT_MAP_KEYS = tuple(
-    arr_def.key for arr_def in ARRAY_DEFINITIONS if ArrayCategory.OUTPUT in arr_def.category
-)
+GRASS_OPTION_KEYS = ("grassdata", "location", "mapset", "region", "mask", "grass_bin")
 SURFACE_FLOW_OPTION_KEYS = tuple(SurfaceFlowParameters.model_fields)
-SIMULATION_OPTION_KEYS = ("dtinf",)
-DRAINAGE_STRING_KEYS = ("swmm_inp", "output")
-DRAINAGE_FLOAT_KEYS = ("orifice_coeff", "free_weir_coeff", "submerged_weir_coeff")
 
 
 def _read_parser(filename: str) -> ConfigParser:
@@ -102,25 +91,13 @@ def _read_parser(filename: str) -> ConfigParser:
     return params
 
 
-def _read_optional_value(
-    params: ConfigParser,
-    section: str,
-    option: str,
-    reader: Callable[[str, str], Any],
-) -> Any | None:
-    """Read one config value when the option exists."""
-    if not params.has_option(section, option):
-        return None
-    return reader(section, option)
-
-
 def _read_string_options(
     params: ConfigParser, section: str, option_names: tuple[str, ...]
 ) -> dict[str, str]:
     """Collect the string-valued options present in a section."""
     values: dict[str, str] = {}
     for option_name in option_names:
-        value = _read_optional_value(params, section, option_name, params.get)
+        value = params.get(section, option_name, fallback=None)
         if value is not None:
             values[option_name] = value
     return values
@@ -132,7 +109,7 @@ def _read_float_options(
     """Collect the float-valued options present in a section."""
     values: dict[str, float] = {}
     for option_name in option_names:
-        value = _read_optional_value(params, section, option_name, params.getfloat)
+        value = params.getfloat(section, option_name, fallback=None)
         if value is not None:
             values[option_name] = value
     return values
@@ -169,28 +146,28 @@ def _read_hotstart_values(params: ConfigParser) -> HotstartRunConfig | None:
         return None
 
     hotstart_values = {
-        "wallclock_step": _read_optional_value(params, "hotstart", "wallclock_step", params.get),
-        "save_file_name": _read_optional_value(params, "hotstart", "save_file", params.get),
+        "wallclock_step": params.get("hotstart", "wallclock_step", fallback=None),
+        "save_file_name": params.get("hotstart", "save_file", fallback=None),
     }
     if all(value is None for value in hotstart_values.values()):
         return None
 
     try:
-        return HotstartRunConfig(**hotstart_values)
+        return HotstartRunConfig.model_validate(hotstart_values)
     except ValidationError as error:
         _fatal_validation_error(error)
 
 
 def _read_input_map_names(params: ConfigParser) -> dict[str, str | None]:
     """Read input map names and normalize deprecated aliases."""
-    map_names: dict[str, str | None] = dict.fromkeys(INPUT_MAP_KEYS)
+    map_names: dict[str, str | None] = dict.fromkeys(INPUT_ARRAY_KEYS)
 
     for old_input_name, new_input_name in DEPRECATED_INPUT_ALIASES:
         if params.has_option("input", old_input_name):
             _warn_about_deprecated_alias("Input", old_input_name, new_input_name)
             map_names[new_input_name] = params.get("input", old_input_name)
 
-    for input_name in INPUT_MAP_KEYS:
+    for input_name in INPUT_ARRAY_KEYS:
         if params.has_option("input", input_name):
             map_names[input_name] = params.get("input", input_name)
 
@@ -218,7 +195,7 @@ def _normalize_output_values(raw_values: str | None) -> list[str]:
 
 def _generate_output_map_names(prefix: str, output_values: list[str]) -> dict[str, str | None]:
     """Build the output map dictionary from the selected outputs."""
-    output_map_names: dict[str, str | None] = dict.fromkeys(OUTPUT_MAP_KEYS)
+    output_map_names: dict[str, str | None] = dict.fromkeys(OUTPUT_ARRAY_KEYS)
     for value in output_values:
         if value in output_map_names:
             output_map_names[value] = f"{prefix}_{value}"
@@ -227,12 +204,10 @@ def _generate_output_map_names(prefix: str, output_values: list[str]) -> dict[st
 
 def _read_output_config(params: ConfigParser) -> tuple[str, list[str], dict[str, str | None]]:
     """Read output settings and derive output map names."""
-    prefix = _read_optional_value(params, "output", "prefix", params.get)
+    prefix = params.get("output", "prefix", fallback=None)
     if prefix is None:
         prefix = f"itzi_results_{datetime.now().strftime('%Y%m%dT%H%M%S')}"
-    output_values = _normalize_output_values(
-        _read_optional_value(params, "output", "values", params.get)
-    )
+    output_values = _normalize_output_values(params.get("output", "values", fallback=None))
     output_map_names = _generate_output_map_names(prefix, output_values)
     return prefix, output_values, output_map_names
 
@@ -244,28 +219,6 @@ def _read_surface_flow_parameters(params: ConfigParser) -> SurfaceFlowParameters
         return SurfaceFlowParameters(**surface_flow_values)
     except ValidationError as error:
         _fatal_validation_error(error)
-
-
-def _read_simulation_option_values(params: ConfigParser) -> dict[str, float]:
-    """Read simulation options that live outside the surface flow model."""
-    return _read_float_options(params, "options", SIMULATION_OPTION_KEYS)
-
-
-def _read_simulation_drainage_values(params: ConfigParser) -> dict[str, str | float]:
-    """Read drainage settings using SimulationConfig field names."""
-    drainage_values: dict[str, str | float] = {}
-
-    for option_name in DRAINAGE_STRING_KEYS:
-        value = _read_optional_value(params, "drainage", option_name, params.get)
-        if value is None:
-            continue
-        if option_name == "output":
-            drainage_values["drainage_output"] = value
-        else:
-            drainage_values[option_name] = value
-
-    drainage_values.update(_read_float_options(params, "drainage", DRAINAGE_FLOAT_KEYS))
-    return drainage_values
 
 
 def _resolve_swmm_input_path(swmm_inp: str, config_file: str) -> Path:
@@ -294,15 +247,11 @@ def _resolve_swmm_input_path(swmm_inp: str, config_file: str) -> Path:
 
 def _read_grass_params(params: ConfigParser) -> GrassParams:
     """Build GRASS session parameters from the config file."""
-    return GrassParams(**_read_string_options(params, "grass", GRASS_OPTION_KEYS))
-
-
-def _build_simulation_config(**kwargs: Any) -> SimulationConfig:
-    """Build a validated simulation config from normalized values."""
     try:
-        return SimulationConfig(**kwargs)
-    except ValidationError as error:
-        _fatal_validation_error(error)
+        return GrassParams(**_read_string_options(params, "grass", GRASS_OPTION_KEYS))
+    except ValueError as error:
+        msgr.fatal(str(error))
+        raise AssertionError("unreachable") from error
 
 
 class SimulationTimes(BaseModel):
@@ -312,7 +261,6 @@ class SimulationTimes(BaseModel):
 
     start: datetime
     end: datetime
-    duration: timedelta
     record_step: timedelta | None
     temporal_type: TemporalType
 
@@ -332,13 +280,10 @@ class SimulationTimes(BaseModel):
             end: datetime = start + duration
         if start >= end:
             msgr.fatal("Simulation duration must be positive")
-        if duration is None:
-            duration: timedelta = end - start
 
         return cls(
             start=start,
             end=end,
-            duration=duration,
             record_step=record_step,
             temporal_type=temporal_type,
         )
@@ -404,65 +349,68 @@ class ConfigReader:
             msgr.fatal("Not a valid configuration file")
 
         self.config_file = filename
-        self.ga_list = list(GREEN_AMPT_KEYS)
-        self.grass_mandatory = list(GRASS_MANDATORY_KEYS)
 
         params = _read_parser(filename)
         self.hotstart_config = _read_hotstart_values(params)
-        self.raw_input_times = _read_time_values(params)
+        raw_time_values = _read_time_values(params)
         self.input_map_names = _read_input_map_names(params)
         self.out_prefix, self.out_values, self.output_map_names = _read_output_config(params)
-        self.stats_file = (
-            _read_optional_value(params, "statistics", "stats_file", params.get) or None
-        )
-        self.sim_times = SimulationTimes.from_raw_values(self.raw_input_times)
+        self.stats_file = params.get("statistics", "stats_file", fallback=None) or None
+        self.sim_times = SimulationTimes.from_raw_values(raw_time_values)
         self._check_general_input(self.input_map_names)
         infiltration_model = self._resolve_infiltration_model(self.input_map_names)
 
         self.grass_params = _read_grass_params(params)
-        self._check_grass_params(self.grass_params)
 
         surface_flow_parameters = _read_surface_flow_parameters(params)
         assert self.sim_times.record_step is not None
 
-        simulation_kwargs: dict[str, Any] = {
-            "start_time": self.sim_times.start,
-            "end_time": self.sim_times.end,
-            "record_step": self.sim_times.record_step,
-            "temporal_type": self.sim_times.temporal_type,
-            "input_map_names": self.input_map_names,
-            "output_map_names": self.output_map_names,
-            "surface_flow_parameters": surface_flow_parameters,
-            "infiltration_model": infiltration_model,
-        }
+        swmm_inp = params.get("drainage", "swmm_inp", fallback=None)
+        if swmm_inp is not None:
+            resolved_swmm_inp = _resolve_swmm_input_path(swmm_inp, self.config_file)
+        else:
+            resolved_swmm_inp = None
 
-        if self.hotstart_config is not None:
-            simulation_kwargs["hotstart_config"] = self.hotstart_config
-
-        simulation_kwargs.update(_read_simulation_option_values(params))
-        simulation_kwargs.update(_read_simulation_drainage_values(params))
-        if "swmm_inp" in simulation_kwargs:
-            simulation_kwargs["swmm_inp"] = _resolve_swmm_input_path(
-                simulation_kwargs["swmm_inp"], self.config_file
+        try:
+            self.sim_config = SimulationConfig(
+                start_time=self.sim_times.start,
+                end_time=self.sim_times.end,
+                record_step=self.sim_times.record_step,
+                temporal_type=self.sim_times.temporal_type,
+                hotstart_config=self.hotstart_config,
+                input_map_names={
+                    key: value for key, value in self.input_map_names.items() if value is not None
+                },
+                output_map_names={
+                    key: value for key, value in self.output_map_names.items() if value is not None
+                },
+                surface_flow_parameters=surface_flow_parameters,
+                dtinf=params.getfloat("options", "dtinf", fallback=DefaultValues.DTINF),
+                infiltration_model=infiltration_model,
+                swmm_inp=resolved_swmm_inp,
+                drainage_output=params.get("drainage", "output", fallback=None),
+                orifice_coeff=params.getfloat(
+                    "drainage", "orifice_coeff", fallback=DefaultValues.ORIFICE_COEFF
+                ),
+                free_weir_coeff=params.getfloat(
+                    "drainage", "free_weir_coeff", fallback=DefaultValues.FREE_WEIR_COEFF
+                ),
+                submerged_weir_coeff=params.getfloat(
+                    "drainage",
+                    "submerged_weir_coeff",
+                    fallback=DefaultValues.SUBMERGED_WEIR_COEFF,
+                ),
             )
-
-        self.sim_config = _build_simulation_config(**simulation_kwargs)
-
-    def _check_grass_params(self, grass_params: GrassParams) -> None:
-        """Ensure mandatory GRASS settings are provided together."""
-        grass_values = grass_params.model_dump()
-        grass_any = any(grass_values[key] for key in self.grass_mandatory)
-        grass_all = all(grass_values[key] for key in self.grass_mandatory)
-        if grass_any and not grass_all:
-            msgr.fatal(f"{self.grass_mandatory} are mutualy inclusive")
+        except ValidationError as error:
+            _fatal_validation_error(error)
 
     def _resolve_infiltration_model(
         self, input_map_names: dict[str, str | None]
     ) -> InfiltrationModelType:
         """Infer the infiltration model from the configured input maps."""
         infiltration_input = input_map_names["infiltration"]
-        ga_any = any(input_map_names[key] for key in self.ga_list)
-        ga_all = all(input_map_names[key] for key in self.ga_list)
+        ga_any = any(input_map_names[key] for key in GREEN_AMPT_KEYS)
+        ga_all = all(input_map_names[key] for key in GREEN_AMPT_KEYS)
 
         if not infiltration_input and not ga_any:
             return InfiltrationModelType.NULL
@@ -471,7 +419,7 @@ class ConfigReader:
         if infiltration_input and ga_any:
             msgr.fatal("Infiltration model incompatible with user-defined rate")
         if ga_any and not ga_all:
-            msgr.fatal(f"{self.ga_list} are mutualy inclusive")
+            msgr.fatal(f"{GREEN_AMPT_KEYS} are mutualy inclusive")
         return InfiltrationModelType.GREEN_AMPT
 
     def _check_general_input(self, input_map_names: dict[str, str | None]) -> None:
@@ -488,15 +436,3 @@ class ConfigReader:
             msgr.fatal(
                 "inputs <water_depth> and <water_surface_elevation> are mutually exclusive."
             )
-
-    def get_sim_params(self) -> SimulationConfig:
-        """Return validated simulation parameters."""
-        return self.sim_config
-
-    def get_grass_params(self) -> GrassParams:
-        """Return validated GRASS GIS session parameters."""
-        return self.grass_params
-
-    def get_stats_file(self) -> str | None:
-        """Return the CSV statistics output file name, if configured."""
-        return self.stats_file

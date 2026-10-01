@@ -1,0 +1,143 @@
+"""
+Copyright (C) 2026 Laurent Courty
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+"""
+
+from __future__ import annotations
+
+import hashlib
+from pathlib import Path
+
+from itzi_core import TemporalType
+
+import itzi.messenger as msgr
+from itzi.configreader import ConfigReader
+from itzi.ensemble import load_yaml_stream
+from itzi.ensemble.models import (
+    DIRECT_INPUT_KEYS,
+    GREEN_AMPT_KEYS,
+    DocumentFailure,
+    EnsembleError,
+    ExpandedEnsemble,
+    ExpandedSimulation,
+    GrassConfig,
+    NormalizedInfiltration,
+    NormalizedTime,
+    OutputTemplates,
+    SourceDocument,
+    check_batch_limits,
+    check_unique_ensemble_ids,
+)
+
+
+def load_batch(
+    config_paths: list[str],
+) -> tuple[tuple[ExpandedEnsemble, ...], tuple[DocumentFailure, ...]]:
+    """Load an ordered mixed configuration batch without initializing GRASS."""
+    ensembles: list[ExpandedEnsemble] = []
+    failures: list[DocumentFailure] = []
+    for raw_path in config_paths:
+        path = Path(raw_path)
+        if path.suffix == ".yaml":
+            stream = load_yaml_stream(path)
+            ensembles.extend(stream.ensembles)
+            failures.extend(stream.failures)
+        else:
+            msgr.warning(f"INI configuration <{path}> is deprecated; use YAML instead.")
+            try:
+                ensembles.append(_legacy_ensemble(path))
+            except Exception as error:  # noqa: BLE001 - preserve document-local continuation.
+                failures.append(
+                    DocumentFailure(
+                        path=path.expanduser().resolve(),
+                        document_index=0,
+                        line=None,
+                        column=None,
+                        phase="schema",
+                        detail=str(error),
+                    )
+                )
+    check_unique_ensemble_ids(tuple(ensembles))
+    check_batch_limits(tuple(ensembles))
+    return tuple(ensembles), tuple(failures)
+
+
+def _legacy_ensemble(path: Path) -> ExpandedEnsemble:
+    """Adapt the public one-member INI reader to the scalar batch model."""
+    reader = ConfigReader(str(path))
+    config = reader.sim_config
+    if config.hotstart_config is not None:
+        raise EnsembleError("hotstart output requires Stage 2 checkpoint support in mixed batches")
+    grass = reader.grass_params
+    source_path = path.expanduser().resolve()
+    source = SourceDocument(
+        path=source_path,
+        document_index=0,
+    )
+    ensemble_id = f"legacy-{hashlib.blake2b(str(source_path).encode(), digest_size=8).hexdigest()}"
+    grass_config = GrassConfig(
+        database=grass.grassdata,
+        project=grass.location,
+        mapset=grass.mapset,
+        executable=grass.grass_bin if grass.grassdata is not None else None,
+        region=grass.region,
+        mask=grass.mask,
+    )
+    input_names = config.input_map_names
+    infiltration_maps = {
+        key: input_names[key] for key in ("infiltration", *GREEN_AMPT_KEYS) if key in input_names
+    }
+    direct_inputs = {key: input_names[key] for key in DIRECT_INPUT_KEYS if key in input_names}
+    options = {
+        **config.surface_flow_parameters.model_dump(),
+        "dtinf": config.dtinf,
+    }
+    drainage = None
+    if config.swmm_inp is not None:
+        drainage = {
+            "swmm_input": str(config.swmm_inp),
+            "orifice_coeff": config.orifice_coeff,
+            "free_weir_coeff": config.free_weir_coeff,
+            "submerged_weir_coeff": config.submerged_weir_coeff,
+        }
+    normalized_time = NormalizedTime(
+        config.temporal_type,
+        None if config.temporal_type == TemporalType.RELATIVE else config.start_time,
+        None if config.temporal_type == TemporalType.RELATIVE else config.end_time,
+        config.end_time - config.start_time,
+        config.record_step,
+        False,
+    )
+    stats_file = reader.stats_file
+    if stats_file is not None:
+        # The INI deprecation release preserves cwd-relative destinations.
+        stats_file = str((Path.cwd() / stats_file).resolve())
+    expanded = ExpandedSimulation(
+        source=source,
+        ensemble_id=ensemble_id,
+        coordinates=(),
+        grass=grass_config,
+        time=normalized_time,
+        input_maps=tuple(sorted(direct_inputs.items())),
+        infiltration=NormalizedInfiltration(
+            config.infiltration_model, tuple(sorted(infiltration_maps.items()))
+        ),
+        options=tuple(sorted(options.items())),
+        drainage=tuple(sorted(drainage.items())) if drainage is not None else None,
+        outputs=OutputTemplates(
+            raster_prefix=reader.out_prefix,
+            raster_variables=tuple(reader.out_values),
+            statistics_file=stats_file,
+            drainage_dataset=config.drainage_output,
+        ),
+    )
+    return ExpandedEnsemble(source, ensemble_id, source_path.stem, None, (expanded,))

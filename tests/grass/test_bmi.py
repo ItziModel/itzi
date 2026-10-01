@@ -1,6 +1,7 @@
 """Test the Basic Model Interface implementation."""
 
 import os
+from collections.abc import Iterator
 
 import numpy as np
 import pytest
@@ -14,6 +15,12 @@ def bmi_object(grass_5by5, test_data_path):
     conf_file = os.path.join(test_data_path, "5by5", "5by5.ini")
     itzi_bmi.initialize(conf_file)
     return itzi_bmi
+
+
+@pytest.fixture(scope="class")
+def finalize_bmi_object(bmi_object: BmiItzi) -> Iterator[None]:
+    yield
+    bmi_object.finalize()
 
 
 @pytest.mark.forked
@@ -53,6 +60,7 @@ class TestBmiMutating:
         assert np.all(value == bmi_object.get_value_ptr(var_name))
 
 
+@pytest.mark.usefixtures("finalize_bmi_object")
 class TestBmi:
     """Test non-mutating functions. No forking needed."""
 

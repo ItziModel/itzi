@@ -14,6 +14,7 @@ from itzi_core.data_containers import DrainageLinkAttributes, DrainageNodeAttrib
 
 from itzi import SimulationRunner
 from itzi.configreader import ConfigReader
+from itzi.grass.session import GrassSessionManager
 
 DATA_EPSG = "3358"
 
@@ -29,15 +30,20 @@ def grass_tutorial_session(test_data_temp_path):
     """Create a GRASS session in a new location and PERMANENT mapset"""
     # Keep all generated files in the test_data_temp_path
     os.chdir(test_data_temp_path)
+    workdir = tempfile.TemporaryDirectory(dir=test_data_temp_path)
+    os.chdir(workdir.name)
     tmpdir = tempfile.TemporaryDirectory()
     gscript.create_project(tmpdir.name, name="itzi_tutorial", epsg=DATA_EPSG)
     grass_session = gscript.setup.init(
         path=tmpdir.name, location="itzi_tutorial", mapset="PERMANENT"
     )
+    GrassSessionManager.ensure_temporal_initialized()
     os.environ["GRASS_VERBOSE"] = "1"
     yield grass_session
     grass_session.finish()
     tmpdir.cleanup()
+    os.chdir(test_data_temp_path)
+    workdir.cleanup()
 
 
 @pytest.fixture(scope="class")
@@ -95,17 +101,17 @@ def itzi_tutorial(grass_tutorial_session, tutorial_test_file):
 @pytest.mark.slow
 @pytest.mark.usefixtures("itzi_tutorial", "test_data_path")
 class TestItziTutorial:
-    def test_tutorial(itzi_tutorial, test_data_path, test_data_temp_path):
+    def test_tutorial(itzi_tutorial, test_data_path):
         """Run the tutorial simulation. Check the results."""
         # Run the simulation
         config_file = os.path.join(test_data_path, "tutorial_files", "tutorial.ini")
         conf_data = ConfigReader(config_file)
 
         sim_runner = SimulationRunner(
-            conf_data.get_sim_params(),
-            conf_data.get_grass_params(),
-            stats_file=conf_data.get_stats_file(),
-        )
+            conf_data.sim_config,
+            conf_data.grass_params,
+            stats_file=conf_data.stats_file,
+        ).initialize()
         sim_runner.run().finalize()
         # Check the results
         hmax_maps = gscript.list_grouped("raster", pattern="nc_itzi_tutorial_max_water_depth_*")[
@@ -116,7 +122,7 @@ class TestItziTutorial:
         assert float(h_max_univar["mean_of_abs"]) == pytest.approx(0.0355, abs=1e-3)
 
         # Test consistency of stats file
-        stat_file_path = pathlib.Path(test_data_temp_path) / pathlib.Path("nc_itzi_tutorial.csv")
+        stat_file_path = pathlib.Path("nc_itzi_tutorial.csv")
         df_stats = pd.read_csv(stat_file_path, na_values="-")
         df_stats.set_index("simulation_time", drop=True, inplace=True, verify_integrity=True)
         df_stats.index = pd.to_timedelta(df_stats.index)
@@ -134,7 +140,7 @@ class TestItziTutorial:
             "'volume_change' inconsistent with other values"
         )
 
-    def test_tutorial_drainage(itzi_tutorial, test_data_path, test_data_temp_path, helpers):
+    def test_tutorial_drainage(itzi_tutorial, test_data_path, helpers):
         """Run the tutorial simulation with drainage."""
         # Set the config file dynamically to make sure it can find the INP file
         inp_file = os.path.join(test_data_path, "tutorial_files", "tutorial_drainage.inp")
@@ -157,23 +163,21 @@ class TestItziTutorial:
         }
         parser = ConfigParser()
         parser.read_dict(config_dict)
-        config_file = os.path.join(test_data_temp_path, "tutorial_drainage.ini")
+        config_file = "tutorial_drainage.ini"
         with open(config_file, "w") as f:
             parser.write(f)
 
         # Run the simulation
         conf_data = ConfigReader(config_file)
         sim_runner = SimulationRunner(
-            conf_data.get_sim_params(),
-            conf_data.get_grass_params(),
-            stats_file=conf_data.get_stats_file(),
-        )
+            conf_data.sim_config,
+            conf_data.grass_params,
+            stats_file=conf_data.stats_file,
+        ).initialize()
         sim_runner.run().finalize()
 
         # Test consistency of stats file
-        stat_file_path = pathlib.Path(test_data_temp_path) / pathlib.Path(
-            "nc_itzi_tutorial_drainage.csv"
-        )
+        stat_file_path = pathlib.Path("nc_itzi_tutorial_drainage.csv")
         df_stats = pd.read_csv(stat_file_path, na_values="-")
         df_stats.set_index("simulation_time", drop=True, inplace=True, verify_integrity=True)
         df_stats.index = pd.to_timedelta(df_stats.index)
@@ -275,10 +279,10 @@ class TestItziTutorial:
         config_file = os.path.join(test_data_path, "tutorial_files", "tutorial_drainage.ini")
         conf_data = ConfigReader(config_file)
         sim_runner = SimulationRunner(
-            conf_data.get_sim_params(),
-            conf_data.get_grass_params(),
-            stats_file=conf_data.get_stats_file(),
-        )
+            conf_data.sim_config,
+            conf_data.grass_params,
+            stats_file=conf_data.stats_file,
+        ).initialize()
 
         try:
             assert sim_runner.sim.report.vector_provider is None
