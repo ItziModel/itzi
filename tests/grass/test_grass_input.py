@@ -65,15 +65,12 @@ def test_resolved_input_kinds_share_raster_and_strds_construction(
 def test_visible_input_and_current_output_with_same_name(grass_xy_session) -> None:
     import grass.script as gscript
 
-    from itzi.grass.utils import (
-        output_name,
-        qualify_output_id,
-        write_raster_map_blocking,
-    )
+    from itzi.grass.interface import GrassInterface
+    from itzi.grass.utils import output_name, qualify_output_id
     from itzi.providers.grass_output import derived_record_name
 
     gscript.run_command("g.region", n=3, s=0, e=3, w=0, res=1)
-    gscript.mapcalc("visible_output=1")
+    gscript.mapcalc("visible_output=2")
     gscript.run_command("g.mapset", mapset="child", flags="c")
     output_id = qualify_output_id("visible_output", "child")
     assert output_id == "visible_output@child"
@@ -83,8 +80,14 @@ def test_visible_input_and_current_output_with_same_name(grass_xy_session) -> No
         qualify_output_id("visible_output@PERMANENT", "child")
 
     gscript.run_command("g.region", n=3, s=0, e=3, w=0, res=1)
-    write_raster_map_blocking(
-        np.ones((3, 3), dtype=np.int32), "visible_output", "CELL", "ground_elevation", 0, False
+    start = datetime(2020, 1, 1)
+    with GrassInterface(start, start + timedelta(seconds=1), np.int32, None, None) as interface:
+        interface.write_raster_map(
+            np.ones((3, 3), dtype=np.int32), output_id, "ground_elevation", 0
+        )
+    assert gscript.parse_command("r.univar", map=output_id, flags="g")["min"] == "1"
+    assert (
+        gscript.parse_command("r.univar", map="visible_output@PERMANENT", flags="g")["min"] == "2"
     )
 
 
