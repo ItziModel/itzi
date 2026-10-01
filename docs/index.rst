@@ -17,5 +17,7 @@ Please see the Itzï's `home page <https://www.itzi.org/>`__.
    cli
    tutorial
    conf_file
+   yaml_file
+   manifest
    faq
    prog_manual
