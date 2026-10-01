@@ -242,20 +242,21 @@ Values must also meet these model limits:
 ``drainage``
 ------------
 
-Optional; enables experimental SWMM coupling. If present, **all four** options
-are required (each can be a scalar or a non-empty sweep list):
+Optional; enables SWMM coupling.
+``swmm_input`` is required when the section is present.
+Each supplied option can be a scalar or a non-empty sweep list:
 
-* ``swmm_input``: path to an EPA SWMM ``.inp`` file. Relative paths are
-  resolved from the YAML file's directory, not the current working directory.
-* ``orifice_coeff``: flow-exchange coefficient, float from 0 to 1.
-* ``free_weir_coeff``: flow-exchange coefficient, float from 0 to 1.
-* ``submerged_weir_coeff``: flow-exchange coefficient, float from 0 to 1.
+* ``swmm_input``: path to an EPA SWMM ``.inp`` file.
+  Relative paths are resolved from the YAML file's directory, not the current working directory.
+* ``orifice_coeff``: flow-exchange coefficient, float from 0 to 1 (default 0.167).
+* ``free_weir_coeff``: flow-exchange coefficient, float from 0 to 1 (default 0.54).
+* ``submerged_weir_coeff``: flow-exchange coefficient, float from 0 to 1 (default 0.056).
 
-Unlike INI, YAML requires the coefficients explicitly when drainage is enabled;
-the corresponding INI defaults are 0.167, 0.54, and 0.056. SWMM input files
-must exist at resolution time. ``outputs.drainage`` is optional even when
-coupling is enabled; without it, no drainage vector dataset is written. See
-:doc:`conf_file` for the contents of drainage vector output.
+Omitted coefficients use the defaults.
+SWMM input files must exist at resolution time.
+``outputs.drainage`` is optional even when coupling is enabled
+Without it, no drainage vector dataset is written.
+See :doc:`conf_file` for the contents of drainage vector output.
 
 ``outputs``
 -----------

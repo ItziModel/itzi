@@ -389,7 +389,7 @@ def _collect_dimensions(
             dimensions.append((f"parameters.{key}", cast(tuple[SweepScalar, ...], tuple(value))))
     if document.drainage is not None:
         for key in type(document.drainage).model_fields:
-            value = cast(SweepString | SweepFloat, getattr(document.drainage, key))
+            value = cast(SweepString | SweepFloat | None, getattr(document.drainage, key))
             if isinstance(value, list):
                 dimensions.append((f"drainage.{key}", cast(tuple[SweepScalar, ...], tuple(value))))
     return tuple(sorted(dimensions, key=lambda item: item[0]))
@@ -448,8 +448,10 @@ def _selected_drainage(
     values: dict[str, str | float] = {}
     for key in type(drainage).model_fields:
         value = selected.get(
-            f"drainage.{key}", cast(SweepString | SweepFloat, getattr(drainage, key))
+            f"drainage.{key}", cast(SweepString | SweepFloat | None, getattr(drainage, key))
         )
+        if value is None:
+            continue
         assert isinstance(value, (str, float)), "drainage must be scalar after expansion"
         values[key] = value
     return values

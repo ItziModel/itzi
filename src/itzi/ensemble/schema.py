@@ -127,9 +127,9 @@ class ParameterSweepConfig(StrictModel):
 
 class DrainageSweepConfig(StrictModel):
     swmm_input: SweepString
-    orifice_coeff: SweepFloat
-    free_weir_coeff: SweepFloat
-    submerged_weir_coeff: SweepFloat
+    orifice_coeff: SweepFloat | None = None
+    free_weir_coeff: SweepFloat | None = None
+    submerged_weir_coeff: SweepFloat | None = None
 
 
 class RasterOutputs(StrictModel):
@@ -179,5 +179,5 @@ class YamlEnsembleDocumentV1(StrictModel):
     @model_validator(mode="after")
     def validate_drainage_output(self) -> YamlEnsembleDocumentV1:
         if self.outputs.drainage is not None and self.drainage is None:
-            raise ValueError("outputs.drainage requires a complete drainage configuration")
+            raise ValueError("outputs.drainage requires a drainage configuration")
         return self

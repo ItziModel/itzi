@@ -118,6 +118,52 @@ def test_drainage_coefficients_are_forwarded(tmp_path):
     ) == (0.2, 0.3, 0.4)
 
 
+def test_drainage_coefficients_can_be_omitted(tmp_path):
+    content = document().replace(
+        "outputs:\n", 'drainage:\n  swmm_input: "network.inp"\noutputs:\n', 1
+    )
+    stream = load_yaml_stream(write_yaml(tmp_path, content))
+
+    assert stream.failures == ()
+    expanded = stream.ensembles[0].simulations[0]
+    assert dict(expanded.drainage) == {"swmm_input": "network.inp"}
+    config = _build_simulation_config(
+        expanded,
+        dict(expanded.input_maps),
+        ArtifactSummary((), None, None),
+        tmp_path / "network.inp",
+    )
+    assert (
+        config.orifice_coeff,
+        config.free_weir_coeff,
+        config.submerged_weir_coeff,
+    ) == (
+        DefaultValues.ORIFICE_COEFF,
+        DefaultValues.FREE_WEIR_COEFF,
+        DefaultValues.SUBMERGED_WEIR_COEFF,
+    )
+
+
+def test_drainage_coefficients_allow_partial_sweep(tmp_path):
+    content = document().replace(
+        "outputs:\n",
+        'drainage:\n  swmm_input: "network.inp"\n  orifice_coeff: 0.2\n'
+        "  free_weir_coeff: [0.3, 0.4]\noutputs:\n",
+        1,
+    )
+    stream = load_yaml_stream(write_yaml(tmp_path, content))
+
+    assert stream.failures == ()
+    simulations = stream.ensembles[0].simulations
+    assert [dict(simulation.drainage) for simulation in simulations] == [
+        {"swmm_input": "network.inp", "orifice_coeff": 0.2, "free_weir_coeff": coefficient}
+        for coefficient in (0.3, 0.4)
+    ]
+    assert [dict(simulation.coordinates) for simulation in simulations] == [
+        {"drainage.free_weir_coeff": coefficient} for coefficient in (0.3, 0.4)
+    ]
+
+
 def test_time_config_accepts_only_supported_combinations():
     start = "2026-09-01T00:00:00"
     end = "2026-09-01T02:00:00"
