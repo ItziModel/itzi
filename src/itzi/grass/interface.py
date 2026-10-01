@@ -16,6 +16,7 @@ import copy
 import os
 from collections.abc import Mapping
 from datetime import datetime, timedelta
+from pathlib import Path
 from types import MappingProxyType
 from typing import ClassVar, NamedTuple
 
@@ -23,6 +24,7 @@ import grass.pygrass.utils as gutils
 import grass.script as gscript
 import grass.temporal as tgis
 import numpy as np
+from grass.pygrass import raster
 from grass.pygrass.gis.region import Region
 from grass.pygrass.vector import VectorTopo
 from grass.pygrass.vector.geometry import Line, Point
@@ -41,14 +43,32 @@ from itzi.grass.utils import (
     MapData,
     RasterMapType,
     STDSType,
+    get_current_mapset,
     name_is_map,
     output_name,
     read_domain,
     replace_cell_null_sentinel,
     resolve_effective_mask,
+    set_null,
     split_identifier,
-    write_raster_map_blocking,
 )
+
+# color rules
+_DIR = Path(__file__).parent / "colortable"
+RULE_H = _DIR / "depth.txt"
+RULE_V = _DIR / "velocity.txt"
+RULE_VDIR = _DIR / "vdir.txt"
+RULE_FR = _DIR / "froude.txt"
+colors_rules_dict = {
+    "water_depth": str(RULE_H),
+    "max_water_depth": str(RULE_H),
+    "flow_speed": str(RULE_V),
+    "max_flow_speed": str(RULE_V),
+    "flow_velocity_direction": str(RULE_VDIR),
+    "froude": str(RULE_FR),
+}
+for f in colors_rules_dict.values():
+    assert Path(f).is_file()
 
 
 class DBLinkDescription(NamedTuple):
@@ -359,14 +379,25 @@ class GrassInterface:
 
     def write_raster_map(self, arr: np.ndarray, raster_id: str, mkey: str, hmin: float) -> None:
         """Take a numpy array and write it to GRASS DB"""
-        write_raster_map_blocking(
-            arr,
-            output_name(raster_id),
-            self.grass_dtype(str(arr.dtype)),
-            mkey,
-            hmin,
-            self.overwrite,
-        )
+        map_type = self.grass_dtype(str(arr.dtype))
+        with raster.RasterRow(
+            raster_id,
+            mapset=get_current_mapset(),
+            mode="w",
+            mtype=map_type,
+            overwrite=self.overwrite,
+        ) as newraster:
+            newrow = raster.Buffer((arr.shape[1],), mtype=map_type)
+            for row in arr:
+                newrow[:] = row[:]
+                newraster.put_row(newrow)
+        # apply color table
+        colors_rules = colors_rules_dict.get(mkey)
+        if colors_rules is not None:
+            gscript.run_command("r.colors", quiet=True, rules=colors_rules, map=raster_id)
+        # set null values
+        if mkey == "water_depth" and hmin > 0:
+            set_null(raster_id, hmin)
 
     def create_db_links(
         self, vect_map: VectorTopo, linking_elem: dict[str, DBLayerDescription]

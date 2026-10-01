@@ -34,8 +34,8 @@ from itzi.ensemble.models import (
     format_duration,
     render_template,
 )
-from itzi.grass.session import GrassParams, GrassSessionManager
 from itzi.grass.names import derived_drainage_table_names, derived_record_name
+from itzi.grass.session import GrassParams, GrassSessionManager
 
 
 def resolve_ensemble(

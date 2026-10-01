@@ -38,8 +38,8 @@ def test_resolved_input_kinds_share_raster_and_strds_construction(
 ) -> None:
     from itzi.grass import utils
     from itzi.grass.interface import GrassInterface
-    from itzi.providers.grass_input import GrassRasterInputProvider
     from itzi.grass.utils import MapData
+    from itzi.providers.grass_input import GrassRasterInputProvider
 
     monkeypatch.setattr(utils, "name_is_stds", lambda map_id: map_id == "series@test")
     monkeypatch.setattr(utils, "name_is_map", lambda map_id: map_id == "raster@test")

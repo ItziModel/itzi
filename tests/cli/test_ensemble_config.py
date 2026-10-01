@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import sys
 from dataclasses import replace
 from datetime import datetime, timedelta
-import sys
 from types import SimpleNamespace
 from typing import cast
 
@@ -23,7 +23,6 @@ from itzi.ensemble.models import (
     parse_duration,
     render_template,
 )
-from itzi.ensemble.schema import TimeConfig
 from itzi.ensemble.resolution import (
     _build_simulation_config,
     _last_record_index,
@@ -32,6 +31,7 @@ from itzi.ensemble.resolution import (
     _resolve_inputs,
     validate_resolved_ensemble,
 )
+from itzi.ensemble.schema import TimeConfig
 from itzi.manifest import _manifest_document
 
 

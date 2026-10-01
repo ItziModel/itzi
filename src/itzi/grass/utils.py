@@ -23,7 +23,6 @@ import grass.pygrass.utils as gutils
 import grass.script as gscript
 import grass.temporal as tgis
 import numpy as np
-from grass.pygrass import raster
 from grass.pygrass.gis import Mapset
 from grass.pygrass.gis.region import Region
 from itzi_core import INPUT_ARRAY_KEYS, DomainData
@@ -36,23 +35,6 @@ if TYPE_CHECKING:
     from itzi.grass.interface import GrassInterface
 
 MIN_GRASS_VERSION = (8, 4)
-
-# color rules
-_DIR = Path(__file__).parent / "colortable"
-RULE_H = _DIR / "depth.txt"
-RULE_V = _DIR / "velocity.txt"
-RULE_VDIR = _DIR / "vdir.txt"
-RULE_FR = _DIR / "froude.txt"
-colors_rules_dict = {
-    "water_depth": str(RULE_H),
-    "max_water_depth": str(RULE_H),
-    "flow_speed": str(RULE_V),
-    "max_flow_speed": str(RULE_V),
-    "flow_velocity_direction": str(RULE_VDIR),
-    "froude": str(RULE_FR),
-}
-for f in colors_rules_dict.values():
-    assert Path(f).is_file()
 
 
 type STDSType = Literal["strds", "stvds"]
@@ -86,34 +68,6 @@ def check_output_files(file_list: list[str]) -> None:
     for map_name in file_list:
         if file_exists(map_name):
             msgr.fatal(f"File {map_name} exists and will not be overwritten")
-
-
-def write_raster_map_blocking(
-    array: np.ndarray,
-    raster_name: str,
-    map_type: RasterMapType,
-    map_key: str,
-    hmin: float,
-    overwrite: bool,
-) -> None:
-    with raster.RasterRow(
-        raster_name,
-        mapset=get_current_mapset(),
-        mode="w",
-        mtype=map_type,
-        overwrite=overwrite,
-    ) as newraster:
-        newrow = raster.Buffer((array.shape[1],), mtype=map_type)
-        for row in array:
-            newrow[:] = row[:]
-            newraster.put_row(newrow)
-    # apply color table
-    colors_rules = colors_rules_dict.get(map_key)
-    if colors_rules is not None:
-        gscript.run_command("r.colors", quiet=True, rules=colors_rules, map=raster_name)
-    # set null values
-    if map_key == "water_depth" and hmin > 0:
-        set_null(raster_name, hmin)
 
 
 def resolve_effective_mask(mask: str | None) -> EffectiveMask:

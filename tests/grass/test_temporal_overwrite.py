@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from configparser import ConfigParser
 import os
+from configparser import ConfigParser
 from uuid import uuid4
 
 import grass.script as gscript
 import pytest
+from itzi_core.const import TemporalType
 
 from itzi import SimulationRunner
 from itzi.configreader import ConfigReader
 from itzi.grass.session import GrassSessionManager
-from itzi_core.const import TemporalType
 
 
 def _build_runner(

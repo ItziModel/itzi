@@ -546,9 +546,9 @@ def test_dry_run_checks_every_generated_output_record(test_data_temp_path):
 @pytest.mark.forked
 @pytest.mark.usefixtures("grass_xy_session")
 def test_run_validation_accepts_unoccupied_drainage_id():
-    from itzi.grass.utils import get_current_mapset
     from itzi.ensemble.run_validation import _validate_grass_outputs
     from itzi.grass.interface import GrassInterface
+    from itzi.grass.utils import get_current_mapset
 
     GrassSessionManager.ensure_temporal_initialized()
     name = f"drainage_collision_{uuid4().hex[:8]}"
