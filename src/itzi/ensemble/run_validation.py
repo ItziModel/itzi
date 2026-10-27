@@ -33,8 +33,8 @@ def validate_run_requirements(simulation: ResolvedSimulation) -> None:
     from itzi.grass.interface import GrassInterface
     from itzi.grass.utils import ensure_min_version
 
-    verify_resolved_simulation(simulation)
     ensure_min_version()
+    verify_resolved_simulation(simulation)
     config = simulation.simulation_config
     interface = GrassInterface(
         start_time=config.start_time,
