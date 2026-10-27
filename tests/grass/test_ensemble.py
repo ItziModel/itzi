@@ -52,6 +52,21 @@ def read_manifest(tmp_path: Path) -> dict:
 
 @pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
+def test_resolution_rejects_unsupported_grass_before_reading_region(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from itzi.ensemble.resolution import resolve_ensemble
+
+    path = write_study(tmp_path, grass={"region": "missing_region"})
+    expanded = load_batch([str(path)])[0][0].simulations
+    monkeypatch.setattr(gscript, "parse_command", lambda *_args, **_kwargs: {"version": "8.4.2"})
+
+    with pytest.raises(RuntimeError, match="requires at least GRASS 8.5, found version 8.4"):
+        resolve_ensemble(expanded)
+
+
+@pytest.mark.forked
+@pytest.mark.usefixtures("grass_5by5")
 def test_input_resolution_qualifies_rasters_and_strds_and_rejects_ambiguity(
     tmp_path: Path,
 ) -> None:

@@ -11,7 +11,7 @@ You can browse and download the source code on `GitHub <https://github.com/ItziM
 Installation on GNU/Linux
 -------------------------
 
-Itzï depends on `GRASS GIS 8.4 or above <https://grass.osgeo.org/download/>`__.
+Itzï depends on `GRASS GIS 8.5 or above <https://grass.osgeo.org/download/>`__.
 GRASS should therefore be installed in order to use Itzï.
 All other dependencies are installed by pip.
 

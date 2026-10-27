@@ -32,7 +32,7 @@ Built with GRASS GIS integration at its core, Itzï eliminates the complexity of
 ## 📦 Quick Installation
 
 ### Prerequisites
-Itzï requires [GRASS GIS 8.4 or above](https://grass.osgeo.org/download/). Install GRASS first, then proceed with Itzï installation.
+Itzï requires [GRASS GIS 8.5 or above](https://grass.osgeo.org/download/). Install GRASS first, then proceed with Itzï installation.
 
 ### Recommended Installation (using uv)
 We recommend using [uv](https://docs.astral.sh/uv) for the best installation experience:

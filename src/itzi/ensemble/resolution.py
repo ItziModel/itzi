@@ -47,8 +47,14 @@ def resolve_ensemble(
     requested_params = _requested_grass_params(simulations[0])
 
     with GrassSessionManager(requested_params):
-        from itzi.grass.utils import active_grass_params, read_domain, resolve_effective_mask
+        from itzi.grass.utils import (
+            active_grass_params,
+            ensure_min_version,
+            read_domain,
+            resolve_effective_mask,
+        )
 
+        ensure_min_version()
         actual_params = active_grass_params(requested_params)
         domain = read_domain(simulations[0].grass.region)
         effective_mask = resolve_effective_mask(simulations[0].grass.mask)

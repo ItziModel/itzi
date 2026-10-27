@@ -34,7 +34,7 @@ from itzi.grass.session import GrassParams
 if TYPE_CHECKING:
     from itzi.grass.interface import GrassInterface
 
-MIN_GRASS_VERSION = (8, 4)
+MIN_GRASS_VERSION = (8, 5)
 
 
 type STDSType = Literal["strds", "stvds"]
