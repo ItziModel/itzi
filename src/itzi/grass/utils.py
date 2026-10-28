@@ -263,3 +263,17 @@ def resolve_input_map_lists(
             map_list = [MapData(id=map_name, start_time=start_time, end_time=end_time)]
         map_lists[key] = map_list
     return map_lists
+
+
+def set_colors(raster_id: str, mapset: str, colors_rules: str, map_type: RasterMapType) -> None:
+    colors = libraster.struct_Colors()
+    libraster.Rast_init_colors(byref(colors))
+    try:
+        # shortcut: shipped rules use absolute values, read the raster range for % rules.
+        if not libraster.Rast_load_fp_colors(byref(colors), colors_rules, 0.0, 0.0):
+            raise RuntimeError(f"Unable to load color rules <{colors_rules}>")
+        if map_type != "CELL":
+            libraster.Rast_mark_colors_as_fp(byref(colors))
+        libraster.Rast_write_colors(raster_id, mapset, byref(colors))
+    finally:
+        libraster.Rast_free_colors(byref(colors))

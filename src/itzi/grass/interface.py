@@ -49,6 +49,7 @@ from itzi.grass.utils import (
     read_domain,
     replace_cell_null_sentinel,
     resolve_effective_mask,
+    set_colors,
     set_null,
     split_identifier,
 )
@@ -312,9 +313,10 @@ class GrassInterface:
     def write_raster_map(self, arr: np.ndarray, raster_id: str, mkey: str, hmin: float) -> None:
         """Take a numpy array and write it to GRASS DB"""
         map_type = self.grass_dtype(str(arr.dtype))
+        mapset = get_current_mapset()
         with raster.RasterRow(
             raster_id,
-            mapset=get_current_mapset(),
+            mapset=mapset,
             mode="w",
             mtype=map_type,
             overwrite=self.overwrite,
@@ -326,7 +328,7 @@ class GrassInterface:
         # apply color table
         colors_rules = colors_rules_dict.get(mkey)
         if colors_rules is not None:
-            gscript.run_command("r.colors", quiet=True, rules=colors_rules, map=raster_id)
+            set_colors(raster_id, mapset, colors_rules, map_type)
         # set null values
         if mkey == "water_depth" and hmin > 0:
             set_null(raster_id, hmin)
