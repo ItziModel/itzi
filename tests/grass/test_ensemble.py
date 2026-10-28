@@ -68,29 +68,29 @@ def test_resolution_rejects_unsupported_grass_before_reading_region(
 def test_input_resolution_qualifies_rasters_and_strds_and_rejects_ambiguity(
     tmp_path: Path,
 ) -> None:
+    import grass.temporal as tgis
     from grass.pygrass import utils as gutils
 
     GrassSessionManager.ensure_temporal_initialized()
     mapset = gutils.getenv("MAPSET")
     gscript.mapcalc("stage_rain=1")
-    gscript.run_command(
-        "t.create",
-        output="stage_series",
+    tgis.open_new_stds(
+        name="stage_series",
         type="strds",
         temporaltype="relative",
-        semantictype="mean",
+        semantic="mean",
         title="stage_series",
-        description="stage_series",
+        descr="stage_series",
+        overwrite=gscript.overwrite(),
     )
-    gscript.run_command(
-        "t.register",
-        flags="i",
-        input="stage_series",
+    tgis.register_maps_in_space_time_dataset(
+        name="stage_series",
         type="raster",
         maps="stage_rain",
         start="0",
         increment="60",
         unit="seconds",
+        interval=True,
     )
     path = write_study(
         tmp_path,
@@ -121,28 +121,28 @@ def test_input_resolution_qualifies_rasters_and_strds_and_rejects_ambiguity(
 
 @pytest.mark.usefixtures("grass_5by5")
 def test_temporal_run_validation_failure_does_not_stop_next_member(tmp_path: Path) -> None:
+    import grass.temporal as tgis
     from grass.pygrass import utils as gutils
 
     GrassSessionManager.ensure_temporal_initialized()
     gscript.mapcalc("stage_short_rain=1")
-    gscript.run_command(
-        "t.create",
-        output="stage_short_series",
+    tgis.open_new_stds(
+        name="stage_short_series",
         type="strds",
         temporaltype="relative",
-        semantictype="mean",
+        semantic="mean",
         title="stage_short_series",
-        description="stage_short_series",
+        descr="stage_short_series",
+        overwrite=gscript.overwrite(),
     )
-    gscript.run_command(
-        "t.register",
-        flags="i",
-        input="stage_short_series",
+    tgis.register_maps_in_space_time_dataset(
+        name="stage_short_series",
         type="raster",
         maps="stage_short_rain",
         start="0",
         increment="30",
         unit="seconds",
+        interval=True,
     )
     path = write_study(
         tmp_path,
@@ -492,27 +492,28 @@ def test_dry_run_rejects_null_elevation_without_creating_outputs(tmp_path):
 
 
 @pytest.mark.usefixtures("grass_5by5")
-def test_dry_run_does_not_read_rainfall_cells(tmp_path):
+def test_dry_run_does_not_read_rainfall_cells(tmp_path: Path) -> None:
+    import grass.temporal as tgis
+
     gscript.mapcalc("dry_null_rain_0=null()")
     gscript.mapcalc("dry_null_rain_1=1")
-    gscript.run_command(
-        "t.create",
-        output="dry_rain_series",
+    tgis.open_new_stds(
+        name="dry_rain_series",
         type="strds",
         temporaltype="relative",
-        semantictype="mean",
+        semantic="mean",
         title="dry_rain_series",
-        description="dry_rain_series",
+        descr="dry_rain_series",
+        overwrite=gscript.overwrite(),
     )
-    gscript.run_command(
-        "t.register",
-        flags="i",
-        input="dry_rain_series",
+    tgis.register_maps_in_space_time_dataset(
+        name="dry_rain_series",
         type="raster",
         maps="dry_null_rain_0,dry_null_rain_1",
         start="0",
         increment="30",
         unit="seconds",
+        interval=True,
     )
     config_path = write_study(
         tmp_path,
