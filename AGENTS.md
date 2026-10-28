@@ -2,7 +2,7 @@
 
 ## Common commands
 - Run a single test: `uv run pytest tests/my_test.py`
-- Run the full test suite in one process: `uv run pytest tests/` (requires GRASS 8.5 or above).
+- Run the full test suite: `uv run pytest tests/`.
 - Enforce code formatting: `uv run ruff format .`
 
 ## Code style
@@ -13,8 +13,8 @@
 - Use pydantic BaseModel when validation is needed, and dataclass for internal data exchange.
 - No need to write tests to check if declarative Pydantic validation is working.
 - Place imports at the top of the file. Only break this rule to prevent heavy imports in a rarely used function (for example, CLI options).
-- When passing data structures between functions, prefer immutable objects instead of equivalent mutable ones, unless immutability is desired.
-- For GRASS interactions, prefer C functions calls through `pygrass` when available, instead of sub-process tool calls through `grass.script`
+- When passing data structures between functions, prefer immutable objects instead of equivalent mutable ones, unless mutability is desired.
+- For GRASS interactions, prefer C functions calls through `pygrass` or `grass.temporal` when available, instead of sub-process tool calls through `grass.script`
 
 ## General comments
 - The project uses `uv`. To run a command in the correct environment, use `uv run`
