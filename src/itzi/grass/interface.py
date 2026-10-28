@@ -24,6 +24,7 @@ import grass.pygrass.utils as gutils
 import grass.script as gscript
 import grass.temporal as tgis
 import numpy as np
+from grass.lib import raster as libraster
 from grass.pygrass import raster
 from grass.pygrass.gis.region import Region
 from grass.pygrass.vector import VectorTopo
@@ -38,7 +39,6 @@ from itzi_core.data_containers import (
 )
 
 import itzi.messenger as msgr
-from itzi.ensemble.models import EffectiveMask
 from itzi.grass.utils import (
     MapData,
     RasterMapType,
@@ -120,10 +120,9 @@ class GrassInterface:
         self,
         start_time: datetime,
         end_time: datetime,
-        dtype,
+        dtype: type[np.generic] | np.dtype | str,
         region_id: str | None,
         raster_mask_id: str | None,
-        effective_mask: EffectiveMask | None = None,
     ) -> None:
         assert isinstance(start_time, datetime), "start_time not a datetime object!"
         assert isinstance(end_time, datetime), "end_time not a datetime object!"
@@ -142,19 +141,20 @@ class GrassInterface:
             gscript.use_temp_region()
             gscript.run_command("g.region", region=region_id)
         self.region = Region()
-        self.region.set_raster_region()
+        # Reload the region without remapping GRASS's retained mask descriptor.
+        libraster.Rast_unset_window()
+        libraster.Rast_get_window(self.region.byref())
         self.xr = self.region.cols
         self.yr = self.region.rows
         # Check if region is at least 3x3
         if self.xr < 3 or self.yr < 3:
             msgr.fatal("GRASS Region should be at least 3 cells by 3 cells")
-        selected_mask = effective_mask or resolve_effective_mask(raster_mask_id)
-        if selected_mask.mode != "none" and selected_mask.source is None:
-            msgr.fatal(f"Effective {selected_mask.mode} mask has no source")
-        self.mask_mode = selected_mask.mode
-        self.mask_source = selected_mask.source if selected_mask.mode != "none" else None
+        self.mask_source = resolve_effective_mask(raster_mask_id).source
         self.overwrite = gscript.overwrite()
         self._domain_data = read_domain(None)
+        mask_manager = gscript.MaskManager(mask_name=self.mask_source, remove=False)
+        mask_manager.activate()
+        self._mask_manager: gscript.MaskManager | None = mask_manager
 
     def __enter__(self):
         return self
@@ -166,10 +166,16 @@ class GrassInterface:
         self.cleanup()
 
     def cleanup(self) -> None:
-        """Remove the temporary region."""
-        if self.region_id:
+        """Restore the previous mask and remove the temporary region."""
+        if manager := getattr(self, "_mask_manager", None):
+            manager.deactivate()
+            self._mask_manager = None
+            # Refresh only the mask, preserving unrelated open raster handles.
+            libraster.Rast__check_for_auto_masking()
+        if getattr(self, "region_id", None):
             msgr.debug("Remove temp region...")
             gscript.del_temp_region()
+            self.region_id = None
 
     def grass_dtype(self, dtype: str) -> RasterMapType:
         if dtype in self.dtype_conv["DCELL"]:
@@ -205,15 +211,10 @@ class GrassInterface:
 
     def get_npmask(self) -> np.ndarray:
         """Return a boolean numpy ndarray where True is outside the domain."""
-        if self.mask_mode == "none":
+        if self.mask_source is None:
             return np.full(shape=(self.yr, self.xr), fill_value=False, dtype=np.bool_)
-        assert self.mask_source is not None
-        grass_mask = self.read_raster_map(self.mask_source)
-        if self.mask_mode == "explicit":
-            # r.mask accepts every non-NULL cell, including a zero value.
-            return np.isnan(grass_mask)
-        # A mapset MASK uses CELL semantics: zero and NULL are outside.
-        return np.isnan(grass_mask) | (grass_mask == 0)
+        # Reading the mask through itself applies GRASS's CELL quantisation rules.
+        return np.isnan(self.read_raster_map(self.mask_source))
 
     def get_sim_extend_in_stds_unit(self, strds) -> tuple[int | datetime, int | datetime]:
         """Take a strds object as input
@@ -338,46 +339,17 @@ class GrassInterface:
             )
 
     def read_raster_map(self, raster_id: str) -> np.ndarray:
-        """Read a raster through GRASS 8.4's no-mask row APIs.
-
-        The active mapset MASK must not alter model input values.  The one
-        effective mask selected for the simulation is applied separately by
-        :meth:`get_npmask` and passed to itzi-core.
-        """
-        from grass.lib import raster as libraster
-
+        """Read a raster using the mask selected for the simulation."""
         name, mapset = split_identifier(raster_id)
         if not mapset:
             msgr.fatal(f"Raster <{raster_id}> not found")
 
-        raster_type = libraster.Rast_map_type(name, mapset)
-        reader_data = {
-            libraster.CELL_TYPE: (libraster.Rast_allocate_c_buf, libraster.Rast_get_c_row_nomask),
-            libraster.FCELL_TYPE: (libraster.Rast_allocate_f_buf, libraster.Rast_get_f_row_nomask),
-            libraster.DCELL_TYPE: (libraster.Rast_allocate_d_buf, libraster.Rast_get_d_row_nomask),
-        }.get(raster_type)
-        if reader_data is None:
-            msgr.fatal(f"Raster <{raster_id}> has an unsupported data type")
-        allocate, read_row = reader_data
-        file_descriptor = libraster.Rast_open_old(name, mapset)
-        if file_descriptor < 0:
-            msgr.fatal(f"Raster <{raster_id}> cannot be opened")
-        buffer = allocate()
-        try:
+        with raster.RasterRow(name, mapset=mapset, mode="r") as source:
             array = np.empty((self.yr, self.xr), dtype=self.dtype)
+            buffer = raster.Buffer((self.xr,), mtype=source.mtype)
             for row_index in range(self.yr):
-                read_row(file_descriptor, buffer, row_index)
-                array[row_index] = np.ctypeslib.as_array(buffer, shape=(self.xr,))
-        finally:
-            libraster.Rast_close(file_descriptor)
-        return replace_cell_null_sentinel(
-            {
-                libraster.CELL_TYPE: "CELL",
-                libraster.FCELL_TYPE: "FCELL",
-                libraster.DCELL_TYPE: "DCELL",
-            }[raster_type],
-            array,
-        )
+                array[row_index] = source.get_row(row_index, buffer)
+        return replace_cell_null_sentinel(source.mtype, array)
 
     def write_raster_map(self, arr: np.ndarray, raster_id: str, mkey: str, hmin: float) -> None:
         """Take a numpy array and write it to GRASS DB"""

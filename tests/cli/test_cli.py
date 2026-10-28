@@ -3,6 +3,7 @@
 import argparse
 import os
 import sys
+from io import StringIO
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import cast
@@ -329,9 +330,9 @@ def test_run_validation_worker_keeps_member_failures(monkeypatch):
 
 @pytest.mark.parametrize("finalize_fails", [False, True])
 def test_failed_ensemble_member_finalizes_in_session_and_reports_error(
-    monkeypatch, itzi_stderr, finalize_fails: bool
+    monkeypatch: pytest.MonkeyPatch, itzi_stderr: StringIO, finalize_fails: bool
 ) -> None:
-    calls = []
+    calls: list[str] = []
 
     class FakeGrassSessionManager:
         def __init__(self, _params):
@@ -345,7 +346,7 @@ def test_failed_ensemble_member_finalizes_in_session_and_reports_error(
 
     class FakeSimulationRunner:
         def __init__(self, *_args, **_kwargs):
-            pass
+            calls.append("create")
 
         def initialize(self):
             return self
@@ -361,13 +362,13 @@ def test_failed_ensemble_member_finalizes_in_session_and_reports_error(
 
     monkeypatch.setattr("itzi.itzi.GrassSessionManager", FakeGrassSessionManager)
     monkeypatch.setattr("itzi.itzi.SimulationRunner", FakeSimulationRunner)
+    monkeypatch.setattr("itzi.itzi.verify_resolved_simulation", lambda _: calls.append("verify"))
     simulation = cast(
         ResolvedSimulation,
         SimpleNamespace(
             grass_params=None,
             simulation_config=None,
             artifacts=SimpleNamespace(statistics_file=None),
-            effective_mask=None,
             input_kinds=(),
         ),
     )
@@ -376,7 +377,7 @@ def test_failed_ensemble_member_finalizes_in_session_and_reports_error(
         "execution_failed",
         "ValueError: tiny computed dt",
     )
-    assert calls == ["open", "run", "finalize", "close"]
+    assert calls == ["open", "verify", "create", "run", "finalize", "close"]
     stderr = itzi_stderr.getvalue()
     assert stderr.count("WARNING: Simulation failed: ValueError: tiny computed dt") == 1
     assert ("Could not finalize partial outputs: RuntimeError: registration failed" in stderr) == (

@@ -46,7 +46,11 @@ from itzi.ensemble.models import (
     ResolvedSimulation,
     ValidationFailure,
 )
-from itzi.ensemble.resolution import resolve_ensemble, validate_resolved_ensemble
+from itzi.ensemble.resolution import (
+    resolve_ensemble,
+    validate_resolved_ensemble,
+    verify_resolved_simulation,
+)
 from itzi.grass.session import GrassSessionManager
 from itzi.manifest import (
     _create_manifest,
@@ -112,13 +116,13 @@ def resolved_sim_runner_worker(simulation: ResolvedSimulation) -> tuple[str, str
     msgr._itzi_logger.set_verbosity(msgr.verbosity())
     try:
         with GrassSessionManager(simulation.grass_params):
+            verify_resolved_simulation(simulation)
             runner = SimulationRunner(
                 simulation.simulation_config,
                 simulation.grass_params,
                 stats_file=str(simulation.artifacts.statistics_file)
                 if simulation.artifacts.statistics_file is not None
                 else None,
-                effective_mask=simulation.effective_mask,
                 input_kinds=dict(simulation.input_kinds),
             )
             runner.initialize()
