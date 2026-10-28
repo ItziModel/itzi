@@ -19,7 +19,12 @@ from itzi.cli_parser import build_parser
 from itzi.ensemble.models import ResolvedSimulation, ValidationFailure
 from itzi.grass.names import derived_record_name
 from itzi.grass.session import GrassSessionManager
-from itzi.itzi import _resolve_ensemble_in_subprocess, itzi_run, run_validation_worker
+from itzi.itzi import (
+    _resolve_ensemble_in_subprocess,
+    itzi_run,
+    resolved_sim_runner_worker,
+    run_validation_worker,
+)
 from itzi.run_plan import load_batch
 
 
@@ -188,24 +193,21 @@ def test_worker_rejects_changed_mask_region_and_inputs_after_resolution(tmp_path
             np.float32,
             None,
             "stage_mask_values",
-            resolved.effective_mask,
         )
         try:
             explicit = interface.get_npmask()
-            assert explicit[:, 0].all()
-            assert not explicit[:, 1:].any()  # zero is inside an explicit mask
-            assert np.isfinite(
-                interface.read_raster_map(f"n@{gutils.getenv('MAPSET')}")
-            ).all()  # bypass active MASK
-            interface.mask_mode, interface.mask_source = (
-                "active",
-                f"MASK@{gutils.getenv('MAPSET')}",
-            )
-            active = interface.get_npmask()
-            assert active[:, :2].all()  # zero is outside an active CELL mask
-            assert not active[:, 2:].any()
+            assert explicit[:, :2].all()
+            assert not explicit[:, 2:].any()
+            friction = interface.read_raster_map(f"n@{gutils.getenv('MAPSET')}")
+            np.testing.assert_array_equal(np.isnan(friction), explicit)
+            assert np.isfinite(friction[~explicit]).all()
         finally:
             interface.cleanup()
+
+        with GrassInterface(
+            config.start_time, config.end_time, np.float32, None, None
+        ) as interface:
+            np.testing.assert_array_equal(interface.get_npmask(), explicit)
 
         assert run_validation_worker((resolved,)).get(resolved.simulation_id) is None
         gscript.run_command("r.mask", flags="r")
@@ -217,9 +219,14 @@ def test_worker_rejects_changed_mask_region_and_inputs_after_resolution(tmp_path
         )[0]
         assert isinstance(active_resolved, ResolvedSimulation)
         assert active_resolved.effective_mask.mode == "none"
+        assert run_validation_worker((active_resolved,)).get(active_resolved.simulation_id) is None
         gscript.run_command("g.copy", raster="stage_mask_values,MASK")
         assert "effective GRASS mask changed" in (
             run_validation_worker((active_resolved,)).get(active_resolved.simulation_id) or ""
+        )
+        assert resolved_sim_runner_worker(active_resolved) == (
+            "execution_failed",
+            "EnsembleError: effective GRASS mask changed after resolution",
         )
         assert gutils.get_mapset_raster("MASK", gutils.getenv("MAPSET"))
     finally:
@@ -234,11 +241,18 @@ def test_worker_rejects_changed_mask_region_and_inputs_after_resolution(tmp_path
     assert "GRASS domain changed" in (
         run_validation_worker((resolved,)).get(resolved.simulation_id) or ""
     )
+    assert resolved_sim_runner_worker(resolved) == (
+        "execution_failed",
+        "EnsembleError: GRASS domain changed after resolution",
+    )
     gscript.run_command("g.region", n=50)
     gscript.run_command("g.remove", flags="f", type="raster", name="stage_worker_friction")
     assert "stage_worker_friction" in (
         run_validation_worker((resolved,)).get(resolved.simulation_id) or ""
     )
+    status, detail = resolved_sim_runner_worker(resolved)
+    assert status == "execution_failed"
+    assert detail is not None and "stage_worker_friction" in detail
     assert not (tmp_path / "results").exists()
 
 

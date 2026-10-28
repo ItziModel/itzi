@@ -21,7 +21,6 @@ import numpy as np
 from itzi_core import SimulationBuilder, SimulationConfig
 
 import itzi.messenger as msgr
-from itzi.ensemble.models import EffectiveMask
 from itzi.grass.session import GrassParams
 from itzi.providers.csv_output import ExclusiveCSVMassBalanceOutputProvider
 from itzi.providers.grass_input import GrassRasterInputProvider
@@ -43,7 +42,6 @@ class SimulationRunner:
         grass_params: GrassParams,
         hotstart_path: str | None = None,
         stats_file: str | None = None,
-        effective_mask: EffectiveMask | None = None,
         input_kinds: Mapping[str, Literal["raster", "strds"]] | None = None,
     ) -> None:
         from itzi.grass.utils import (
@@ -57,7 +55,6 @@ class SimulationRunner:
         self.grass_params = grass_params
         self.hotstart_path = hotstart_path
         self.stats_file = stats_file
-        self.effective_mask = effective_mask
         ensure_min_version()
         if input_kinds is None:
             resolved_inputs = {
@@ -103,45 +100,47 @@ class SimulationRunner:
             dtype=data_type,
             region_id=self.grass_params.region,
             raster_mask_id=self.grass_params.mask,
-            effective_mask=self.effective_mask,
         )
-        msgr.verbose("Setting up GRASS simulation...")
+        try:
+            msgr.verbose("Setting up GRASS simulation...")
 
-        raster_input_provider = GrassRasterInputProvider(
-            grass_interface=self.g_interface,
-            input_map_names=self.sim_config.input_map_names,
-            default_start_time=self.sim_config.start_time,
-            default_end_time=self.sim_config.end_time,
-            input_kinds=self.input_kinds,
-        )
-        raster_output_provider = GrassRasterOutputProvider(
-            grass_interface=self.g_interface,
-            out_map_names=self.sim_config.output_map_names,
-            hmin=self.sim_config.surface_flow_parameters.hmin,
-            temporal_type=self.sim_config.temporal_type,
-        )
-        sim_builder = (
-            SimulationBuilder(self.sim_config, self.g_interface.get_npmask(), data_type)
-            .with_input_provider(raster_input_provider)
-            .with_raster_output_provider(raster_output_provider)
-        )
-        if self.sim_config.drainage_output is not None:
-            vector_output_provider = GrassVectorOutputProvider(
+            raster_input_provider = GrassRasterInputProvider(
                 grass_interface=self.g_interface,
+                input_map_names=self.sim_config.input_map_names,
+                default_start_time=self.sim_config.start_time,
+                default_end_time=self.sim_config.end_time,
+                input_kinds=self.input_kinds,
+            )
+            raster_output_provider = GrassRasterOutputProvider(
+                grass_interface=self.g_interface,
+                out_map_names=self.sim_config.output_map_names,
+                hmin=self.sim_config.surface_flow_parameters.hmin,
                 temporal_type=self.sim_config.temporal_type,
-                drainage_map_id=self.sim_config.drainage_output,
             )
-            sim_builder.with_vector_output_provider(vector_output_provider)
-        if self.stats_file:
-            stats_provider = ExclusiveCSVMassBalanceOutputProvider(
-                self.stats_file, overwrite=self.g_interface.overwrite
+            sim_builder = (
+                SimulationBuilder(self.sim_config, self.g_interface.get_npmask(), data_type)
+                .with_input_provider(raster_input_provider)
+                .with_raster_output_provider(raster_output_provider)
             )
-            sim_builder.with_mass_balance_output_provider(stats_provider)
-        if self.hotstart_path:
-            sim_builder.with_hotstart(self.hotstart_path)
-        self.sim: Simulation = sim_builder.build()
-        # Initialize the simulation
-        self.sim.initialize()
+            if self.sim_config.drainage_output is not None:
+                vector_output_provider = GrassVectorOutputProvider(
+                    grass_interface=self.g_interface,
+                    temporal_type=self.sim_config.temporal_type,
+                    drainage_map_id=self.sim_config.drainage_output,
+                )
+                sim_builder.with_vector_output_provider(vector_output_provider)
+            if self.stats_file:
+                stats_provider = ExclusiveCSVMassBalanceOutputProvider(
+                    self.stats_file, overwrite=self.g_interface.overwrite
+                )
+                sim_builder.with_mass_balance_output_provider(stats_provider)
+            if self.hotstart_path:
+                sim_builder.with_hotstart(self.hotstart_path)
+            self.sim: Simulation = sim_builder.build()
+            self.sim.initialize()
+        except BaseException:
+            self.g_interface.cleanup()
+            raise
         return self
 
     def run(self):
@@ -163,12 +162,13 @@ class SimulationRunner:
             self.step()
         return self
 
-    def finalize(self):
+    def finalize(self) -> Self:
         """Tear down the simulation and return to previous state."""
-        self.sim.finalize()
-        # Cleanup the grass interface object
-        if hasattr(self, "g_interface"):
-            self.g_interface.cleanup()
+        try:
+            self.sim.finalize()
+        finally:
+            if hasattr(self, "g_interface"):
+                self.g_interface.cleanup()
         return self
 
     def step(self):

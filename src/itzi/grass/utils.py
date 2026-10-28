@@ -15,6 +15,7 @@ GNU General Public License for more details.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from ctypes import create_string_buffer
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, NamedTuple
@@ -23,6 +24,7 @@ import grass.pygrass.utils as gutils
 import grass.script as gscript
 import grass.temporal as tgis
 import numpy as np
+from grass.lib import gis as libgis, raster as libraster
 from grass.pygrass.gis import Mapset
 from grass.pygrass.gis.region import Region
 from itzi_core import INPUT_ARRAY_KEYS, DomainData
@@ -71,16 +73,23 @@ def check_output_files(file_list: list[str]) -> None:
 
 
 def resolve_effective_mask(mask: str | None) -> EffectiveMask:
-    """Select the effective mask descriptor without modifying the mapset MASK."""
-    current_mapset = gutils.getenv("MAPSET")
+    """Select the configured or active GRASS mask without changing it."""
     if mask is not None:
         name, requested_mapset = split_identifier(mask)
         mapset = gutils.get_mapset_raster(name, requested_mapset or "")
         if not mapset:
             raise EnsembleError(f"explicit mask {mask!r} was not found")
         return EffectiveMask("explicit", f"{name}@{mapset}")
-    if gutils.get_mapset_raster("MASK", current_mapset):
-        return EffectiveMask("active", f"MASK@{current_mapset}")
+    name = create_string_buffer(libgis.GNAME_MAX)
+    mapset = create_string_buffer(libgis.GMAPSET_MAX)
+    if libraster.Rast_mask_status(
+        name,
+        mapset,
+        None,
+        create_string_buffer(libgis.GNAME_MAX),
+        create_string_buffer(libgis.GMAPSET_MAX),
+    ):
+        return EffectiveMask("active", f"{name.value.decode()}@{mapset.value.decode()}")
     return EffectiveMask("none", None)
 
 
