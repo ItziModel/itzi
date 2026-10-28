@@ -40,6 +40,7 @@ itzi = "itzi.itzi:main"
 dev = [
     "pytest>=9.1",
     "pytest-cov==6.*",
+    "pytest-xdist>=3.8",
     "pandas>=3.0.3",
     "pre-commit>=4.6",
     "ruff>=0.15",
@@ -61,7 +62,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
-addopts = ["--import-mode=importlib"]
+addopts = ["--import-mode=importlib", "-n", "2", "--dist=loadfile"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
