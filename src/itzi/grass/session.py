@@ -27,9 +27,6 @@ from typing import TYPE_CHECKING, Self
 
 import itzi.messenger as msgr
 
-_initialized_temporal_session: tuple[int, str, tuple[str, str, str]] | None = None
-_synchronized_session: tuple[int, str, tuple[str, str, str]] | None = None
-
 if TYPE_CHECKING:
     from grass.lib.gis import Cell_head
     from grass.script.setup import SessionHandle
@@ -39,7 +36,25 @@ if TYPE_CHECKING:
 MIN_GRASS_VERSION = (8, 5)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
+class _GrassContext:
+    grassdata: str
+    location: str
+    mapset: str
+
+
+@dataclass(frozen=True, slots=True)
+class _SessionIdentity:
+    pid: int
+    gisrc: str
+    context: _GrassContext
+
+
+_initialized_temporal_session: _SessionIdentity | None = None
+_synchronized_session: _SessionIdentity | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class GrassParams:
     """Parameters for GRASS GIS session."""
 
@@ -165,7 +180,9 @@ def _refresh_session() -> None:
     libraster.Rast_unset_window()
     context = GrassSessionManager.current_context()
     assert context is not None
-    _synchronized_session = (os.getpid(), os.environ["GISRC"], context)
+    _synchronized_session = _SessionIdentity(
+        pid=os.getpid(), gisrc=os.environ["GISRC"], context=_GrassContext(*context)
+    )
 
 
 def _restore_windows(gis: Cell_head, window: Cell_head) -> None:
@@ -222,7 +239,9 @@ class GrassSessionManager:
         import grass.temporal as tgis
 
         gscript.set_raise_on_error(True)
-        session = (os.getpid(), os.environ["GISRC"], context)
+        session = _SessionIdentity(
+            pid=os.getpid(), gisrc=os.environ["GISRC"], context=_GrassContext(*context)
+        )
         if _initialized_temporal_session != session:
             _stop_temporal()
             # Python's forkserver retains the first session's environment for later helpers.
@@ -263,7 +282,9 @@ class GrassSessionManager:
         active = self.current_context()
         if active is None:
             msgr.fatal("Unable to determine the active GRASS context")
-        identity = (os.getpid(), os.environ["GISRC"], active)
+        identity = _SessionIdentity(
+            pid=os.getpid(), gisrc=os.environ["GISRC"], context=_GrassContext(*active)
+        )
         if _synchronized_session != identity:
             _refresh_session()
         gis = libgis.Cell_head()
