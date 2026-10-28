@@ -24,6 +24,7 @@ import grass.pygrass.utils as gutils
 import grass.script as gscript
 import grass.temporal as tgis
 import numpy as np
+from grass.lib import raster as libraster
 from grass.pygrass import raster
 from grass.pygrass.gis.region import Region
 from grass.pygrass.vector import VectorTopo
@@ -140,8 +141,9 @@ class GrassInterface:
             gscript.use_temp_region()
             gscript.run_command("g.region", region=region_id)
         self.region = Region()
-        with gscript.MaskManager(remove=False):
-            self.region.set_raster_region()
+        # Reload the region without remapping GRASS's retained mask descriptor.
+        libraster.Rast_unset_window()
+        libraster.Rast_get_window(self.region.byref())
         self.xr = self.region.cols
         self.yr = self.region.rows
         # Check if region is at least 3x3
@@ -166,11 +168,10 @@ class GrassInterface:
     def cleanup(self) -> None:
         """Restore the previous mask and remove the temporary region."""
         if manager := getattr(self, "_mask_manager", None):
-            # Resetting the window closes GRASS's cached automatic mask descriptor.
-            with gscript.MaskManager(remove=False):
-                self.region.set_raster_region()
             manager.deactivate()
             self._mask_manager = None
+            # Refresh only the mask, preserving unrelated open raster handles.
+            libraster.Rast__check_for_auto_masking()
         if getattr(self, "region_id", None):
             msgr.debug("Remove temp region...")
             gscript.del_temp_region()

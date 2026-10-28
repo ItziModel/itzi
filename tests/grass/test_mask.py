@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -189,3 +191,74 @@ def test_runner_restores_mask_when_lifecycle_fails(
         with pytest.raises(RuntimeError, match="finalization failed"):
             runner.finalize()
     assert os.environ["GRASS_MASK"] == "previous_mask"
+
+
+@pytest.mark.usefixtures("grass_5by5")
+@pytest.mark.parametrize("phase", ["finalize", "delete"])
+@pytest.mark.parametrize("explicit_mask", [False, True])
+@pytest.mark.parametrize("previous_mask", [False, True])
+def test_runner_cleanup_preserves_open_raster_and_restores_reads(
+    monkeypatch: pytest.MonkeyPatch,
+    test_data_path: str,
+    phase: str,
+    explicit_mask: bool,
+    previous_mask: bool,
+) -> None:
+    gscript.mapcalc("previous_mask=if(col()==1, 0, 1)")
+    if previous_mask:
+        monkeypatch.setenv("GRASS_MASK", "previous_mask@5by5")
+    else:
+        monkeypatch.delenv("GRASS_MASK", raising=False)
+
+    # A GRASS C-level exit must fail this test, not terminate the pytest process.
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import os
+import sys
+from pathlib import Path
+
+import numpy as np
+from grass.pygrass.raster import RasterRow
+
+from itzi.configreader import ConfigReader
+from itzi.grass.session import GrassParams, GrassSessionManager
+from itzi.simulation_runner import SimulationRunner
+
+with GrassSessionManager(GrassParams()):
+    reader = ConfigReader(str(Path(sys.argv[1]) / "5by5" / "5by5.ini"))
+    config = reader.sim_config.model_copy(update={"output_map_names": {}})
+    original_mask = os.environ.get("GRASS_MASK")
+    mask = "5by3" if sys.argv[3] == "True" else None
+    runner = SimulationRunner(config, GrassParams(mask=mask)).initialize()
+    with RasterRow("n", mapset="5by5", mode="r") as source:
+        np.testing.assert_array_equal(
+            np.isnan(np.asarray(source.get_row(0))), runner.g_interface.get_npmask()[0]
+        )
+        if sys.argv[2] == "finalize":
+            runner.finalize()
+        else:
+            del runner
+        assert os.environ.get("GRASS_MASK") == original_mask
+        expected = [original_mask is not None, False, False, False, False]
+        restored_row = np.asarray(source.get_row(0))
+        np.testing.assert_array_equal(np.isnan(restored_row), expected)
+        np.testing.assert_allclose(restored_row[1:], 0.05)
+
+    next_runner = SimulationRunner(config, GrassParams(region="3by5", mask=mask)).initialize()
+    assert next_runner.g_interface.read_raster_map("n@5by5").shape == (3, 5)
+    next_runner.finalize()
+    assert os.environ.get("GRASS_MASK") == original_mask
+""",
+            test_data_path,
+            phase,
+            str(explicit_mask),
+        ],
+        env=os.environ | {"PYTHONPATH": os.pathsep.join(sys.path)},
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
