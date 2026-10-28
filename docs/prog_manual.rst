@@ -30,29 +30,19 @@ Testing
 -------
 
 Testing is done with pytest.
-Due to mapset switching issues in GRASS (`see issue <https://github.com/OSGeo/grass/issues/629>`__),
-the tests must be run in separate processes using *pytest-forked*.
+GRASS 8.5 or above is required. The full suite can run in one pytest process;
+GRASS fixtures reuse a session and restore pristine mapset data between tests.
+BMI fixtures provide a fresh model for each test.
 
 .. code:: sh
 
-    uv run pytest --forked -v tests/
-
-This would be quite slow, because all individual tests will be run in a separate process.
-The tests needing forking are marked with *@pytest.mark.forked*.
-It is faster to run each test file independently, and let the marking do its job.
+    uv run pytest -v tests/
 
 To estimate the test coverage:
 
 .. code:: sh
 
-    uv run pytest --cov=itzi --forked -v tests/
-
-The GRASS-specific tests could be sped up a bit by running them separately:
-
-.. code:: sh
-
-    uv run pytest tests/grass/test_itzi.py && uv run pytest tests/grass/test_bmi.py && uv run pytest tests/grass/test_tutorial.py
-
+    uv run pytest --cov=itzi -v tests/
 
 The tests not relying on GRASS can be run directly:
 

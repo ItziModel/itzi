@@ -2,7 +2,7 @@
 
 ## Common commands
 - Run a single test: `uv run pytest tests/my_test.py`
-- Due to a bug in GRASS<8.5, a change of mapset cannot occur within the same process when using the temporal framework. Each test file must therefore be run independently. Tests that need to run in a separate process are marked with `@pytest.mark.forked`.
+- Run the full test suite in one process: `uv run pytest tests/` (requires GRASS 8.5 or above).
 - Enforce code formatting: `uv run ruff format .`
 
 ## Code style

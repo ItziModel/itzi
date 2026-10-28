@@ -142,6 +142,7 @@ class GrassInterface:
             gscript.use_temp_region()
             gscript.run_command("g.region", region=region_id)
         self.region = Region()
+        self.region.set_raster_region()
         self.xr = self.region.cols
         self.yr = self.region.rows
         # Check if region is at least 3x3

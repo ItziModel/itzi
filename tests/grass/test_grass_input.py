@@ -61,17 +61,19 @@ def test_resolved_input_kinds_share_raster_and_strds_construction(
     assert interface.temporal_checks == ["series@test"]
 
 
-@pytest.mark.forked
 def test_visible_input_and_current_output_with_same_name(grass_xy_session) -> None:
+    from grass.pygrass.gis import make_mapset, set_current_mapset
     import grass.script as gscript
 
     from itzi.grass.interface import GrassInterface
     from itzi.grass.utils import output_name, qualify_output_id
     from itzi.providers.grass_output import derived_record_name
 
+    set_current_mapset("PERMANENT")
     gscript.run_command("g.region", n=3, s=0, e=3, w=0, res=1)
     gscript.mapcalc("visible_output=2")
-    gscript.run_command("g.mapset", mapset="child", flags="c")
+    make_mapset("child")
+    set_current_mapset("child")
     output_id = qualify_output_id("visible_output", "child")
     assert output_id == "visible_output@child"
     assert derived_record_name(output_id, 0) == "visible_output_0000@child"
@@ -91,7 +93,6 @@ def test_visible_input_and_current_output_with_same_name(grass_xy_session) -> No
     )
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_direct_runner_qualifies_ids_before_creating_providers(test_data_path: str) -> None:
     from pathlib import Path
@@ -111,7 +112,6 @@ def test_direct_runner_qualifies_ids_before_creating_providers(test_data_path: s
     assert runner.sim_config.output_map_names["water_depth"] == "direct_id_check@5by5"
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_vector_writer_uses_bare_name_from_qualified_output_id() -> None:
     from grass.pygrass.utils import get_mapset_vector

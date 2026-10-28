@@ -9,30 +9,30 @@ import pytest
 from itzi import BmiItzi
 
 
-@pytest.fixture(scope="class")
-def bmi_object(grass_5by5, test_data_path):
+@pytest.fixture
+def bmi_object(grass_5by5: None, test_data_path: str) -> BmiItzi:
     itzi_bmi = BmiItzi()
     conf_file = os.path.join(test_data_path, "5by5", "5by5.ini")
     itzi_bmi.initialize(conf_file)
     return itzi_bmi
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture
 def finalize_bmi_object(bmi_object: BmiItzi) -> Iterator[None]:
     yield
     bmi_object.finalize()
 
 
-@pytest.mark.forked
 class TestBmiMutating:
-    """Those functions mutate the BMI model state.
-    Needs forking to recreate the state every time."""
+    """Each test receives a fresh model because these functions mutate its state."""
 
     # Model control functions #
+    @pytest.mark.usefixtures("finalize_bmi_object")
     def test_initialize(self, bmi_object):
         assert hasattr(bmi_object, "itzi")
         assert hasattr(bmi_object.itzi, "sim")
 
+    @pytest.mark.usefixtures("finalize_bmi_object")
     def test_update(self, bmi_object):
         old_time = bmi_object.get_current_time()
         bmi_object.update()
@@ -40,6 +40,7 @@ class TestBmiMutating:
         new_time = bmi_object.get_current_time()
         assert new_time == old_time + dt
 
+    @pytest.mark.usefixtures("finalize_bmi_object")
     def test_update_until(self, bmi_object):
         old_time = bmi_object.get_current_time()
         then = 2
@@ -50,6 +51,7 @@ class TestBmiMutating:
     def test_finalize(self, bmi_object):
         bmi_object.finalize()
 
+    @pytest.mark.usefixtures("finalize_bmi_object")
     def test_set_value(self, bmi_object):
         var_name = "land_surface__elevation"
         grid_id = bmi_object.get_var_grid(var_name)
@@ -62,7 +64,7 @@ class TestBmiMutating:
 
 @pytest.mark.usefixtures("finalize_bmi_object")
 class TestBmi:
-    """Test non-mutating functions. No forking needed."""
+    """Test non-mutating functions."""
 
     # Model information functions #
     def test_get_component_name(self, bmi_object):

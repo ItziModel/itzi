@@ -98,7 +98,6 @@ def _build_timed_rain_runner(
     ).initialize()
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5_sim")
 def test_number_of_output():
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
@@ -145,7 +144,6 @@ def test_number_of_output():
     assert len(created_volume_map_list) == 3
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_region_mask(test_data_path):
     """Check if temporary mask and region are set and teared down."""
@@ -175,7 +173,6 @@ def test_region_mask(test_data_path):
     assert int(gscript.parse_command("r.univar", map="z", flags="g")["null_cells"]) == init_nulls
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_fails_when_region_has_no_dem_data(test_data_temp_path):
     gscript.run_command(
@@ -223,7 +220,6 @@ def test_fails_when_region_has_no_dem_data(test_data_temp_path):
         ).initialize()
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 @pytest.mark.parametrize("temporal_type", ["relative", "absolute"])
 def test_empty_strds_fails_with_clear_error(test_data_temp_path, temporal_type: str):
@@ -256,7 +252,6 @@ def test_empty_strds_fails_with_clear_error(test_data_temp_path, temporal_type: 
         )
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_relative_strds_with_unsupported_unit_fails_with_clear_error(test_data_temp_path):
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
@@ -304,7 +299,6 @@ def test_relative_strds_with_unsupported_unit_fails_with_clear_error(test_data_t
         )
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 @pytest.mark.parametrize(
     ("target_seconds", "expected_rain_mm_per_hour", "expected_input_deadline_seconds"),
@@ -344,7 +338,6 @@ def test_timed_grass_rain_switches_cleanly_around_boundary(
         sim_runner.g_interface.cleanup()
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_timed_grass_rain_is_applied_before_a_step_crosses_its_boundary(test_data_temp_path):
     input_names = _create_timed_rain_inputs("timed_crossing")

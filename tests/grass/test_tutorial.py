@@ -2,7 +2,8 @@
 
 import os
 import pathlib
-import tempfile
+import shutil
+from collections.abc import Iterator
 from configparser import ConfigParser
 from io import StringIO
 
@@ -10,47 +11,53 @@ import grass.script as gscript
 import numpy as np
 import pandas as pd
 import pytest
+from grass.script.setup import SessionHandle
 from itzi_core.data_containers import DrainageLinkAttributes, DrainageNodeAttributes
 
 from itzi import SimulationRunner
 from itzi.configreader import ConfigReader
-from itzi.grass.session import GrassSessionManager
+from itzi.grass import session
 
 DATA_EPSG = "3358"
 
 
 @pytest.fixture(scope="class")
-def tutorial_test_file(test_data_path):
+def tutorial_test_file(test_data_path: str) -> pathlib.Path:
     """Return the tutorial DEM managed by Git LFS."""
     return pathlib.Path(test_data_path) / "tutorial_files" / "elev_lid792_1m.gtiff"
 
 
 @pytest.fixture(scope="class")
-def grass_tutorial_session(test_data_temp_path):
-    """Create a GRASS session in a new location and PERMANENT mapset"""
-    # Keep all generated files in the test_data_temp_path
-    os.chdir(test_data_temp_path)
-    workdir = tempfile.TemporaryDirectory(dir=test_data_temp_path)
-    os.chdir(workdir.name)
-    tmpdir = tempfile.TemporaryDirectory()
-    gscript.create_project(tmpdir.name, name="itzi_tutorial", epsg=DATA_EPSG)
-    grass_session = gscript.setup.init(
-        path=tmpdir.name, location="itzi_tutorial", mapset="PERMANENT"
-    )
-    GrassSessionManager.ensure_temporal_initialized()
-    os.environ["GRASS_VERBOSE"] = "1"
-    yield grass_session
-    grass_session.finish()
-    tmpdir.cleanup()
-    os.chdir(test_data_temp_path)
-    workdir.cleanup()
+def grass_tutorial_session(
+    grass_xy_session: SessionHandle, tmp_path_factory: pytest.TempPathFactory
+) -> Iterator[SessionHandle]:
+    """Use the shared session file when switching to a projected project."""
+    import grass.temporal as tgis
+    from grass.pygrass.gis import set_current_mapset
+
+    original = gscript.gisenv()
+    tmp_path = tmp_path_factory.mktemp("grass_tutorial")
+    gscript.create_project(tmp_path, name="itzi_tutorial", epsg=DATA_EPSG)
+    set_current_mapset("PERMANENT", "itzi_tutorial", str(tmp_path))
+    tgis.stop_subprocesses()
+    tgis.core.c_library_interface = None
+    try:
+        session.GrassSessionManager.ensure_temporal_initialized()
+        yield grass_xy_session
+    finally:
+        tgis.stop_subprocesses()
+        tgis.core.c_library_interface = None
+        set_current_mapset(original["MAPSET"], original["LOCATION_NAME"], original["GISDBASE"])
+        session._initialized_temporal_session = None
 
 
 @pytest.fixture(scope="class")
-def itzi_tutorial(grass_tutorial_session, tutorial_test_file):
-    """Create the GRASS env for the tutorial.
-    Repeat the steps described in the tutorial.
-    """
+def itzi_tutorial_template(
+    grass_tutorial_session: SessionHandle,
+    tutorial_test_file: pathlib.Path,
+    tmp_path_factory: pytest.TempPathFactory,
+) -> tuple[pathlib.Path, pathlib.Path]:
+    """Build the tutorial input data once and save a pristine mapset copy."""
     # import DEM
     gscript.run_command("r.in.gdal", input=tutorial_test_file, output="elev_lid792_1m")
     # Adjust the region
@@ -71,11 +78,7 @@ def itzi_tutorial(grass_tutorial_session, tutorial_test_file):
     )
     gscript.run_command("r.mask", rast="watershed")
     # Create boundary condition maps
-    watershed_out_file = pathlib.Path("watershed_out.txt")
-    with watershed_out_file.open("w") as file:
-        file.write("638888|220011")
-    gscript.run_command("v.in.ascii", input="watershed_out.txt", output="watershed_out")
-    watershed_out_file.unlink()
+    gscript.write_command("v.in.ascii", input="-", output="watershed_out", stdin="638888|220011")
     gscript.run_command(
         "v.to.rast",
         input="watershed_out",
@@ -95,9 +98,24 @@ def itzi_tutorial(grass_tutorial_session, tutorial_test_file):
     # Create rainfall and friction maps
     gscript.run_command("r.mapcalc", exp="rain=100")
     gscript.run_command("r.mapcalc", exp="n=0.05")
+    current = gscript.gisenv()
+    mapset_path = pathlib.Path(current["GISDBASE"]) / current["LOCATION_NAME"] / "PERMANENT"
+    template_path = tmp_path_factory.mktemp("grass_tutorial_template") / "PERMANENT"
+    shutil.copytree(mapset_path, template_path)
+    return mapset_path, template_path
 
 
-@pytest.mark.forked
+@pytest.fixture
+def itzi_tutorial(
+    itzi_tutorial_template: tuple[pathlib.Path, pathlib.Path], tmp_path: pathlib.Path
+) -> None:
+    """Restore fresh tutorial data without restarting GRASS helpers."""
+    mapset_path, template_path = itzi_tutorial_template
+    shutil.rmtree(mapset_path)
+    shutil.copytree(template_path, mapset_path)
+    os.chdir(tmp_path)
+
+
 @pytest.mark.slow
 @pytest.mark.usefixtures("itzi_tutorial", "test_data_path")
 class TestItziTutorial:
