@@ -13,6 +13,8 @@ from itzi.grass.session import GrassSessionManager
 
 
 def _create_timed_rain_inputs(name_prefix: str) -> dict[str, str]:
+    import grass.temporal as tgis
+
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     suffix = uuid4().hex[:8]
     zero_depth_map = f"{name_prefix}_start_h_zero_{suffix}"
@@ -27,24 +29,23 @@ def _create_timed_rain_inputs(name_prefix: str) -> dict[str, str]:
     gscript.mapcalc(f"{rain_map_names[0]}=0")
     gscript.mapcalc(f"{rain_map_names[1]}=360")
     gscript.mapcalc(f"{rain_map_names[2]}=360")
-    gscript.run_command(
-        "t.create",
-        output=strds_name,
+    tgis.open_new_stds(
+        name=strds_name,
         type="strds",
         temporaltype="relative",
-        semantictype="mean",
+        semantic="mean",
         title=strds_name,
-        description=strds_name,
+        descr=strds_name,
+        overwrite=gscript.overwrite(),
     )
-    gscript.run_command(
-        "t.register",
-        flags="i",
-        input=strds_name,
+    tgis.register_maps_in_space_time_dataset(
+        name=strds_name,
         type="raster",
         maps=",".join(rain_map_names),
         start="0",
         increment="10",
         unit="seconds",
+        interval=True,
     )
 
     return {
@@ -98,7 +99,6 @@ def _build_timed_rain_runner(
     ).initialize()
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5_sim")
 def test_number_of_output():
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
@@ -145,7 +145,6 @@ def test_number_of_output():
     assert len(created_volume_map_list) == 3
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_region_mask(test_data_path):
     """Check if temporary mask and region are set and teared down."""
@@ -175,7 +174,6 @@ def test_region_mask(test_data_path):
     assert int(gscript.parse_command("r.univar", map="z", flags="g")["null_cells"]) == init_nulls
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_fails_when_region_has_no_dem_data(test_data_temp_path):
     gscript.run_command(
@@ -223,20 +221,21 @@ def test_fails_when_region_has_no_dem_data(test_data_temp_path):
         ).initialize()
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 @pytest.mark.parametrize("temporal_type", ["relative", "absolute"])
-def test_empty_strds_fails_with_clear_error(test_data_temp_path, temporal_type: str):
+def test_empty_strds_fails_with_clear_error(test_data_temp_path: str, temporal_type: str) -> None:
+    import grass.temporal as tgis
+
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     strds_name = f"empty_{temporal_type}_rain_{uuid4().hex[:8]}"
-    gscript.run_command(
-        "t.create",
-        output=strds_name,
+    tgis.open_new_stds(
+        name=strds_name,
         type="strds",
         temporaltype=temporal_type,
-        semantictype="mean",
+        semantic="mean",
         title=strds_name,
-        description=strds_name,
+        descr=strds_name,
+        overwrite=gscript.overwrite(),
     )
 
     input_names = {
@@ -256,32 +255,34 @@ def test_empty_strds_fails_with_clear_error(test_data_temp_path, temporal_type: 
         )
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
-def test_relative_strds_with_unsupported_unit_fails_with_clear_error(test_data_temp_path):
+def test_relative_strds_with_unsupported_unit_fails_with_clear_error(
+    test_data_temp_path: str,
+) -> None:
+    import grass.temporal as tgis
+
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     suffix = uuid4().hex[:8]
     strds_name = f"monthly_rain_{suffix}"
     rain_map_name = f"monthly_rain_map_{suffix}"
     gscript.mapcalc(f"{rain_map_name}=10")
-    gscript.run_command(
-        "t.create",
-        output=strds_name,
+    tgis.open_new_stds(
+        name=strds_name,
         type="strds",
         temporaltype="relative",
-        semantictype="mean",
+        semantic="mean",
         title=strds_name,
-        description=strds_name,
+        descr=strds_name,
+        overwrite=gscript.overwrite(),
     )
-    gscript.run_command(
-        "t.register",
-        flags="i",
-        input=strds_name,
+    tgis.register_maps_in_space_time_dataset(
+        name=strds_name,
         type="raster",
         maps=rain_map_name,
         start="0",
         increment="1",
         unit="months",
+        interval=True,
     )
 
     input_names = {
@@ -304,7 +305,6 @@ def test_relative_strds_with_unsupported_unit_fails_with_clear_error(test_data_t
         )
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 @pytest.mark.parametrize(
     ("target_seconds", "expected_rain_mm_per_hour", "expected_input_deadline_seconds"),
@@ -344,7 +344,6 @@ def test_timed_grass_rain_switches_cleanly_around_boundary(
         sim_runner.g_interface.cleanup()
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_timed_grass_rain_is_applied_before_a_step_crosses_its_boundary(test_data_temp_path):
     input_names = _create_timed_rain_inputs("timed_crossing")

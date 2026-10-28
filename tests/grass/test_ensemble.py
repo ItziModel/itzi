@@ -50,7 +50,6 @@ def read_manifest(tmp_path: Path) -> dict:
     )
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_resolution_rejects_unsupported_grass_before_reading_region(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -65,34 +64,33 @@ def test_resolution_rejects_unsupported_grass_before_reading_region(
         resolve_ensemble(expanded)
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_input_resolution_qualifies_rasters_and_strds_and_rejects_ambiguity(
     tmp_path: Path,
 ) -> None:
+    import grass.temporal as tgis
     from grass.pygrass import utils as gutils
 
     GrassSessionManager.ensure_temporal_initialized()
     mapset = gutils.getenv("MAPSET")
     gscript.mapcalc("stage_rain=1")
-    gscript.run_command(
-        "t.create",
-        output="stage_series",
+    tgis.open_new_stds(
+        name="stage_series",
         type="strds",
         temporaltype="relative",
-        semantictype="mean",
+        semantic="mean",
         title="stage_series",
-        description="stage_series",
+        descr="stage_series",
+        overwrite=gscript.overwrite(),
     )
-    gscript.run_command(
-        "t.register",
-        flags="i",
-        input="stage_series",
+    tgis.register_maps_in_space_time_dataset(
+        name="stage_series",
         type="raster",
         maps="stage_rain",
         start="0",
         increment="60",
         unit="seconds",
+        interval=True,
     )
     path = write_study(
         tmp_path,
@@ -121,31 +119,30 @@ def test_input_resolution_qualifies_rasters_and_strds_and_rejects_ambiguity(
     assert f"STRDS stage_series@{mapset}" in ambiguous.detail
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_temporal_run_validation_failure_does_not_stop_next_member(tmp_path: Path) -> None:
+    import grass.temporal as tgis
     from grass.pygrass import utils as gutils
 
     GrassSessionManager.ensure_temporal_initialized()
     gscript.mapcalc("stage_short_rain=1")
-    gscript.run_command(
-        "t.create",
-        output="stage_short_series",
+    tgis.open_new_stds(
+        name="stage_short_series",
         type="strds",
         temporaltype="relative",
-        semantictype="mean",
+        semantic="mean",
         title="stage_short_series",
-        description="stage_short_series",
+        descr="stage_short_series",
+        overwrite=gscript.overwrite(),
     )
-    gscript.run_command(
-        "t.register",
-        flags="i",
-        input="stage_short_series",
+    tgis.register_maps_in_space_time_dataset(
+        name="stage_short_series",
         type="raster",
         maps="stage_short_rain",
         start="0",
         increment="30",
         unit="seconds",
+        interval=True,
     )
     path = write_study(
         tmp_path,
@@ -169,7 +166,6 @@ def test_temporal_run_validation_failure_does_not_stop_next_member(tmp_path: Pat
     assert gutils.get_mapset_raster(f"{output.partition('@')[0]}_0000", gutils.getenv("MAPSET"))
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_worker_rejects_changed_mask_region_and_inputs_after_resolution(tmp_path: Path) -> None:
     from grass.pygrass import utils as gutils
@@ -246,7 +242,6 @@ def test_worker_rejects_changed_mask_region_and_inputs_after_resolution(tmp_path
     assert not (tmp_path / "results").exists()
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_dry_run_rejects_raster_outside_domain_without_writing(tmp_path: Path) -> None:
     from grass.pygrass import utils as gutils
@@ -272,7 +267,6 @@ def test_dry_run_rejects_raster_outside_domain_without_writing(tmp_path: Path) -
     assert not gutils.get_mapset_raster("stage_spatial_water_depth_0000", gutils.getenv("MAPSET"))
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_ensemble_output_collision_with_input_rejects_all_members(tmp_path: Path) -> None:
     from grass.pygrass import utils as gutils
@@ -292,7 +286,6 @@ def test_ensemble_output_collision_with_input_rejects_all_members(tmp_path: Path
     assert not gutils.get_mapset_raster("stage_alias_water_depth_0000", gutils.getenv("MAPSET"))
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_yaml_ensemble_runs_in_spawned_resolver_and_worker(test_data_temp_path):
     config_path = Path(test_data_temp_path) / "source-file-name.yaml"
@@ -352,7 +345,6 @@ outputs:
     )
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_failed_ensemble_member_registers_partial_maps(tmp_path: Path) -> None:
     import grass.temporal as tgis
@@ -395,7 +387,6 @@ def test_failed_ensemble_member_registers_partial_maps(tmp_path: Path) -> None:
     assert [row["id"] for row in stds.get_registered_maps(columns="id")] == [record_id]
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_explicit_grass_context_runs_two_members_without_parent_session(test_data_temp_path):
     context = gscript.gisenv()
@@ -451,7 +442,6 @@ outputs:
     } <= {path.name for path in mapset_path.iterdir()}
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_dry_run_validates_multiple_members_in_one_session(tmp_path):
     prefix = f"dry_multi_{uuid4().hex[:8]}"
@@ -468,7 +458,6 @@ def test_dry_run_validates_multiple_members_in_one_session(tmp_path):
     assert not gscript.list_strings(type="raster", pattern=f"{prefix}_*")
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_dry_run_rejects_null_elevation_without_creating_outputs(tmp_path):
     gscript.mapcalc("dry_null_dem=null()")
@@ -502,29 +491,29 @@ def test_dry_run_rejects_null_elevation_without_creating_outputs(tmp_path):
     assert not gscript.find_file(name="dry_output_water_depth_0000", element="cell").get("file")
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
-def test_dry_run_does_not_read_rainfall_cells(tmp_path):
+def test_dry_run_does_not_read_rainfall_cells(tmp_path: Path) -> None:
+    import grass.temporal as tgis
+
     gscript.mapcalc("dry_null_rain_0=null()")
     gscript.mapcalc("dry_null_rain_1=1")
-    gscript.run_command(
-        "t.create",
-        output="dry_rain_series",
+    tgis.open_new_stds(
+        name="dry_rain_series",
         type="strds",
         temporaltype="relative",
-        semantictype="mean",
+        semantic="mean",
         title="dry_rain_series",
-        description="dry_rain_series",
+        descr="dry_rain_series",
+        overwrite=gscript.overwrite(),
     )
-    gscript.run_command(
-        "t.register",
-        flags="i",
-        input="dry_rain_series",
+    tgis.register_maps_in_space_time_dataset(
+        name="dry_rain_series",
         type="raster",
         maps="dry_null_rain_0,dry_null_rain_1",
         start="0",
         increment="30",
         unit="seconds",
+        interval=True,
     )
     config_path = write_study(
         tmp_path,
@@ -538,7 +527,6 @@ def test_dry_run_does_not_read_rainfall_cells(tmp_path):
     assert not (tmp_path / "results" / "dry-rain.manifest.yaml").exists()
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_dry_run_checks_every_generated_output_record(test_data_temp_path):
     gscript.mapcalc("existing_output_water_depth_0002=1")
@@ -558,7 +546,6 @@ def test_dry_run_checks_every_generated_output_record(test_data_temp_path):
     )
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_xy_session")
 def test_run_validation_accepts_unoccupied_drainage_id():
     from itzi.ensemble.run_validation import _validate_grass_outputs

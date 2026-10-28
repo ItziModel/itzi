@@ -3,6 +3,7 @@ Define pytest fixture common to GRASS-based test modules.
 """
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -17,6 +18,7 @@ grass_python_path = subprocess.check_output(
 ).strip()
 sys.path.append(grass_python_path)
 import grass.script as gscript  # noqa: E402
+from grass.script.setup import SessionHandle  # noqa: E402
 
 from itzi import (  # noqa: E402
     SimulationRunner,  # noqa: E402
@@ -24,50 +26,61 @@ from itzi import (  # noqa: E402
 from itzi.configreader import ConfigReader  # noqa: E402
 from itzi.grass import session  # noqa: E402
 
-TESTS_ROOT = Path.cwd()
-TEST_PROCESS = os.getpid()
-
 
 @pytest.fixture(autouse=True)
-def stop_temporal_subprocesses_after_test() -> Iterator[None]:
-    """Forked tests must stop their own GRASS RPC children before os._exit."""
-    yield
-    if os.getpid() != TEST_PROCESS and session._initialized_temporal_session is not None:
-        session_pid = session._initialized_temporal_session[0]
-        if session_pid == os.getpid():
-            import grass.temporal as tgis
-
-            tgis.stop_subprocesses()
+def grass_test_environment() -> Iterator[None]:
+    """Restore process state after GRASS tests change it."""
+    environment = os.environ.copy()
+    workdir = Path.cwd()
+    try:
+        yield
+    finally:
+        os.chdir(workdir)
+        os.environ.clear()
+        os.environ.update(environment)
 
 
 @pytest.fixture(scope="session")
-def grass_xy_session(test_data_temp_path):
-    """Create a GRASS session in a new XY location and PERMANENT mapset"""
-    # Keep all generated files in the test_data_temp_path
-    os.chdir(test_data_temp_path)
-    tmpdir = tempfile.TemporaryDirectory(prefix="tests_itzi_")
+def grass_xy_session(tmp_path_factory: pytest.TempPathFactory) -> Iterator[SessionHandle]:
+    """Keep one GRASS session and its temporal helpers for the test suite."""
+    tmp_path = tmp_path_factory.mktemp("grass")
+    environment = os.environ.copy()
     gscript.set_raise_on_error(True)
-    # create a new location
     location_name = "xy"
-    gscript.create_project(tmpdir.name, name=location_name)
-    # set up session
-    grass_session = gscript.setup.init(
-        path=tmpdir.name, location=location_name, mapset="PERMANENT", grass_path="grass"
-    )
-    os.environ["GRASS_VERBOSE"] = "1"
-    # os.environ['ITZI_VERBOSE'] = '4'
-    # os.environ['GRASS_OVERWRITE'] = '1'
-    yield grass_session
-    grass_session.finish()
-    tmpdir.cleanup()
+    gscript.create_project(tmp_path, name=location_name)
+    with gscript.setup.init(
+        path=tmp_path, location=location_name, mapset="PERMANENT", grass_path="grass"
+    ) as grass_session:
+        import grass.temporal as tgis
+        from grass.lib import gis as libgis, raster as libraster
+
+        # GRASS C libraries cache session paths and windows across Python sessions.
+        libgis.G__read_gisrc_path()
+        libgis.G__read_gisrc_env()
+        libgis.G_reset_mapsets()
+        libgis.G_unset_window()
+        libraster.Rast_unset_window()
+        os.environ["GRASS_VERBOSE"] = "1"
+        try:
+            yield grass_session
+        finally:
+            tgis.stop_subprocesses()
+            session._initialized_temporal_session = None
+    os.environ.clear()
+    os.environ.update(environment)
 
 
-@pytest.fixture(scope="class")
-def grass_5by5(grass_xy_session, test_data_path):
-    """Create a square, 5 by 5 domain."""
+@pytest.fixture(scope="session")
+def grass_5by5_template(
+    grass_xy_session: SessionHandle, tmp_path_factory: pytest.TempPathFactory
+) -> tuple[Path, Path]:
+    """Build the 5 by 5 input data once and save a pristine mapset copy."""
+    from grass.pygrass.gis import make_mapset, set_current_mapset
+
     resolution = 10
     # Create new mapset
-    gscript.run_command("g.mapset", mapset="5by5", flags="c")
+    make_mapset("5by5")
+    set_current_mapset("5by5")
     # Create 3by5 named region
     gscript.run_command("g.region", res=resolution, s=10, n=40, w=0, e=50, save="3by5", flags="o")
     region = gscript.parse_command("g.region", flags="pg")
@@ -170,11 +183,33 @@ def grass_5by5(grass_xy_session, test_data_path):
     gscript.mapcalc("loss_rate=1.5")
     gscript.mapcalc("inflow_rate=0.1")
     with session.GrassSessionManager(session.GrassParams()):
+        mapset_path = Path(gscript.gisenv()["GISDBASE"]) / "xy" / "5by5"
+        template_path = tmp_path_factory.mktemp("grass_template") / "5by5"
+        shutil.copytree(mapset_path, template_path)
+    return mapset_path, template_path
+
+
+@pytest.fixture
+def grass_5by5(grass_5by5_template: tuple[Path, Path], tmp_path: Path) -> Iterator[None]:
+    """Restore fresh data while reusing the same GRASS session and helpers."""
+    from grass.lib import gis as libgis, raster as libraster
+    from grass.pygrass.gis import set_current_mapset
+
+    mapset_path, template_path = grass_5by5_template
+    set_current_mapset("PERMANENT", "xy", str(mapset_path.parent.parent))
+    shutil.rmtree(mapset_path)
+    shutil.copytree(template_path, mapset_path)
+    set_current_mapset("5by5")
+    libgis.G_reset_mapsets()
+    libgis.G_unset_window()
+    libraster.Rast_unset_window()
+    os.chdir(tmp_path)
+    with session.GrassSessionManager(session.GrassParams()):
         yield
 
 
-@pytest.fixture(scope="class")
-def grass_5by5_sim(grass_5by5, test_data_path):
+@pytest.fixture
+def grass_5by5_sim(grass_5by5: None, test_data_path: str) -> SimulationRunner:
     config_file = os.path.join(test_data_path, "5by5", "5by5.ini")
     conf_data = ConfigReader(config_file)
     sim_runner = SimulationRunner(

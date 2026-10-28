@@ -142,6 +142,7 @@ class GrassInterface:
             gscript.use_temp_region()
             gscript.run_command("g.region", region=region_id)
         self.region = Region()
+        self.region.set_raster_region()
         self.xr = self.region.cols
         self.yr = self.region.rows
         # Check if region is at least 3x3
@@ -153,6 +154,7 @@ class GrassInterface:
         self.mask_mode = selected_mask.mode
         self.mask_source = selected_mask.source if selected_mask.mode != "none" else None
         self.overwrite = gscript.overwrite()
+        self._domain_data = read_domain(None)
 
     def __enter__(self):
         return self
@@ -199,7 +201,7 @@ class GrassInterface:
         return self.start_time + timedelta(seconds=self.to_s(unit, time))
 
     def get_domain_data(self) -> DomainData:
-        return read_domain(None)
+        return self._domain_data
 
     def get_npmask(self) -> np.ndarray:
         """Return a boolean numpy ndarray where True is outside the domain."""

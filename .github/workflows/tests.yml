@@ -31,10 +31,7 @@ jobs:
 
     - name: Pytest
       run: |
-        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --cov-report= --junitxml=junit/test-cli-results.xml tests/cli tests/test_grass_session.py
-        for test_file in tests/grass/test_*.py; do
-          $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --cov-append --cov-report= --junitxml="junit/$(basename "$test_file" .py)-results.xml" "$test_file"
-        done
+        $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} pytest --cov=src --cov-report= --junitxml=junit/test-results.xml tests/
         $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} coverage xml
         $HOME/.local/bin/uv run --all-extras --python ${{ matrix.python-version }} coverage html
 

@@ -62,7 +62,6 @@ def _build_runner(
     )
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 def test_temporal_fatal_errors_are_raised_as_exceptions() -> None:
     import grass.temporal as tgis
@@ -80,7 +79,6 @@ def test_temporal_fatal_errors_are_raised_as_exceptions() -> None:
     assert tgis.get_raise_on_error() is True
 
 
-@pytest.mark.forked
 @pytest.mark.usefixtures("grass_5by5")
 @pytest.mark.parametrize(
     ("existing_temporal_type", "simulation_temporal_type"),
