@@ -21,6 +21,7 @@ import numpy as np
 from itzi.ensemble.models import EnsembleError
 from itzi.ensemble.resolution import _last_record_index, verify_resolved_simulation
 from itzi.grass.names import derived_record_name
+from itzi.grass.session import GrassSessionManager
 from itzi.manifest import validate_file_destination
 
 if TYPE_CHECKING:
@@ -30,20 +31,16 @@ if TYPE_CHECKING:
 
 def validate_run_requirements(simulation: ResolvedSimulation) -> None:
     """Validate one resolved simulation without creating user artifacts."""
-    from itzi.grass.interface import GrassInterface
-    from itzi.grass.utils import ensure_min_version
+    with GrassSessionManager(simulation.grass_params) as context:
+        from itzi.grass.interface import GrassInterface
 
-    ensure_min_version()
-    verify_resolved_simulation(simulation)
-    config = simulation.simulation_config
-    interface = GrassInterface(
-        start_time=config.start_time,
-        end_time=config.end_time,
-        dtype=np.float32,
-        region_id=simulation.grass_params.region,
-        raster_mask_id=simulation.grass_params.mask,
-    )
-    try:
+        verify_resolved_simulation(simulation, context)
+        config = simulation.simulation_config
+        interface = GrassInterface(
+            start_time=config.start_time,
+            end_time=config.end_time,
+            dtype=np.float32,
+        )
         _validate_inputs(simulation, interface)
         _validate_grass_outputs(simulation, interface)
         if simulation.artifacts.statistics_file is not None:
@@ -52,8 +49,6 @@ def validate_run_requirements(simulation: ResolvedSimulation) -> None:
                 overwrite=interface.overwrite,
                 description="statistics file",
             )
-    finally:
-        interface.cleanup()
 
 
 def _validate_inputs(simulation: ResolvedSimulation, interface: GrassInterface) -> None:

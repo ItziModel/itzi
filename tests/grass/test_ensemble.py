@@ -18,7 +18,7 @@ from itzi_core import TemporalType
 from itzi.cli_parser import build_parser
 from itzi.ensemble.models import ResolvedSimulation, ValidationFailure
 from itzi.grass.names import derived_record_name
-from itzi.grass.session import GrassSessionManager
+from itzi.grass.session import GrassParams, GrassSessionManager
 from itzi.itzi import (
     _resolve_ensemble_in_subprocess,
     itzi_run,
@@ -172,6 +172,60 @@ def test_temporal_run_validation_failure_does_not_stop_next_member(tmp_path: Pat
 
 
 @pytest.mark.usefixtures("grass_5by5")
+@pytest.mark.parametrize("external_change", [False, True])
+def test_failed_member_restores_settings_before_next_default_region_verification(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, external_change: bool
+) -> None:
+    from itzi.ensemble import run_validation
+    from itzi.ensemble.resolution import resolve_ensemble
+
+    gscript.mapcalc("empty_mask=0")
+    first_path = write_study(
+        tmp_path,
+        grass={"region": "3by5", "mask": "empty_mask"},
+        outputs={"rasters": {"prefix": "failed_{simulation}", "variables": ["water_depth"]}},
+    )
+    first = resolve_ensemble(load_batch([str(first_path)])[0][0].simulations)[0]
+    second_path = write_study(
+        tmp_path,
+        outputs={"rasters": {"prefix": "valid_{simulation}", "variables": ["water_depth"]}},
+    )
+    second = resolve_ensemble(load_batch([str(second_path)])[0][0].simulations)[0]
+    assert isinstance(first, ResolvedSimulation)
+    assert isinstance(second, ResolvedSimulation)
+    previous = {
+        key: os.environ.get(key)
+        for key in ("GISRC", "GRASS_REGION", "WIND_OVERRIDE", "GRASS_MASK")
+    }
+    rasters = gscript.list_strings("raster")
+    saved_regions = gscript.list_strings("region")
+    validate_inputs = run_validation._validate_inputs
+
+    def validate(simulation, interface):
+        try:
+            validate_inputs(simulation, interface)
+        finally:
+            if external_change and simulation.simulation_id == first.simulation_id:
+                environment = os.environ.copy()
+                environment.pop("GRASS_REGION", None)
+                environment.pop("WIND_OVERRIDE", None)
+                gscript.run_command("g.region", n=40, s=0, e=50, w=0, res=10, env=environment)
+
+    monkeypatch.setattr(run_validation, "_validate_inputs", validate)
+    failures = run_validation_worker((first, second))
+    assert "mask excludes the complete" in failures[first.simulation_id]
+    if external_change:
+        assert "domain changed after resolution" in failures[second.simulation_id]
+        gscript.run_command("g.region", n=50, s=0, e=50, w=0, res=10)
+    else:
+        assert second.simulation_id not in failures
+    assert {key: os.environ.get(key) for key in previous} == previous
+    assert gscript.list_strings("raster") == rasters
+    assert gscript.list_strings("region") == saved_regions
+    assert run_validation_worker((second,)) == {}
+
+
+@pytest.mark.usefixtures("grass_5by5")
 def test_worker_rejects_changed_mask_region_and_inputs_after_resolution(tmp_path: Path) -> None:
     from grass.pygrass import utils as gutils
 
@@ -187,26 +241,17 @@ def test_worker_rejects_changed_mask_region_and_inputs_after_resolution(tmp_path
         assert resolved.effective_mask.mode == "explicit"
 
         config = resolved.simulation_config
-        interface = GrassInterface(
-            config.start_time,
-            config.end_time,
-            np.float32,
-            None,
-            "stage_mask_values",
-        )
-        try:
+        with GrassSessionManager(GrassParams(mask="stage_mask_values")):
+            interface = GrassInterface(config.start_time, config.end_time, np.float32)
             explicit = interface.get_npmask()
             assert explicit[:, :2].all()
             assert not explicit[:, 2:].any()
             friction = interface.read_raster_map(f"n@{gutils.getenv('MAPSET')}")
             np.testing.assert_array_equal(np.isnan(friction), explicit)
             assert np.isfinite(friction[~explicit]).all()
-        finally:
-            interface.cleanup()
 
-        with GrassInterface(
-            config.start_time, config.end_time, np.float32, None, None
-        ) as interface:
+        with GrassSessionManager(GrassParams()):
+            interface = GrassInterface(config.start_time, config.end_time, np.float32)
             np.testing.assert_array_equal(interface.get_npmask(), explicit)
 
         assert run_validation_worker((resolved,)).get(resolved.simulation_id) is None

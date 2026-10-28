@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 import os
 from ctypes import byref
 from datetime import datetime, timedelta
@@ -10,6 +9,8 @@ from datetime import datetime, timedelta
 import grass.script as gscript
 import numpy as np
 import pytest
+
+from itzi.grass.session import GrassParams, GrassSessionManager
 
 
 def working_windows() -> tuple[bytes, bytes, bytes]:
@@ -45,27 +46,34 @@ def test_successive_regions_restore_overrides_windows_and_saved_regions(
     previous_region = gscript.region()
     previous_overrides = (os.environ.get("WIND_OVERRIDE"), os.environ.get("GRASS_REGION"))
     previous_saved_regions = gscript.list_strings("region")
+    gscript.mapcalc("gradient=float(row()*10+col())")
 
     start = datetime(2020, 1, 1)
     for index, region_id in enumerate(("3by5", None, "3by5")):
         rows = 3 if region_id else int(previous_region["rows"])
-        with GrassInterface(
-            start, start + timedelta(seconds=1), np.float32, region_id, None
-        ) as interface:
+        with GrassSessionManager(GrassParams(region=region_id)) as manager:
+            interface = GrassInterface(start, start + timedelta(seconds=1), np.float32)
             assert (interface.yr, interface.xr) == (rows, 5)
             assert (interface.get_domain_data().rows, interface.get_domain_data().cols) == (
                 rows,
                 5,
             )
             assert (gscript.region()["rows"], gscript.region()["cols"]) == (rows, 5)
-            values = interface.read_raster_map("n@5by5")
+            values = interface.read_raster_map("gradient@5by5")
             assert values.shape == (rows, 5)
-            np.testing.assert_allclose(values, 0.05)
+            expected = (
+                np.arange(1, 6)
+                + np.arange(10, (int(previous_region["rows"]) + 1) * 10, 10)[:, None]
+            )
+            if region_id:
+                expected = expected[1:4] if previous_region["rows"] == 5 else expected[:3]
+            np.testing.assert_allclose(values, expected)
             output = f"region_output_{index}@5by5"
             interface.write_raster_map(values, output, "friction", 0)
             info = gscript.raster_info(output)
             assert (int(info["rows"]), int(info["cols"])) == (rows, 5)
-        interface.cleanup()
+            np.testing.assert_array_equal(interface.read_raster_map(output), values)
+        manager.close()
         assert gscript.region() == previous_region
         assert working_windows() == previous_windows
         assert (
@@ -85,7 +93,6 @@ def test_constructor_failure_restores_region_immediately(
     from grass.pygrass.gis.region import Region
 
     from itzi.ensemble.models import EnsembleError
-    from itzi.grass.interface import GrassInterface
     from itzi.messenger import FatalError
 
     gscript.run_command("g.region", n=20, s=0, e=20, w=0, res=10, save="small_region")
@@ -94,73 +101,72 @@ def test_constructor_failure_restores_region_immediately(
     libraster.Rast_unset_window()
     previous_windows = working_windows()
     previous_saved_regions = gscript.list_strings("region")
-    start = datetime(2020, 1, 1)
     region = failure if failure != "missing_mask" else "3by5"
     mask = "missing_mask" if failure == "missing_mask" else None
     with pytest.raises((CalledModuleError, FatalError, EnsembleError)):
-        GrassInterface(start, start + timedelta(seconds=1), np.float32, region, mask)
+        GrassSessionManager(GrassParams(region=region, mask=mask)).open()
     assert os.environ["WIND_OVERRIDE"] == "3by5"
     assert working_windows() == previous_windows
     assert gscript.list_strings("region") == previous_saved_regions
+    with GrassSessionManager(GrassParams()):
+        assert gscript.region()["rows"] == 3
 
 
 @pytest.mark.usefixtures("grass_5by5")
-def test_custom_gis_and_split_raster_windows_are_restored() -> None:
+def test_nested_jobs_restore_the_outer_work_window() -> None:
     from grass.lib import raster as libraster
-    from grass.pygrass.gis.region import Region
 
     from itzi.grass.interface import GrassInterface
 
-    configured = Region()
-    libraster.Rast_unset_window()
-    gis = copy.deepcopy(configured)
-    gis.north = 40
-    gis.adjust()
-    raster_input = copy.deepcopy(configured)
-    raster_input.north = 30
-    raster_input.adjust()
-    raster_output = copy.deepcopy(configured)
-    raster_output.east = 40
-    raster_output.adjust()
-    try:
-        raster_input.set_current()
-        libraster.Rast_unset_window()
-        libraster.Rast_get_input_window(raster_input.byref())
-        libraster.Rast_set_output_window(raster_output.byref())
-        gis.set_current()
+    start = datetime(2020, 1, 1)
+    gscript.run_command("g.region", n=40, s=10, e=40, w=10, res=10, flags="u", save="3by3")
+    with GrassSessionManager(GrassParams(region="3by5", mask="5by3")):
         previous_windows = working_windows()
-        start = datetime(2020, 1, 1)
-        with GrassInterface(
-            start, start + timedelta(seconds=1), np.float32, "3by5", None
-        ) as interface:
-            assert interface.read_raster_map("n@5by5").shape == (3, 5)
+        previous_region = gscript.region()
+        previous_mask = os.environ["GRASS_MASK"]
+        with GrassSessionManager(GrassParams(region="3by3", mask="n")):
+            interface = GrassInterface(start, start + timedelta(seconds=1), np.float32)
+            assert interface.read_raster_map("n@5by5").shape == (3, 3)
+            assert (libraster.Rast_window_rows(), libraster.Rast_window_cols()) == (3, 3)
         assert working_windows() == previous_windows
-    finally:
-        configured.set_current()
-        libraster.Rast_unset_window()
+        assert gscript.region() == previous_region
+        assert os.environ["GRASS_MASK"] == previous_mask
+        with GrassSessionManager(GrassParams()):
+            assert working_windows() == previous_windows
+            assert os.environ["GRASS_MASK"] == previous_mask
 
 
 @pytest.mark.usefixtures("grass_5by5")
-def test_domain_lookup_preserves_working_windows_and_open_raster() -> None:
-    from grass.lib import raster as libraster
-    from grass.pygrass.gis.region import Region
+def test_domain_lookup_reads_the_active_window_without_reloading() -> None:
     from grass.pygrass.raster import RasterRow
 
     from itzi.grass.utils import read_domain
 
-    configured = Region()
-    libraster.Rast_unset_window()
-    libraster.Rast_get_input_window(configured.byref())
-    gis = copy.deepcopy(configured)
-    gis.north = 40
-    gis.adjust()
-    gis.set_current()
-    try:
+    with GrassSessionManager(GrassParams(region="3by5")):
         with RasterRow("n", mapset="5by5", mode="r") as source:
             previous_windows = working_windows()
-            domain = read_domain("3by5")
+            domain = read_domain()
             assert (domain.rows, domain.cols) == (3, 5)
             assert working_windows() == previous_windows
             np.testing.assert_allclose(np.asarray(source.get_row(0)), 0.05)
-    finally:
-        configured.set_current()
+
+
+@pytest.mark.usefixtures("grass_5by5")
+def test_default_region_snapshot_preserves_external_changes() -> None:
+    from itzi.grass.interface import GrassInterface
+
+    start = datetime(2020, 1, 1)
+    with GrassSessionManager(GrassParams()):
+        interface = GrassInterface(start, start + timedelta(seconds=1), np.float32)
+        environment = os.environ.copy()
+        environment.pop("GRASS_REGION", None)
+        environment.pop("WIND_OVERRIDE", None)
+        gscript.run_command("g.region", n=40, s=0, e=50, w=0, res=10, env=environment)
+        assert gscript.region()["rows"] == 5
+        assert interface.read_raster_map("n@5by5").shape == (5, 5)
+        with GrassSessionManager(GrassParams()):
+            assert gscript.region()["rows"] == 5
+    assert gscript.region()["rows"] == 4
+    with GrassSessionManager(GrassParams()):
+        next_interface = GrassInterface(start, start + timedelta(seconds=1), np.float32)
+        assert next_interface.read_raster_map("n@5by5").shape == (4, 5)

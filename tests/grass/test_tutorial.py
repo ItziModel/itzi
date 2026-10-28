@@ -125,12 +125,15 @@ class TestItziTutorial:
         config_file = os.path.join(test_data_path, "tutorial_files", "tutorial.ini")
         conf_data = ConfigReader(config_file)
 
-        sim_runner = SimulationRunner(
-            conf_data.sim_config,
-            conf_data.grass_params,
-            stats_file=conf_data.stats_file,
-        ).initialize()
-        sim_runner.run().finalize()
+        with session.GrassSessionManager(conf_data.grass_params):
+            sim_runner = SimulationRunner(
+                conf_data.sim_config,
+                stats_file=conf_data.stats_file,
+            ).initialize()
+            try:
+                sim_runner.run()
+            finally:
+                sim_runner.finalize()
         # Check the results
         hmax_maps = gscript.list_grouped("raster", pattern="nc_itzi_tutorial_max_water_depth_*")[
             "PERMANENT"
@@ -187,12 +190,15 @@ class TestItziTutorial:
 
         # Run the simulation
         conf_data = ConfigReader(config_file)
-        sim_runner = SimulationRunner(
-            conf_data.sim_config,
-            conf_data.grass_params,
-            stats_file=conf_data.stats_file,
-        ).initialize()
-        sim_runner.run().finalize()
+        with session.GrassSessionManager(conf_data.grass_params):
+            sim_runner = SimulationRunner(
+                conf_data.sim_config,
+                stats_file=conf_data.stats_file,
+            ).initialize()
+            try:
+                sim_runner.run()
+            finally:
+                sim_runner.finalize()
 
         # Test consistency of stats file
         stat_file_path = pathlib.Path("nc_itzi_tutorial_drainage.csv")
@@ -296,14 +302,13 @@ class TestItziTutorial:
         """Run coupled drainage without creating vector output."""
         config_file = os.path.join(test_data_path, "tutorial_files", "tutorial_drainage.ini")
         conf_data = ConfigReader(config_file)
-        sim_runner = SimulationRunner(
-            conf_data.sim_config,
-            conf_data.grass_params,
-            stats_file=conf_data.stats_file,
-        ).initialize()
-
-        try:
-            assert sim_runner.sim.report.vector_provider is None
-            sim_runner.run()
-        finally:
-            sim_runner.finalize()
+        with session.GrassSessionManager(conf_data.grass_params):
+            sim_runner = SimulationRunner(
+                conf_data.sim_config,
+                stats_file=conf_data.stats_file,
+            ).initialize()
+            try:
+                assert sim_runner.sim.report.vector_provider is None
+                sim_runner.run()
+            finally:
+                sim_runner.finalize()

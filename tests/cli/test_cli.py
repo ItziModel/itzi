@@ -298,22 +298,17 @@ def test_one_ensemble_runs_only_planned_members_and_counts_failures(tmp_path, mo
 def test_run_validation_worker_keeps_member_failures(monkeypatch):
     calls = []
 
-    class FakeGrassSessionManager:
-        def __init__(self, params):
-            assert params == "shared"
-
-        def __enter__(self):
-            calls.append("open")
-
-        def __exit__(self, *_):
-            calls.append("close")
+    def acquire(params, stack):
+        assert params == "shared"
+        calls.append("open")
+        stack.callback(calls.append, "close")
 
     def validate_run_requirements(simulation):
         calls.append(simulation.simulation_id)
         if simulation.simulation_id == "bad":
             raise ValueError("invalid input")
 
-    monkeypatch.setattr("itzi.itzi.GrassSessionManager", FakeGrassSessionManager)
+    monkeypatch.setattr("itzi.itzi._acquire_session", acquire)
     fake_run_validation = ModuleType("itzi.ensemble.run_validation")
     setattr(fake_run_validation, "validate_run_requirements", validate_run_requirements)
     monkeypatch.setitem(sys.modules, "itzi.ensemble.run_validation", fake_run_validation)
@@ -362,7 +357,7 @@ def test_failed_ensemble_member_finalizes_in_session_and_reports_error(
 
     monkeypatch.setattr("itzi.itzi.GrassSessionManager", FakeGrassSessionManager)
     monkeypatch.setattr("itzi.itzi.SimulationRunner", FakeSimulationRunner)
-    monkeypatch.setattr("itzi.itzi.verify_resolved_simulation", lambda _: calls.append("verify"))
+    monkeypatch.setattr("itzi.itzi.verify_resolved_simulation", lambda *_: calls.append("verify"))
     simulation = cast(
         ResolvedSimulation,
         SimpleNamespace(
@@ -555,7 +550,7 @@ def test_worker_passes_statistics_file_to_simulation_runner(monkeypatch):
     sim_runner_worker("a.ini", "hotstart.zip")
 
     assert runner_arguments == {
-        "args": (sim_params, grass_params),
+        "args": (sim_params,),
         "kwargs": {
             "hotstart_path": "hotstart.zip",
             "stats_file": "statistics.csv",

@@ -182,10 +182,10 @@ def grass_5by5_template(
     gscript.mapcalc("infiltration_rate=2")
     gscript.mapcalc("loss_rate=1.5")
     gscript.mapcalc("inflow_rate=0.1")
-    with session.GrassSessionManager(session.GrassParams()):
-        mapset_path = Path(gscript.gisenv()["GISDBASE"]) / "xy" / "5by5"
-        template_path = tmp_path_factory.mktemp("grass_template") / "5by5"
-        shutil.copytree(mapset_path, template_path)
+    session.GrassSessionManager.ensure_temporal_initialized()
+    mapset_path = Path(gscript.gisenv()["GISDBASE"]) / "xy" / "5by5"
+    template_path = tmp_path_factory.mktemp("grass_template") / "5by5"
+    shutil.copytree(mapset_path, template_path)
     return mapset_path, template_path
 
 
@@ -204,18 +204,19 @@ def grass_5by5(grass_5by5_template: tuple[Path, Path], tmp_path: Path) -> Iterat
     libgis.G_unset_window()
     libraster.Rast_unset_window()
     os.chdir(tmp_path)
-    with session.GrassSessionManager(session.GrassParams()):
-        yield
+    session.GrassSessionManager.ensure_temporal_initialized()
+    yield
 
 
 @pytest.fixture
 def grass_5by5_sim(grass_5by5: None, test_data_path: str) -> SimulationRunner:
     config_file = os.path.join(test_data_path, "5by5", "5by5.ini")
     conf_data = ConfigReader(config_file)
-    sim_runner = SimulationRunner(
-        conf_data.sim_config,
-        conf_data.grass_params,
-    ).initialize()
-    assert isinstance(sim_runner, SimulationRunner)
-    sim_runner.run().finalize()
+    with session.GrassSessionManager(conf_data.grass_params):
+        sim_runner = SimulationRunner(conf_data.sim_config).initialize()
+        assert isinstance(sim_runner, SimulationRunner)
+        try:
+            sim_runner.run()
+        finally:
+            sim_runner.finalize()
     return sim_runner

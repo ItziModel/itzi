@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, cast
 import numpy as np
 import pytest
 
+from itzi.grass.session import GrassParams, GrassSessionManager
+
 if TYPE_CHECKING:
     from itzi.grass.utils import MapData
 
@@ -70,21 +72,23 @@ def test_domain_metadata_is_cached_per_interface(monkeypatch: pytest.MonkeyPatch
     reads = 0
     read_domain = grass_interface.read_domain
 
-    def counted_read_domain(region_id: str | None) -> DomainData:
+    def counted_read_domain() -> DomainData:
         nonlocal reads
         reads += 1
-        return read_domain(region_id)
+        return read_domain()
 
     monkeypatch.setattr(grass_interface, "read_domain", counted_read_domain)
     start = datetime(2020, 1, 1)
     end = start + timedelta(seconds=1)
-    with grass_interface.GrassInterface(start, end, np.float32, "3by5", None) as interface:
+    with GrassSessionManager(GrassParams(region="3by5")):
+        interface = grass_interface.GrassInterface(start, end, np.float32)
         domain = interface.get_domain_data()
         assert (domain.rows, domain.cols) == (3, 5)
         assert interface.get_domain_data() is domain
         assert reads == 1
 
-    with grass_interface.GrassInterface(start, end, np.float32, None, None) as interface:
+    with GrassSessionManager(GrassParams()):
+        interface = grass_interface.GrassInterface(start, end, np.float32)
         new_domain = interface.get_domain_data()
         assert (new_domain.rows, new_domain.cols) == (5, 5)
         assert new_domain is not domain
@@ -113,7 +117,8 @@ def test_visible_input_and_current_output_with_same_name(grass_xy_session) -> No
 
     gscript.run_command("g.region", n=3, s=0, e=3, w=0, res=1)
     start = datetime(2020, 1, 1)
-    with GrassInterface(start, start + timedelta(seconds=1), np.int32, None, None) as interface:
+    with GrassSessionManager(GrassParams()):
+        interface = GrassInterface(start, start + timedelta(seconds=1), np.int32)
         interface.write_raster_map(
             np.ones((3, 3), dtype=np.int32), output_id, "ground_elevation", 0
         )
@@ -136,10 +141,10 @@ def test_direct_runner_qualifies_ids_before_creating_providers(test_data_path: s
     config = reader.sim_config.model_copy(
         update={"output_map_names": {"water_depth": "direct_id_check"}}
     )
-    runner = SimulationRunner(config, reader.grass_params)
-
-    assert runner.sim_config.input_map_names["ground_elevation"] == "z@5by5"
-    assert runner.sim_config.output_map_names["water_depth"] == "direct_id_check@5by5"
+    with GrassSessionManager(reader.grass_params):
+        runner = SimulationRunner(config)
+        assert runner.sim_config.input_map_names["ground_elevation"] == "z@5by5"
+        assert runner.sim_config.output_map_names["water_depth"] == "direct_id_check@5by5"
 
 
 @pytest.mark.usefixtures("grass_5by5")
@@ -150,7 +155,8 @@ def test_vector_writer_uses_bare_name_from_qualified_output_id() -> None:
     from itzi.grass.interface import GrassInterface
 
     start = datetime(2020, 1, 1)
-    with GrassInterface(start, start + timedelta(seconds=1), np.float32, None, None) as interface:
+    with GrassSessionManager(GrassParams()):
+        interface = GrassInterface(start, start + timedelta(seconds=1), np.float32)
         interface.write_vector_map(
             DrainageNetworkTopology(nodes=(), links=()),
             DrainageNetworkAttributes(nodes=(), links=()),

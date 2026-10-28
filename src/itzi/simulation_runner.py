@@ -21,7 +21,7 @@ import numpy as np
 from itzi_core import SimulationBuilder, SimulationConfig
 
 import itzi.messenger as msgr
-from itzi.grass.session import GrassParams
+from itzi.grass.session import GrassSessionManager
 from itzi.providers.csv_output import ExclusiveCSVMassBalanceOutputProvider
 from itzi.providers.grass_input import GrassRasterInputProvider
 from itzi.providers.grass_output import GrassRasterOutputProvider, GrassVectorOutputProvider
@@ -34,28 +34,26 @@ if TYPE_CHECKING:
 
 class SimulationRunner:
     """Provide the necessary tools to run one simulation.
-    Must be instantiated within an active GRASS session."""
+    Construct, initialize, run, and finalize inside a configured GrassSessionManager."""
 
     def __init__(
         self,
         sim_config: SimulationConfig,
-        grass_params: GrassParams,
         hotstart_path: str | None = None,
         stats_file: str | None = None,
         input_kinds: Mapping[str, Literal["raster", "strds"]] | None = None,
     ) -> None:
+        if GrassSessionManager.current_context() is None:
+            raise RuntimeError("SimulationRunner requires an active GRASS work context")
         from itzi.grass.utils import (
             check_output_files,
-            ensure_min_version,
             get_current_mapset,
             qualify_output_id,
             resolve_input_identifier,
         )
 
-        self.grass_params = grass_params
         self.hotstart_path = hotstart_path
         self.stats_file = stats_file
-        ensure_min_version()
         if input_kinds is None:
             resolved_inputs = {
                 key: resolve_input_identifier(name)
@@ -98,52 +96,46 @@ class SimulationRunner:
             start_time=self.sim_config.start_time,
             end_time=self.sim_config.end_time,
             dtype=data_type,
-            region_id=self.grass_params.region,
-            raster_mask_id=self.grass_params.mask,
         )
-        try:
-            msgr.verbose("Setting up GRASS simulation...")
+        msgr.verbose("Setting up GRASS simulation...")
 
-            raster_input_provider = GrassRasterInputProvider(
+        raster_input_provider = GrassRasterInputProvider(
+            grass_interface=self.g_interface,
+            input_map_names=self.sim_config.input_map_names,
+            default_start_time=self.sim_config.start_time,
+            default_end_time=self.sim_config.end_time,
+            input_kinds=self.input_kinds,
+        )
+        raster_output_provider = GrassRasterOutputProvider(
+            grass_interface=self.g_interface,
+            out_map_names=self.sim_config.output_map_names,
+            hmin=self.sim_config.surface_flow_parameters.hmin,
+            temporal_type=self.sim_config.temporal_type,
+        )
+        sim_builder = (
+            SimulationBuilder(self.sim_config, self.g_interface.get_npmask(), data_type)
+            .with_input_provider(raster_input_provider)
+            .with_raster_output_provider(raster_output_provider)
+        )
+        if self.sim_config.drainage_output is not None:
+            vector_output_provider = GrassVectorOutputProvider(
                 grass_interface=self.g_interface,
-                input_map_names=self.sim_config.input_map_names,
-                default_start_time=self.sim_config.start_time,
-                default_end_time=self.sim_config.end_time,
-                input_kinds=self.input_kinds,
-            )
-            raster_output_provider = GrassRasterOutputProvider(
-                grass_interface=self.g_interface,
-                out_map_names=self.sim_config.output_map_names,
-                hmin=self.sim_config.surface_flow_parameters.hmin,
                 temporal_type=self.sim_config.temporal_type,
+                drainage_map_id=self.sim_config.drainage_output,
             )
-            sim_builder = (
-                SimulationBuilder(self.sim_config, self.g_interface.get_npmask(), data_type)
-                .with_input_provider(raster_input_provider)
-                .with_raster_output_provider(raster_output_provider)
+            sim_builder.with_vector_output_provider(vector_output_provider)
+        if self.stats_file:
+            stats_provider = ExclusiveCSVMassBalanceOutputProvider(
+                self.stats_file, overwrite=self.g_interface.overwrite
             )
-            if self.sim_config.drainage_output is not None:
-                vector_output_provider = GrassVectorOutputProvider(
-                    grass_interface=self.g_interface,
-                    temporal_type=self.sim_config.temporal_type,
-                    drainage_map_id=self.sim_config.drainage_output,
-                )
-                sim_builder.with_vector_output_provider(vector_output_provider)
-            if self.stats_file:
-                stats_provider = ExclusiveCSVMassBalanceOutputProvider(
-                    self.stats_file, overwrite=self.g_interface.overwrite
-                )
-                sim_builder.with_mass_balance_output_provider(stats_provider)
-            if self.hotstart_path:
-                sim_builder.with_hotstart(self.hotstart_path)
-            self.sim: Simulation = sim_builder.build()
-            self.sim.initialize()
-        except BaseException:
-            self.g_interface.cleanup()
-            raise
+            sim_builder.with_mass_balance_output_provider(stats_provider)
+        if self.hotstart_path:
+            sim_builder.with_hotstart(self.hotstart_path)
+        self.sim: Simulation = sim_builder.build()
+        self.sim.initialize()
         return self
 
-    def run(self):
+    def run(self) -> Self:
         """Run a full simulation"""
         sim_start_time = datetime.now()
         last_progress_update = monotonic() - 0.5
@@ -163,15 +155,11 @@ class SimulationRunner:
         return self
 
     def finalize(self) -> Self:
-        """Tear down the simulation and return to previous state."""
-        try:
-            self.sim.finalize()
-        finally:
-            if hasattr(self, "g_interface"):
-                self.g_interface.cleanup()
+        """Finalize model outputs inside the active work context."""
+        self.sim.finalize()
         return self
 
-    def step(self):
+    def step(self) -> Self:
         """Do one simulation step."""
         self.sim.update()
         return self
@@ -179,8 +167,3 @@ class SimulationRunner:
     @property
     def origin(self):
         return (self.sim.domain_data.north, self.sim.domain_data.west)
-
-    def __del__(self):
-        # Cleanup the grass interface object
-        if hasattr(self, "g_interface"):
-            self.g_interface.cleanup()

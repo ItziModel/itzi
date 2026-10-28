@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from configparser import ConfigParser
+from contextlib import contextmanager
 from uuid import uuid4
 
 import grass.script as gscript
@@ -13,11 +15,12 @@ from itzi.configreader import ConfigReader
 from itzi.grass.session import GrassSessionManager
 
 
+@contextmanager
 def _build_runner(
     test_data_temp_path: str,
     prefix: str,
     temporal_type: TemporalType,
-) -> SimulationRunner:
+) -> Iterator[SimulationRunner]:
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     config_dict = {
         "input": {
@@ -55,11 +58,8 @@ def _build_runner(
         parser.write(file_handle)
 
     conf_data = ConfigReader(config_file)
-    return SimulationRunner(
-        conf_data.sim_config,
-        conf_data.grass_params,
-        stats_file=conf_data.stats_file,
-    )
+    with GrassSessionManager(conf_data.grass_params):
+        yield SimulationRunner(conf_data.sim_config, stats_file=conf_data.stats_file)
 
 
 @pytest.mark.usefixtures("grass_5by5")
@@ -96,8 +96,9 @@ def test_runner_creation_fails_when_overwriting_strds_with_different_temporal_ty
     monkeypatch.setenv("GRASS_OVERWRITE", "1")
 
     prefix = f"out_overwrite_{existing_temporal_type}_{simulation_temporal_type}_{uuid4().hex[:8]}"
-    initial_runner = _build_runner(test_data_temp_path, prefix, existing_temporal_type)
-    initial_runner.initialize().run().finalize()
+    with _build_runner(test_data_temp_path, prefix, existing_temporal_type) as initial_runner:
+        initial_runner.initialize().run().finalize()
 
     with pytest.raises(RuntimeError, match=r"temporal type"):
-        _build_runner(test_data_temp_path, prefix, simulation_temporal_type).initialize()
+        with _build_runner(test_data_temp_path, prefix, simulation_temporal_type) as runner:
+            runner.initialize()

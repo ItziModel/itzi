@@ -2,11 +2,16 @@
 
 import os
 from collections.abc import Iterator
+from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
 from itzi import BmiItzi
+from itzi.configreader import ConfigReader
+from itzi.grass.session import GrassParams, GrassSessionManager
+from itzi.simulation_runner import SimulationRunner
 
 
 @pytest.fixture
@@ -197,3 +202,46 @@ class TestBmi:
         grid_id = bmi_object.get_var_grid("land_surface__elevation")
         grid_type = bmi_object.get_grid_type(grid_id)
         assert grid_type == "uniform_rectilinear"
+
+
+@pytest.mark.usefixtures("grass_5by5")
+@pytest.mark.parametrize("phase", ["__init__", "initialize", "finalize"])
+def test_bmi_failure_restores_attached_context_and_allows_reinitialization(
+    monkeypatch: pytest.MonkeyPatch, test_data_path: str, phase: str
+) -> None:
+    import grass.script as gscript
+    from grass.lib import raster as libraster
+
+    reader = ConfigReader(str(Path(test_data_path) / "5by5" / "5by5_bmi.ini"))
+    reader_config = SimpleNamespace(
+        sim_config=reader.sim_config.model_copy(update={"output_map_names": {}}),
+        grass_params=GrassParams(region="3by5", mask="5by3"),
+        stats_file=None,
+    )
+    monkeypatch.setattr("itzi.bmi_itzi.ConfigReader", lambda _: reader_config)
+    previous = {
+        key: os.environ.get(key)
+        for key in ("GISRC", "GRASS_REGION", "WIND_OVERRIDE", "GRASS_MASK")
+    }
+    previous_region = gscript.region()
+    original_shape = (libraster.Rast_window_rows(), libraster.Rast_window_cols())
+    model = BmiItzi()
+
+    def fail(self, *args, **kwargs):
+        raise RuntimeError("BMI lifecycle failed")
+
+    with monkeypatch.context() as fault:
+        fault.setattr(SimulationRunner, phase, fail)
+        with pytest.raises(RuntimeError, match="BMI lifecycle failed"):
+            model.initialize("config.ini")
+            model.finalize()
+    assert model.grass_session_manager is None
+    assert GrassSessionManager.current_context() is not None
+    assert {key: os.environ.get(key) for key in previous} == previous
+    assert gscript.region() == previous_region
+    assert (libraster.Rast_window_rows(), libraster.Rast_window_cols()) == original_shape
+    model.initialize("config.ini")
+    assert model.get_grid_shape(0) == (3, 5)
+    model.finalize()
+    model.finalize()
+    assert {key: os.environ.get(key) for key in previous} == previous
