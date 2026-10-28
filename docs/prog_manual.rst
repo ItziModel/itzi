@@ -30,9 +30,6 @@ Testing
 -------
 
 Testing is done with pytest.
-GRASS 8.5 or above is required. The full suite can run in one pytest process;
-GRASS fixtures reuse a session and restore pristine mapset data between tests.
-BMI fixtures provide a fresh model for each test.
 
 .. code:: sh
 
