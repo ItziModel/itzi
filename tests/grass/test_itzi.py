@@ -1,5 +1,7 @@
 import os
+from collections.abc import Iterator
 from configparser import ConfigParser
+from contextlib import contextmanager
 from datetime import timedelta
 from uuid import uuid4
 
@@ -54,6 +56,7 @@ def _create_timed_rain_inputs(name_prefix: str) -> dict[str, str]:
     }
 
 
+@contextmanager
 def _build_timed_rain_runner(
     test_data_temp_path: str,
     *,
@@ -61,7 +64,7 @@ def _build_timed_rain_runner(
     duration: str,
     record_step: str,
     prefix: str,
-) -> SimulationRunner:
+) -> Iterator[SimulationRunner]:
     current_mapset = gscript.read_command("g.mapset", flags="p").rstrip()
     config_dict = {
         "input": {
@@ -91,12 +94,14 @@ def _build_timed_rain_runner(
         parser.write(file_handle)
 
     conf_data = ConfigReader(config_file)
-    GrassSessionManager.ensure_temporal_initialized()
-    return SimulationRunner(
-        conf_data.sim_config,
-        conf_data.grass_params,
-        stats_file=conf_data.stats_file,
-    ).initialize()
+    with GrassSessionManager(conf_data.grass_params):
+        runner = SimulationRunner(
+            conf_data.sim_config, stats_file=conf_data.stats_file
+        ).initialize()
+        try:
+            yield runner
+        finally:
+            runner.finalize()
 
 
 @pytest.mark.usefixtures("grass_5by5_sim")
@@ -158,12 +163,12 @@ def test_region_mask(test_data_path):
     conf_data = ConfigReader(config_file)
     sim_params = conf_data.sim_config
     grass_params = conf_data.grass_params
-    sim_runner = SimulationRunner(
-        sim_params,
-        grass_params,
-    )
-    # Run simulation
-    sim_runner.initialize().run().finalize()
+    with GrassSessionManager(grass_params):
+        sim_runner = SimulationRunner(sim_params).initialize()
+        try:
+            sim_runner.run()
+        finally:
+            sim_runner.finalize()
     # Check temporary mask and region
     assert (
         int(gscript.parse_command("r.univar", map="out_5by5_max_flow_speed_0002", flags="g")["n"])
@@ -214,11 +219,8 @@ def test_fails_when_region_has_no_dem_data(test_data_temp_path):
     with pytest.raises(
         RuntimeError, match=r"input map <ground_elevation> contains only NULL/NaN cells"
     ):
-        SimulationRunner(
-            conf_data.sim_config,
-            conf_data.grass_params,
-            stats_file=conf_data.stats_file,
-        ).initialize()
+        with GrassSessionManager(conf_data.grass_params):
+            SimulationRunner(conf_data.sim_config, stats_file=conf_data.stats_file).initialize()
 
 
 @pytest.mark.usefixtures("grass_5by5")
@@ -246,13 +248,14 @@ def test_empty_strds_fails_with_clear_error(test_data_temp_path: str, temporal_t
         RuntimeError,
         match=rf"STRDS <{strds_name}@{current_mapset}> has no temporal extent",
     ):
-        _build_timed_rain_runner(
+        with _build_timed_rain_runner(
             test_data_temp_path,
             input_names=input_names,
             duration="00:00:20",
             record_step="00:00:20",
             prefix=f"out_empty_{temporal_type}_{uuid4().hex[:8]}",
-        )
+        ):
+            pass
 
 
 @pytest.mark.usefixtures("grass_5by5")
@@ -296,13 +299,14 @@ def test_relative_strds_with_unsupported_unit_fails_with_clear_error(
             r"<months>"
         ),
     ):
-        _build_timed_rain_runner(
+        with _build_timed_rain_runner(
             test_data_temp_path,
             input_names=input_names,
             duration="00:00:20",
             record_step="00:00:20",
             prefix=f"out_monthly_relative_{uuid4().hex[:8]}",
-        )
+        ):
+            pass
 
 
 @pytest.mark.usefixtures("grass_5by5")
@@ -321,15 +325,13 @@ def test_timed_grass_rain_switches_cleanly_around_boundary(
     expected_input_deadline_seconds: int,
 ):
     input_names = _create_timed_rain_inputs("timed_boundary")
-    sim_runner = _build_timed_rain_runner(
+    with _build_timed_rain_runner(
         test_data_temp_path,
         input_names=input_names,
         duration="00:00:20",
         record_step="00:00:20",
         prefix=f"out_timed_boundary_{target_seconds}_{uuid4().hex[:8]}",
-    )
-
-    try:
+    ) as sim_runner:
         simulation = sim_runner.sim
         simulation.update_until(timedelta(seconds=target_seconds))
 
@@ -340,22 +342,18 @@ def test_timed_grass_rain_switches_cleanly_around_boundary(
         assert simulation.next_ts["input"] == simulation.start_time + timedelta(
             seconds=expected_input_deadline_seconds
         )
-    finally:
-        sim_runner.g_interface.cleanup()
 
 
 @pytest.mark.usefixtures("grass_5by5")
 def test_timed_grass_rain_is_applied_before_a_step_crosses_its_boundary(test_data_temp_path):
     input_names = _create_timed_rain_inputs("timed_crossing")
-    sim_runner = _build_timed_rain_runner(
+    with _build_timed_rain_runner(
         test_data_temp_path,
         input_names=input_names,
         duration="00:00:20",
         record_step="00:00:15",
         prefix=f"out_timed_crossing_{uuid4().hex[:8]}",
-    )
-
-    try:
+    ) as sim_runner:
         simulation = sim_runner.sim
         simulation.update()
 
@@ -369,5 +367,3 @@ def test_timed_grass_rain_is_applied_before_a_step_crosses_its_boundary(test_dat
             simulation.raster_domain.get_array("rainfall_rate"),
             360.0 / (1000 * 3600),
         )
-    finally:
-        sim_runner.g_interface.cleanup()

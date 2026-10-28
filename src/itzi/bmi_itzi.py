@@ -64,14 +64,14 @@ class BmiItzi(Bmi):
         {arr_def.csdms_name: arr_def.var_loc for arr_def in input_output_array_definition}
     )
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Create a BmiItzi model that is ready for initialization."""
         self.itzi: SimulationRunner
-        self.grass_session_manager: GrassSessionManager
+        self.grass_session_manager: GrassSessionManager | None = None
 
     # Model control functions #
 
-    def initialize(self, config_file=None) -> None:
+    def initialize(self, config_file: str | None = None) -> None:
         """Initialize the Itzï model.
 
         Parameters
@@ -83,13 +83,16 @@ class BmiItzi(Bmi):
         sim_params = conf_data.sim_config
         grass_params = conf_data.grass_params
         self.grass_session_manager = GrassSessionManager(grass_params)
-        self.grass_session_manager.open()
-
-        self.itzi = SimulationRunner(
-            sim_params,
-            grass_params,
-            stats_file=conf_data.stats_file,
-        ).initialize()
+        try:
+            self.grass_session_manager.open()
+            self.itzi = SimulationRunner(
+                sim_params,
+                stats_file=conf_data.stats_file,
+            ).initialize()
+        except BaseException:
+            self.grass_session_manager.close()
+            self.grass_session_manager = None
+            raise
 
     def update(self):
         """Advance model by one time step."""
@@ -106,10 +109,14 @@ class BmiItzi(Bmi):
         then = timedelta(seconds=float(then))
         self.itzi.sim.update_until(then)
 
-    def finalize(self):
+    def finalize(self) -> None:
         """Finalize model."""
-        self.itzi.finalize()
-        self.grass_session_manager.close()
+        manager, self.grass_session_manager = self.grass_session_manager, None
+        if manager is not None:
+            try:
+                self.itzi.finalize()
+            finally:
+                manager.close()
 
     # Model information functions #
 
@@ -381,7 +388,3 @@ class BmiItzi(Bmi):
 
     def get_grid_z(self, grid, z):
         raise NotImplementedError("get_grid_z")
-
-    def __del__(self):
-        """Close the GRASS session even if finalize() is not called"""
-        self.grass_session_manager.close()

@@ -12,6 +12,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
+from __future__ import annotations
+
 import copy
 import os
 from collections.abc import Mapping
@@ -24,9 +26,7 @@ import grass.pygrass.utils as gutils
 import grass.script as gscript
 import grass.temporal as tgis
 import numpy as np
-from grass.lib import raster as libraster
 from grass.pygrass import raster
-from grass.pygrass.gis.region import Region
 from grass.pygrass.vector import VectorTopo
 from grass.pygrass.vector.geometry import Line, Point
 from grass.pygrass.vector.table import Link, Table
@@ -121,61 +121,20 @@ class GrassInterface:
         start_time: datetime,
         end_time: datetime,
         dtype: type[np.generic] | np.dtype | str,
-        region_id: str | None,
-        raster_mask_id: str | None,
     ) -> None:
         assert isinstance(start_time, datetime), "start_time not a datetime object!"
         assert isinstance(end_time, datetime), "end_time not a datetime object!"
         assert start_time <= end_time, "start_time > end_time!"
 
-        self.region_id = region_id
         self.start_time = start_time
         self.end_time = end_time
         self.dtype = dtype
 
-        # LatLon is not supported
-        if gscript.locn_is_latlong():
-            msgr.fatal("latlong location is not supported. Please use a projected location")
-        # Set region
-        if self.region_id:
-            gscript.use_temp_region()
-            gscript.run_command("g.region", region=region_id)
-        self.region = Region()
-        # Reload the region without remapping GRASS's retained mask descriptor.
-        libraster.Rast_unset_window()
-        libraster.Rast_get_window(self.region.byref())
-        self.xr = self.region.cols
-        self.yr = self.region.rows
-        # Check if region is at least 3x3
-        if self.xr < 3 or self.yr < 3:
-            msgr.fatal("GRASS Region should be at least 3 cells by 3 cells")
-        self.mask_source = resolve_effective_mask(raster_mask_id).source
+        self._domain_data = read_domain()
+        self.xr = self._domain_data.cols
+        self.yr = self._domain_data.rows
+        self.mask_source = resolve_effective_mask(None).source
         self.overwrite = gscript.overwrite()
-        self._domain_data = read_domain(None)
-        mask_manager = gscript.MaskManager(mask_name=self.mask_source, remove=False)
-        mask_manager.activate()
-        self._mask_manager: gscript.MaskManager | None = mask_manager
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.cleanup()
-
-    def __del__(self):
-        self.cleanup()
-
-    def cleanup(self) -> None:
-        """Restore the previous mask and remove the temporary region."""
-        if manager := getattr(self, "_mask_manager", None):
-            manager.deactivate()
-            self._mask_manager = None
-            # Refresh only the mask, preserving unrelated open raster handles.
-            libraster.Rast__check_for_auto_masking()
-        if getattr(self, "region_id", None):
-            msgr.debug("Remove temp region...")
-            gscript.del_temp_region()
-            self.region_id = None
 
     def grass_dtype(self, dtype: str) -> RasterMapType:
         if dtype in self.dtype_conv["DCELL"]:
@@ -339,7 +298,6 @@ class GrassInterface:
             )
 
     def read_raster_map(self, raster_id: str) -> np.ndarray:
-        """Read a raster using the mask selected for the simulation."""
         name, mapset = split_identifier(raster_id)
         if not mapset:
             msgr.fatal(f"Raster <{raster_id}> not found")

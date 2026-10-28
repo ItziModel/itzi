@@ -103,7 +103,15 @@ An explicit session requires all three of the following options:
 session (defaults to ``grass``); it cannot be used without those three options.
 ``region`` optionally names a saved region; ``mask`` optionally names a raster mask.
 Both can also be used to override the active region or mask for the run.
-When a session is already active, an explicit database, project, and mapset must match it.
+When a session is already active, a different explicit context is selected temporarily using a private session configuration.
+The context must already exist and be accessible.
+Omitted region and mask settings inherit the active settings for an unchanged context;
+for a different context, they use that context's defaults.
+The selected region and mask remain active through initialization, execution, and finalization.
+A private region snapshot isolates the job from changes to the shared default region,
+but raster and mask contents can still be edited externally.
+Context exit restores the original settings on success or failure without rewriting the shared default region,
+saved regions, or user mask rasters.
 All members of an ensemble share this GRASS context and domain.
 Only a projected location / project is accepted, not latitude/longitude.
 The region must have at least 3 rows and 3 columns, and a mask cannot exclude the entire simulation domain.

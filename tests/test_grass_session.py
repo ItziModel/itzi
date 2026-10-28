@@ -34,15 +34,35 @@ class FakeGrassSession:
         self.finished = True
 
 
-def test_manager_activates_and_finishes_created_session(monkeypatch) -> None:
+@pytest.mark.parametrize("setup_fails", [False, True])
+def test_manager_activates_and_finishes_created_session(
+    monkeypatch, tmp_path, setup_fails
+) -> None:
     session = FakeGrassSession({"GISRC": "/tmp/worker-gisrc"})
     grass_script = ModuleType("grass.script")
-    grass_script.__dict__["setup"] = SimpleNamespace(init=lambda **_: session)
+
+    def init(**kwargs):
+        os.environ.update(session.env)
+        return session
+
+    grass_script.__dict__["setup"] = SimpleNamespace(init=init)
     grass_package = ModuleType("grass")
     grass_package.__dict__["script"] = grass_script
 
     monkeypatch.setattr("itzi.grass.session.os.access", lambda *_: True)
+    monkeypatch.setattr("itzi.grass.session._validate_target", lambda _: None)
+    monkeypatch.setattr("itzi.grass.session.ensure_min_version", lambda: None)
     monkeypatch.setattr(GrassSessionManager, "ensure_temporal_initialized", lambda self: None)
+    monkeypatch.setattr("itzi.grass.session._initialized_temporal_session", None)
+    restored = []
+
+    def select_context(self, stack):
+        assert os.environ["GISRC"] == session.env["GISRC"]
+        stack.callback(restored.append, "restored")
+        if setup_fails:
+            raise ValueError("setup failed")
+
+    monkeypatch.setattr(GrassSessionManager, "_select_context", select_context)
     monkeypatch.setattr(
         "itzi.grass.session.subprocess.check_output", lambda *_args, **_kwargs: "/tmp"
     )
@@ -69,11 +89,19 @@ def test_manager_activates_and_finishes_created_session(monkeypatch) -> None:
     )
     manager = GrassSessionManager(grass_params)
 
-    manager.open()
+    if setup_fails:
+        with pytest.raises(ValueError, match="setup failed"):
+            manager.open()
+        assert session.finished
+    else:
+        manager.open()
+        manager.open()
+    manager.close()
     manager.close()
 
-    assert os.environ["GISRC"] == "/tmp/worker-gisrc"
+    assert "GISRC" not in os.environ
     assert session.finished
+    assert restored == ["restored"]
 
 
 def test_temporal_initialization_once_per_active_session(monkeypatch) -> None:
@@ -83,6 +111,8 @@ def test_temporal_initialization_once_per_active_session(monkeypatch) -> None:
     temporal = ModuleType("grass.temporal")
     temporal.__dict__["init"] = lambda **_: calls.append("init")
     temporal.__dict__["set_raise_on_error"] = lambda _: calls.append("temporal")
+    temporal.__dict__["stop_subprocesses"] = lambda: calls.append("stop")
+    temporal.__dict__["core"] = SimpleNamespace()
     package = ModuleType("grass")
     package.__dict__["script"] = script
     package.__dict__["temporal"] = temporal
@@ -97,10 +127,56 @@ def test_temporal_initialization_once_per_active_session(monkeypatch) -> None:
     )
     monkeypatch.setenv("GISRC", "/tmp/first-gisrc")
 
-    GrassSessionManager(GrassParams()).open()
+    GrassSessionManager.ensure_temporal_initialized()
     GrassSessionManager.ensure_temporal_initialized()
     assert calls.count("init") == 1
 
     monkeypatch.setenv("GISRC", "/tmp/second-gisrc")
-    GrassSessionManager(GrassParams()).open()
+    GrassSessionManager.ensure_temporal_initialized()
     assert calls.count("init") == 2
+    assert calls.count("stop") == 2
+
+
+def test_attached_cleanup_runs_all_callbacks_after_restoration_error(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr("itzi.grass.session._acquire_session", lambda *_: None)
+    monkeypatch.setattr("itzi.grass.session.ensure_min_version", lambda: None)
+    monkeypatch.setattr(GrassSessionManager, "ensure_temporal_initialized", lambda self: None)
+
+    def fail():
+        calls.append("failure")
+        raise RuntimeError("restore failed")
+
+    def select_context(self, stack):
+        stack.callback(calls.append, "last")
+        stack.callback(fail)
+        stack.callback(calls.append, "first")
+
+    monkeypatch.setattr(GrassSessionManager, "_select_context", select_context)
+    manager = GrassSessionManager(GrassParams())
+    manager.open()
+    with pytest.raises(RuntimeError, match="restore failed"):
+        manager.close()
+    manager.close()
+    assert calls == ["first", "failure", "last"]
+
+
+def test_unsupported_version_unwinds_owned_session_before_context_setup(monkeypatch) -> None:
+    calls = []
+
+    def acquire(params, stack):
+        stack.callback(calls.append, "finished")
+
+    def version():
+        raise RuntimeError("requires at least GRASS 8.5")
+
+    monkeypatch.setattr("itzi.grass.session._acquire_session", acquire)
+    monkeypatch.setattr("itzi.grass.session.ensure_min_version", version)
+    monkeypatch.setattr(
+        GrassSessionManager, "_select_context", lambda *_: pytest.fail("context setup")
+    )
+    manager = GrassSessionManager(GrassParams(region="missing"))
+    with pytest.raises(RuntimeError, match="requires at least GRASS 8.5"):
+        manager.open()
+    manager.close()
+    assert calls == ["finished"]

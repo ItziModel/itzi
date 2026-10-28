@@ -15,7 +15,7 @@ GNU General Public License for more details.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from ctypes import create_string_buffer
+from ctypes import byref, create_string_buffer
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, NamedTuple
@@ -26,7 +26,6 @@ import grass.temporal as tgis
 import numpy as np
 from grass.lib import gis as libgis, raster as libraster
 from grass.pygrass.gis import Mapset
-from grass.pygrass.gis.region import Region
 from itzi_core import INPUT_ARRAY_KEYS, DomainData
 
 import itzi.messenger as msgr
@@ -35,9 +34,6 @@ from itzi.grass.session import GrassParams
 
 if TYPE_CHECKING:
     from itzi.grass.interface import GrassInterface
-
-MIN_GRASS_VERSION = (8, 5)
-
 
 type STDSType = Literal["strds", "stvds"]
 type RasterMapType = Literal["CELL", "FCELL", "DCELL"]
@@ -130,16 +126,6 @@ def name_is_map(map_id: str) -> bool:
     return raster_exists(name, mapset)
 
 
-def ensure_min_version() -> None:
-    full = gscript.parse_command("g.version", flags="g")["version"]
-    major, minor = (int(part) for part in full.split(".")[:2])
-    if (major, minor) < MIN_GRASS_VERSION:
-        required = f"{MIN_GRASS_VERSION[0]}.{MIN_GRASS_VERSION[1]}"
-        raise RuntimeError(
-            f"itzi requires at least GRASS {required}, found version {major}.{minor}"
-        )
-
-
 def active_grass_params(requested: GrassParams) -> GrassParams:
     """Return the active session context, retaining requested region/mask/bin."""
     return GrassParams(
@@ -152,30 +138,23 @@ def active_grass_params(requested: GrassParams) -> GrassParams:
     )
 
 
-def read_domain(region_id: str | None) -> DomainData:
-    """Read the selected computational region without leaving it changed."""
+def read_domain() -> DomainData:
+    """Read the active work window without reloading the mapset's default."""
     if gscript.locn_is_latlong():
         raise EnsembleError("latlong locations are not supported")
-    using_temp_region = region_id is not None
-    if using_temp_region:
-        gscript.use_temp_region()
-        gscript.run_command("g.region", region=region_id)
-    try:
-        region = Region()
-        if region.cols < 3 or region.rows < 3:
-            raise EnsembleError("GRASS Region should be at least 3 cells by 3 cells")
-        return DomainData(
-            north=region.north,
-            south=region.south,
-            east=region.east,
-            west=region.west,
-            rows=region.rows,
-            cols=region.cols,
-            crs_wkt=get_crs_wkt(),
-        )
-    finally:
-        if using_temp_region:
-            gscript.del_temp_region()
+    region = libgis.Cell_head()
+    libgis.G_get_set_window(byref(region))
+    if region.cols < 3 or region.rows < 3:
+        raise EnsembleError("GRASS Region should be at least 3 cells by 3 cells")
+    return DomainData(
+        north=region.north,
+        south=region.south,
+        east=region.east,
+        west=region.west,
+        rows=region.rows,
+        cols=region.cols,
+        crs_wkt=get_crs_wkt(),
+    )
 
 
 def split_identifier(identifier: str) -> tuple[str, str]:

@@ -31,6 +31,7 @@ import time
 from argparse import Namespace
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
+from contextlib import ExitStack
 from datetime import timedelta
 from importlib.metadata import version
 from multiprocessing import Process, get_context
@@ -51,7 +52,7 @@ from itzi.ensemble.resolution import (
     validate_resolved_ensemble,
     verify_resolved_simulation,
 )
-from itzi.grass.session import GrassSessionManager
+from itzi.grass.session import GrassSessionManager, _acquire_session
 from itzi.manifest import (
     _create_manifest,
     _initial_member_states,
@@ -94,11 +95,19 @@ def sim_runner_worker(conf_file: str, hotstart_file: str | None) -> None:
         with GrassSessionManager(grass_params):
             sim_runner = SimulationRunner(
                 sim_params,
-                grass_params,
                 hotstart_path=hotstart_file,
                 stats_file=conf_data.stats_file,
             )
-            sim_runner.initialize().run().finalize()
+            sim_runner.initialize()
+            try:
+                sim_runner.run()
+            except BaseException:
+                try:
+                    sim_runner.finalize()
+                except Exception as finalize_error:
+                    msgr.warning(f"Could not finalize partial outputs: {finalize_error}")
+                raise
+            sim_runner.finalize()
     except msgr.FatalError:
         raise SystemExit(1) from None
     except SystemExit as error:
@@ -115,11 +124,10 @@ def resolved_sim_runner_worker(simulation: ResolvedSimulation) -> tuple[str, str
     msgr.raise_on_error = True
     msgr._itzi_logger.set_verbosity(msgr.verbosity())
     try:
-        with GrassSessionManager(simulation.grass_params):
-            verify_resolved_simulation(simulation)
+        with GrassSessionManager(simulation.grass_params) as context:
+            verify_resolved_simulation(simulation, context)
             runner = SimulationRunner(
                 simulation.simulation_config,
-                simulation.grass_params,
                 stats_file=str(simulation.artifacts.statistics_file)
                 if simulation.artifacts.statistics_file is not None
                 else None,
@@ -128,7 +136,7 @@ def resolved_sim_runner_worker(simulation: ResolvedSimulation) -> tuple[str, str
             runner.initialize()
             try:
                 runner.run()
-            except Exception:
+            except BaseException:
                 try:
                     runner.finalize()
                 except Exception as finalize_error:
@@ -159,7 +167,10 @@ def run_validation_worker(simulations: tuple[ResolvedSimulation, ...]) -> dict[s
     msgr.raise_on_error = True
     msgr._itzi_logger.set_verbosity(msgr.verbosity())
     failures: dict[str, str] = {}
-    with GrassSessionManager(simulations[0].grass_params):
+    if not simulations:
+        return failures
+    with ExitStack() as resources:
+        _acquire_session(simulations[0].grass_params, resources)
         from itzi.ensemble.run_validation import validate_run_requirements
 
         for simulation in simulations:

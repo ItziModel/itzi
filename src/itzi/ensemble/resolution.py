@@ -46,18 +46,15 @@ def resolve_ensemble(
         return ()
     requested_params = _requested_grass_params(simulations[0])
 
-    with GrassSessionManager(requested_params):
+    with GrassSessionManager(requested_params) as context:
         from itzi.grass.utils import (
             active_grass_params,
-            ensure_min_version,
             read_domain,
-            resolve_effective_mask,
         )
 
-        ensure_min_version()
         actual_params = active_grass_params(requested_params)
-        domain = read_domain(simulations[0].grass.region)
-        effective_mask = resolve_effective_mask(simulations[0].grass.mask)
+        domain = read_domain()
+        effective_mask = context.effective_mask
         input_cache: dict[str, tuple[str, Literal["raster", "strds"]]] = {}
         swmm_cache: dict[Path, str] = {}
         results: list[ResolvedSimulation | ValidationFailure] = []
@@ -431,17 +428,19 @@ def _reject_output_source_alias(map_id: str, sources: set[str]) -> None:
         raise EnsembleError(f"output {map_id!r} aliases an ensemble input or mask")
 
 
-def verify_resolved_simulation(simulation: ResolvedSimulation) -> None:
+def verify_resolved_simulation(
+    simulation: ResolvedSimulation, context: GrassSessionManager
+) -> None:
     """Re-resolve worker facts and reject a changed GRASS environment."""
-    from itzi.grass.utils import active_grass_params, read_domain, resolve_effective_mask
+    from itzi.grass.utils import active_grass_params, read_domain
 
     actual = active_grass_params(simulation.grass_params)
     if actual != simulation.grass_params:
         raise EnsembleError("GRASS context changed after resolution")
-    domain = read_domain(simulation.grass_params.region)
+    domain = read_domain()
     if domain != simulation.domain_data:
         raise EnsembleError("GRASS domain changed after resolution")
-    mask = resolve_effective_mask(simulation.grass_params.mask)
+    mask = context.effective_mask
     if mask != simulation.effective_mask:
         raise EnsembleError("effective GRASS mask changed after resolution")
     _verify_input_kinds(simulation.simulation_config.input_map_names, dict(simulation.input_kinds))

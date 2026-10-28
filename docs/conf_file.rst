@@ -643,5 +643,14 @@ If Itzï is run from within the GRASS shell, this section is not necessary.
 
 With GNU/Linux, *grass_bin* could simply be ``grass``.
 
-The *region* and *mask* parameters are optionals and are applied only during the simulation.
-After the simulation, those parameters are returned to the previous *region* and *mask* setting.
+The *region* and *mask* parameters are optional and apply for the whole simulation,
+including initialization and output finalization.
+The selected region is applied privately, so another process changing the mapset's default region does not
+change a running job.
+Raster and mask contents are not protected against external edits.
+After itzi ends, whether with success or failure, the original region, mask, and session settings are restored
+without rewriting saved regions, the shared default region, or mask rasters.
+
+An explicit *grassdata*, *location*, and *mapset* must be supplied together and select an existing, accessible mapset.
+Omitted region and mask settings inherit the active settings when the target is unchanged,
+and use the target's defaults when it differs.
