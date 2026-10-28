@@ -161,12 +161,16 @@ def test_runner_restores_mask_when_lifecycle_fails(
     test_data_path: str,
     phase: str,
 ) -> None:
+    from grass.lib import raster as libraster
+
     from itzi.configreader import ConfigReader
     from itzi.grass.session import GrassParams
     from itzi.simulation_runner import SimulationRunner
 
     gscript.mapcalc("mask_values=if(col()==1, 0, 1)")
     monkeypatch.setenv("GRASS_MASK", "previous_mask")
+    previous_region = gscript.region()
+    previous_shape = (libraster.Rast_window_rows(), libraster.Rast_window_cols())
     reader = ConfigReader(str(Path(test_data_path) / "5by5" / "5by5.ini"))
     config = reader.sim_config.model_copy(update={"output_map_names": {}})
     if phase == "initialize":
@@ -176,7 +180,7 @@ def test_runner_restores_mask_when_lifecycle_fails(
                 "input_map_names": dict(config.input_map_names) | {"ground_elevation": "bad_dem"}
             }
         )
-    runner = SimulationRunner(config, GrassParams(mask="mask_values"))
+    runner = SimulationRunner(config, GrassParams(region="3by5", mask="mask_values"))
     if phase == "initialize":
         with pytest.raises(RuntimeError, match="only NULL/NaN cells"):
             runner.initialize()
@@ -191,19 +195,26 @@ def test_runner_restores_mask_when_lifecycle_fails(
         with pytest.raises(RuntimeError, match="finalization failed"):
             runner.finalize()
     assert os.environ["GRASS_MASK"] == "previous_mask"
+    assert gscript.region() == previous_region
+    assert "WIND_OVERRIDE" not in os.environ
+    assert (libraster.Rast_window_rows(), libraster.Rast_window_cols()) == previous_shape
 
 
 @pytest.mark.usefixtures("grass_5by5")
 @pytest.mark.parametrize("phase", ["finalize", "delete"])
 @pytest.mark.parametrize("explicit_mask", [False, True])
 @pytest.mark.parametrize("previous_mask", [False, True])
+@pytest.mark.parametrize("region", [None, "3by3"])
 def test_runner_cleanup_preserves_open_raster_and_restores_reads(
     monkeypatch: pytest.MonkeyPatch,
     test_data_path: str,
     phase: str,
     explicit_mask: bool,
     previous_mask: bool,
+    region: str | None,
 ) -> None:
+    gscript.mapcalc("gradient=float(row()*10+col())")
+    gscript.run_command("g.region", n=40, s=10, e=40, w=10, res=10, save="3by3")
     gscript.mapcalc("previous_mask=if(col()==1, 0, 1)")
     if previous_mask:
         monkeypatch.setenv("GRASS_MASK", "previous_mask@5by5")
@@ -221,6 +232,8 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import grass.script as gscript
+from grass.lib import raster as libraster
 from grass.pygrass.raster import RasterRow
 
 from itzi.configreader import ConfigReader
@@ -232,11 +245,34 @@ with GrassSessionManager(GrassParams()):
     config = reader.sim_config.model_copy(update={"output_map_names": {}})
     original_mask = os.environ.get("GRASS_MASK")
     mask = "5by3" if sys.argv[3] == "True" else None
-    runner = SimulationRunner(config, GrassParams(mask=mask)).initialize()
-    with RasterRow("n", mapset="5by5", mode="r") as source:
-        np.testing.assert_array_equal(
-            np.isnan(np.asarray(source.get_row(0))), runner.g_interface.get_npmask()[0]
+    region = sys.argv[4] or None
+    original_region = gscript.region()
+    runner = SimulationRunner(config, GrassParams(region=region, mask=mask)).initialize()
+    with RasterRow("gradient", mapset="5by5", mode="r") as source:
+        original_row = np.asarray(source.get_row(0)).copy()
+        assert original_row.shape == (5,)
+        np.testing.assert_allclose(
+            original_row[np.isfinite(original_row)],
+            np.arange(11, 16)[np.isfinite(original_row)],
         )
+        np.testing.assert_array_equal(
+            np.isnan(original_row)[1:4] if region else np.isnan(original_row),
+            runner.g_interface.get_npmask()[0],
+        )
+        if region:
+            expected = np.arange(20, 50, 10)[:, None] + np.arange(2, 5)
+            np.testing.assert_allclose(
+                runner.g_interface.read_raster_map("gradient@5by5"), expected
+            )
+            runner.g_interface.write_raster_map(
+                expected.astype(np.float32), "roundtrip@5by5", "friction", 0
+            )
+            info = gscript.raster_info("roundtrip@5by5")
+            assert (int(info["rows"]), int(info["cols"])) == (3, 3)
+            np.testing.assert_allclose(
+                runner.g_interface.read_raster_map("roundtrip@5by5"), expected
+            )
+        np.testing.assert_array_equal(np.asarray(source.get_row(0)), original_row)
         if sys.argv[2] == "finalize":
             runner.finalize()
         else:
@@ -245,7 +281,9 @@ with GrassSessionManager(GrassParams()):
         expected = [original_mask is not None, False, False, False, False]
         restored_row = np.asarray(source.get_row(0))
         np.testing.assert_array_equal(np.isnan(restored_row), expected)
-        np.testing.assert_allclose(restored_row[1:], 0.05)
+        np.testing.assert_allclose(restored_row[1:], np.arange(12, 16))
+        assert gscript.region() == original_region
+        assert (libraster.Rast_window_rows(), libraster.Rast_window_cols()) == (5, 5)
 
     next_runner = SimulationRunner(config, GrassParams(region="3by5", mask=mask)).initialize()
     assert next_runner.g_interface.read_raster_map("n@5by5").shape == (3, 5)
@@ -255,6 +293,7 @@ with GrassSessionManager(GrassParams()):
             test_data_path,
             phase,
             str(explicit_mask),
+            region or "",
         ],
         env=os.environ | {"PYTHONPATH": os.pathsep.join(sys.path)},
         capture_output=True,

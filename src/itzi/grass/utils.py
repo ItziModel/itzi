@@ -14,8 +14,10 @@ GNU General Public License for more details.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from ctypes import create_string_buffer
+import os
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
+from ctypes import byref, create_string_buffer
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, NamedTuple
@@ -152,15 +154,39 @@ def active_grass_params(requested: GrassParams) -> GrassParams:
     )
 
 
+@contextmanager
+def temporary_region(region_id: str | None) -> Iterator[None]:
+    """Select a temporary region and restore the caller's GIS working window."""
+    previous_window = libgis.Cell_head()
+    libgis.G_get_set_window(byref(previous_window))
+    previous_grass_region = os.environ.get("GRASS_REGION")
+    manager = gscript.RegionManager(region=region_id) if region_id is not None else None
+    try:
+        if manager is not None:
+            # GRASS_REGION takes precedence over the manager's WIND_OVERRIDE.
+            os.environ.pop("GRASS_REGION", None)
+            manager.activate()
+        yield
+    finally:
+        try:
+            if manager is not None:
+                try:
+                    manager.deactivate()
+                finally:
+                    # GRASS 8.5 leaves its saved region behind for nested overrides.
+                    libgis.G_remove("windows", manager.region_name)
+        finally:
+            if manager is not None and previous_grass_region is not None:
+                os.environ["GRASS_REGION"] = previous_grass_region
+            libgis.G_unset_window()
+            libgis.G_set_window(byref(previous_window))
+
+
 def read_domain(region_id: str | None) -> DomainData:
     """Read the selected computational region without leaving it changed."""
     if gscript.locn_is_latlong():
         raise EnsembleError("latlong locations are not supported")
-    using_temp_region = region_id is not None
-    if using_temp_region:
-        gscript.use_temp_region()
-        gscript.run_command("g.region", region=region_id)
-    try:
+    with temporary_region(region_id):
         region = Region()
         if region.cols < 3 or region.rows < 3:
             raise EnsembleError("GRASS Region should be at least 3 cells by 3 cells")
@@ -173,9 +199,6 @@ def read_domain(region_id: str | None) -> DomainData:
             cols=region.cols,
             crs_wkt=get_crs_wkt(),
         )
-    finally:
-        if using_temp_region:
-            gscript.del_temp_region()
 
 
 def split_identifier(identifier: str) -> tuple[str, str]:

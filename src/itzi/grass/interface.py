@@ -12,19 +12,23 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
+from __future__ import annotations
+
 import copy
 import os
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import ExitStack, contextmanager
+from ctypes import byref
 from datetime import datetime, timedelta
 from pathlib import Path
-from types import MappingProxyType
-from typing import ClassVar, NamedTuple
+from types import MappingProxyType, TracebackType
+from typing import ClassVar, NamedTuple, Self
 
 import grass.pygrass.utils as gutils
 import grass.script as gscript
 import grass.temporal as tgis
 import numpy as np
-from grass.lib import raster as libraster
+from grass.lib import gis as libgis, raster as libraster
 from grass.pygrass import raster
 from grass.pygrass.gis.region import Region
 from grass.pygrass.vector import VectorTopo
@@ -51,6 +55,7 @@ from itzi.grass.utils import (
     resolve_effective_mask,
     set_null,
     split_identifier,
+    temporary_region,
 )
 
 # color rules
@@ -128,7 +133,6 @@ class GrassInterface:
         assert isinstance(end_time, datetime), "end_time not a datetime object!"
         assert start_time <= end_time, "start_time > end_time!"
 
-        self.region_id = region_id
         self.start_time = start_time
         self.end_time = end_time
         self.dtype = dtype
@@ -136,46 +140,88 @@ class GrassInterface:
         # LatLon is not supported
         if gscript.locn_is_latlong():
             msgr.fatal("latlong location is not supported. Please use a projected location")
-        # Set region
-        if self.region_id:
-            gscript.use_temp_region()
-            gscript.run_command("g.region", region=region_id)
-        self.region = Region()
-        # Reload the region without remapping GRASS's retained mask descriptor.
-        libraster.Rast_unset_window()
-        libraster.Rast_get_window(self.region.byref())
-        self.xr = self.region.cols
-        self.yr = self.region.rows
-        # Check if region is at least 3x3
-        if self.xr < 3 or self.yr < 3:
-            msgr.fatal("GRASS Region should be at least 3 cells by 3 cells")
-        self.mask_source = resolve_effective_mask(raster_mask_id).source
-        self.overwrite = gscript.overwrite()
-        self._domain_data = read_domain(None)
-        mask_manager = gscript.MaskManager(mask_name=self.mask_source, remove=False)
-        mask_manager.activate()
-        self._mask_manager: gscript.MaskManager | None = mask_manager
+        self._contexts = ExitStack()
+        try:
+            self._contexts.enter_context(temporary_region(region_id))
+            self._contexts.callback(self._refresh_mask)
+            # Initialize caller raster windows before Region reads the simulation region.
+            libraster.Rast__init_window()
+            self.region = Region()
+            self.xr = self.region.cols
+            self.yr = self.region.rows
+            if self.xr < 3 or self.yr < 3:
+                msgr.fatal("GRASS Region should be at least 3 cells by 3 cells")
+            self.mask_source = resolve_effective_mask(raster_mask_id).source
+            self.overwrite = gscript.overwrite()
+            self._domain_data = read_domain(None)
+            self._contexts.enter_context(
+                gscript.MaskManager(mask_name=self.mask_source, remove=False)
+            )
+        except BaseException:
+            self.cleanup()
+            raise
 
-    def __enter__(self):
+    @contextmanager
+    def _raster_window(self) -> Iterator[None]:
+        """Use the simulation window only while opening and closing Itzi-owned rasters."""
+        with temporary_region(None), ExitStack() as contexts:
+            contexts.callback(self._refresh_mask)
+            previous_input = libgis.Cell_head()
+            previous_output = libgis.Cell_head()
+            libraster.Rast_get_input_window(byref(previous_input))
+            libraster.Rast_get_output_window(byref(previous_output))
+            contexts.callback(self._restore_raster_windows, previous_input, previous_output)
+            libgis.G_set_window(self.region.byref())
+            libraster.Rast_unset_window()
+            libraster.Rast__init_window()
+            yield
+
+    @staticmethod
+    def _refresh_mask() -> None:
+        # Mask reopening checks the GIS projection but reads in the raster input window.
+        with temporary_region(None):
+            raster_input = libgis.Cell_head()
+            libraster.Rast_get_input_window(byref(raster_input))
+            libgis.G_set_window(byref(raster_input))
+            libraster.Rast__check_for_auto_masking()
+
+    @staticmethod
+    def _restore_raster_windows(
+        previous_input: libgis.Cell_head, previous_output: libgis.Cell_head
+    ) -> None:
+        current_input = libgis.Cell_head()
+        current_output = libgis.Cell_head()
+        libraster.Rast_get_input_window(byref(current_input))
+        libraster.Rast_get_output_window(byref(current_output))
+        if bytes(current_input) == bytes(previous_input) and bytes(current_output) == bytes(
+            previous_output
+        ):
+            return
+        # Caller rasters retain their mappings and are never read in the temporary window.
+        libgis.G_set_window(byref(previous_input))
+        libraster.Rast_unset_window()
+        libraster.Rast_get_input_window(byref(current_input))
+        if bytes(previous_input) != bytes(previous_output):
+            libraster.Rast_set_output_window(byref(previous_output))
+
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
         self.cleanup()
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.cleanup()
 
     def cleanup(self) -> None:
-        """Restore the previous mask and remove the temporary region."""
-        if manager := getattr(self, "_mask_manager", None):
-            manager.deactivate()
-            self._mask_manager = None
-            # Refresh only the mask, preserving unrelated open raster handles.
-            libraster.Rast__check_for_auto_masking()
-        if getattr(self, "region_id", None):
-            msgr.debug("Remove temp region...")
-            gscript.del_temp_region()
-            self.region_id = None
+        """Restore the caller's mask, temporary region, and GIS working window."""
+        if contexts := getattr(self, "_contexts", None):
+            contexts.close()
 
     def grass_dtype(self, dtype: str) -> RasterMapType:
         if dtype in self.dtype_conv["DCELL"]:
@@ -344,7 +390,7 @@ class GrassInterface:
         if not mapset:
             msgr.fatal(f"Raster <{raster_id}> not found")
 
-        with raster.RasterRow(name, mapset=mapset, mode="r") as source:
+        with self._raster_window(), raster.RasterRow(name, mapset=mapset, mode="r") as source:
             array = np.empty((self.yr, self.xr), dtype=self.dtype)
             buffer = raster.Buffer((self.xr,), mtype=source.mtype)
             for row_index in range(self.yr):
@@ -354,13 +400,16 @@ class GrassInterface:
     def write_raster_map(self, arr: np.ndarray, raster_id: str, mkey: str, hmin: float) -> None:
         """Take a numpy array and write it to GRASS DB"""
         map_type = self.grass_dtype(str(arr.dtype))
-        with raster.RasterRow(
-            raster_id,
-            mapset=get_current_mapset(),
-            mode="w",
-            mtype=map_type,
-            overwrite=self.overwrite,
-        ) as newraster:
+        with (
+            self._raster_window(),
+            raster.RasterRow(
+                raster_id,
+                mapset=get_current_mapset(),
+                mode="w",
+                mtype=map_type,
+                overwrite=self.overwrite,
+            ) as newraster,
+        ):
             newrow = raster.Buffer((arr.shape[1],), mtype=map_type)
             for row in arr:
                 newrow[:] = row[:]

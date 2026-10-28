@@ -260,12 +260,8 @@ def test_worker_rejects_changed_mask_region_and_inputs_after_resolution(tmp_path
 def test_dry_run_rejects_raster_outside_domain_without_writing(tmp_path: Path) -> None:
     from grass.pygrass import utils as gutils
 
-    gscript.use_temp_region()
-    try:
-        gscript.run_command("g.region", n=150, s=100, e=150, w=100, res=10)
+    with gscript.RegionManager(n=150, s=100, e=150, w=100, res=10):
         gscript.mapcalc("stage_outside=1")
-    finally:
-        gscript.del_temp_region()
     path = write_study(
         tmp_path,
         input={"friction": "stage_outside"},
