@@ -61,6 +61,36 @@ def test_resolved_input_kinds_share_raster_and_strds_construction(
     assert interface.temporal_checks == ["series@test"]
 
 
+@pytest.mark.usefixtures("grass_5by5")
+def test_domain_metadata_is_cached_per_interface(monkeypatch: pytest.MonkeyPatch) -> None:
+    from itzi_core import DomainData
+
+    from itzi.grass import interface as grass_interface
+
+    reads = 0
+    read_domain = grass_interface.read_domain
+
+    def counted_read_domain(region_id: str | None) -> DomainData:
+        nonlocal reads
+        reads += 1
+        return read_domain(region_id)
+
+    monkeypatch.setattr(grass_interface, "read_domain", counted_read_domain)
+    start = datetime(2020, 1, 1)
+    end = start + timedelta(seconds=1)
+    with grass_interface.GrassInterface(start, end, np.float32, "3by5", None) as interface:
+        domain = interface.get_domain_data()
+        assert (domain.rows, domain.cols) == (3, 5)
+        assert interface.get_domain_data() is domain
+        assert reads == 1
+
+    with grass_interface.GrassInterface(start, end, np.float32, None, None) as interface:
+        new_domain = interface.get_domain_data()
+        assert (new_domain.rows, new_domain.cols) == (5, 5)
+        assert new_domain is not domain
+        assert reads == 2
+
+
 def test_visible_input_and_current_output_with_same_name(grass_xy_session) -> None:
     from grass.pygrass.gis import make_mapset, set_current_mapset
     import grass.script as gscript

@@ -12,7 +12,7 @@ from itzi import BmiItzi
 @pytest.fixture
 def bmi_object(grass_5by5: None, test_data_path: str) -> BmiItzi:
     itzi_bmi = BmiItzi()
-    conf_file = os.path.join(test_data_path, "5by5", "5by5.ini")
+    conf_file = os.path.join(test_data_path, "5by5", "5by5_bmi.ini")
     itzi_bmi.initialize(conf_file)
     return itzi_bmi
 
