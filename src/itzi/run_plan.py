@@ -75,7 +75,7 @@ def _legacy_ensemble(path: Path) -> ExpandedEnsemble:
     """Adapt the public one-member INI reader to the scalar batch model."""
     reader = ConfigReader(str(path))
     config = reader.sim_config
-    if config.hotstart_config is not None:
+    if reader.hotstart_config is not None:
         raise EnsembleError("hotstart output requires Stage 2 checkpoint support in mixed batches")
     grass = reader.grass_params
     source_path = path.expanduser().resolve()
@@ -131,7 +131,7 @@ def _legacy_ensemble(path: Path) -> ExpandedEnsemble:
         infiltration=NormalizedInfiltration(
             config.infiltration_model, tuple(sorted(infiltration_maps.items()))
         ),
-        options=tuple(sorted(options.items())),
+        parameters=tuple(sorted(options.items())),
         drainage=tuple(sorted(drainage.items())) if drainage is not None else None,
         outputs=OutputTemplates(
             raster_prefix=reader.out_prefix,

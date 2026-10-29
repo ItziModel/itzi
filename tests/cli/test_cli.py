@@ -3,6 +3,7 @@
 import argparse
 import os
 import sys
+from datetime import timedelta
 from io import StringIO
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -13,6 +14,7 @@ from itzi_core import DomainData, SimulationConfig
 
 import itzi.messenger as msgr
 from itzi.cli_parser import build_parser
+from itzi.configreader import HotstartRunConfig
 from itzi.ensemble.models import (
     ArtifactSummary,
     EffectiveMask,
@@ -508,9 +510,14 @@ def test_worker_formats_numeric_system_exit_as_status(monkeypatch, itzi_stderr):
     assert "WARNING: Simulation terminated with exit status 1" in itzi_stderr.getvalue()
 
 
-def test_worker_passes_statistics_file_to_simulation_runner(monkeypatch):
+def test_worker_passes_application_output_settings_to_simulation_runner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     sim_params = object()
     grass_params = object()
+    hotstart_config = HotstartRunConfig(
+        wallclock_step=timedelta(seconds=10), save_file_name="checkpoint.zip"
+    )
     runner_arguments = {}
 
     class FakeConfigReader:
@@ -518,6 +525,7 @@ def test_worker_passes_statistics_file_to_simulation_runner(monkeypatch):
             self.sim_config = sim_params
             self.grass_params = grass_params
             self.stats_file = "statistics.csv"
+            self.hotstart_config = hotstart_config
 
     class FakeGrassSessionManager:
         def __init__(self, received_grass_params):
@@ -554,6 +562,7 @@ def test_worker_passes_statistics_file_to_simulation_runner(monkeypatch):
         "kwargs": {
             "hotstart_path": "hotstart.zip",
             "stats_file": "statistics.csv",
+            "hotstart_config": hotstart_config,
         },
     }
 

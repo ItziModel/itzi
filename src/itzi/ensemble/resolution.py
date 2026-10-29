@@ -344,7 +344,6 @@ def _build_simulation_config(
         "end_time": end,
         "record_step": expanded.time.record_step,
         "temporal_type": expanded.time.temporal_type,
-        "hotstart_config": None,
         "input_map_names": input_names,
         "output_map_names": dict(artifacts.output_map_names),
         "surface_flow_parameters": SurfaceFlowParameters(**surface_parameters),

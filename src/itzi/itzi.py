@@ -97,6 +97,7 @@ def sim_runner_worker(conf_file: str, hotstart_file: str | None) -> None:
                 sim_params,
                 hotstart_path=hotstart_file,
                 stats_file=conf_data.stats_file,
+                hotstart_config=conf_data.hotstart_config,
             )
             sim_runner.initialize()
             try:
