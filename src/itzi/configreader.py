@@ -22,7 +22,6 @@ from typing import NoReturn
 from itzi_core import (
     INPUT_ARRAY_KEYS,
     OUTPUT_ARRAY_KEYS,
-    HotstartRunConfig,
     InfiltrationModelType,
     SimulationConfig,
     SurfaceFlowParameters,
@@ -81,6 +80,15 @@ GREEN_AMPT_KEYS = (
 )
 GRASS_OPTION_KEYS = ("grassdata", "location", "mapset", "region", "mask", "grass_bin")
 SURFACE_FLOW_OPTION_KEYS = tuple(SurfaceFlowParameters.model_fields)
+
+
+class HotstartRunConfig(BaseModel):
+    """Application settings for periodic checkpoint writing."""
+
+    model_config = ConfigDict(frozen=True)
+
+    wallclock_step: timedelta
+    save_file_name: str | Path
 
 
 def _read_parser(filename: str) -> ConfigParser:
@@ -377,7 +385,6 @@ class ConfigReader:
                 end_time=self.sim_times.end,
                 record_step=self.sim_times.record_step,
                 temporal_type=self.sim_times.temporal_type,
-                hotstart_config=self.hotstart_config,
                 input_map_names={
                     key: value for key, value in self.input_map_names.items() if value is not None
                 },

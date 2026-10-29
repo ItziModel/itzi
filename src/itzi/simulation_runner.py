@@ -12,8 +12,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 """
 
+from __future__ import annotations
+
+import os
+import tempfile
 from collections.abc import Mapping
 from datetime import datetime
+from pathlib import Path
 from time import monotonic
 from typing import TYPE_CHECKING, Literal, Self
 
@@ -29,6 +34,7 @@ from itzi.providers.grass_output import GrassRasterOutputProvider, GrassVectorOu
 if TYPE_CHECKING:
     from itzi_core import Simulation
 
+    from itzi.configreader import HotstartRunConfig
     from itzi.grass.interface import GrassInterface
 
 
@@ -42,6 +48,7 @@ class SimulationRunner:
         hotstart_path: str | None = None,
         stats_file: str | None = None,
         input_kinds: Mapping[str, Literal["raster", "strds"]] | None = None,
+        hotstart_config: HotstartRunConfig | None = None,
     ) -> None:
         if GrassSessionManager.current_context() is None:
             raise RuntimeError("SimulationRunner requires an active GRASS work context")
@@ -54,6 +61,7 @@ class SimulationRunner:
 
         self.hotstart_path = hotstart_path
         self.stats_file = stats_file
+        self.hotstart_config = hotstart_config
         if input_kinds is None:
             resolved_inputs = {
                 key: resolve_input_identifier(name)
@@ -133,6 +141,7 @@ class SimulationRunner:
             sim_builder.with_hotstart(self.hotstart_path)
         self.sim: Simulation = sim_builder.build()
         self.sim.initialize()
+        self._last_hotstart = monotonic()
         return self
 
     def run(self) -> Self:
@@ -162,7 +171,29 @@ class SimulationRunner:
     def step(self) -> Self:
         """Do one simulation step."""
         self.sim.update()
+        if self.hotstart_config is not None:
+            now = monotonic()
+            if now - self._last_hotstart >= self.hotstart_config.wallclock_step.total_seconds():
+                self._write_hotstart(Path(self.hotstart_config.save_file_name))
+                self._last_hotstart = now
         return self
+
+    def _write_hotstart(self, path: Path) -> None:
+        """Replace the checkpoint only after its archive has been fully written."""
+        temporary_path: Path | None = None
+        try:
+            with self.sim.create_hotstart() as archive:
+                with tempfile.NamedTemporaryFile(
+                    dir=path.parent, prefix=f".{path.name}.", delete=False
+                ) as file_obj:
+                    temporary_path = Path(file_obj.name)
+                    file_obj.write(archive.getbuffer())
+                    file_obj.flush()
+                    os.fsync(file_obj.fileno())
+            temporary_path.replace(path)
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
 
     @property
     def origin(self):

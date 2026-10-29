@@ -10,7 +10,8 @@ import pytest
 from itzi_core.const import DefaultValues, InfiltrationModelType, TemporalType
 from itzi_core.data_containers import SurfaceFlowParameters
 
-from itzi.configreader import ConfigReader
+from itzi.configreader import ConfigReader, HotstartRunConfig
+from itzi.run_plan import load_batch
 
 
 def write_config_file(tmp_path, config_dict: dict[str, dict[str, str]]) -> str:
@@ -62,7 +63,7 @@ def test_reader_uses_defaults_when_optional_sections_are_missing(tmp_path):
     sim_config = reader.sim_config
     grass_params = reader.grass_params
 
-    assert sim_config.hotstart_config is None
+    assert reader.hotstart_config is None
     assert sim_config.surface_flow_parameters == SurfaceFlowParameters()
     assert reader.stats_file is None
     assert sim_config.dtinf == DefaultValues.DTINF
@@ -116,6 +117,46 @@ def test_reader_exposes_stats_file_separately_from_simulation_config(
 
     assert reader.stats_file == expected_stats_file
     assert "stats_file" not in type(reader.sim_config).model_fields
+
+
+def test_reader_exposes_hotstart_settings_separately_from_simulation_config(
+    tmp_path: Path,
+) -> None:
+    config_file = write_config_file(
+        tmp_path,
+        make_config_dict(hotstart={"wallclock_step": "00:00:10", "save_file": "checkpoint.zip"}),
+    )
+
+    reader = ConfigReader(config_file)
+
+    assert reader.hotstart_config == HotstartRunConfig(
+        wallclock_step=timedelta(seconds=10), save_file_name="checkpoint.zip"
+    )
+    assert "hotstart_config" not in type(reader.sim_config).model_fields
+
+
+@pytest.mark.parametrize("with_hotstart", [False, True])
+def test_legacy_batch_adapter_handles_application_hotstart_settings(
+    tmp_path: Path, with_hotstart: bool
+) -> None:
+    config_file = write_config_file(
+        tmp_path,
+        make_config_dict(
+            hotstart={"wallclock_step": "00:00:10", "save_file": "checkpoint.zip"}
+            if with_hotstart
+            else None
+        ),
+    )
+
+    ensembles, failures = load_batch([config_file])
+
+    if with_hotstart:
+        assert ensembles == ()
+        assert len(failures) == 1
+        assert "hotstart output requires Stage 2 checkpoint support" in failures[0].detail
+    else:
+        assert failures == ()
+        assert len(ensembles) == 1
 
 
 def test_reader_normalizes_deprecated_aliases(tmp_path, caplog):
