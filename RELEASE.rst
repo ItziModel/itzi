@@ -15,7 +15,7 @@ Itzï 26.11
 
 **Changes in the configuration file**
 
-- Many maps are renamed. See the documentation
+- Many maps are renamed. See the documentation.
 - ``[drainage] output`` is optional. Omitting it runs the coupled drainage
   model without writing drainage vector output.
 - Require ``max_slope >= slope_threshold``.
@@ -23,6 +23,7 @@ Itzï 26.11
 **Compatibility notes**
 
 - Require GRASS GIS 8.5 or above.
+- Remove Basic Model Interface (BMI) support.
 - Hotstart checkpoints created with a previous version cannot be resumed with this release.
 - ``hmin`` may now change when resuming a hotstart; gravity ``g`` must still
   match.
