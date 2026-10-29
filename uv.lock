@@ -351,7 +351,6 @@ name = "itzi"
 version = "26.11"
 source = { editable = "." }
 dependencies = [
-    { name = "bmipy" },
     { name = "itzi-core" },
     { name = "numpy" },
     { name = "pydantic" },
@@ -374,7 +373,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "bmipy", specifier = ">=2.0.1" },
     { name = "itzi-core", specifier = "==0.8.0" },
     { name = "numpy", specifier = ">=2.5" },
     { name = "pydantic", specifier = ">=2.10" },
