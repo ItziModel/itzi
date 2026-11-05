@@ -27,6 +27,7 @@ from itzi_core import SimulationBuilder, SimulationConfig
 
 import itzi.messenger as msgr
 from itzi.grass.session import GrassSessionManager
+from itzi.hotstart import load_hotstart, write_hotstart
 from itzi.providers.csv_output import ExclusiveCSVMassBalanceOutputProvider
 from itzi.providers.grass_input import GrassRasterInputProvider
 from itzi.providers.grass_output import GrassRasterOutputProvider, GrassVectorOutputProvider
@@ -107,6 +108,8 @@ class SimulationRunner:
         )
         msgr.verbose("Setting up GRASS simulation...")
 
+        hotstart = load_hotstart(self.hotstart_path) if self.hotstart_path else None
+
         raster_input_provider = GrassRasterInputProvider(
             grass_interface=self.g_interface,
             input_map_names=self.sim_config.input_map_names,
@@ -137,10 +140,11 @@ class SimulationRunner:
                 self.stats_file, overwrite=self.g_interface.overwrite
             )
             sim_builder.with_mass_balance_output_provider(stats_provider)
-        if self.hotstart_path:
-            sim_builder.with_hotstart(self.hotstart_path)
+        if hotstart is not None:
+            sim_builder.with_hotstart(hotstart)
         self.sim: Simulation = sim_builder.build()
-        self.sim.initialize()
+        if hotstart is None:
+            self.sim.initialize()
         self._last_hotstart = monotonic()
         return self
 
@@ -182,14 +186,14 @@ class SimulationRunner:
         """Replace the checkpoint only after its archive has been fully written."""
         temporary_path: Path | None = None
         try:
-            with self.sim.create_hotstart() as archive:
-                with tempfile.NamedTemporaryFile(
-                    dir=path.parent, prefix=f".{path.name}.", delete=False
-                ) as file_obj:
-                    temporary_path = Path(file_obj.name)
-                    file_obj.write(archive.getbuffer())
-                    file_obj.flush()
-                    os.fsync(file_obj.fileno())
+            hotstart = self.sim.capture_hotstart()
+            with tempfile.NamedTemporaryFile(
+                dir=path.parent, prefix=f".{path.name}.", delete=False
+            ) as file_obj:
+                temporary_path = Path(file_obj.name)
+                write_hotstart(hotstart, file_obj.file)
+                file_obj.flush()
+                os.fsync(file_obj.fileno())
             temporary_path.replace(path)
         finally:
             if temporary_path is not None:

@@ -30,9 +30,13 @@ Itzï 26.11
 
 **Internals**
 
-- Rely on itzi-core for the computing part.
+- Rely on itzi-core 0.11.0 for the computing part.
   Itzï is the user-facing interface, including GRASS.
 
+**Corrected bugs**
+
+- Preserve the last reporting time and accumulated state when resuming,
+  including clipped final reporting intervals and changes to record cadence.
 
 Itzï 26.6
 ---------

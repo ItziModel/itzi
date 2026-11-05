@@ -47,6 +47,11 @@ Checkpoint creation and resume-time configuration constraints are documented in
 :doc:`conf_file`.
 Known restart limitations are summarized in :doc:`faq`.
 
+.. versionchanged:: 26.11
+
+   ``--resume-from`` reads Itzi archive version 3. Previous hotstart files are not supported.
+
+
 Single simulation
 ^^^^^^^^^^^^^^^^^
 
