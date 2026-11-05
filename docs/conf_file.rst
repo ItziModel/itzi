@@ -89,10 +89,10 @@ Resume is rejected when any of the following checks fail:
 - ``end_time`` is changed to a value that is not strictly after the archived
   checkpoint time;
 
-.. versionchanged:: 26.10
+.. versionchanged:: 26.11
 
-   Hotstart archives created by Itzi 26.10's predecessor cannot be resumed.
-   Continue those runs with the earlier Itzi release, or start a new simulation with this release.
+   This release reads only Itzi hotstart archive version 3.
+   Earlier archives cannot be resumed.
 
 Config changes allowed on resume
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -347,7 +347,7 @@ The possible values to be exported are the following:
        Positive if entering the domain.
      - m/s
    * - created_volume
-     - Cumulative volume created due to numerical instabilities.
+     - Volume created due to numerical instabilities since the last record.
      - m³
 
 
@@ -442,7 +442,7 @@ Water leaving the domain is negative.
 +-------------------------+----------------------------------------------------------------------+--------+
 | volume_change           | Changes in volume since the last record.                             | m³     |
 +-------------------------+----------------------------------------------------------------------+--------+
-| created_volume          | Cumulative water volume created due to numerical instabilities.      | m³     |
+| created_volume          | Volume created due to numerical instabilities since last record.     | m³     |
 +-------------------------+----------------------------------------------------------------------+--------+
 | created_volume_ratio    | Ratio of created volume to volume change.                            | none   |
 +-------------------------+----------------------------------------------------------------------+--------+
